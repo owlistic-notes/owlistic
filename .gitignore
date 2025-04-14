@@ -24,10 +24,19 @@ node_modules/
 .AppleDouble
 .LSOverride
 Icon?
+
+# Flutter
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
 ._*
 .Spotlight-V100
 .Trashes
 *.swp
+*.dart_tool/
 
 # Linux
 *~
