@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # thinkstack:
+  #   build:
+  #     context: ./thinkstack
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "5000:5000"
+  #   depends_on:
+  #     - postgres
+  #     - kafka
+  #   environment:
+  #     - DB_HOST=postgres
+  #     - DB_PORT=5432
+  #     - DB_USER=admin
+  #     - DB_PASSWORD=admin
+  #     - DB_NAME=postgres
+  #     - KAFKA_BROKER=kafka:9092
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  kafka:
+    image: bitnami/kafka:3
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: bitnami/zookeeper:3
+    ports:
+      - "2181:2181"
+
+volumes:
+  postgres_data:

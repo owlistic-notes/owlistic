@@ -1,0 +1,61 @@
+# Ignore Python virtual environments
+venv/
+__pycache__/
+
+# VSCode settings
+.vscode/
+
+# Ignore Go build artifacts
+*.exe
+*.out
+*.test
+
+# Node.js dependencies
+node_modules/
+
+# Logs
+*.log
+
+# Docker
+*.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+*.swp
+
+# Linux
+*~
+.nfs*
+
+# Git
+*.orig
+*.rej
+*.patch
+*.diff
+
+# Go
+*.exe
+*.test
+*.out
+*.log
+*.prof
+*.cover
+*.mod
+*.sum
+vendor/
+bin/
+build/
+dist/
+
+# Docker
+*.dockerfile
+docker-compose.override.yml
+.env
+.env.*
+.dockerignore
