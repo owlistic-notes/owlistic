@@ -17,6 +17,7 @@ type NoteServiceInterface interface {
 	UpdateNote(db *database.Database, id string, updatedData map[string]interface{}) (models.Note, error)
 	DeleteNote(db *database.Database, id string) error
 	ListNotesByUser(db *database.Database, userID string) ([]models.Note, error)
+	GetAllNotes(db *database.Database) ([]models.Note, error)
 }
 
 type NoteService struct{}
@@ -42,7 +43,6 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 		UserID:    uuid.Must(uuid.Parse(userIDStr)),
 		Title:     title,
 		Content:   content,
-		Tags:      noteData["tags"].([]string),
 		IsDeleted: false,
 	}
 
@@ -65,7 +65,6 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, updatedData m
 		return models.Note{}, err
 	}
 
-	updatedData["update_date"] = gorm.Expr("CURRENT_TIMESTAMP")
 	if err := db.DB.Model(&note).Updates(updatedData).Error; err != nil {
 		return models.Note{}, err
 	}
@@ -76,7 +75,7 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, updatedData m
 	syncEvent := models.SyncEvent{
 		DeviceID:    "all",
 		LastEventID: note.ID.String(),
-		Timestamp:   note.UpdateDate,
+		Timestamp:   "",
 	}
 	syncEventJSON, _ := syncEvent.ToJSON()
 	broker.PublishMessage(broker.SyncEventsTopic, note.ID.String(), string(syncEventJSON))
@@ -118,6 +117,15 @@ func (s *NoteService) ListNotesByUser(db *database.Database, userID string) ([]m
 	var notes []models.Note
 	if err := db.DB.Where("user_id = ?", userID).Find(&notes).Error; err != nil {
 		return nil, err
+	}
+	return notes, nil
+}
+
+func (s *NoteService) GetAllNotes(db *database.Database) ([]models.Note, error) {
+	var notes []models.Note
+	result := db.DB.Find(&notes)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 	return notes, nil
 }

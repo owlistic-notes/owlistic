@@ -13,6 +13,7 @@ type UserServiceInterface interface {
 	GetUserById(db *database.Database, id string) (models.User, error)
 	UpdateUser(db *database.Database, id string, updatedData models.User) (models.User, error)
 	DeleteUser(db *database.Database, id string) error
+	GetAllUsers(db *database.Database) ([]models.User, error)
 }
 
 type UserService struct{}
@@ -59,6 +60,15 @@ func (s *UserService) DeleteUser(db *database.Database, id string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *UserService) GetAllUsers(db *database.Database) ([]models.User, error) {
+	var users []models.User
+	result := db.DB.Find(&users)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return users, nil
 }
 
 var UserServiceInstance UserServiceInterface = &UserService{}

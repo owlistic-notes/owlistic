@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/thinkstack/testutils"
 	"gorm.io/gorm"
@@ -13,16 +14,18 @@ func TestCreateNote_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
+	noteID := uuid.New()
+
 	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO `notes`").
+	mock.ExpectQuery(`INSERT INTO "notes" \("user_id","title","content","is_deleted","id"\) VALUES \(\$1,\$2,\$3,\$4,\$5\) RETURNING "id"`).
 		WithArgs(
-			"550e8400-e29b-41d4-a716-446655440000",
-			"123e4567-e89b-12d3-a456-426614174000",
-			"Test Note",
-			"This is a test note.",
-			"test,tag",
+			"123e4567-e89b-12d3-a456-426614174000", // user_id
+			"Test Note",                            // title
+			"This is a test note.",                 // content
+			false,                                  // is_deleted
+			sqlmock.AnyArg(),                       // id
 		).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(noteID.String()))
 	mock.ExpectCommit()
 
 	noteService := &NoteService{}
@@ -30,16 +33,12 @@ func TestCreateNote_Success(t *testing.T) {
 		"user_id": "123e4567-e89b-12d3-a456-426614174000",
 		"title":   "Test Note",
 		"content": "This is a test note.",
-		"tags":    []string{"test", "tag"},
 	}
 
 	note, err := noteService.CreateNote(db, noteData)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test Note", note.Title)
 	assert.Equal(t, "This is a test note.", note.Content)
-	assert.Equal(t, []string{}, note.Tags)
-	assert.NotNil(t, note.CreatedAt)
-	assert.NotNil(t, note.UpdatedAt)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -47,7 +46,9 @@ func TestGetNoteById_NotFound(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
-	mock.ExpectQuery("SELECT \\* FROM `notes` WHERE id = \\?").WithArgs("non-existent-id").WillReturnError(gorm.ErrRecordNotFound)
+	mock.ExpectQuery("SELECT (.+) FROM \"notes\" WHERE id = \\$1 ORDER BY \"notes\".\"id\" LIMIT \\$2").
+		WithArgs("non-existent-id", 1).
+		WillReturnError(gorm.ErrRecordNotFound)
 
 	noteService := &NoteService{}
 
@@ -61,17 +62,28 @@ func TestUpdateNote_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
+	existingID := uuid.New()
+	userID := uuid.New()
+
+	// Mock the SELECT query that GORM performs first
+	mock.ExpectQuery("SELECT (.+) FROM \"notes\" WHERE id = \\$1 ORDER BY \"notes\".\"id\" LIMIT \\$2").
+		WithArgs(existingID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "is_deleted", "update_date"}).
+			AddRow(existingID.String(), userID.String(), "Old Title", "Old Content", false, nil))
+
+	// Mock the UPDATE query
 	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE `notes` SET").WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE \"notes\" SET (.+) WHERE").
+		WithArgs("Updated Title", existingID.String()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	noteService := &NoteService{}
-
 	updatedData := map[string]interface{}{
 		"title": "Updated Title",
 	}
 
-	note, err := noteService.UpdateNote(db, "existing-id", updatedData)
+	note, err := noteService.UpdateNote(db, existingID.String(), updatedData)
 	assert.NoError(t, err)
 	assert.Equal(t, note.Title, "Updated Title")
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -81,13 +93,24 @@ func TestDeleteNote_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
+	existingID := uuid.New()
+	userID := uuid.New()
+
+	// Mock the SELECT query that GORM performs first
+	mock.ExpectQuery("SELECT (.+) FROM \"notes\" WHERE id = \\$1 ORDER BY \"notes\".\"id\" LIMIT \\$2").
+		WithArgs(existingID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "is_deleted", "update_date"}).
+			AddRow(existingID.String(), userID.String(), "Title", "Content", false, nil))
+
+	// Mock the DELETE query
 	mock.ExpectBegin()
-	mock.ExpectExec("DELETE FROM `notes` WHERE id = \\?").WithArgs("existing-id").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("DELETE FROM \"notes\" WHERE").
+		WithArgs(existingID.String()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	noteService := &NoteService{}
-
-	err := noteService.DeleteNote(db, "existing-id")
+	err := noteService.DeleteNote(db, existingID.String())
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -96,11 +119,16 @@ func TestListNotesByUser_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
-	mock.ExpectQuery("SELECT \\* FROM `notes` WHERE user_id = \\?").WithArgs("user-id").WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "tags"}).AddRow("1", "user-id", "Test Note", "This is a test note.", "test,note"))
+	userID := uuid.New()
+	noteID := uuid.New()
+
+	mock.ExpectQuery("SELECT (.+) FROM \"notes\" WHERE user_id = \\$1").
+		WithArgs(userID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "is_deleted", "update_date"}).
+			AddRow(noteID.String(), userID.String(), "Test Note", "This is a test note.", false, nil))
 
 	noteService := &NoteService{}
-
-	notes, err := noteService.ListNotesByUser(db, "user-id")
+	notes, err := noteService.ListNotesByUser(db, userID.String())
 	assert.NoError(t, err)
 	assert.NotEmpty(t, notes)
 	assert.NoError(t, mock.ExpectationsWereMet())

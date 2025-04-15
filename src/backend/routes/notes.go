@@ -12,6 +12,7 @@ import (
 func RegisterNoteRoutes(router *gin.Engine, db *database.Database, noteService services.NoteServiceInterface) {
 	group := router.Group("/api/v1/notes")
 	{
+		group.GET("/", func(c *gin.Context) { GetAllNotes(c, db, noteService) })
 		group.POST("/", func(c *gin.Context) { CreateNote(c, db, noteService) })
 		group.GET("/:id", func(c *gin.Context) { GetNoteById(c, db, noteService) })
 		group.PUT("/:id", func(c *gin.Context) { UpdateNote(c, db, noteService) })
@@ -94,6 +95,15 @@ func ListNotesByUser(c *gin.Context, db *database.Database, noteService services
 			c.JSON(http.StatusNotFound, gin.H{"error": "No notes found for the user"})
 			return
 		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, notes)
+}
+
+func GetAllNotes(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
+	notes, err := noteService.GetAllNotes(db)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

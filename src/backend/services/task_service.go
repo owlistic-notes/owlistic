@@ -13,6 +13,7 @@ type TaskServiceInterface interface {
 	GetTaskById(db *database.Database, id string) (models.Task, error)
 	UpdateTask(db *database.Database, id string, updatedData models.Task) (models.Task, error)
 	DeleteTask(db *database.Database, id string) error
+	GetAllTasks(db *database.Database) ([]models.Task, error)
 }
 
 type TaskService struct{}
@@ -59,6 +60,15 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *TaskService) GetAllTasks(db *database.Database) ([]models.Task, error) {
+	var tasks []models.Task
+	result := db.DB.Find(&tasks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return tasks, nil
 }
 
 var TaskServiceInstance TaskServiceInterface = &TaskService{}

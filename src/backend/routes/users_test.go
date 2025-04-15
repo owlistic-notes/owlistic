@@ -41,6 +41,13 @@ func (m *MockUserService) DeleteUser(db *database.Database, id string) error {
 	return services.ErrUserNotFound
 }
 
+func (m *MockUserService) GetAllUsers(db *database.Database) ([]models.User, error) {
+	return []models.User{
+		{ID: uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")), Email: "test@example.com"},
+		{ID: uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")), Email: "test2@example.com"},
+	}, nil
+}
+
 func TestCreateUser(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
@@ -131,4 +138,19 @@ func TestDeleteUser(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNoContent, w.Code)
 	})
+}
+
+func TestGetAllUsers(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockUserService{}
+	RegisterUserRoutes(router, db, mockService)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/users/", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "test@example.com")
+	assert.Contains(t, w.Body.String(), "test2@example.com")
 }

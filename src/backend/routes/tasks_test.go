@@ -27,6 +27,13 @@ func (m *MockTaskService) GetTaskById(db *database.Database, id string) (models.
 	return models.Task{}, services.ErrTaskNotFound
 }
 
+func (m *MockTaskService) GetAllTasks(db *database.Database) ([]models.Task, error) {
+	return []models.Task{
+		{ID: uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")), Title: "Test Task"},
+		{ID: uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")), Title: "Test Task 2"},
+	}, nil
+}
+
 func (m *MockTaskService) UpdateTask(db *database.Database, id string, updatedData models.Task) (models.Task, error) {
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return models.Task{ID: uuid.Must(uuid.Parse(id)), Title: updatedData.Title}, nil
@@ -76,6 +83,21 @@ func TestGetTaskById(t *testing.T) {
 	})
 }
 
+func TestGetAllTasks(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockTaskService{}
+	RegisterTaskRoutes(router, db, mockService)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/tasks/", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "Test Task")
+	assert.Contains(t, w.Body.String(), "Test Task 2")
+}
+
 func TestUpdateTask(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
@@ -114,6 +136,6 @@ func TestDeleteTask(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("DELETE", "/api/v1/tasks/123e4567-e89b-12d3-a456-426614174000", nil)
 		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, http.StatusNoContent, w.Code)
 	})
 }

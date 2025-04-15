@@ -14,6 +14,7 @@ import (
 func RegisterTaskRoutes(router *gin.Engine, db *database.Database, taskService services.TaskServiceInterface) {
 	group := router.Group("/api/v1/tasks")
 	{
+		group.GET("/", func(c *gin.Context) { GetAllTasks(c, db, taskService) })
 		group.POST("/", func(c *gin.Context) { CreateTask(c, db, taskService) })
 		group.GET("/:id", func(c *gin.Context) { GetTaskById(c, db, taskService) })
 		group.PUT("/:id", func(c *gin.Context) { UpdateTask(c, db, taskService) })
@@ -81,4 +82,13 @@ func DeleteTask(c *gin.Context, db *database.Database, taskService services.Task
 		return
 	}
 	c.JSON(http.StatusNoContent, gin.H{})
+}
+
+func GetAllTasks(c *gin.Context, db *database.Database, taskService services.TaskServiceInterface) {
+	tasks, err := taskService.GetAllTasks(db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, tasks)
 }

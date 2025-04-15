@@ -2,7 +2,6 @@ package models
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -14,9 +13,6 @@ type Note struct {
 	Content    string
 	Tags       []string  `gorm:"type:text[]"`
 	IsDeleted  bool      `gorm:"default:false"`
-	CreatedAt  time.Time `gorm:"autoCreateTime"`
-	UpdatedAt  time.Time `gorm:"autoUpdateTime"`
-	UpdateDate string    `gorm:"not null;default:CURRENT_TIMESTAMP"`
 }
 
 func (n *Note) FromJSON(data []byte) error {

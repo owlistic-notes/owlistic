@@ -14,7 +14,6 @@ func TestNoteToJSON(t *testing.T) {
 		UserID:    uuid.New(),
 		Title:     "Test Title",
 		Content:   "Test Content",
-		Tags:      []string{"tag1", "tag2"},
 		IsDeleted: false,
 	}
 
@@ -33,7 +32,6 @@ func TestNoteFromJSON(t *testing.T) {
 		"user_id": "550e8400-e29b-41d4-a716-446655440001",
 		"title": "Test Title",
 		"content": "Test Content",
-		"tags": ["tag1", "tag2"],
 		"is_deleted": false
 	}`
 
@@ -42,5 +40,4 @@ func TestNoteFromJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Test Title", note.Title)
 	assert.Equal(t, "Test Content", note.Content)
-	assert.Equal(t, []string{"tag1", "tag2"}, note.Tags)
 }

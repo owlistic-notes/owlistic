@@ -81,6 +81,23 @@ func (m *MockNoteService) ListNotesByUser(db *database.Database, userID string) 
 	return []models.Note{}, nil
 }
 
+func (m *MockNoteService) GetAllNotes(db *database.Database) ([]models.Note, error) {
+	return []models.Note{
+		{
+			ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+			Title:   "Test Note",
+			Content: "This is a test note",
+			UserID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+		},
+		{
+			ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")),
+			Title:   "Test Note 2",
+			Content: "This is another test note",
+			UserID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+		},
+	}, nil
+}
+
 func TestCreateNote(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
@@ -196,4 +213,19 @@ func TestListNotesByUser(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "Test Note")
 	})
+}
+
+func TestGetAllNotes(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockNoteService{}
+	RegisterNoteRoutes(router, db, mockService)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/notes/", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "Test Note")
+	assert.Contains(t, w.Body.String(), "Test Note 2")
 }

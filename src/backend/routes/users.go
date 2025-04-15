@@ -12,8 +12,9 @@ import (
 )
 
 func RegisterUserRoutes(router *gin.Engine, db *database.Database, userService services.UserServiceInterface) {
-	group := router.Group("/users")
+	group := router.Group("/api/v1/users")
 	{
+		group.GET("/", func(c *gin.Context) { GetAllUsers(c, db, userService) })
 		group.POST("/", func(c *gin.Context) { CreateUser(c, db, userService) })
 		group.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
 		group.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
@@ -81,4 +82,13 @@ func DeleteUser(c *gin.Context, db *database.Database, userService services.User
 		return
 	}
 	c.JSON(http.StatusNoContent, gin.H{})
+}
+
+func GetAllUsers(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {
+	users, err := userService.GetAllUsers(db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, users)
 }

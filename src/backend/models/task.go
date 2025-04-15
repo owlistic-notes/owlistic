@@ -12,7 +12,4 @@ type Task struct {
 	Description string `gorm:"not null"`
 	IsCompleted bool   `gorm:"default:false"`
 	DueDate     string
-	CreatedAt   string `gorm:"autoCreateTime"`
-	UpdatedAt   string `gorm:"autoUpdateTime"`
-	UpdateDate  string `gorm:"not null;default:CURRENT_TIMESTAMP"`
 }
