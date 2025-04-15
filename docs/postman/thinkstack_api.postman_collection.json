@@ -1,0 +1,168 @@
+{
+    "info": {
+        "name": "ThinkStack API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Notes",
+            "item": [
+                {
+                    "name": "Create Note",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notes",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notes"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"Test Note\",\n    \"content\": \"This is a test note\",\n    \"user_id\": \"{{userId}}\",\n    \"tags\": [\"test\", \"api\"],\n    \"is_deleted\": false\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Notes",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notes",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notes"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Note by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notes/{{noteId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notes", "{{noteId}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Note",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notes/{{noteId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notes", "{{noteId}}"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"Updated Note\",\n    \"content\": \"This note has been updated\",\n    \"tags\": [\"updated\", \"api\"],\n    \"is_deleted\": false\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Note",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notes/{{noteId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notes", "{{noteId}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Tasks",
+            "item": [
+                {
+                    "name": "Create Task",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/tasks",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "tasks"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"Test Task\",\n    \"description\": \"This is a test task\",\n    \"user_id\": \"{{userId}}\",\n    \"is_completed\": false,\n    \"due_date\": \"2024-12-31\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Tasks",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/tasks",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "tasks"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Task by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/tasks/{{taskId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "tasks", "{{taskId}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Task",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/tasks/{{taskId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "tasks", "{{taskId}}"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"Updated Task\",\n    \"is_completed\": true\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Task",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/tasks/{{taskId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "tasks", "{{taskId}}"]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
