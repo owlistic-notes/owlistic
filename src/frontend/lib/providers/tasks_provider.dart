@@ -26,9 +26,9 @@ class TasksProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createTask(String title) async {
+  Future<void> createTask(String title, String noteId) async {
     try {
-      final task = await ApiService.createTask(title);
+      final task = await ApiService.createTask(title, noteId);
       _tasks.add(task);
       notifyListeners();
     } catch (error) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
+import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../models/task.dart';
 
@@ -13,21 +14,46 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => Provider.of<TasksProvider>(context, listen: false).fetchTasks(),
-    );
+    Future.microtask(() {
+      Provider.of<TasksProvider>(context, listen: false).fetchTasks();
+      Provider.of<NotesProvider>(context, listen: false).fetchNotes();
+    });
   }
 
   void _showAddTaskDialog() {
     final _titleController = TextEditingController();
+    String? selectedNoteId;
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Add Task'),
-        content: TextField(
-          controller: _titleController,
-          decoration: InputDecoration(labelText: 'Title'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Consumer<NotesProvider>(
+              builder: (context, notesProvider, _) {
+                if (notesProvider.notes.isEmpty) {
+                  return Text('Please create a note first');
+                }
+                return DropdownButtonFormField<String>(
+                  decoration: InputDecoration(labelText: 'Note'),
+                  value: selectedNoteId,
+                  items: notesProvider.notes.map((note) {
+                    return DropdownMenuItem(
+                      value: note.id,
+                      child: Text(note.title),
+                    );
+                  }).toList(),
+                  onChanged: (value) => selectedNoteId = value,
+                );
+              },
+            ),
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(labelText: 'Title'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -36,10 +62,10 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
+              if (_titleController.text.isNotEmpty && selectedNoteId != null) {
                 try {
                   await Provider.of<TasksProvider>(context, listen: false)
-                      .createTask(_titleController.text);
+                      .createTask(_titleController.text, selectedNoteId!);
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(

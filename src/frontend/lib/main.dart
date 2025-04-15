@@ -3,9 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'providers/notes_provider.dart';
 import 'providers/tasks_provider.dart';
-import 'screens/home_screen.dart';
-import 'screens/notes_screen.dart';
-import 'screens/tasks_screen.dart';
+import 'providers/notebooks_provider.dart';
+import 'core/router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,21 +19,17 @@ class ThinkStackApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => NotebooksProvider()),
         ChangeNotifierProvider(create: (_) => NotesProvider()),
         ChangeNotifierProvider(create: (_) => TasksProvider()),
       ],
-      child: MaterialApp(
+      child: MaterialApp.router(
         title: 'ThinkStack',
         theme: ThemeData(
           primarySwatch: Colors.blue,
           useMaterial3: true,
         ),
-        initialRoute: '/',
-        routes: {
-          '/': (context) => HomeScreen(),
-          '/notes': (context) => NotesScreen(),
-          '/tasks': (context) => TasksScreen(),
-        },
+        routerConfig: AppRouter.router,
       ),
     );
   }

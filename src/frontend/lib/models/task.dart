@@ -6,6 +6,7 @@ class Task {
   final String? description;
   final String? dueDate;
   final String? noteId;
+  final String? blockId;  // Add blockId
 
   Task({
     required this.id,
@@ -15,6 +16,7 @@ class Task {
     this.description,
     this.dueDate,
     this.noteId,
+    this.blockId,  // Add blockId
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class Task {
       description: json['Description'],
       dueDate: json['DueDate'],
       noteId: json['NoteID'],
+      blockId: json['block_id'],  // Add blockId
     );
   }
 }

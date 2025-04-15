@@ -27,9 +27,9 @@ class NotesProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createNote(String title, String content) async {
+  Future<void> createNote(String notebookId, String title) async {
     try {
-      final note = await ApiService.createNote(title, content);
+      final note = await ApiService.createNote(notebookId, title);
       _notes.add(note);
       notifyListeners();
     } catch (error) {
@@ -49,9 +49,9 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  Future<void> updateNote(String id, String title, String content) async {
+  Future<void> updateNote(String id, String title) async {
     try {
-      final updatedNote = await ApiService.updateNote(id, title, content);
+      final updatedNote = await ApiService.updateNote(id, title);
       final index = _notes.indexWhere((note) => note.id == id);
       if (index != -1) {
         _notes[index] = updatedNote;

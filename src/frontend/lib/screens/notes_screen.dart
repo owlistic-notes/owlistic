@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
 import '../providers/notes_provider.dart';
+import '../providers/notebooks_provider.dart';
 import '../models/note.dart';
+import 'note_editor_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   @override
@@ -13,14 +15,15 @@ class _NotesScreenState extends State<NotesScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => Provider.of<NotesProvider>(context, listen: false).fetchNotes(),
-    );
+    Future.microtask(() {
+      Provider.of<NotesProvider>(context, listen: false).fetchNotes();
+      Provider.of<NotebooksProvider>(context, listen: false).fetchNotebooks();
+    });
   }
 
   void _showAddNoteDialog() {
     final _titleController = TextEditingController();
-    final _contentController = TextEditingController();
+    String? selectedNotebookId;
 
     showDialog(
       context: context,
@@ -29,15 +32,27 @@ class _NotesScreenState extends State<NotesScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Consumer<NotebooksProvider>(
+              builder: (context, notebooksProvider, _) {
+                if (notebooksProvider.notebooks.isEmpty) {
+                  return Text('Please create a notebook first');
+                }
+                return DropdownButtonFormField<String>(
+                  decoration: InputDecoration(labelText: 'Notebook'),
+                  value: selectedNotebookId,
+                  items: notebooksProvider.notebooks.map((notebook) {
+                    return DropdownMenuItem(
+                      value: notebook.id,
+                      child: Text(notebook.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) => selectedNotebookId = value,
+                );
+              },
+            ),
             TextField(
               controller: _titleController,
               decoration: InputDecoration(labelText: 'Title'),
-            ),
-            SizedBox(height: 8),
-            TextField(
-              controller: _contentController,
-              decoration: InputDecoration(labelText: 'Content'),
-              maxLines: 3,
             ),
           ],
         ),
@@ -48,11 +63,12 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
+              if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
                 try {
                   await Provider.of<NotesProvider>(context, listen: false)
-                      .createNote(_titleController.text, _contentController.text);
+                      .createNote(selectedNotebookId!, _titleController.text);
                   Navigator.of(ctx).pop();
+                  await Provider.of<NotesProvider>(context, listen: false).fetchNotes();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Failed to create note')),
@@ -67,51 +83,11 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  void _showEditNoteDialog(BuildContext context, Note note) {
-    final _titleController = TextEditingController(text: note.title);
-    final _contentController = TextEditingController(text: note.content);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Edit Note'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: InputDecoration(labelText: 'Title'),
-            ),
-            SizedBox(height: 8),
-            TextField(
-              controller: _contentController,
-              decoration: InputDecoration(labelText: 'Content'),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
-                try {
-                  await Provider.of<NotesProvider>(context, listen: false)
-                      .updateNote(note.id, _titleController.text, _contentController.text);
-                  Navigator.of(ctx).pop();
-                } catch (error) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to update note')),
-                  );
-                }
-              }
-            },
-            child: Text('Save'),
-          ),
-        ],
+  void _navigateToNoteEditor(Note note) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NoteEditorScreen(note: note),
       ),
     );
   }
@@ -153,28 +129,20 @@ class _NotesScreenState extends State<NotesScreen> {
                 margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(note.title),
-                  subtitle: Text(note.content),
+                  subtitle: Text(note.blocks.isNotEmpty ? note.blocks.first.content : ''),
                   leading: Icon(Icons.note),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit),
-                        onPressed: () => _showEditNoteDialog(context, note),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete),
-                        onPressed: () async {
-                          try {
-                            await notesProvider.deleteNote(note.id);
-                          } catch (error) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to delete note')),
-                            );
-                          }
-                        },
-                      ),
-                    ],
+                  onTap: () => _navigateToNoteEditor(note),
+                  trailing: IconButton(
+                    icon: Icon(Icons.delete),
+                    onPressed: () async {
+                      try {
+                        await notesProvider.deleteNote(note.id);
+                      } catch (error) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to delete note')),
+                        );
+                      }
+                    },
                   ),
                 ),
               );

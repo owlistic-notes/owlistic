@@ -32,7 +32,7 @@ class AppDrawer extends StatelessWidget {
             title: Text('Home'),
             onTap: () {
               Navigator.pop(context); // Close drawer
-              Navigator.pushReplacementNamed(context, '/');
+              context.go('/');
             },
           ),
           ListTile(
@@ -40,7 +40,7 @@ class AppDrawer extends StatelessWidget {
             title: Text('Notes'),
             onTap: () {
               Navigator.pop(context); // Close drawer
-              Navigator.pushReplacementNamed(context, '/notes');
+              context.go('/notes');
             },
           ),
           ListTile(
@@ -48,7 +48,15 @@ class AppDrawer extends StatelessWidget {
             title: Text('Tasks'),
             onTap: () {
               Navigator.pop(context); // Close drawer
-              Navigator.pushReplacementNamed(context, '/tasks');
+              context.go('/tasks');
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.book),
+            title: Text('Notebooks'),
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/notebooks');
             },
           ),
         ],

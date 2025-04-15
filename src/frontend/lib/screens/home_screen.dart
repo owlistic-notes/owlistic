@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
 import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
+import '../providers/notebooks_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -18,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Future.microtask(() {
       Provider.of<NotesProvider>(context, listen: false).fetchNotes();
       Provider.of<TasksProvider>(context, listen: false).fetchTasks();
+      Provider.of<NotebooksProvider>(context, listen: false).fetchNotebooks();
     });
   }
 
@@ -38,6 +41,41 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildSectionHeader(context, 'Recent Notebooks', Icons.book),
+            SizedBox(height: 8),
+            Expanded(
+              child: Consumer<NotebooksProvider>(
+                builder: (ctx, notebooksProvider, _) {
+                  if (notebooksProvider.isLoading) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                  
+                  final recentNotebooks = notebooksProvider.notebooks.take(5).toList();
+                  
+                  return ListView.builder(
+                    itemCount: recentNotebooks.length,
+                    itemBuilder: (context, index) {
+                      final notebook = recentNotebooks[index];
+                      return Card(
+                        child: ListTile(
+                          title: Text(notebook.name),
+                          subtitle: Text(
+                            '${notebook.notes.length} notes',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blue.withOpacity(0.1),
+                            child: Icon(Icons.book, color: Colors.blue),
+                          ),
+                          onTap: () => context.go('/notebooks/${notebook.id}'),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 24),
             _buildSectionHeader(context, 'Recent Notes', Icons.note),
             SizedBox(height: 8),
             Expanded(
@@ -128,6 +166,60 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddNotebookDialog(context),
+        child: Icon(Icons.add),
+        tooltip: 'Add Notebook',
+      ),
+    );
+  }
+
+  void _showAddNotebookDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('New Notebook'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(labelText: 'Name'),
+            ),
+            SizedBox(height: 8),
+            TextField(
+              controller: descriptionController,
+              decoration: InputDecoration(labelText: 'Description'),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.isNotEmpty) {
+                try {
+                  await Provider.of<NotebooksProvider>(context, listen: false)
+                      .createNotebook(nameController.text, descriptionController.text);
+                  Navigator.of(ctx).pop();
+                } catch (error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to create notebook')),
+                  );
+                }
+              }
+            },
+            child: Text('Create'),
+          ),
+        ],
       ),
     );
   }
