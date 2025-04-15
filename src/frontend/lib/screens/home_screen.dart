@@ -1,66 +1,150 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'package:provider/provider.dart';
+import '../widgets/app_drawer.dart';
+import '../providers/notes_provider.dart';
+import '../providers/tasks_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      Provider.of<NotesProvider>(context, listen: false).fetchNotes();
+      Provider.of<TasksProvider>(context, listen: false).fetchTasks();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
-        title: Text('ThinkStack - Home'),
+        title: Text('ThinkStack'),
+        leading: IconButton(
+          icon: Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
+      drawer: AppDrawer(),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text(
-                'ThinkStack Menu',
-                style: TextStyle(color: Colors.white, fontSize: 24),
+            _buildSectionHeader(context, 'Recent Notes', Icons.note),
+            SizedBox(height: 8),
+            Expanded(
+              child: Consumer<NotesProvider>(
+                builder: (ctx, notesProvider, _) => notesProvider.isLoading
+                    ? Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        itemCount: notesProvider.recentNotes.length,
+                        itemBuilder: (context, index) {
+                          final note = notesProvider.recentNotes[index];
+                          return Card(
+                            child: ListTile(
+                              title: Text(
+                                note.title,
+                                style: TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                              subtitle: Text(
+                                note.content,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue.withOpacity(0.1),
+                                child: Icon(Icons.note, color: Colors.blue),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ),
-            ListTile(
-              leading: Icon(Icons.home),
-              title: Text('Home'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/');
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.task),
-              title: Text('Todo'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/tasks');
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.note),
-              title: Text('Notes'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/notes');
-              },
+            SizedBox(height: 24),
+            _buildSectionHeader(context, 'Recent Tasks', Icons.task_alt),
+            SizedBox(height: 8),
+            Expanded(
+              child: Consumer<TasksProvider>(
+                builder: (ctx, tasksProvider, _) => tasksProvider.isLoading
+                    ? Center(child: CircularProgressIndicator())
+                    : tasksProvider.recentTasks.isEmpty
+                        ? Center(child: Text('No recent tasks'))
+                        : ListView.builder(
+                            itemCount: tasksProvider.recentTasks.length,
+                            itemBuilder: (context, index) {
+                              final task = tasksProvider.recentTasks[index];
+                              return Card(
+                                child: ListTile(
+                                  title: Text(
+                                    task.title,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      decoration: task.isCompleted
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                    ),
+                                  ),
+                                  leading: CircleAvatar(
+                                    backgroundColor: Colors.blue.withOpacity(0.1),
+                                    child: Icon(Icons.task_alt, color: Colors.blue),
+                                  ),
+                                  trailing: Transform.scale(
+                                    scale: 1.2,
+                                    child: Checkbox(
+                                      value: task.isCompleted,
+                                      onChanged: (value) async {
+                                        try {
+                                          await tasksProvider
+                                              .toggleTaskCompletion(
+                                                  task.id, value ?? false);
+                                        } catch (error) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                                content: Text(
+                                                    'Failed to update task status')),
+                                          );
+                                        }
+                                      },
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+              ),
             ),
           ],
         ),
       ),
-      body: Center(
-        child: Text('Welcome to ThinkStack!'),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          try {
-            final notes = await ApiService.fetchNotes();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Fetched ${notes.length} notes')),
-            );
-          } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to fetch notes: $e')),
-            );
-          }
-        },
-        child: Icon(Icons.cloud_download),
-      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.blue),
+        SizedBox(width: 8),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+        ),
+      ],
     );
   }
 }
