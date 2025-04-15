@@ -29,8 +29,14 @@ func Setup(cfg config.Config) (*Database, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	if err := db.AutoMigrate(&models.User{}, &models.Note{}, &models.Task{}); err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	// Drop all tables
+	if err := db.Exec(`DROP TABLE IF EXISTS notes, notebooks, users, tasks CASCADE`).Error; err != nil {
+		return nil, fmt.Errorf("failed to drop tables: %w", err)
+	}
+
+	// Create tables fresh
+	if err := db.AutoMigrate(&models.User{}, &models.Notebook{}, &models.Note{}, &models.Task{}); err != nil {
+		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
 	return &Database{DB: db}, nil

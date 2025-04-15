@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"testing"
+	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -16,19 +17,21 @@ func TestCreateTask_Success(t *testing.T) {
 	defer close()
 
 	taskId := uuid.New()
+	now := time.Now()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "tasks" \("user_id","note_id","title","description","is_completed","due_date","id"\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\) RETURNING "id"`).
+	mock.ExpectQuery(`INSERT INTO "tasks" \("user_id","block_id","title","description","is_completed","due_date","id"\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\) RETURNING "id","created_at","updated_at"`).
 		WithArgs(
 			uuid.Nil,    // user_id
-			nil,         // note_id
+			uuid.Nil,    // block_id
 			"Test Task", // title
 			"",          // description
 			false,       // is_completed
 			"",          // due_date
 			taskId,      // id
 		).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(taskId.String()))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
+			AddRow(taskId.String(), now, now))
 	mock.ExpectCommit()
 
 	taskService := &TaskService{}
@@ -63,17 +66,18 @@ func TestUpdateTask_Success(t *testing.T) {
 	defer close()
 
 	existingID := uuid.New()
+	now := time.Now()
 
 	// Mock the SELECT query that GORM performs first
 	mock.ExpectQuery("SELECT (.+) FROM \"tasks\" WHERE id = \\$1 ORDER BY \"tasks\".\"id\" LIMIT \\$2").
 		WithArgs(existingID.String(), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "note_id", "title", "description", "is_completed", "due_date"}).
-			AddRow(existingID.String(), uuid.Nil.String(), nil, "Old Title", "", false, ""))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "block_id", "title", "description", "is_completed", "due_date", "created_at", "updated_at"}).
+			AddRow(existingID.String(), uuid.Nil.String(), uuid.Nil.String(), "Old Title", "", false, "", now, now))
 
 	// Mock the UPDATE query
 	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE \"tasks\" SET (.+) WHERE").
-		WithArgs("Updated Task", existingID.String()).
+	mock.ExpectExec("UPDATE \"tasks\" SET").
+		WithArgs("Updated Task", sqlmock.AnyArg(), existingID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 

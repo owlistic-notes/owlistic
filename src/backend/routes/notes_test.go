@@ -23,9 +23,9 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 		return models.Note{}, errors.New("title is required")
 	}
 
-	content, ok := noteData["content"].(string)
+	blocks, ok := noteData["blocks"].([]interface{})
 	if !ok {
-		return models.Note{}, errors.New("content must be a string")
+		return models.Note{}, errors.New("blocks must be an array")
 	}
 
 	userIDStr, ok := noteData["user_id"].(string)
@@ -34,20 +34,30 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 	}
 
 	return models.Note{
-		ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
-		Title:   title,
-		Content: content,
-		UserID:  uuid.Must(uuid.Parse(userIDStr)),
+		ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+		Title: title,
+		Blocks: []models.Block{{
+			ID:      uuid.New(),
+			Type:    models.TextBlock,
+			Content: blocks[0].(map[string]interface{})["content"].(string),
+			Order:   1,
+		}},
+		UserID: uuid.Must(uuid.Parse(userIDStr)),
 	}, nil
 }
 
 func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.Note, error) {
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return models.Note{
-			ID:      uuid.Must(uuid.Parse(id)),
-			Title:   "Test Note",
-			Content: "This is a test note.",
-			UserID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+			ID:    uuid.Must(uuid.Parse(id)),
+			Title: "Test Note",
+			Blocks: []models.Block{{
+				ID:      uuid.New(),
+				Type:    models.TextBlock,
+				Content: "This is a test note.",
+				Order:   1,
+			}},
+			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
 		}, nil
 	}
 	return models.Note{}, services.ErrNoteNotFound
@@ -55,11 +65,17 @@ func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.
 
 func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedData map[string]interface{}) (models.Note, error) {
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
+		blocks := updatedData["blocks"].([]interface{})
 		return models.Note{
-			ID:      uuid.Must(uuid.Parse(id)),
-			Title:   updatedData["title"].(string),
-			Content: updatedData["content"].(string),
-			UserID:  uuid.Must(uuid.Parse(updatedData["user_id"].(string))),
+			ID:    uuid.Must(uuid.Parse(id)),
+			Title: updatedData["title"].(string),
+			Blocks: []models.Block{{
+				ID:      uuid.New(),
+				Type:    models.TextBlock,
+				Content: blocks[0].(map[string]interface{})["content"].(string),
+				Order:   1,
+			}},
+			UserID: uuid.Must(uuid.Parse(updatedData["user_id"].(string))),
 		}, nil
 	}
 	return models.Note{}, services.ErrNoteNotFound
@@ -75,7 +91,17 @@ func (m *MockNoteService) DeleteNote(db *database.Database, id string) error {
 func (m *MockNoteService) ListNotesByUser(db *database.Database, userID string) ([]models.Note, error) {
 	if userID == "90a12345-f12a-98c4-a456-513432930000" {
 		return []models.Note{
-			{ID: uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")), Title: "Test Note", Content: "This is a test note.", UserID: uuid.Must(uuid.Parse(userID))},
+			{
+				ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+				Title: "Test Note",
+				Blocks: []models.Block{{
+					ID:      uuid.New(),
+					Type:    models.TextBlock,
+					Content: "This is a test note.",
+					Order:   1,
+				}},
+				UserID: uuid.Must(uuid.Parse(userID)),
+			},
 		}, nil
 	}
 	return []models.Note{}, nil
@@ -84,16 +110,26 @@ func (m *MockNoteService) ListNotesByUser(db *database.Database, userID string) 
 func (m *MockNoteService) GetAllNotes(db *database.Database) ([]models.Note, error) {
 	return []models.Note{
 		{
-			ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
-			Title:   "Test Note",
-			Content: "This is a test note",
-			UserID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+			ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+			Title: "Test Note",
+			Blocks: []models.Block{{
+				ID:      uuid.New(),
+				Type:    models.TextBlock,
+				Content: "This is a test note",
+				Order:   1,
+			}},
+			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
 		},
 		{
-			ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")),
-			Title:   "Test Note 2",
-			Content: "This is another test note",
-			UserID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+			ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")),
+			Title: "Test Note 2",
+			Blocks: []models.Block{{
+				ID:      uuid.New(),
+				Type:    models.TextBlock,
+				Content: "This is another test note",
+				Order:   1,
+			}},
+			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
 		},
 	}, nil
 }
@@ -113,7 +149,7 @@ func TestCreateNote(t *testing.T) {
 
 	t.Run("Missing Title", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte(`{"content":"Test Content", "user_id":"90a12345-f12a-98c4-a456-513432930000"}`)))
+		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte(`{"blocks":[{"type":"text","content":"Test Content","order":1}], "user_id":"90a12345-f12a-98c4-a456-513432930000"}`)))
 		services.NoteServiceInstance = mockService
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -121,7 +157,11 @@ func TestCreateNote(t *testing.T) {
 
 	t.Run("Valid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte(`{"title":"Test Note", "content":"Test Content", "user_id":"90a12345-f12a-98c4-a456-513432930000"}`)))
+		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte(`{
+			"title":"Test Note",
+			"blocks":[{"type":"text","content":"Test Content","order":1}],
+			"user_id":"90a12345-f12a-98c4-a456-513432930000"
+		}`)))
 		services.NoteServiceInstance = mockService
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
@@ -157,7 +197,7 @@ func TestUpdateNote(t *testing.T) {
 
 	t.Run("Note Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", "/api/v1/notes/123e4567-e89b-12d3-a456-426614174001", bytes.NewBuffer([]byte(`{"title":"Updated Note", "content":"Updated Content", "user_id":"90a12345-f12a-98c4-a456-513432930000"}`)))
+		req, _ := http.NewRequest("PUT", "/api/v1/notes/123e4567-e89b-12d3-a456-426614174001", bytes.NewBuffer([]byte(`{"title":"Updated Note", "blocks":[{"type":"text","content":"Updated Content","order":1}], "user_id":"90a12345-f12a-98c4-a456-513432930000"}`)))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
@@ -165,7 +205,7 @@ func TestUpdateNote(t *testing.T) {
 	t.Run("Note Updated", func(t *testing.T) {
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", "/api/v1/notes/123e4567-e89b-12d3-a456-426614174000", bytes.NewBuffer([]byte(`{"title":"Updated Note", "content":"Updated Content", "user_id":"90a12345-f12a-98c4-a456-513432930000"}`)))
+		req, _ := http.NewRequest("PUT", "/api/v1/notes/123e4567-e89b-12d3-a456-426614174000", bytes.NewBuffer([]byte(`{"title":"Updated Note", "blocks":[{"type":"text","content":"Updated Content","order":1}], "user_id":"90a12345-f12a-98c4-a456-513432930000"}`)))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
