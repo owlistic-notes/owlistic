@@ -24,7 +24,7 @@
                         },
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"title\": \"Test Note\",\n    \"content\": \"This is a test note\",\n    \"user_id\": \"{{userId}}\",\n    \"tags\": [\"test\", \"api\"],\n    \"is_deleted\": false\n}"
+                            "raw": "{\n    \"title\": \"Test Note\",\n    \"user_id\": \"{{userId}}\",\n    \"notebook_id\": \"{{notebookId}}\",\n    \"blocks\": [\n        {\n            \"type\": \"text\",\n            \"content\": \"This is a test note\",\n            \"order\": 1\n        }\n    ]\n}"
                         }
                     }
                 },
@@ -79,6 +79,177 @@
                             "raw": "{{baseUrl}}/api/v1/notes/{{noteId}}",
                             "host": ["{{baseUrl}}"],
                             "path": ["api", "v1", "notes", "{{noteId}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Notebooks",
+            "item": [
+                {
+                    "name": "Create Notebook",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notebooks",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notebooks"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Test Notebook\",\n    \"description\": \"Test Description\",\n    \"user_id\": \"{{userId}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get All Notebooks",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notebooks",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notebooks"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Notebook by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notebooks/{{notebookId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notebooks", "{{notebookId}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Notebook",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notebooks/{{notebookId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notebooks", "{{notebookId}}"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Updated Notebook\",\n    \"description\": \"Updated Description\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Notebook",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notebooks/{{notebookId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notebooks", "{{notebookId}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get User's Notebooks",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/notebooks/user/{{userId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "notebooks", "user", "{{userId}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Blocks",
+            "item": [
+                {
+                    "name": "Create Block",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/blocks",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "blocks"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"note_id\": \"{{noteId}}\",\n    \"type\": \"text\",\n    \"content\": \"This is a test block\",\n    \"order\": 1\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Block by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/blocks/{{blockId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "blocks", "{{blockId}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Block",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/blocks/{{blockId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "blocks", "{{blockId}}"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"content\": \"Updated block content\",\n    \"type\": \"text\",\n    \"order\": 1\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Block",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/blocks/{{blockId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "blocks", "{{blockId}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Note's Blocks",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/blocks/note/{{noteId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "blocks", "note", "{{noteId}}"]
                         }
                     }
                 }
