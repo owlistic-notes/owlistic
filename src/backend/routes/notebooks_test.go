@@ -17,6 +17,68 @@ import (
 
 type MockNotebookService struct{}
 
+// Update GetNotebooks mock to properly handle the empty case
+func (m *MockNotebookService) GetNotebooks(db *database.Database, params map[string]interface{}) ([]models.Notebook, error) {
+	userID, hasUserID := params["user_id"].(string)
+	name, hasName := params["name"].(string)
+
+	// Empty case - user with no notebooks
+	if hasUserID && userID == "90a12345-f12a-98c4-a456-513432930001" {
+		return []models.Notebook{}, nil
+	}
+
+	// User with notebooks
+	if hasUserID && userID == "90a12345-f12a-98c4-a456-513432930000" {
+		notebooks := []models.Notebook{
+			{
+				ID:     uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+				Name:   "Test Notebook",
+				UserID: uuid.Must(uuid.Parse(userID)),
+			},
+		}
+
+		// Apply name filter if needed
+		if hasName && name != "" {
+			var filteredNotebooks []models.Notebook
+			for _, notebook := range notebooks {
+				if notebook.Name == name {
+					filteredNotebooks = append(filteredNotebooks, notebook)
+				}
+			}
+			return filteredNotebooks, nil
+		}
+
+		return notebooks, nil
+	}
+
+	// Default case - all notebooks
+	notebooks := []models.Notebook{
+		{
+			ID:     uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+			Name:   "Test Notebook",
+			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+		},
+		{
+			ID:     uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")),
+			Name:   "Test Notebook 2",
+			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+		},
+	}
+
+	// Apply name filter if needed
+	if hasName && name != "" {
+		var filteredNotebooks []models.Notebook
+		for _, notebook := range notebooks {
+			if notebook.Name == name {
+				filteredNotebooks = append(filteredNotebooks, notebook)
+			}
+		}
+		return filteredNotebooks, nil
+	}
+
+	return notebooks, nil
+}
+
 func (m *MockNotebookService) CreateNotebook(db *database.Database, notebookData map[string]interface{}) (models.Notebook, error) {
 	name, ok := notebookData["name"].(string)
 	if !ok || name == "" {
@@ -179,29 +241,6 @@ func TestDeleteNotebook(t *testing.T) {
 	})
 }
 
-func TestListNotebooksByUser(t *testing.T) {
-	router := gin.Default()
-	db := &database.Database{}
-	mockService := &MockNotebookService{}
-	RegisterNotebookRoutes(router, db, mockService)
-
-	t.Run("No Notebooks Found", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/api/v1/notebooks/user/90a12345-f12a-98c4-a456-513432930001", nil)
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), "[]")
-	})
-
-	t.Run("Notebooks Found", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/api/v1/notebooks/user/90a12345-f12a-98c4-a456-513432930000", nil)
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), "Test Notebook")
-	})
-}
-
 func TestGetAllNotebooks(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
@@ -215,4 +254,45 @@ func TestGetAllNotebooks(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Test Notebook")
 	assert.Contains(t, w.Body.String(), "Test Notebook 2")
+}
+
+// Add new test for notebooks with query parameters
+func TestGetNotebooks(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockNotebookService{}
+	RegisterNotebookRoutes(router, db, mockService)
+
+	t.Run("Get Notebooks With No Filters", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/notebooks/", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Notebook")
+		assert.Contains(t, w.Body.String(), "Test Notebook 2")
+	})
+
+	t.Run("Get Notebooks By User ID - Notebooks Found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/notebooks/?user_id=90a12345-f12a-98c4-a456-513432930000", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Notebook")
+	})
+
+	t.Run("Get Notebooks By User ID - No Notebooks Found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/notebooks/?user_id=90a12345-f12a-98c4-a456-513432930001", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "[]")
+	})
+
+	t.Run("Get Notebooks By Name", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/notebooks/?name=Test Notebook", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Notebook")
+	})
 }

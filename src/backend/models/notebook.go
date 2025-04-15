@@ -9,7 +9,7 @@ import (
 
 type Notebook struct {
 	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID      uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
 	Name        string    `gorm:"not null" json:"name"`
 	Description string    `json:"description"`
 	Notes       []Note    `gorm:"foreignKey:NotebookID" json:"notes"`

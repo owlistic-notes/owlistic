@@ -2,33 +2,34 @@ class Block {
   final String id;
   final String content;
   final String type;
-  final int order;
   final String noteId;
+  final int order;
 
   Block({
     required this.id,
     required this.content,
     required this.type,
-    required this.order,
     required this.noteId,
+    required this.order,
   });
 
   factory Block.fromJson(Map<String, dynamic> json) {
     return Block(
-      id: json['id']?.toString() ?? '',
-      content: json['content']?.toString() ?? '',
-      type: json['type']?.toString() ?? 'text',
-      order: json['order'] as int? ?? 0,
-      noteId: json['note_id']?.toString() ?? '',
+      id: json['id'] ?? '',
+      content: json['content'] ?? '',
+      type: json['type'] ?? 'text',
+      noteId: json['note_id'] ?? '',
+      order: json['order'] ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'content': content,
       'type': type,
-      'order': order,
       'note_id': noteId,
+      'order': order,
     };
   }
 }

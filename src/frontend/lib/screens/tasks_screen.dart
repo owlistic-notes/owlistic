@@ -14,7 +14,9 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
+    
+    // Use post-frame callback instead of microtask
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<TasksProvider>(context, listen: false).fetchTasks();
       Provider.of<NotesProvider>(context, listen: false).fetchNotes();
     });
@@ -65,7 +67,7 @@ class _TasksScreenState extends State<TasksScreen> {
               if (_titleController.text.isNotEmpty && selectedNoteId != null) {
                 try {
                   await Provider.of<TasksProvider>(context, listen: false)
-                      .createTask(_titleController.text, selectedNoteId!);
+                      .createTask(_titleController.text, selectedNoteId!, blockId: null);
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(

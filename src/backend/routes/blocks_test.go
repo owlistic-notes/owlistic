@@ -17,6 +17,39 @@ import (
 
 type MockBlockService struct{}
 
+// Add GetBlocks method for query parameter support
+func (m *MockBlockService) GetBlocks(db *database.Database, params map[string]interface{}) ([]models.Block, error) {
+	noteID, hasNoteID := params["note_id"].(string)
+	blockType, hasBlockType := params["type"].(string)
+
+	if hasNoteID && noteID == "90a12345-f12a-98c4-a456-513432930000" {
+		blocks := []models.Block{
+			{
+				ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+				NoteID:  uuid.Must(uuid.Parse(noteID)),
+				Type:    models.TextBlock,
+				Content: "Test Content",
+				Order:   1,
+			},
+		}
+
+		// Apply type filter if needed
+		if hasBlockType && blockType != "" {
+			var filteredBlocks []models.Block
+			for _, block := range blocks {
+				if string(block.Type) == blockType {
+					filteredBlocks = append(filteredBlocks, block)
+				}
+			}
+			return filteredBlocks, nil
+		}
+
+		return blocks, nil
+	}
+
+	return []models.Block{}, nil
+}
+
 func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[string]interface{}) (models.Block, error) {
 	content, ok := blockData["content"].(string)
 	if !ok || content == "" {
@@ -198,6 +231,37 @@ func TestListBlocksByNote(t *testing.T) {
 	t.Run("Blocks Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/blocks/note/90a12345-f12a-98c4-a456-513432930000", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Content")
+	})
+}
+
+// Add new test for blocks with query parameters
+func TestGetBlocks(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockBlockService{}
+	RegisterBlockRoutes(router, db, mockService)
+
+	t.Run("Get Blocks With No Filters", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/blocks/", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("Get Blocks By Note ID", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/blocks/?note_id=90a12345-f12a-98c4-a456-513432930000", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Content")
+	})
+
+	t.Run("Get Blocks By Type", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/blocks/?type=text&note_id=90a12345-f12a-98c4-a456-513432930000", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "Test Content")

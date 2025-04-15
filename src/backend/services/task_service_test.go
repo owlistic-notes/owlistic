@@ -10,39 +10,141 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/thinkstack/models"
 	"github.com/thinkstack/testutils"
+	"gorm.io/gorm"
 )
 
 func TestCreateTask_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
-	taskId := uuid.New()
-	now := time.Now()
+	taskID := uuid.New()
+	userID := uuid.New()
+	noteID := uuid.New()
+	blockID := uuid.New()
 
+	// First expect a transaction
 	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "tasks" \("user_id","block_id","title","description","is_completed","due_date","id"\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\) RETURNING "id","created_at","updated_at"`).
+
+	// Expect a query to check if the note exists
+	mock.ExpectQuery(`SELECT \* FROM "notes" WHERE id = \$1`).
+		WithArgs(noteID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title"}).
+			AddRow(noteID.String(), userID.String(), "Test Note"))
+
+	// Expect a query to find the last block by order
+	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE note_id = \$1 ORDER BY "order" DESC`).
+		WithArgs(noteID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "note_id", "type", "content", "order"}).
+			AddRow(blockID.String(), noteID.String(), "text", "Test Content", 1))
+
+	// Expect task creation
+	mock.ExpectQuery(`INSERT INTO "tasks"`).
+		WithArgs(sqlmock.AnyArg(), userID, blockID, "Test Task", "Test Description", false, "").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(taskID))
+
+	// Expect event creation
+	mock.ExpectQuery(`INSERT INTO "events"`).
 		WithArgs(
-			uuid.Nil,    // user_id
-			uuid.Nil,    // block_id
-			"Test Task", // title
-			"",          // description
-			false,       // is_completed
-			"",          // due_date
-			taskId,      // id
+			"task.created",   // event
+			1,                // version
+			"task",           // entity
+			"create",         // operation
+			sqlmock.AnyArg(), // timestamp
+			userID.String(),  // actor_id
+			sqlmock.AnyArg(), // data json
+			"pending",        // status
+			false,            // dispatched
+			nil,              // dispatched_at
+			sqlmock.AnyArg(), // id
 		).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
-			AddRow(taskId.String(), now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
 	mock.ExpectCommit()
 
-	taskService := &TaskService{}
-	task := models.Task{
-		ID:    taskId,
-		Title: "Test Task",
+	service := &TaskService{}
+	taskData := map[string]interface{}{
+		"title":       "Test Task",
+		"description": "Test Description",
+		"user_id":     userID.String(),
+		"note_id":     noteID.String(),
 	}
 
-	createdTask, err := taskService.CreateTask(db, task)
+	createdTask, err := service.CreateTask(db, taskData)
 	assert.NoError(t, err)
-	assert.Equal(t, task.Title, createdTask.Title)
+	assert.Equal(t, taskData["title"], createdTask.Title)
+	assert.Equal(t, blockID, createdTask.BlockID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateTask_CreateNewBlock(t *testing.T) {
+	db, mock, close := testutils.SetupMockDB()
+	defer close()
+
+	taskID := uuid.New()
+	userID := uuid.New()
+	noteID := uuid.New()
+
+	// First expect a transaction
+	mock.ExpectBegin()
+
+	// Expect a query to check if the note exists
+	mock.ExpectQuery(`SELECT \* FROM "notes" WHERE id = \$1`).
+		WithArgs(noteID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title"}).
+			AddRow(noteID.String(), userID.String(), "Test Note"))
+
+	// Expect a query to find the last block by order - return empty to trigger block creation
+	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE note_id = \$1 ORDER BY "order" DESC`).
+		WithArgs(noteID.String()).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	// Expect new block creation
+	mock.ExpectQuery(`INSERT INTO "blocks"`).
+		WithArgs(
+			noteID.String(),  // note_id
+			"task",           // type
+			"Tasks",          // content
+			"{}",             // metadata
+			1,                // order
+			sqlmock.AnyArg(), // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
+	// Expect task creation
+	mock.ExpectQuery(`INSERT INTO "tasks"`).
+		WithArgs(sqlmock.AnyArg(), userID, sqlmock.AnyArg(), "Test Task", "", false, "").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(taskID))
+
+	// Expect event creation
+	mock.ExpectQuery(`INSERT INTO "events"`).
+		WithArgs(
+			"task.created",   // event
+			1,                // version
+			"task",           // entity
+			"create",         // operation
+			sqlmock.AnyArg(), // timestamp
+			userID.String(),  // actor_id
+			sqlmock.AnyArg(), // data json
+			"pending",        // status
+			false,            // dispatched
+			nil,              // dispatched_at
+			sqlmock.AnyArg(), // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
+	mock.ExpectCommit()
+
+	service := &TaskService{}
+	taskData := map[string]interface{}{
+		"title":   "Test Task",
+		"user_id": userID.String(),
+		"note_id": noteID.String(),
+	}
+
+	createdTask, err := service.CreateTask(db, taskData)
+	assert.NoError(t, err)
+	assert.Equal(t, taskData["title"], createdTask.Title)
+	assert.NotEqual(t, uuid.Nil, createdTask.BlockID)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -68,17 +170,24 @@ func TestUpdateTask_Success(t *testing.T) {
 	existingID := uuid.New()
 	now := time.Now()
 
+	// Begin transaction
+	mock.ExpectBegin()
+
 	// Mock the SELECT query that GORM performs first
-	mock.ExpectQuery("SELECT (.+) FROM \"tasks\" WHERE id = \\$1 ORDER BY \"tasks\".\"id\" LIMIT \\$2").
+	mock.ExpectQuery(`SELECT (.+) FROM "tasks" WHERE id = \$1 ORDER BY "tasks"."id" LIMIT \$2`).
 		WithArgs(existingID.String(), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "block_id", "title", "description", "is_completed", "due_date", "created_at", "updated_at"}).
-			AddRow(existingID.String(), uuid.Nil.String(), uuid.Nil.String(), "Old Title", "", false, "", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "block_id", "title", "description",
+			"is_completed", "due_date", "created_at", "updated_at"}).
+			AddRow(existingID.String(), uuid.Nil.String(), uuid.Nil.String(),
+				"Old Title", "", false, "", now, now))
 
 	// Mock the UPDATE query
-	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE \"tasks\" SET").
+	mock.ExpectExec(`UPDATE "tasks" SET`).
 		WithArgs("Updated Task", sqlmock.AnyArg(), existingID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Expect commit
 	mock.ExpectCommit()
 
 	taskService := &TaskService{}
@@ -93,14 +202,30 @@ func TestDeleteTask_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
+	existingID := uuid.New()
+
+	// Begin transaction
 	mock.ExpectBegin()
-	mock.ExpectExec("DELETE FROM \"tasks\" WHERE id = \\$1").
-		WithArgs("existing-id").
+
+	// Mock the SELECT query that GORM performs first
+	mock.ExpectQuery(`SELECT \* FROM "tasks" WHERE id = \$1 ORDER BY "tasks"."id" LIMIT \$2`).
+		WithArgs(existingID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "block_id", "title", "description",
+			"is_completed", "due_date"}).
+			AddRow(existingID.String(), uuid.Nil.String(), uuid.Nil.String(),
+				"Test Task", "", false, ""))
+
+	// Mock the DELETE query
+	mock.ExpectExec(`DELETE FROM "tasks" WHERE`).
+		WithArgs(existingID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Expect commit
 	mock.ExpectCommit()
 
 	taskService := &TaskService{}
-	err := taskService.DeleteTask(db, "existing-id")
+	err := taskService.DeleteTask(db, existingID.String())
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

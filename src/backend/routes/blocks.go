@@ -12,12 +12,36 @@ import (
 func RegisterBlockRoutes(router *gin.Engine, db *database.Database, blockService services.BlockServiceInterface) {
 	group := router.Group("/api/v1/blocks")
 	{
+		// Collection endpoints with query parameters
+		group.GET("/", func(c *gin.Context) { GetBlocks(c, db, blockService) })
 		group.POST("/", func(c *gin.Context) { CreateBlock(c, db, blockService) })
+
+		// Resource-specific endpoints
 		group.GET("/:id", func(c *gin.Context) { GetBlockById(c, db, blockService) })
 		group.PUT("/:id", func(c *gin.Context) { UpdateBlock(c, db, blockService) })
 		group.DELETE("/:id", func(c *gin.Context) { DeleteBlock(c, db, blockService) })
 		group.GET("/note/:note_id", func(c *gin.Context) { ListBlocksByNote(c, db, blockService) })
 	}
+}
+
+func GetBlocks(c *gin.Context, db *database.Database, blockService services.BlockServiceInterface) {
+	// Extract query parameters
+	params := make(map[string]interface{})
+
+	if noteID := c.Query("note_id"); noteID != "" {
+		params["note_id"] = noteID
+	}
+
+	if blockType := c.Query("type"); blockType != "" {
+		params["type"] = blockType
+	}
+
+	blocks, err := blockService.GetBlocks(db, params)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, blocks)
 }
 
 func CreateBlock(c *gin.Context, db *database.Database, blockService services.BlockServiceInterface) {

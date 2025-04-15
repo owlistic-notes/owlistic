@@ -17,6 +17,73 @@ import (
 
 type MockNoteService struct{}
 
+// Add GetNotes method for query parameter support
+func (m *MockNoteService) GetNotes(db *database.Database, params map[string]interface{}) ([]models.Note, error) {
+	userID, hasUserID := params["user_id"].(string)
+	notebookID, hasNotebookID := params["notebook_id"].(string)
+	title, hasTitle := params["title"].(string)
+
+	notes := []models.Note{
+		{
+			ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+			Title: "Test Note",
+			Blocks: []models.Block{{
+				ID:      uuid.New(),
+				Type:    models.TextBlock,
+				Content: "This is a test note",
+				Order:   1,
+			}},
+			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+		},
+		{
+			ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")),
+			Title: "Test Note 2",
+			Blocks: []models.Block{{
+				ID:      uuid.New(),
+				Type:    models.TextBlock,
+				Content: "This is another test note",
+				Order:   1,
+			}},
+			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+		},
+	}
+
+	// Apply user filter
+	if hasUserID && userID != "" {
+		var filteredNotes []models.Note
+		for _, note := range notes {
+			if note.UserID.String() == userID {
+				filteredNotes = append(filteredNotes, note)
+			}
+		}
+		notes = filteredNotes
+	}
+
+	// Apply notebook filter
+	if hasNotebookID && notebookID != "" {
+		var filteredNotes []models.Note
+		for _, note := range notes {
+			if note.NotebookID.String() == notebookID {
+				filteredNotes = append(filteredNotes, note)
+			}
+		}
+		notes = filteredNotes
+	}
+
+	// Apply title filter
+	if hasTitle && title != "" {
+		var filteredNotes []models.Note
+		for _, note := range notes {
+			if note.Title == title {
+				filteredNotes = append(filteredNotes, note)
+			}
+		}
+		notes = filteredNotes
+	}
+
+	return notes, nil
+}
+
 func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]interface{}) (models.Note, error) {
 	title, ok := noteData["title"].(string)
 	if !ok || title == "" {
@@ -268,4 +335,37 @@ func TestGetAllNotes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Test Note")
 	assert.Contains(t, w.Body.String(), "Test Note 2")
+}
+
+// Add new test for notes with query parameters
+func TestGetNotes(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockNoteService{}
+	RegisterNoteRoutes(router, db, mockService)
+
+	t.Run("Get Notes With No Filters", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/notes/", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Note")
+		assert.Contains(t, w.Body.String(), "Test Note 2")
+	})
+
+	t.Run("Get Notes By User ID", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/notes/?user_id=90a12345-f12a-98c4-a456-513432930000", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Note")
+	})
+
+	t.Run("Get Notes By Title", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/notes/?title=Test Note", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Note")
+	})
 }

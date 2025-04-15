@@ -12,17 +12,30 @@ import (
 func RegisterNotebookRoutes(router *gin.Engine, db *database.Database, notebookService services.NotebookServiceInterface) {
 	group := router.Group("/api/v1/notebooks")
 	{
-		group.GET("/", func(c *gin.Context) { GetAllNotebooks(c, db, notebookService) })
+		// Collection endpoints with query parameters
+		group.GET("/", func(c *gin.Context) { GetNotebooks(c, db, notebookService) })
 		group.POST("/", func(c *gin.Context) { CreateNotebook(c, db, notebookService) })
+
+		// Resource-specific endpoints
 		group.GET("/:id", func(c *gin.Context) { GetNotebookById(c, db, notebookService) })
 		group.PUT("/:id", func(c *gin.Context) { UpdateNotebook(c, db, notebookService) })
 		group.DELETE("/:id", func(c *gin.Context) { DeleteNotebook(c, db, notebookService) })
-		group.GET("/user/:user_id", func(c *gin.Context) { ListNotebooksByUser(c, db, notebookService) })
 	}
 }
 
-func GetAllNotebooks(c *gin.Context, db *database.Database, notebookService services.NotebookServiceInterface) {
-	notebooks, err := notebookService.GetAllNotebooks(db)
+func GetNotebooks(c *gin.Context, db *database.Database, notebookService services.NotebookServiceInterface) {
+	// Extract query parameters
+	params := make(map[string]interface{})
+
+	if userID := c.Query("user_id"); userID != "" {
+		params["user_id"] = userID
+	}
+
+	if name := c.Query("name"); name != "" {
+		params["name"] = name
+	}
+
+	notebooks, err := notebookService.GetNotebooks(db, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

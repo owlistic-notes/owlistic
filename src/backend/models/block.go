@@ -19,7 +19,7 @@ const (
 
 type Block struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	NoteID    uuid.UUID `gorm:"type:uuid;not null" json:"note_id"`
+	NoteID    uuid.UUID `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"note_id"`
 	Type      BlockType `gorm:"type:varchar(20);not null" json:"type"`
 	Content   string    `gorm:"not null" json:"content"`
 	Metadata  string    `gorm:"type:jsonb;default:{}" json:"metadata,omitempty"`

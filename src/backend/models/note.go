@@ -9,8 +9,8 @@ import (
 
 type Note struct {
 	ID         uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID     uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
-	NotebookID uuid.UUID `gorm:"type:uuid;not null" json:"notebook_id"`
+	UserID     uuid.UUID `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
+	NotebookID uuid.UUID `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"notebook_id"`
 	Title      string    `gorm:"not null" json:"title"`
 	Blocks     []Block   `gorm:"foreignKey:NoteID" json:"blocks"`
 	Tags       []string  `gorm:"type:text[]" json:"tags"`

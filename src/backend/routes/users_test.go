@@ -16,6 +16,35 @@ import (
 
 type MockUserService struct{}
 
+// Add GetUsers method for query parameter support
+func (m *MockUserService) GetUsers(db *database.Database, params map[string]interface{}) ([]models.User, error) {
+	email, hasEmail := params["email"].(string)
+
+	users := []models.User{
+		{
+			ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+			Email: "test@example.com",
+		},
+		{
+			ID:    uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")),
+			Email: "test2@example.com",
+		},
+	}
+
+	// Apply email filter
+	if hasEmail && email != "" {
+		var filteredUsers []models.User
+		for _, user := range users {
+			if user.Email == email {
+				filteredUsers = append(filteredUsers, user)
+			}
+		}
+		return filteredUsers, nil
+	}
+
+	return users, nil
+}
+
 func (m *MockUserService) CreateUser(db *database.Database, user models.User) (models.User, error) {
 	return user, nil
 }
@@ -153,4 +182,30 @@ func TestGetAllUsers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "test@example.com")
 	assert.Contains(t, w.Body.String(), "test2@example.com")
+}
+
+// Add new test for users with query parameters
+func TestGetUsers(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockUserService{}
+	RegisterUserRoutes(router, db, mockService)
+
+	t.Run("Get Users With No Filters", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/users/", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "test@example.com")
+		assert.Contains(t, w.Body.String(), "test2@example.com")
+	})
+
+	t.Run("Get Users By Email", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/users/?email=test@example.com", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "test@example.com")
+		assert.NotContains(t, w.Body.String(), "test2@example.com")
+	})
 }

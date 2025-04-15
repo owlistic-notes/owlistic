@@ -25,11 +25,41 @@ func main() {
 	}
 	defer db.Close()
 
-	broker.InitProducer()
-	defer broker.CloseProducer()
+	// Initialize Kafka producer with better error handling
+	kafkaAvailable := true
+	err = broker.InitProducer()
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Kafka producer: %v", err)
+		log.Println("The application will continue, but some Kafka-dependent features will be disabled")
+		kafkaAvailable = false
+	} else {
+		defer broker.CloseProducer()
+	}
 
-	go broker.StartNotificationConsumer(db)
-	go broker.StartSyncConsumer(db)
+	// Initialize WebSocket service
+	kafkaTopics := []string{
+		broker.NoteEventsTopic,
+		broker.NotebookEventsTopic,
+		broker.SyncEventsTopic,
+		broker.BlockEventsTopic,
+	}
+
+	// Create and initialize the WebSocket service
+	webSocketService := services.NewWebSocketService(db, kafkaTopics)
+	services.WebSocketServiceInstance = webSocketService
+	webSocketService.Start() // This runs in a goroutine
+	defer webSocketService.Stop()
+
+	// Only initialize Kafka-dependent services if Kafka is available
+	if kafkaAvailable {
+		// Initialize eventHandler service
+		eventHandlerService := services.NewEventHandlerService(db)
+		services.EventHandlerServiceInstance = eventHandlerService
+		eventHandlerService.Start()
+		defer eventHandlerService.Stop()
+	} else {
+		log.Println("EventHandler service is disabled due to Kafka unavailability")
+	}
 
 	router := gin.Default()
 
@@ -44,10 +74,12 @@ func main() {
 	go func() {
 		<-quit
 		log.Println("Shutting down server...")
+		// Explicitly close Kafka consumers before exiting
+		broker.CloseAllConsumers()
 		os.Exit(0)
 	}()
 
-	log.Println("Server is running on port 8080")
+	log.Println("API server is running on port 8080")
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

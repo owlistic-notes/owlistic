@@ -14,8 +14,11 @@ import (
 func RegisterUserRoutes(router *gin.Engine, db *database.Database, userService services.UserServiceInterface) {
 	group := router.Group("/api/v1/users")
 	{
-		group.GET("/", func(c *gin.Context) { GetAllUsers(c, db, userService) })
+		// Collection endpoints with query parameters
+		group.GET("/", func(c *gin.Context) { GetUsers(c, db, userService) })
 		group.POST("/", func(c *gin.Context) { CreateUser(c, db, userService) })
+
+		// Resource-specific endpoints
 		group.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
 		group.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
 		group.DELETE("/:id", func(c *gin.Context) { DeleteUser(c, db, userService) })
@@ -84,8 +87,16 @@ func DeleteUser(c *gin.Context, db *database.Database, userService services.User
 	c.JSON(http.StatusNoContent, gin.H{})
 }
 
-func GetAllUsers(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {
-	users, err := userService.GetAllUsers(db)
+func GetUsers(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {
+	// Extract query parameters
+	params := make(map[string]interface{})
+
+	// Add any query params that might be used for filtering
+	if email := c.Query("email"); email != "" {
+		params["email"] = email
+	}
+
+	users, err := userService.GetUsers(db, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

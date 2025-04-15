@@ -4,14 +4,33 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/note.dart';
 import '../models/task.dart';
 import '../models/notebook.dart';
+import '../models/block.dart';
 
 class ApiService {
   static final String baseUrl = dotenv.env['BASE_URL'] ?? 'http://localhost:8080';
 
-  static Future<List<Note>> fetchNotes() async {
+  static Future<List<Note>> fetchNotes({
+    String? userId, 
+    String? notebookId, 
+    String? title,
+    int page = 1,
+    int pageSize = 20
+  }) async {
     try {
+      // Build query parameters
+      final queryParams = <String, String>{};
+      if (userId != null) queryParams['user_id'] = userId;
+      if (notebookId != null) queryParams['notebook_id'] = notebookId;
+      if (title != null) queryParams['title'] = title;
+      
+      // Add pagination parameters
+      queryParams['page'] = page.toString();
+      queryParams['page_size'] = pageSize.toString();
+      
+      final uri = Uri.parse('$baseUrl/api/v1/notes').replace(queryParameters: queryParams);
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/notes'),
+        uri,
         headers: {
           'Accept': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -30,25 +49,30 @@ class ApiService {
     }
   }
 
-  static Future<List<Task>> fetchTasks() async {
+  static Future<List<Task>> fetchTasks({String? userId, String? completed, String? noteId}) async {
     try {
-      print('Fetching tasks from: $baseUrl/api/v1/tasks');
+      // Build query parameters
+      final queryParams = <String, String>{};
+      if (userId != null) queryParams['user_id'] = userId;
+      if (completed != null) queryParams['completed'] = completed;
+      if (noteId != null) queryParams['note_id'] = noteId;
+      
+      final uri = Uri.parse('$baseUrl/api/v1/tasks').replace(queryParameters: queryParams);
+      
+      print('Fetching tasks from: $uri');
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/tasks'),
+        uri,
         headers: {
           'Accept': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
       );
       print('Response status: ${response.statusCode}');
-      print('Response headers: ${response.headers}');
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         print('Parsed JSON data length: ${data.length}');
-        print('First task data: ${data.isNotEmpty ? data.first : "no tasks"}');
         final tasks = data.map((json) => Task.fromJson(json)).toList();
-        print('Converted to ${tasks.length} Task objects');
         return tasks;
       } else {
         throw Exception('Failed to load tasks: ${response.statusCode}\nBody: ${response.body}');
@@ -120,22 +144,32 @@ class ApiService {
     }
   }
 
-  static Future<Task> createTask(String title, String noteId) async {
+  static Future<Task> createTask(String title, String noteId, {String? blockId}) async {
     try {
+      final taskData = {
+        'title': title,
+        'is_completed': false,
+        'user_id': '90a12345-f12a-98c4-a456-513432930000',
+        'note_id': noteId,
+      };
+      
+      // Only add blockId if it's provided and valid
+      if (blockId != null && blockId.isNotEmpty && blockId != '00000000-0000-0000-0000-000000000000') {
+        taskData['block_id'] = blockId;
+      }
+      
+      print('Creating task with data: $taskData');
+
       final taskResponse = await http.post(
         Uri.parse('$baseUrl/api/v1/tasks'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'title': title,
-          'is_completed': false,
-          'user_id': '90a12345-f12a-98c4-a456-513432930000',
-          'note_id': noteId
-        }),
+        body: json.encode(taskData),
       );
 
       if (taskResponse.statusCode == 201) {
         return Task.fromJson(json.decode(taskResponse.body));
       } else {
+        print('Failed to create task: ${taskResponse.statusCode}, ${taskResponse.body}');
         throw Exception('Failed to create task: ${taskResponse.statusCode}');
       }
     } catch (e) {
@@ -173,10 +207,26 @@ class ApiService {
     }
   }
 
-  static Future<List<Notebook>> fetchNotebooks() async {
+  static Future<List<Notebook>> fetchNotebooks({
+    String? userId, 
+    String? name,
+    int page = 1,
+    int pageSize = 20
+  }) async {
     try {
+      // Build query parameters
+      final queryParams = <String, String>{};
+      if (userId != null) queryParams['user_id'] = userId;
+      if (name != null) queryParams['name'] = name;
+      
+      // Add pagination parameters
+      queryParams['page'] = page.toString();
+      queryParams['page_size'] = pageSize.toString();
+      
+      final uri = Uri.parse('$baseUrl/api/v1/notebooks').replace(queryParameters: queryParams);
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/notebooks'),
+        uri,
         headers: {
           'Accept': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -268,9 +318,17 @@ class ApiService {
   }
 
   static Future<List<Note>> fetchNotebookNotes(String notebookId) async {
+    return fetchNotes(notebookId: notebookId);
+  }
+
+  static Future<List<Block>> fetchBlocksForNote(String noteId) async {
     try {
+      // Use query parameter instead of path parameter
+      final queryParams = <String, String>{'note_id': noteId};
+      final uri = Uri.parse('$baseUrl/api/v1/blocks').replace(queryParameters: queryParams);
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/notes/notebook/$notebookId'),
+        uri,
         headers: {
           'Accept': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -279,12 +337,164 @@ class ApiService {
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => Note.fromJson(json)).toList();
+        return data.map((json) => Block.fromJson(json)).toList();
       } else {
-        throw Exception('Failed to load notebook notes: ${response.statusCode}');
+        throw Exception('Failed to load blocks');
       }
     } catch (e) {
-      print('Error in fetchNotebookNotes: $e');
+      print('Error in fetchBlocksForNote: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Block> createBlock(String noteId, String content, String type, int order) async {
+    try {
+      // Convert the order to a string to ensure proper parsing on the Go backend
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/v1/blocks'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'note_id': noteId,
+          'content': content,
+          'type': type,
+          'order': order.toString() // Send order as a string to avoid float64/int conversion issues
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return Block.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Failed to create block');
+      }
+    } catch (e) {
+      print('Error in createBlock: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> deleteBlock(String id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/api/v1/blocks/$id'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode != 204) {
+        throw Exception('Failed to delete block');
+      }
+    } catch (e) {
+      print('Error in deleteBlock: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Block> updateBlock(String id, String content, {String? type}) async {
+    try {
+      final Map<String, dynamic> updates = {
+        'content': content,
+      };
+      
+      if (type != null) {
+        updates['type'] = type;
+      }
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/v1/blocks/$id'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(updates),
+      );
+
+      if (response.statusCode == 200) {
+        return Block.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Failed to update block: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in updateBlock: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Block> getBlock(String id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/v1/blocks/$id'),
+        headers: {
+          'Accept': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        return Block.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Failed to load block');
+      }
+    } catch (e) {
+      print('Error in getBlock: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Note> getNote(String id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/v1/notes/$id'),
+        headers: {
+          'Accept': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        return Note.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Failed to load note');
+      }
+    } catch (e) {
+      print('Error in getNote: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Notebook> getNotebook(String id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/v1/notebooks/$id'),
+        headers: {
+          'Accept': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        return Notebook.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Failed to load notebook');
+      }
+    } catch (e) {
+      print('Error in getNotebook: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Task> getTask(String id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/v1/tasks/$id'),
+        headers: {
+          'Accept': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        return Task.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Failed to load task');
+      }
+    } catch (e) {
+      print('Error in getTask: $e');
       rethrow;
     }
   }

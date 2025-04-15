@@ -1,14 +1,60 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/note.dart';
-import '../providers/notes_provider.dart';
 import '../providers/notebooks_provider.dart';
+import '../providers/websocket_provider.dart';
+import '../utils/provider_extensions.dart';
 import 'note_editor_screen.dart';
 
-class NotebookDetailScreen extends StatelessWidget {
+/// NotebookDetailScreen acts as the View in MVP pattern
+class NotebookDetailScreen extends StatefulWidget {
   final String notebookId;
 
-  const NotebookDetailScreen({required this.notebookId});
+  const NotebookDetailScreen({Key? key, required this.notebookId}) : super(key: key);
+
+  @override
+  _NotebookDetailScreenState createState() => _NotebookDetailScreenState();
+}
+
+class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
+  bool _isInitialized = false;
+  
+  // NotebooksProvider acts as the Presenter
+  late NotebooksProvider _presenter;
+  late WebSocketProvider _webSocketProvider;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    if (!_isInitialized) {
+      _isInitialized = true;
+      
+      // Get presenters
+      _presenter = context.notebooksPresenter();
+      _webSocketProvider = context.webSocketProvider();
+      
+      // Initialize data
+      _initializeData();
+    }
+  }
+  
+  Future<void> _initializeData() async {
+    // Ensure WebSocket connection first
+    await _webSocketProvider.ensureConnected();
+    
+    // Activate the presenter
+    _presenter.activate();
+    
+    // Subscribe to the notebook and notes
+    _webSocketProvider.subscribe('notebook', id: widget.notebookId);
+    _webSocketProvider.subscribe('notebook:notes', id: widget.notebookId);
+    _webSocketProvider.subscribe('note');
+    
+    // Fetch notebook data
+    await _presenter.fetchNotebookById(widget.notebookId);
+  }
 
   void _showAddNoteDialog(BuildContext context, String notebookId) {
     final _titleController = TextEditingController();
@@ -30,8 +76,7 @@ class NotebookDetailScreen extends StatelessWidget {
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
                 try {
-                  await Provider.of<NotebooksProvider>(context, listen: false)
-                      .addNoteToNotebook(notebookId, _titleController.text);
+                  await _presenter.addNoteToNotebook(notebookId, _titleController.text);
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -41,56 +86,6 @@ class NotebookDetailScreen extends StatelessWidget {
               }
             },
             child: Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditNoteDialog(BuildContext context, String notebookId, Note note) {
-    final _titleController = TextEditingController(text: note.title);
-    final _contentController = TextEditingController(text: note.content);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Edit Note'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: InputDecoration(labelText: 'Title'),
-            ),
-            SizedBox(height: 8),
-            TextField(
-              controller: _contentController,
-              decoration: InputDecoration(labelText: 'Content'),
-              maxLines: 5,
-              minLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
-                try {
-                  await Provider.of<NotesProvider>(context, listen: false)
-                      .updateNote(note.id, _titleController.text);
-                  Navigator.of(ctx).pop();
-                } catch (error) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to update note')),
-                  );
-                }
-              }
-            },
-            child: Text('Save'),
           ),
         ],
       ),
@@ -108,53 +103,117 @@ class NotebookDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final notebook = Provider.of<NotebooksProvider>(context)
-        .notebooks
-        .firstWhere((nb) => nb.id == notebookId);
-
+    // Listen to websocket provider for connection status
+    final wsProvider = context.webSocketProvider(listen: true);
+    
+    // Listen to notebooks provider for data updates
+    final notebooksPresenter = context.notebooksPresenter(listen: true);
+    
+    // Find the current notebook
+    final notebookIndex = notebooksPresenter.notebooks
+        .indexWhere((nb) => nb.id == widget.notebookId);
+    
+    final hasNotebook = notebookIndex != -1;
+    final notebook = hasNotebook 
+        ? notebooksPresenter.notebooks[notebookIndex]
+        : null;
+    
     return Scaffold(
-      appBar: AppBar(title: Text(notebook.name)),
-      body: ListView.builder(
-        itemCount: notebook.notes.length,
-        itemBuilder: (context, index) {
-          final note = notebook.notes[index];
-          return Card(
-            margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ListTile(
-              title: Text(note.title),
-              subtitle: Text(note.content),
-              leading: Icon(Icons.note),
-              onTap: () => _navigateToNoteEditor(context, note),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.edit),
-                    onPressed: () => _showEditNoteDialog(context, notebookId, note),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.delete),
-                    onPressed: () async {
-                      try {
-                        await Provider.of<NotebooksProvider>(context, listen: false)
-                            .deleteNoteFromNotebook(notebookId, note.id);
-                      } catch (error) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to delete note')),
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
+      key: ValueKey('notebook_${widget.notebookId}'),
+      appBar: AppBar(
+        title: Text(hasNotebook ? notebook!.name : 'Notebook Details'),
+        actions: [
+          // Add refresh button
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              notebooksPresenter.fetchNotebookById(widget.notebookId);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Refreshing notebook...'))
+              );
+            },
+          ),
+          // Connection indicator
+          Tooltip(
+            message: 'WebSocket ${wsProvider.isConnected ? "Connected" : "Disconnected"}',
+            child: Icon(
+              wsProvider.isConnected ? Icons.wifi : Icons.wifi_off,
+              color: wsProvider.isConnected ? Colors.green : Colors.red,
             ),
-          );
-        },
+          ),
+          SizedBox(width: 16),
+        ],
       ),
+      body: !hasNotebook
+          ? Center(child: CircularProgressIndicator())
+          : _buildNotebookContent(notebook!),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddNoteDialog(context, notebookId),
+        onPressed: () => _showAddNoteDialog(context, widget.notebookId),
         child: Icon(Icons.add),
       ),
     );
+  }
+  
+  Widget _buildNotebookContent(dynamic notebook) {
+    if (notebook.notes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('No notes in this notebook'),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => _showAddNoteDialog(context, widget.notebookId),
+              child: Text('Add Note'),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return ListView.builder(
+      key: ValueKey('notes_list_${notebook.notes.length}'),
+      itemCount: notebook.notes.length,
+      itemBuilder: (context, index) {
+        final note = notebook.notes[index];
+        return Card(
+          key: ValueKey('note_${note.id}'),
+          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: ListTile(
+            title: Text(note.title),
+            subtitle: Text(note.blocks.isNotEmpty ? note.blocks.first.content : ''),
+            leading: Icon(Icons.note),
+            onTap: () => _navigateToNoteEditor(context, note),
+            trailing: IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: () async {
+                try {
+                  await _presenter.deleteNoteFromNotebook(
+                      widget.notebookId, note.id);
+                } catch (error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete note')),
+                  );
+                }
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  @override
+  void dispose() {
+    // Unsubscribe and deactivate when the view is disposed
+    if (_isInitialized) {
+      _webSocketProvider.unsubscribe('notebook', id: widget.notebookId);
+      _webSocketProvider.unsubscribe('notebook:notes', id: widget.notebookId);
+      
+      // Deactivate the presenter
+      _presenter.deactivate();
+    }
+    
+    super.dispose();
   }
 }

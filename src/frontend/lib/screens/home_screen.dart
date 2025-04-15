@@ -5,6 +5,7 @@ import '../widgets/app_drawer.dart';
 import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/notebooks_provider.dart';
+import '../providers/websocket_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -13,15 +14,25 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isInitialized = false;
 
   @override
-  void initState() {
-    super.initState();
-    Future.microtask(() {
-      Provider.of<NotesProvider>(context, listen: false).fetchNotes();
-      Provider.of<TasksProvider>(context, listen: false).fetchTasks();
-      Provider.of<NotebooksProvider>(context, listen: false).fetchNotebooks();
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    if (!_isInitialized) {
+      _isInitialized = true;
+      
+      // Ensure WebSocket is connected
+      Provider.of<WebSocketProvider>(context, listen: false).ensureConnected();
+      
+      // Fetch data from providers
+      Future.microtask(() {
+        Provider.of<NotesProvider>(context, listen: false).fetchNotes();
+        Provider.of<TasksProvider>(context, listen: false).fetchTasks();
+        Provider.of<NotebooksProvider>(context, listen: false).fetchNotebooks();
+      });
+    }
   }
 
   @override
@@ -52,6 +63,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   
                   final recentNotebooks = notebooksProvider.notebooks.take(5).toList();
                   
+                  if (recentNotebooks.isEmpty) {
+                    return Center(child: Text('No notebooks found'));
+                  }
+                  
                   return ListView.builder(
                     itemCount: recentNotebooks.length,
                     itemBuilder: (context, index) {
@@ -80,31 +95,39 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(height: 8),
             Expanded(
               child: Consumer<NotesProvider>(
-                builder: (ctx, notesProvider, _) => notesProvider.isLoading
-                    ? Center(child: CircularProgressIndicator())
-                    : ListView.builder(
-                        itemCount: notesProvider.recentNotes.length,
-                        itemBuilder: (context, index) {
-                          final note = notesProvider.recentNotes[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text(
-                                note.title,
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              subtitle: Text(
-                                note.content,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blue.withOpacity(0.1),
-                                child: Icon(Icons.note, color: Colors.blue),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                builder: (ctx, notesProvider, _) {
+                  if (notesProvider.isLoading) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                  
+                  if (notesProvider.recentNotes.isEmpty) {
+                    return Center(child: Text('No recent notes'));
+                  }
+                  
+                  return ListView.builder(
+                    itemCount: notesProvider.recentNotes.length,
+                    itemBuilder: (context, index) {
+                      final note = notesProvider.recentNotes[index];
+                      return Card(
+                        child: ListTile(
+                          title: Text(
+                            note.title,
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: Text(
+                            note.content,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blue.withOpacity(0.1),
+                            child: Icon(Icons.note, color: Colors.blue),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
             SizedBox(height: 24),
@@ -112,56 +135,62 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(height: 8),
             Expanded(
               child: Consumer<TasksProvider>(
-                builder: (ctx, tasksProvider, _) => tasksProvider.isLoading
-                    ? Center(child: CircularProgressIndicator())
-                    : tasksProvider.recentTasks.isEmpty
-                        ? Center(child: Text('No recent tasks'))
-                        : ListView.builder(
-                            itemCount: tasksProvider.recentTasks.length,
-                            itemBuilder: (context, index) {
-                              final task = tasksProvider.recentTasks[index];
-                              return Card(
-                                child: ListTile(
-                                  title: Text(
-                                    task.title,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      decoration: task.isCompleted
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                    ),
-                                  ),
-                                  leading: CircleAvatar(
-                                    backgroundColor: Colors.blue.withOpacity(0.1),
-                                    child: Icon(Icons.task_alt, color: Colors.blue),
-                                  ),
-                                  trailing: Transform.scale(
-                                    scale: 1.2,
-                                    child: Checkbox(
-                                      value: task.isCompleted,
-                                      onChanged: (value) async {
-                                        try {
-                                          await tasksProvider
-                                              .toggleTaskCompletion(
-                                                  task.id, value ?? false);
-                                        } catch (error) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            SnackBar(
-                                                content: Text(
-                                                    'Failed to update task status')),
-                                          );
-                                        }
-                                      },
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                builder: (ctx, tasksProvider, _) {
+                  if (tasksProvider.isLoading) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                  
+                  if (tasksProvider.recentTasks.isEmpty) {
+                    return Center(child: Text('No recent tasks'));
+                  }
+                  
+                  return ListView.builder(
+                    itemCount: tasksProvider.recentTasks.length,
+                    itemBuilder: (context, index) {
+                      final task = tasksProvider.recentTasks[index];
+                      return Card(
+                        child: ListTile(
+                          title: Text(
+                            task.title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              decoration: task.isCompleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
                           ),
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blue.withOpacity(0.1),
+                            child: Icon(Icons.task_alt, color: Colors.blue),
+                          ),
+                          trailing: Transform.scale(
+                            scale: 1.2,
+                            child: Checkbox(
+                              value: task.isCompleted,
+                              onChanged: (value) async {
+                                try {
+                                  await tasksProvider
+                                      .toggleTaskCompletion(
+                                          task.id, value ?? false);
+                                } catch (error) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                        content: Text(
+                                            'Failed to update task status')),
+                                  );
+                                }
+                              },
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],
@@ -176,52 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAddNotebookDialog(BuildContext context) {
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('New Notebook'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(labelText: 'Name'),
-            ),
-            SizedBox(height: 8),
-            TextField(
-              controller: descriptionController,
-              decoration: InputDecoration(labelText: 'Description'),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                try {
-                  await Provider.of<NotebooksProvider>(context, listen: false)
-                      .createNotebook(nameController.text, descriptionController.text);
-                  Navigator.of(ctx).pop();
-                } catch (error) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to create notebook')),
-                  );
-                }
-              }
-            },
-            child: Text('Create'),
-          ),
-        ],
-      ),
-    );
+    // ...existing code...
   }
 
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {

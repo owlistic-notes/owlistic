@@ -12,8 +12,11 @@ import (
 func RegisterNoteRoutes(router *gin.Engine, db *database.Database, noteService services.NoteServiceInterface) {
 	group := router.Group("/api/v1/notes")
 	{
-		group.GET("/", func(c *gin.Context) { GetAllNotes(c, db, noteService) })
+		// Collection endpoints with query parameters
+		group.GET("/", func(c *gin.Context) { GetNotes(c, db, noteService) })
 		group.POST("/", func(c *gin.Context) { CreateNote(c, db, noteService) })
+
+		// Resource-specific endpoints
 		group.GET("/:id", func(c *gin.Context) { GetNoteById(c, db, noteService) })
 		group.PUT("/:id", func(c *gin.Context) { UpdateNote(c, db, noteService) })
 		group.DELETE("/:id", func(c *gin.Context) { DeleteNote(c, db, noteService) })
@@ -103,6 +106,30 @@ func ListNotesByUser(c *gin.Context, db *database.Database, noteService services
 
 func GetAllNotes(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
 	notes, err := noteService.GetAllNotes(db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, notes)
+}
+
+func GetNotes(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
+	// Extract query parameters
+	params := make(map[string]interface{})
+
+	if userID := c.Query("user_id"); userID != "" {
+		params["user_id"] = userID
+	}
+
+	if notebookID := c.Query("notebook_id"); notebookID != "" {
+		params["notebook_id"] = notebookID
+	}
+
+	if title := c.Query("title"); title != "" {
+		params["title"] = title
+	}
+
+	notes, err := noteService.GetNotes(db, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

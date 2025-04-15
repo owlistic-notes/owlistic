@@ -23,7 +23,7 @@ func TestCreateBlock_Success(t *testing.T) {
 			noteID.String(),  // note_id
 			"text",           // type
 			"Test Content",   // content
-			"",               // metadata
+			"{}",             // metadata
 			1,                // order
 			sqlmock.AnyArg(), // id
 		).
@@ -83,9 +83,12 @@ func TestUpdateBlock_Success(t *testing.T) {
 	blockID := uuid.New()
 	noteID := uuid.New()
 
+	// Begin transaction
+	mock.ExpectBegin()
+
 	// First query to get the block
 	mock.ExpectQuery(`SELECT \* FROM "blocks"`).
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()). // id and LIMIT args
+		WithArgs(blockID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "note_id", "type", "content", "metadata", "order", "created_at", "updated_at",
 		}).AddRow(
@@ -93,26 +96,48 @@ func TestUpdateBlock_Success(t *testing.T) {
 			noteID.String(),
 			"text",
 			"Old Content",
-			"",
+			"{}", // metadata
 			1,
 			time.Now(),
 			time.Now(),
 		))
 
+	// Update the event creation expectation
+	mock.ExpectQuery(`INSERT INTO "events"`).
+		WithArgs(
+			"block.updated",  // event
+			1,                // version
+			"block",          // entity
+			"update",         // operation
+			sqlmock.AnyArg(), // timestamp
+			"user-123",       // actor_idon)
+			sqlmock.AnyArg(), // data json
+			"pending",        // status
+			false,            // dispatched
+			nil,              // dispatched_at
+			sqlmock.AnyArg(), // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
 	// Update query
-	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "blocks"`).
 		WithArgs(
+			"user-123",        // actor_id
 			"Updated Content", // content
+			"text",            // type
 			sqlmock.AnyArg(),  // updated_at
 			blockID.String(),  // where id = ?
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Expect transaction commit
 	mock.ExpectCommit()
 
 	service := &BlockService{}
 	blockData := map[string]interface{}{
-		"content": "Updated Content",
+		"content":  "Updated Content",
+		"type":     "text",
+		"actor_id": "user-123",
 	}
 
 	_, err := service.UpdateBlock(db, blockID.String(), blockData)
@@ -148,6 +173,13 @@ func TestDeleteBlock_Success(t *testing.T) {
 	blockID := uuid.New()
 
 	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT \* FROM "blocks"`).
+		WithArgs(blockID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "note_id", "type", "content", "metadata", "order"}).
+			AddRow(blockID.String(), uuid.New().String(), "text", "Content",
+				"{}", 1))
+
 	mock.ExpectExec(`DELETE FROM "blocks"`).
 		WithArgs(blockID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -157,4 +189,8 @@ func TestDeleteBlock_Success(t *testing.T) {
 	err := service.DeleteBlock(db, blockID.String())
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateBlock_WithEvent(t *testing.T) {
+	// ...existing code...
 }

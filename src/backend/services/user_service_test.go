@@ -15,27 +15,39 @@ func TestCreateUser_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
-	userID := uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000"))
-
-	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "users" \("email","password_hash","id"\) VALUES \(\$1,\$2,\$3\) RETURNING "id"`).
-		WithArgs(
-			"test@example.com", // email
-			"",                 // password_hash
-			userID,             // id
-		).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID.String()))
-	mock.ExpectCommit()
-
-	userService := &UserService{}
+	userID := uuid.New()
 	user := models.User{
 		ID:    userID,
 		Email: "test@example.com",
 	}
 
-	createdUser, err := userService.CreateUser(db, user)
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "users"`).
+		WithArgs(sqlmock.AnyArg(), "test@example.com").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
+
+	mock.ExpectQuery(`INSERT INTO "events"`).
+		WithArgs(
+			"user.created",   // event
+			1,                // version
+			"user",           // entity
+			"create",         // operation
+			sqlmock.AnyArg(), // timestamp
+			userID.String(),  // actor_id
+			sqlmock.AnyArg(), // data json
+			"pending",        // status
+			false,            // dispatched
+			nil,              // dispatched_at
+			sqlmock.AnyArg(), // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
+	mock.ExpectCommit()
+
+	service := &UserService{}
+	createdUser, err := service.CreateUser(db, user)
 	assert.NoError(t, err)
-	assert.Equal(t, createdUser.Email, "test@example.com")
+	assert.Equal(t, user.Email, createdUser.Email)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -60,24 +72,28 @@ func TestUpdateUser_Success(t *testing.T) {
 
 	existingID := uuid.New()
 
-	// Mock the SELECT query that GORM performs first
-	mock.ExpectQuery("SELECT (.+) FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+	// Begin transaction
+	mock.ExpectBegin()
+
+	// Expect the initial user query
+	mock.ExpectQuery(`SELECT \* FROM "users"`).
 		WithArgs(existingID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash"}).
 			AddRow(existingID.String(), "old@example.com", ""))
 
-	// Mock the UPDATE query
-	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE \"users\" SET (.+) WHERE").
+	// Expect the update
+	mock.ExpectExec(`UPDATE "users" SET`).
 		WithArgs("updated@example.com", existingID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Expect commit
 	mock.ExpectCommit()
 
 	userService := &UserService{}
 	updatedData := models.User{Email: "updated@example.com"}
 	user, err := userService.UpdateUser(db, existingID.String(), updatedData)
 	assert.NoError(t, err)
-	assert.Equal(t, user.Email, "updated@example.com")
+	assert.Equal(t, updatedData.Email, user.Email)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -85,12 +101,27 @@ func TestDeleteUser_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
+	existingID := uuid.New()
+
+	// Begin transaction
 	mock.ExpectBegin()
-	mock.ExpectExec("DELETE FROM \"users\" WHERE id = \\$1").WithArgs("existing-id").WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Expect the initial user query
+	mock.ExpectQuery(`SELECT \* FROM "users"`).
+		WithArgs(existingID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash"}).
+			AddRow(existingID.String(), "test@example.com", ""))
+
+	// Expect the delete
+	mock.ExpectExec(`DELETE FROM "users"`).
+		WithArgs(existingID.String()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Expect commit
 	mock.ExpectCommit()
 
 	userService := &UserService{}
-	err := userService.DeleteUser(db, "existing-id")
+	err := userService.DeleteUser(db, existingID.String())
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

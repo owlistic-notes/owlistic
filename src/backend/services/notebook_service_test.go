@@ -14,30 +14,51 @@ func TestCreateNotebook_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
+	userID := uuid.New()
 	notebookID := uuid.New()
-	userID := "123e4567-e89b-12d3-a456-426614174000"
 
 	mock.ExpectBegin()
+
+	// Expect notebook creation
 	mock.ExpectQuery(`INSERT INTO "notebooks"`).
 		WithArgs(
-			uuid.Must(uuid.Parse(userID)), // UserID
-			"Test Notebook",               // Name
-			"Description",                 // Description
-			false,                         // IsDeleted
-			sqlmock.AnyArg(),              // ID
+			sqlmock.AnyArg(),              // id
+			userID.String(),			   // user_id
+			"Test Notebook",               // name
+			"Description",                 // description
+			false,                         // is_deleted
+			sqlmock.AnyArg(),              // created_at
+			sqlmock.AnyArg(),              // updated_at
 		).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
-			AddRow(notebookID, time.Now(), time.Now()))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(notebookID))
+
+	// Expect event creation with exact fields
+	mock.ExpectQuery(`INSERT INTO "events"`).
+		WithArgs(
+			"notebook.created", // event
+			1,                  // version
+			"notebook",         // entity
+			"create",           // operation
+			sqlmock.AnyArg(),   // timestamp
+			userID,             // actor_id
+			sqlmock.AnyArg(),   // data json
+			"pending",          // status
+			false,              // dispatched
+			nil,                // dispatched_at
+			sqlmock.AnyArg(),   // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID.String()))
+
 	mock.ExpectCommit()
 
-	notebookService := &NotebookService{}
+	service := &NotebookService{}
 	notebookData := map[string]interface{}{
-		"user_id":     userID,
 		"name":        "Test Notebook",
 		"description": "Description",
+		"user_id":     userID.String(),
 	}
 
-	notebook, err := notebookService.CreateNotebook(db, notebookData)
+	notebook, err := service.CreateNotebook(db, notebookData)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test Notebook", notebook.Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -75,23 +96,61 @@ func TestUpdateNotebook_Success(t *testing.T) {
 	notebookID := uuid.New()
 	userID := uuid.New()
 
-	mock.ExpectQuery(`SELECT \* FROM "notebooks"`).
-		WithArgs(notebookID.String(), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "name"}).
-			AddRow(notebookID, userID, "Old Name"))
-
 	mock.ExpectBegin()
+
+	// Initial notebook query
+	mock.ExpectQuery(`SELECT \* FROM "notebooks"`).
+		WithArgs(notebookID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "name", "description", "is_deleted", "created_at", "updated_at",
+		}).AddRow(
+			notebookID,
+			userID,
+			"Old Name",
+			"Old Description",
+			false,
+			time.Now(),
+			time.Now(),
+		))
+
+	// Update notebook
 	mock.ExpectExec(`UPDATE "notebooks"`).
+		WithArgs(
+			"Updated Name",        // name
+			"Updated Description", // description
+			sqlmock.AnyArg(),      // updated_at
+			notebookID.String(),   // where id = ?
+		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Expect event creation
+	mock.ExpectQuery(`INSERT INTO "events"`).
+		WithArgs(
+			"notebook.updated", // event
+			1,                  // version
+			"notebook",         // entity
+			"update",           // operation
+			sqlmock.AnyArg(),   // timestamp
+			userID.String(),    // actor_id
+			sqlmock.AnyArg(),   // data json
+			"pending",          // status
+			false,              // dispatched
+			nil,                // dispatched_at
+			sqlmock.AnyArg(),   // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
 	mock.ExpectCommit()
 
-	notebookService := &NotebookService{}
+	service := &NotebookService{}
 	updatedData := map[string]interface{}{
-		"name": "Updated Name",
+		"name":        "Updated Name",
+		"description": "Updated Description",
 	}
 
-	_, err := notebookService.UpdateNotebook(db, notebookID.String(), updatedData)
+	notebook, err := service.UpdateNotebook(db, notebookID.String(), updatedData)
 	assert.NoError(t, err)
+	assert.Equal(t, "Updated Name", notebook.Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -16,8 +16,74 @@ import (
 
 type MockTaskService struct{}
 
-func (m *MockTaskService) CreateTask(db *database.Database, task models.Task) (models.Task, error) {
-	return task, nil
+// Add GetTasks method for query parameter support
+func (m *MockTaskService) GetTasks(db *database.Database, params map[string]interface{}) ([]models.Task, error) {
+	userID, hasUserID := params["user_id"].(string)
+	completed, hasCompleted := params["completed"].(string)
+
+	tasks := []models.Task{
+		{
+			ID:          uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
+			Title:       "Test Task",
+			UserID:      uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+			IsCompleted: false,
+		},
+		{
+			ID:          uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174001")),
+			Title:       "Test Task 2",
+			UserID:      uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
+			IsCompleted: true,
+		},
+	}
+
+	// Apply user filter
+	if hasUserID && userID != "" {
+		var filteredTasks []models.Task
+		for _, task := range tasks {
+			if task.UserID.String() == userID {
+				filteredTasks = append(filteredTasks, task)
+			}
+		}
+		tasks = filteredTasks
+	}
+
+	// Apply completed filter
+	if hasCompleted && completed != "" {
+		isCompleted := completed == "true"
+		var filteredTasks []models.Task
+		for _, task := range tasks {
+			if task.IsCompleted == isCompleted {
+				filteredTasks = append(filteredTasks, task)
+			}
+		}
+		tasks = filteredTasks
+	}
+
+	return tasks, nil
+}
+
+func (m *MockTaskService) CreateTask(db *database.Database, taskData map[string]interface{}) (models.Task, error) {
+	title, _ := taskData["title"].(string)
+	userIDStr, _ := taskData["user_id"].(string)
+
+	var userID uuid.UUID
+	if userIDStr != "" {
+		userID = uuid.Must(uuid.Parse(userIDStr))
+	}
+
+	blockID := uuid.New()
+	noteIDStr, noteIDExists := taskData["note_id"].(string)
+	if noteIDExists && noteIDStr != "" {
+		// Simulate finding or creating a block for the note
+		blockID = uuid.New()
+	}
+
+	return models.Task{
+		ID:      uuid.New(),
+		UserID:  userID,
+		BlockID: blockID,
+		Title:   title,
+	}, nil
 }
 
 func (m *MockTaskService) GetTaskById(db *database.Database, id string) (models.Task, error) {
@@ -137,5 +203,38 @@ func TestDeleteTask(t *testing.T) {
 		req, _ := http.NewRequest("DELETE", "/api/v1/tasks/123e4567-e89b-12d3-a456-426614174000", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNoContent, w.Code)
+	})
+}
+
+// Add new test for tasks with query parameters
+func TestGetTasks(t *testing.T) {
+	router := gin.Default()
+	db := &database.Database{}
+	mockService := &MockTaskService{}
+	RegisterTaskRoutes(router, db, mockService)
+
+	t.Run("Get Tasks With No Filters", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/tasks/", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Task")
+		assert.Contains(t, w.Body.String(), "Test Task 2")
+	})
+
+	t.Run("Get Tasks By User ID", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/tasks/?user_id=90a12345-f12a-98c4-a456-513432930000", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Task")
+	})
+
+	t.Run("Get Tasks By Completion Status", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/tasks/?completed=true", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Test Task 2")
 	})
 }
