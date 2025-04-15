@@ -30,7 +30,7 @@ func Setup(cfg config.Config) (*Database, error) {
 	}
 
 	// Drop all tables
-	if err := db.Exec(`DROP TABLE IF EXISTS notes, notebooks, users, tasks CASCADE`).Error; err != nil {
+	if err := db.Exec(`DROP TABLE IF EXISTS notes, notebooks, users, tasks, blocks CASCADE`).Error; err != nil {
 		return nil, fmt.Errorf("failed to drop tables: %w", err)
 	}
 

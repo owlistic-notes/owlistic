@@ -37,6 +37,7 @@ func main() {
 	routes.RegisterNoteRoutes(router, db, services.NoteServiceInstance)
 	routes.RegisterTaskRoutes(router, db, services.TaskServiceInstance)
 	routes.RegisterNotebookRoutes(router, db, services.NotebookServiceInstance)
+	routes.RegisterBlockRoutes(router, db, services.BlockServiceInstance)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
