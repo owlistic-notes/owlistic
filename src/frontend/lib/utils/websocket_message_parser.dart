@@ -1,270 +1,179 @@
 import 'dart:convert';
 
-/// Base class for WebSocket message parsing
-class WebSocketMessageParser {
-  /// Parse a raw WebSocket message into structured format
-  static List<Map<String, dynamic>> parseRawMessage(String rawMessage) {
+/// A class representing the structure of WebSocket messages
+class WebSocketMessage {
+  final String type;
+  final String event;
+  final WebSocketPayload? payload;
+
+  WebSocketMessage({
+    required this.type,
+    required this.event,
+    this.payload,
+  });
+
+  /// Parse a raw WebSocket message into a structured object
+  factory WebSocketMessage.fromJson(Map<String, dynamic> json) {
+    return WebSocketMessage(
+      type: json['type'] ?? 'unknown',
+      event: json['event'] ?? json['type'] ?? 'unknown',
+      payload: json['payload'] != null 
+          ? WebSocketPayload.fromJson(json['payload']) 
+          : null,
+    );
+  }
+
+  /// Factory method to parse from a string
+  factory WebSocketMessage.fromString(String rawMessage) {
     try {
-      // Handle the case where multiple JSON objects might be concatenated
-      return _parseMultipleJsonObjects(rawMessage);
+      final json = jsonDecode(rawMessage);
+      return WebSocketMessage.fromJson(json);
     } catch (e) {
       print('Error parsing WebSocket message: $e');
-      return [];
+      return WebSocketMessage(type: 'error', event: 'parse_error');
     }
   }
 
-  /// Extract the message type from a message
-  static String getMessageType(Map<String, dynamic> message) {
-    return message['type'] ?? 'unknown';
-  }
-
-  /// Extract the event name from a message
-  static String getEventName(Map<String, dynamic> message) {
-    return message['event'] ?? '';
-  }
-  
-  /// Extract entity ID from a WebSocket message based on entity type
-  static String? extractEntityId(Map<String, dynamic> message, String entityType) {
-    // First try the specialized extractors
-    switch (entityType) {
+  /// Check if this message contains data for a specific model type
+  bool hasModelData(String modelType) {
+    if (payload?.data == null) return false;
+    
+    switch (modelType) {
       case 'note':
-        return NoteMessageParser.extractNoteId(message);
+        return payload!.data!.containsKey('note_id');
       case 'notebook':
-        return NotebookMessageParser.extractNotebookId(message);
+        return payload!.data!.containsKey('notebook_id');
       case 'block':
-        return BlockMessageParser.extractBlockId(message);
+        return payload!.data!.containsKey('block_id');
       case 'task':
-        return TaskMessageParser.extractTaskId(message);
+        return payload!.data!.containsKey('task_id');
       default:
-        // Generic fallback extractor
-        return _extractGenericId(message, entityType);
+        return false;
     }
   }
   
-  /// Extract data from payload.payload.data structure (deeply nested)
-  static Map<String, dynamic>? extractNestedData(Map<String, dynamic> message) {
-    try {
-      if (message.containsKey('payload')) {
-        final payload = message['payload'];
-        
-        if (payload is Map<String, dynamic>) {
-          // Try doubly nested structure (payload.payload.data)
-          if (payload.containsKey('payload')) {
-            final innerPayload = payload['payload'];
-            
-            if (innerPayload is Map<String, dynamic> && 
-                innerPayload.containsKey('data')) {
-              return innerPayload['data'];
-            }
-          }
-          
-          // Try regular structure (payload.data)
-          if (payload.containsKey('data')) {
-            return payload['data'];
-          }
-        }
-      }
-      return null;
-    } catch (e) {
-      print('Error extracting nested data: $e');
-      return null;
-    }
-  }
-  
-  /// Helper to parse multiple JSON objects that might be concatenated
-  static List<Map<String, dynamic>> _parseMultipleJsonObjects(String input) {
-    List<Map<String, dynamic>> results = [];
-    String remaining = input.trim();
+  /// Get the ID for a specific model type
+  String? getModelId(String modelType) {
+    if (payload?.data == null) return null;
     
-    // Process as long as there's content to parse
-    while (remaining.isNotEmpty) {
-      try {
-        // Try to find the end of a JSON object
-        int objectDepth = 0;
-        int endIndex = -1;
-        bool inString = false;
-        bool escaped = false;
-        
-        for (int i = 0; i < remaining.length; i++) {
-          final char = remaining[i];
-          
-          if (inString) {
-            if (char == '\\' && !escaped) {
-              escaped = true;
-            } else if (char == '"' && !escaped) {
-              inString = false;
-            } else {
-              escaped = false;
-            }
-          } else {
-            if (char == '"') {
-              inString = true;
-            } else if (char == '{') {
-              objectDepth++;
-            } else if (char == '}') {
-              objectDepth--;
-              if (objectDepth == 0) {
-                endIndex = i + 1;
-                break;
-              }
-            }
-          }
-        }
-        
-        if (endIndex > 0) {
-          // Extract the complete JSON object
-          String jsonStr = remaining.substring(0, endIndex);
-          remaining = remaining.substring(endIndex).trim();
-          
-          // Parse the JSON object
-          Map<String, dynamic> jsonObj = json.decode(jsonStr);
-          results.add(jsonObj);
-        } else {
-          // If no complete JSON object was found, try to parse whatever is left
-          if (remaining.isNotEmpty) {
-            try {
-              Map<String, dynamic> jsonObj = json.decode(remaining);
-              results.add(jsonObj);
-            } catch (e) {
-              print('Error parsing remaining JSON: $e');
-            }
-            break;
-          }
-        }
-      } catch (e) {
-        print('Error in multi-JSON parser: $e');
-        break;
-      }
+    switch (modelType) {
+      case 'note':
+        return payload!.data!['note_id']?.toString();
+      case 'notebook':
+        return payload!.data!['notebook_id']?.toString();
+      case 'block':
+        return payload!.data!['block_id']?.toString();
+      case 'task':
+        return payload!.data!['task_id']?.toString();
+      default:
+        return null;
     }
-    
-    return results;
   }
   
-  /// Generic ID extractor that looks for common ID patterns
-  static String? _extractGenericId(Map<String, dynamic> message, String entityType) {
-    final data = extractNestedData(message);
-    if (data != null) {
-      // Try entity-specific ID format (entity_id)
-      final specificIdKey = '${entityType}_id';
-      if (data.containsKey(specificIdKey)) {
-        return data[specificIdKey]?.toString();
-      }
-      
-      // Try generic id field
-      if (data.containsKey('id')) {
-        return data['id']?.toString();
-      }
-    }
-    return null;
+  /// Debug representation
+  @override
+  String toString() => 'WebSocketMessage{type: $type, event: $event, hasPayload: ${payload != null}}';
+}
+
+/// A class representing the structure of the message payload
+class WebSocketPayload {
+  final dynamic id; // Changed from String? to dynamic to handle various ID types
+  final dynamic timestamp; // Changed from String? to dynamic
+  final dynamic type; // Changed from String? to dynamic
+  final WebSocketInnerPayload? innerPayload;
+
+  WebSocketPayload({
+    this.id,
+    this.timestamp,
+    this.type,
+    this.innerPayload,
+  });
+
+  /// Get data after proper unwrapping of potentially nested payloads
+  Map<String, dynamic>? get data => innerPayload?.data;
+
+  factory WebSocketPayload.fromJson(Map<String, dynamic> json) {
+    // Handle the nested payload structure
+    return WebSocketPayload(
+      id: json['id'], // No toString() conversion here
+      timestamp: json['timestamp'], // No toString() conversion here
+      type: json['type'], // No toString() conversion here
+      innerPayload: json['payload'] != null 
+          ? WebSocketInnerPayload.fromJson(json['payload'])
+          : (json['data'] != null
+              ? WebSocketInnerPayload(data: json['data'])
+              : null),
+    );
   }
 }
 
-/// Message parser specialized for Note entities
-class NoteMessageParser {
-  /// Extract note ID from a WebSocket message
-  static String? extractNoteId(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && data.containsKey('note_id')) {
-      return data['note_id']?.toString();
-    }
-    return null;
-  }
-  
-  /// Extract notebook ID from a note-related message
-  static String? extractNotebookIdFromNoteMessage(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && data.containsKey('notebook_id')) {
-      return data['notebook_id']?.toString();
-    }
-    return null;
-  }
-  
-  /// Extract complete note data
-  static Map<String, dynamic>? extractNoteData(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && 
-        (data.containsKey('note_id') || 
-         (data.containsKey('title') && data.containsKey('notebook_id')))) {
-      return data;
-    }
-    return null;
+/// A class representing the inner payload structure (payload.payload)
+class WebSocketInnerPayload {
+  final Map<String, dynamic>? data;
+  final dynamic eventId; // Changed from String? to dynamic
+  final dynamic timestamp; // Changed from String? to dynamic
+  final dynamic type; // Changed from String? to dynamic
+
+  WebSocketInnerPayload({
+    this.data,
+    this.eventId,
+    this.timestamp,
+    this.type,
+  });
+
+  factory WebSocketInnerPayload.fromJson(Map<String, dynamic> json) {
+    return WebSocketInnerPayload(
+      data: json['data'],
+      eventId: json['event_id'], // No toString() conversion here
+      timestamp: json['timestamp'], // No toString() conversion here
+      type: json['type'], // No toString() conversion here
+    );
   }
 }
 
-/// Message parser specialized for Notebook entities
-class NotebookMessageParser {
-  /// Extract notebook ID from a WebSocket message
-  static String? extractNotebookId(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && data.containsKey('notebook_id')) {
-      return data['notebook_id']?.toString();
-    }
-    return null;
+/// Class to extract specific model data from WebSocket messages
+class WebSocketModelExtractor {
+  /// Extract Note data from a message
+  static Map<String, dynamic>? extractNoteData(WebSocketMessage message) {
+    if (!message.hasModelData('note')) return null;
+    return message.payload?.data;
   }
   
-  /// Extract complete notebook data
-  static Map<String, dynamic>? extractNotebookData(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && 
-        (data.containsKey('notebook_id') || 
-         (data.containsKey('name') && data.containsKey('description')))) {
-      return data;
-    }
-    return null;
-  }
-}
-
-/// Message parser specialized for Block entities
-class BlockMessageParser {
-  /// Extract block ID from a WebSocket message
-  static String? extractBlockId(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && data.containsKey('block_id')) {
-      return data['block_id']?.toString();
-    }
-    return null;
+  /// Extract NoteID from a message
+  static String? extractNoteId(WebSocketMessage message) {
+    return message.getModelId('note');
   }
   
-  /// Extract note ID from a block-related message
-  static String? extractNoteIdFromBlockMessage(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && data.containsKey('note_id')) {
-      return data['note_id']?.toString();
-    }
-    return null;
+  /// Extract Notebook data from a message
+  static Map<String, dynamic>? extractNotebookData(WebSocketMessage message) {
+    if (!message.hasModelData('notebook')) return null;
+    return message.payload?.data;
   }
   
-  /// Extract complete block data
-  static Map<String, dynamic>? extractBlockData(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && 
-        (data.containsKey('block_id') || 
-         (data.containsKey('content') && data.containsKey('note_id')))) {
-      return data;
-    }
-    return null;
-  }
-}
-
-/// Message parser specialized for Task entities
-class TaskMessageParser {
-  /// Extract task ID from a WebSocket message
-  static String? extractTaskId(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && data.containsKey('task_id')) {
-      return data['task_id']?.toString();
-    }
-    return null;
+  /// Extract NotebookID from a message
+  static String? extractNotebookId(WebSocketMessage message) {
+    return message.getModelId('notebook');
   }
   
-  /// Extract complete task data
-  static Map<String, dynamic>? extractTaskData(Map<String, dynamic> message) {
-    final data = WebSocketMessageParser.extractNestedData(message);
-    if (data != null && 
-        (data.containsKey('task_id') || 
-         (data.containsKey('title') && data.containsKey('is_completed')))) {
-      return data;
-    }
-    return null;
+  /// Extract Block data from a message
+  static Map<String, dynamic>? extractBlockData(WebSocketMessage message) {
+    if (!message.hasModelData('block')) return null;
+    return message.payload?.data;
+  }
+  
+  /// Extract BlockID from a message
+  static String? extractBlockId(WebSocketMessage message) {
+    return message.getModelId('block');
+  }
+  
+  /// Extract Task data from a message
+  static Map<String, dynamic>? extractTaskData(WebSocketMessage message) {
+    if (!message.hasModelData('task')) return null;
+    return message.payload?.data;
+  }
+  
+  /// Extract TaskID from a message
+  static String? extractTaskId(WebSocketMessage message) {
+    return message.getModelId('task');
   }
 }

@@ -8,6 +8,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/html.dart' if (dart.library.io) 'package:web_socket_channel/io.dart';
 
+import '../utils/websocket_message_parser.dart';
+
 class WebSocketService {
   static WebSocketService? _instance;
   WebSocketChannel? _channel;
@@ -511,54 +513,69 @@ class WebSocketService {
   void _handleWebSocketMessage(String message) {
     print('WebSocket raw message: $message');
     try {
-      // Handle the case where multiple JSON objects might be concatenated in a single message
-      final String msgStr = message.toString();
-      List<Map<String, dynamic>> jsonObjects = _parseMultipleJsonObjects(msgStr);
+      // Parse the message with our new parser
+      final WebSocketMessage parsedMessage = WebSocketMessage.fromString(message);
       
-      for (var data in jsonObjects) {
-        // Basic logging for event messages
-        if (data['type'] == 'event' || data['type']?.toString().contains('.') == true) {
-          // Extract basic info
-          String resourceType = "unknown";
-          String resourceId = "none";
-          
-          // Extract resource type from event name
-          final eventName = data['type'] ?? data['event'] ?? '';
-          if (eventName.contains('note')) {
-            resourceType = "note";
-          } else if (eventName.contains('notebook')) {
-            resourceType = "notebook";
-          } else if (eventName.contains('block')) {
-            resourceType = "block";
-          } else if (eventName.contains('task')) {
-            resourceType = "task";
-          }
-          
-          // Extract resource ID from payload.data
-          if (data.containsKey('payload') && data['payload'] is Map) {
-            final payload = data['payload'] as Map<String, dynamic>;
-            
-            if (payload.containsKey('data') && payload['data'] is Map) {
-              final dataObj = payload['data'] as Map<String, dynamic>;
-              
-              // Look for specific ID fields
-              final idKey = '${resourceType}_id';
-              if (dataObj.containsKey(idKey)) {
-                resourceId = dataObj[idKey].toString();
-              } else if (dataObj.containsKey('id') && resourceType != "unknown") {
-                resourceId = dataObj['id'].toString();
-              }
-            }
-          }
-          
-          print('WebSocket EVENT: Type=${data['type']}, Event=${data['event']}, ' + 
-                'ResourceType=$resourceType, ResourceId=$resourceId');
-        }
+      // Basic logging for event messages
+      if (parsedMessage.type == 'event') {
+        final String resourceType = _determineResourceType(parsedMessage);
+        final String? resourceId = parsedMessage.getModelId(resourceType);
         
-        _messageController.add(data);
+        print('WebSocket EVENT: Type=${parsedMessage.type}, Event=${parsedMessage.event}, ' + 
+              'ResourceType=$resourceType, ResourceId=${resourceId ?? "none"}');
       }
+      
+      // Convert to Map for backwards compatibility with existing code
+      final Map<String, dynamic> messageMap = {
+        'type': parsedMessage.type,
+        'event': parsedMessage.event,
+      };
+      
+      // Add payload if present
+      if (parsedMessage.payload != null) {
+        messageMap['payload'] = {
+          'id': parsedMessage.payload!.id,
+          'timestamp': parsedMessage.payload!.timestamp,
+        };
+        
+        // Add data if present
+        if (parsedMessage.payload!.data != null) {
+          messageMap['payload']['data'] = parsedMessage.payload!.data;
+        }
+      }
+      
+      _messageController.add(messageMap);
     } catch (e) {
       print('WebSocket: Error parsing message: $e');
     }
+  }
+  
+  // Helper to determine the resource type from a message
+  String _determineResourceType(WebSocketMessage message) {
+    // Try to determine from event name first
+    final String eventName = message.event.toLowerCase();
+    
+    if (eventName.contains('note') && !eventName.contains('notebook')) {
+      return 'note';
+    } else if (eventName.contains('notebook')) {
+      return 'notebook';
+    } else if (eventName.contains('block')) {
+      return 'block';
+    } else if (eventName.contains('task')) {
+      return 'task';
+    }
+    
+    // If event name doesn't reveal, check payload data
+    if (message.hasModelData('note')) {
+      return 'note';
+    } else if (message.hasModelData('notebook')) {
+      return 'notebook';
+    } else if (message.hasModelData('block')) {
+      return 'block';
+    } else if (message.hasModelData('task')) {
+      return 'task';
+    }
+    
+    return 'unknown';
   }
 }

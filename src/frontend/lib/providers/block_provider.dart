@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/block.dart';
 import '../services/api_service.dart';
 import 'websocket_provider.dart';
+import '../utils/websocket_message_parser.dart';
 
 class BlockProvider with ChangeNotifier {
   final Map<String, Block> _blocks = {};
@@ -66,45 +67,21 @@ class BlockProvider with ChangeNotifier {
 
   // Handle block update events with support for nested structures
   void _handleBlockUpdate(Map<String, dynamic> message) {
-    String? blockId = null;
-    String? noteId = null;
-    
-    // Try to extract ids from the nested structure
-    if (message.containsKey('payload')) {
-      final payload = message['payload'];
+    try {
+      // Use the new parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
-      // Check for double-nested payload structure
-      if (payload is Map<String, dynamic> && payload.containsKey('payload')) {
-        final innerPayload = payload['payload'];
-        
-        if (innerPayload is Map<String, dynamic> && innerPayload.containsKey('data')) {
-          final data = innerPayload['data'];
-          
-          if (data is Map<String, dynamic>) {
-            blockId = data['block_id']?.toString();
-            noteId = data['note_id']?.toString();
-          }
-        }
-      } 
-      // Also check regular structure
-      else if (payload is Map<String, dynamic> && payload.containsKey('data')) {
-        final data = payload['data'];
-        
-        if (data is Map<String, dynamic>) {
-          blockId = data['block_id']?.toString();
-          noteId = data['note_id']?.toString();
+      if (blockId != null) {
+        if (_blocks.containsKey(blockId)) {
+          _fetchSingleBlock(blockId);
+        } else if (noteId != null && _activeNoteIds.contains(noteId)) {
+          _fetchSingleBlock(blockId);
         }
       }
-    }
-    
-    if (blockId != null) {
-      if (_blocks.containsKey(blockId)) {
-        // We've checked blockId is not null, so this is safe
-        _fetchSingleBlock(blockId);
-      } else if (noteId != null && _activeNoteIds.contains(noteId)) {
-        // We've checked blockId is not null, so this is safe
-        _fetchSingleBlock(blockId);
-      }
+    } catch (e) {
+      print('BlockProvider: Error handling block update: $e');
     }
   }
 
@@ -145,37 +122,16 @@ class BlockProvider with ChangeNotifier {
 
   // Handle note update events with support for nested structures
   void _handleNoteUpdate(Map<String, dynamic> message) {
-    String? noteId = null;
-    
-    // Try to extract note_id from the nested structure
-    if (message.containsKey('payload')) {
-      final payload = message['payload'];
+    try {
+      // Use the new parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
-      // Check for double-nested payload structure
-      if (payload is Map<String, dynamic> && payload.containsKey('payload')) {
-        final innerPayload = payload['payload'];
-        
-        if (innerPayload is Map<String, dynamic> && innerPayload.containsKey('data')) {
-          final data = innerPayload['data'];
-          
-          if (data is Map<String, dynamic> && data.containsKey('note_id')) {
-            noteId = data['note_id'].toString();
-          }
-        }
-      } 
-      // Also check regular structure
-      else if (payload is Map<String, dynamic> && payload.containsKey('data')) {
-        final data = payload['data'];
-        
-        if (data is Map<String, dynamic> && data.containsKey('note_id')) {
-          noteId = data['note_id'].toString();
-        }
+      if (noteId != null && _activeNoteIds.contains(noteId)) {
+        fetchBlocksForNote(noteId);
       }
-    }
-    
-    if (noteId != null && _activeNoteIds.contains(noteId)) {
-      // We've checked noteId is not null, so this is safe
-      fetchBlocksForNote(noteId);
+    } catch (e) {
+      print('BlockProvider: Error handling note update: $e');
     }
   }
 

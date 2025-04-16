@@ -4,12 +4,13 @@ import '../models/note.dart';
 import '../services/api_service.dart';
 import 'websocket_provider.dart';
 import '../models/subscription.dart';
+import '../utils/websocket_message_parser.dart';
 
 class NotesProvider with ChangeNotifier {
   List<Note> _notes = [];
   bool _isLoading = false;
   WebSocketProvider? _webSocketProvider;
-final Set<String> _activeNoteIds = {};
+  final Set<String> _activeNoteIds = {};
 
   // Getters
   List<Note> get notes => [..._notes];
@@ -50,38 +51,18 @@ final Set<String> _activeNoteIds = {};
 
   // Handle note update events
   void _handleNoteUpdate(Map<String, dynamic> message) {
-    String? noteId = null;
-  
-    // Try to extract note_id from the nested structure
-    if (message.containsKey('payload')) {
-      final payload = message['payload'];
+    try {
+      // Use the new parser to extract data
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
-      // Check for double-nested payload structure
-      if (payload is Map<String, dynamic> && payload.containsKey('payload')) {
-        final innerPayload = payload['payload'];
-        
-        if (innerPayload is Map<String, dynamic> && innerPayload.containsKey('data')) {
-          final data = innerPayload['data'];
-          
-          if (data is Map<String, dynamic> && data.containsKey('note_id')) {
-            noteId = data['note_id'].toString();
-          }
-        }
-      } 
-      // Also check regular structure
-      else if (payload is Map<String, dynamic> && payload.containsKey('data')) {
-        final data = payload['data'];
-        
-        if (data is Map<String, dynamic> && data.containsKey('note_id')) {
-          noteId = data['note_id'].toString();
-        }
+      if (noteId != null) {
+        _fetchSingleNote(noteId);
+      } else {
+        print('NotesProvider: Could not find note_id in update message');
       }
-    }
-    
-    if (noteId != null) {
-      _fetchSingleNote(noteId);
-    } else {
-      print('NotesProvider: Could not find note_id in update message');
+    } catch (e) {
+      print('NotesProvider: Error handling note update: $e');
     }
   }
 
@@ -89,47 +70,23 @@ final Set<String> _activeNoteIds = {};
   void _handleNoteCreate(Map<String, dynamic> message) {
     print('NotesProvider: Received note.created event');
     
-    String? noteId = null;
-    
-    // Get the note_id from the deeply nested structure
-    if (message.containsKey('payload')) {
-      final payload = message['payload'];
+    try {
+      // Use the new parser to extract data
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
-      // Check for double-nested payload structure
-      if (payload is Map<String, dynamic> && payload.containsKey('payload')) {
-        final innerPayload = payload['payload'];
+      if (noteId != null) {
+        print('NotesProvider: Found note_id: $noteId');
         
-        if (innerPayload is Map<String, dynamic> && innerPayload.containsKey('data')) {
-          final data = innerPayload['data'];
-          
-          if (data is Map<String, dynamic> && data.containsKey('note_id')) {
-            noteId = data['note_id'].toString();
-            print('NotesProvider: Found note_id in nested structure: $noteId');
-          }
-        }
-      } 
-      // Also check regular structure
-      else if (payload is Map<String, dynamic> && payload.containsKey('data')) {
-        final data = payload['data'];
-        
-        if (data is Map<String, dynamic> && data.containsKey('note_id')) {
-          noteId = data['note_id'].toString();
-          print('NotesProvider: Found note_id in regular structure: $noteId');
-        }
-      }
-    }
-    
-    if (noteId != null) {
-      // Add a short delay to avoid race condition with database
-      Future.delayed(Duration(milliseconds: 500), () {
-       if (noteId != null) {
+        // Add a short delay to avoid race condition with database
+        Future.delayed(Duration(milliseconds: 500), () {
           _fetchSingleNote(noteId);
-        } else {
-          print('NotesProvider: Could not find note_id in update message');
-        }
-      });
-    } else {
-      print('NotesProvider: Could not find note_id in message');
+        });
+      } else {
+        print('NotesProvider: Could not find note_id in message');
+      }
+    } catch (e) {
+      print('NotesProvider: Error handling note create: $e');
     }
   }
   

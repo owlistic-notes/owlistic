@@ -8,6 +8,7 @@ import '../services/websocket_service.dart';
 import 'websocket_provider.dart';
 import '../models/subscription.dart';
 import '../utils/debug_utils.dart';
+import '../utils/websocket_message_parser.dart';
 
 class NotebooksProvider with ChangeNotifier {
   List<Notebook> _notebooks = [];
@@ -164,53 +165,26 @@ class NotebooksProvider with ChangeNotifier {
   // More robust handling of note creation events with immediate UI update
   void _handleNoteCreate(Map<String, dynamic> message) {
     print('NotebooksProvider: Received note.created event');
-    print('NotebooksProvider: Full message: ${json.encode(message)}');
-
+    
     try {
-      String? notebookId;
-      String? noteId;
+      // Parse message using the new parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
       
-      // Extract data from the deeply nested structure
-      if (message.containsKey('payload')) {
-        final payload = message['payload'];
-        
-        // Handle double-nested payload structure
-        if (payload is Map<String, dynamic> && payload.containsKey('payload')) {
-          final innerPayload = payload['payload'];
-          
-          if (innerPayload is Map<String, dynamic> && innerPayload.containsKey('data')) {
-            final data = innerPayload['data'];
-            
-            if (data is Map<String, dynamic>) {
-              notebookId = data['notebook_id']?.toString();
-              noteId = data['note_id']?.toString();
-              
-              print('NotebooksProvider: Found IDs in nested structure: noteId=$noteId, notebookId=$notebookId');
-            }
-          }
-        }
-        // Also try the regular structure
-        else if (payload is Map<String, dynamic> && payload.containsKey('data')) {
-          final data = payload['data'];
-          
-          if (data is Map<String, dynamic>) {
-            notebookId = data['notebook_id']?.toString();
-            noteId = data['note_id']?.toString();
-            
-            print('NotebooksProvider: Found IDs in regular structure: noteId=$noteId, notebookId=$notebookId');
-          }
-        }
-      }
+      // Extract note_id and notebook_id using the extractor
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      print('NotebooksProvider: Extracted from event: noteId=$noteId, notebookId=$notebookId');
       
       // If we have a notebook ID, refresh it
-      if (notebookId != null && notebookId.isNotEmpty) {
+      if (notebookId != null) {
         print('NotebooksProvider: Will refresh notebook $notebookId from note.created event');
         _refreshNotebookWithNote(notebookId);
         return;
       }
       
       // If we only have a note ID, fetch the note to get its notebook
-      if (noteId != null && noteId.isNotEmpty) {
+      if (noteId != null) {
         print('NotebooksProvider: Attempting to fetch note $noteId to find its notebook');
         
         ApiService.getNote(noteId).then((note) {
