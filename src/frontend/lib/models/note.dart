@@ -7,7 +7,7 @@ class Note {
   final String notebookId;
   final List<Block> blocks;
 
-  Note({
+  const Note({
     required this.id,
     required this.title,
     required this.userId,
@@ -28,22 +28,34 @@ class Note {
       notebookId: json['notebook_id']?.toString() ?? '',
       blocks: (json['blocks'] as List<dynamic>?)
           ?.map((block) => Block.fromJson(block))
-          .toList() ?? [],
+          .toList() ?? const [],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'title': title,
       'user_id': userId,
       'notebook_id': notebookId,
-      'blocks': [
-        {
-          'content': '',
-          'type': 'text',
-          'order': 0
-        }
-      ],
+      'blocks': blocks.map((block) => block.toJson()).toList(),
     };
+  }
+  
+  /// Creates a copy of this note with the given fields replaced with the new values
+  Note copyWith({
+    String? id,
+    String? title,
+    String? userId,
+    String? notebookId,
+    List<Block>? blocks,
+  }) {
+    return Note(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      userId: userId ?? this.userId,
+      notebookId: notebookId ?? this.notebookId,
+      blocks: blocks ?? this.blocks,
+    );
   }
 }

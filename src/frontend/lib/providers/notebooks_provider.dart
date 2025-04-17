@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import 'websocket_provider.dart';
-import '../models/subscription.dart';
-import '../utils/debug_utils.dart';
 import '../utils/websocket_message_parser.dart';
+import 'package:logging/logging.dart';
 
 class NotebooksProvider with ChangeNotifier {
+  final Logger _logger = Logger('NotebooksProvider');
   // Use a Map instead of a List to prevent duplicates
   final Map<String, Notebook> _notebooksMap = {};
   bool _isLoading = false;
@@ -25,7 +24,7 @@ class NotebooksProvider with ChangeNotifier {
   NotebooksProvider() {
     // Initialize WebSocket connection
     _webSocketService.connect();
-    print('NotebooksProvider initialized');
+    _logger.info('NotebooksProvider initialized');
   }
 
   // Called by ProxyProvider in main.dart
@@ -36,7 +35,7 @@ class NotebooksProvider with ChangeNotifier {
     _webSocketProvider = webSocketProvider;
     _registerEventHandlers();
     
-    print('NotebooksProvider registered event handlers');
+    _logger.info('NotebooksProvider registered event handlers');
   }
   
   void setWebSocketProvider(WebSocketProvider provider) {
@@ -62,7 +61,7 @@ class NotebooksProvider with ChangeNotifier {
     _webSocketProvider?.addEventListener('event', 'note.created', _handleNoteCreate);
     _webSocketProvider?.addEventListener('event', 'note.deleted', _handleNoteDelete);
     
-    print('NotebooksProvider: Event handlers registered for resource.action events');
+    _logger.info('Event handlers registered for resource.action events');
   }
   
   void _unregisterEventHandlers() {
@@ -80,7 +79,7 @@ class NotebooksProvider with ChangeNotifier {
       final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
       
       if (notebookId != null) {
-        print('NotebooksProvider: Received notebook.updated event for notebook ID $notebookId');
+        _logger.info('Received notebook.updated event for notebook ID $notebookId');
         
         // Fetch updated notebook data from server
         Future.delayed(Duration(milliseconds: 300), () {
@@ -88,7 +87,7 @@ class NotebooksProvider with ChangeNotifier {
         });
       }
     } catch (e) {
-      print('NotebooksProvider: Error handling notebook update: $e');
+      _logger.severe('Error handling notebook update: $e');
     }
   }
 
@@ -99,11 +98,11 @@ class NotebooksProvider with ChangeNotifier {
       final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
       
       if (notebookId != null) {
-        print('NotebooksProvider: Received notebook.created event for notebook ID $notebookId');
+        _logger.info('Received notebook.created event for notebook ID $notebookId');
         
         // Check if this notebook already exists in our list
         if (_notebooksMap.containsKey(notebookId)) {
-          print('NotebooksProvider: Notebook $notebookId already in list, skipping');
+          _logger.fine('Notebook $notebookId already in list, skipping');
           return;
         }
         
@@ -113,7 +112,7 @@ class NotebooksProvider with ChangeNotifier {
           ApiService.getNotebook(notebookId).then((newNotebook) {
             // Track ID to prevent duplicates
             _notebooksMap[notebookId] = newNotebook;
-            print('NotebooksProvider: Added new notebook $notebookId to list');
+            _logger.info('Added new notebook $notebookId to list');
             
             // Subscribe to this notebook
             if (_webSocketProvider != null) {
@@ -123,12 +122,12 @@ class NotebooksProvider with ChangeNotifier {
             
             notifyListeners();
           }).catchError((error) {
-            print('NotebooksProvider: Error fetching new notebook $notebookId: $error');
+            _logger.severe('Error fetching new notebook $notebookId: $error');
           });
         });
       }
     } catch (e) {
-      print('NotebooksProvider: Error handling notebook create: $e');
+      _logger.severe('Error handling notebook create: $e');
     }
   }
 
@@ -139,32 +138,32 @@ class NotebooksProvider with ChangeNotifier {
       final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
       
       if (notebookId != null) {
-        print('NotebooksProvider: Received notebook.deleted event for notebook ID $notebookId');
+        _logger.info('Received notebook.deleted event for notebook ID $notebookId');
         // Remove notebook from local state if it exists
         _notebooksMap.remove(notebookId);
         notifyListeners();
       }
     } catch (e) {
-      print('NotebooksProvider: Error handling notebook delete: $e');
+      _logger.severe('Error handling notebook delete: $e');
     }
   }
 
   // Fetch a single notebook
   Future<Notebook> _fetchSingleNotebook(String notebookId) async {
-    print('NotebooksProvider: Fetching single notebook: $notebookId');
+    _logger.info('Fetching single notebook: $notebookId');
     try {
       // Use ApiService to fetch the notebook by ID
       final notebook = await ApiService.getNotebook(notebookId);
       
-      print('NotebooksProvider: Fetched notebook ${notebook.id} with ${notebook.notes.length} notes');
+      _logger.info('Fetched notebook ${notebook.id} with ${notebook.notes.length} notes');
       
       // Check if notebook exists in our list
       if (_notebooksMap.containsKey(notebookId)) {
         _notebooksMap[notebookId] = notebook;
-        print('NotebooksProvider: Updated existing notebook: $notebookId with ${notebook.notes.length} notes');
+        _logger.info('Updated existing notebook: $notebookId with ${notebook.notes.length} notes');
       } else {
         _notebooksMap[notebook.id] = notebook;
-        print('NotebooksProvider: Added new notebook: $notebookId with ${notebook.notes.length} notes');
+        _logger.info('Added new notebook: $notebookId with ${notebook.notes.length} notes');
         
         // Subscribe to this notebook
         if (_webSocketProvider != null) {
@@ -178,7 +177,7 @@ class NotebooksProvider with ChangeNotifier {
       
       return notebook;
     } catch (error) {
-      print('NotebooksProvider: Error fetching notebook: $error');
+      _logger.severe('Error fetching notebook: $error');
       throw error;
     }
   }
@@ -189,13 +188,13 @@ class NotebooksProvider with ChangeNotifier {
       final notebook = await _fetchSingleNotebook(notebookId);
       return notebook;
     } catch (error) {
-      print('NotebooksProvider: Error in fetchNotebookById: $error');
+      _logger.severe('Error in fetchNotebookById: $error');
       return null;
     }
   }
   
   void _handleNoteCreate(Map<String, dynamic> message) {
-    print('NotebooksProvider: Received note.created event');
+    _logger.info('Received note.created event');
     
     try {
       // Parse message using the new parser
@@ -205,47 +204,47 @@ class NotebooksProvider with ChangeNotifier {
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
       
-      print('NotebooksProvider: Extracted from event: noteId=$noteId, notebookId=$notebookId');
+      _logger.fine('Extracted from event: noteId=$noteId, notebookId=$notebookId');
       
       // If we have a notebook ID, refresh it
       if (notebookId != null) {
-        print('NotebooksProvider: Will refresh notebook $notebookId from note.created event');
+        _logger.info('Will refresh notebook $notebookId from note.created event');
         _refreshNotebookWithNote(notebookId);
         return;
       }
       
       // If we only have a note ID, fetch the note to get its notebook
       if (noteId != null) {
-        print('NotebooksProvider: Attempting to fetch note $noteId to find its notebook');
+        _logger.info('Attempting to fetch note $noteId to find its notebook');
         
         ApiService.getNote(noteId).then((note) {
-          print('NotebooksProvider: Found note belongs to notebook ${note.notebookId}');
+          _logger.info('Found note belongs to notebook ${note.notebookId}');
           _refreshNotebookWithNote(note.notebookId);
         }).catchError((e) {
-          print('NotebooksProvider: Failed to fetch note details: $e');
+          _logger.severe('Failed to fetch note details: $e');
         });
         return;
       }
 
-      print('NotebooksProvider: Not enough information to process note creation');
+      _logger.warning('Not enough information to process note creation');
     } catch (e) {
-      print('NotebooksProvider: Error handling note create: $e');
+      _logger.severe('Error handling note create: $e');
     }
   }
   
   // Helper method to refresh a notebook with new note data
   void _refreshNotebookWithNote(String notebookId) {
-    print('NotebooksProvider: Will refresh notebook $notebookId');
+    _logger.info('Will refresh notebook $notebookId');
     
     // Check if this notebook is in our local state
     if (!_notebooksMap.containsKey(notebookId)) {
-      print('NotebooksProvider: Notebook not found in local state, skipping refresh');
+      _logger.info('Notebook not found in local state, skipping refresh');
       return;
     }
     
     // Add a delay to allow database to complete the transaction
     Future.delayed(Duration(milliseconds: 2000), () {
-      print('NotebooksProvider: Attempting to fetch notebook $notebookId after delay');
+      _logger.info('Attempting to fetch notebook $notebookId after delay');
       _fetchSingleNotebook(notebookId);
     });
   }
@@ -276,7 +275,7 @@ class NotebooksProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      print('NotebooksProvider: Error handling note delete: $e');
+      _logger.severe('Error handling note delete: $e');
     }
   }
 
@@ -319,9 +318,9 @@ class NotebooksProvider with ChangeNotifier {
         }
       }
       
-      print('NotebooksProvider: Fetched notebooks (page $page), total: ${_notebooksMap.length}');
+      _logger.info('Fetched notebooks (page $page), total: ${_notebooksMap.length}');
     } catch (error) {
-      print('Error fetching notebooks: $error');
+      _logger.severe('Error fetching notebooks: $error');
       // Only clear on first page error
       if (page == 1) _notebooksMap.clear();
     }
@@ -345,12 +344,12 @@ class NotebooksProvider with ChangeNotifier {
         }
         
         notifyListeners();
-        print('NotebooksProvider: Added notebook $notebookId from WebSocket event');
+        _logger.info('Added notebook $notebookId from WebSocket event');
       } else {
-        print('NotebooksProvider: Notebook $notebookId already exists, skipping fetch');
+        _logger.fine('Notebook $notebookId already exists, skipping fetch');
       }
     } catch (error) {
-      print('Error fetching notebook from event: $error');
+      _logger.severe('Error fetching notebook from event: $error');
     }
   }
 
@@ -371,7 +370,7 @@ class NotebooksProvider with ChangeNotifier {
       notifyListeners();
       return notebook;
     } catch (error) {
-      print('Error creating notebook: $error');
+      _logger.severe('Error creating notebook: $error');
       rethrow;
     }
   }
@@ -392,7 +391,7 @@ class NotebooksProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (error) {
-      print('Error adding note to notebook: $error');
+      _logger.severe('Error adding note to notebook: $error');
       rethrow;
     }
   }
@@ -413,7 +412,7 @@ class NotebooksProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (error) {
-      print('Error deleting note from notebook: $error');
+      _logger.severe('Error deleting note from notebook: $error');
       rethrow;
     }
   }
@@ -426,7 +425,7 @@ class NotebooksProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (error) {
-      print('Error updating notebook: $error');
+      _logger.severe('Error updating notebook: $error');
       rethrow;
     }
   }
@@ -441,7 +440,7 @@ class NotebooksProvider with ChangeNotifier {
       
       notifyListeners();
     } catch (error) {
-      print('Error deleting notebook: $error');
+      _logger.severe('Error deleting notebook: $error');
       rethrow;
     }
   }

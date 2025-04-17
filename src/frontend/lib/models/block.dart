@@ -5,7 +5,7 @@ class Block {
   final String noteId;
   final int order;
 
-  Block({
+  const Block({
     required this.id,
     required this.content,
     required this.type,
@@ -14,12 +14,20 @@ class Block {
   });
 
   factory Block.fromJson(Map<String, dynamic> json) {
+    // Handle numeric order value (could be int or String)
+    final dynamic rawOrder = json['order'];
+    final int orderValue = rawOrder is String
+        ? int.tryParse(rawOrder) ?? 0
+        : rawOrder is int
+            ? rawOrder
+            : 0;
+            
     return Block(
       id: json['id'] ?? '',
       content: json['content'] ?? '',
       type: json['type'] ?? 'text',
       noteId: json['note_id'] ?? '',
-      order: json['order'] ?? 0,
+      order: orderValue,
     );
   }
 
@@ -29,7 +37,24 @@ class Block {
       'content': content,
       'type': type,
       'note_id': noteId,
-      'order': order,
+      'order': order.toString(), // Serialize as string to avoid numeric type issues
     };
+  }
+  
+  /// Creates a copy of this block with the given fields replaced with the new values
+  Block copyWith({
+    String? id,
+    String? content,
+    String? type,
+    String? noteId,
+    int? order,
+  }) {
+    return Block(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      type: type ?? this.type,
+      noteId: noteId ?? this.noteId,
+      order: order ?? this.order,
+    );
   }
 }

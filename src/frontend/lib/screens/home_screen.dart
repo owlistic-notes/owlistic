@@ -6,6 +6,7 @@ import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/websocket_provider.dart';
+import '../utils/logger.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -13,6 +14,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final Logger _logger = Logger('HomeScreen');
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
 
@@ -22,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
     
     if (!_isInitialized) {
       _isInitialized = true;
+      _logger.info('Initializing home screen');
       
       // Ensure WebSocket is connected
       Provider.of<WebSocketProvider>(context, listen: false).ensureConnected();

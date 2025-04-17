@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import '../providers/websocket_provider.dart';
@@ -19,48 +18,36 @@ List<SingleChildWidget> appProviders = [
   ChangeNotifierProxyProvider<WebSocketProvider, NotebooksProvider>(
     create: (_) => NotebooksProvider(),
     update: (_, webSocketProvider, previousProvider) {
-      if (previousProvider != null) {
-        previousProvider.setWebSocketProvider(webSocketProvider);
-        return previousProvider;
-      } else {
-        return NotebooksProvider()..setWebSocketProvider(webSocketProvider);
-      }
+      final provider = previousProvider ?? NotebooksProvider();
+      provider.setWebSocketProvider(webSocketProvider);
+      return provider;
     },
   ),
   
   ChangeNotifierProxyProvider<WebSocketProvider, NotesProvider>(
     create: (_) => NotesProvider(),
     update: (_, webSocketProvider, previousProvider) {
-      if (previousProvider != null) {
-        previousProvider.setWebSocketProvider(webSocketProvider);
-        return previousProvider;
-      } else {
-        return NotesProvider()..setWebSocketProvider(webSocketProvider);
-      }
+      final provider = previousProvider ?? NotesProvider();
+      provider.setWebSocketProvider(webSocketProvider);
+      return provider;
     },
   ),
   
   ChangeNotifierProxyProvider<WebSocketProvider, TasksProvider>(
     create: (_) => TasksProvider(),
     update: (_, webSocketProvider, previousProvider) {
-      if (previousProvider != null) {
-        previousProvider.setWebSocketProvider(webSocketProvider);
-        return previousProvider;
-      } else {
-        return TasksProvider()..setWebSocketProvider(webSocketProvider);
-      }
+      final provider = previousProvider ?? TasksProvider();
+      provider.setWebSocketProvider(webSocketProvider);
+      return provider;
     },
   ),
   
   ChangeNotifierProxyProvider<WebSocketProvider, BlockProvider>(
     create: (_) => BlockProvider(),
     update: (_, webSocketProvider, previousProvider) {
-      if (previousProvider != null) {
-        previousProvider.setWebSocketProvider(webSocketProvider);
-        return previousProvider;
-      } else {
-        return BlockProvider()..setWebSocketProvider(webSocketProvider);
-      }
+      final provider = previousProvider ?? BlockProvider();
+      provider.setWebSocketProvider(webSocketProvider);
+      return provider;
     },
   ),
 ];

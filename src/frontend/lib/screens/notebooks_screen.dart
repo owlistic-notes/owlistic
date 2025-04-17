@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/app_drawer.dart';
 import '../providers/notebooks_provider.dart';
-import '../providers/websocket_provider.dart';
 import '../utils/provider_extensions.dart';
+import '../utils/logger.dart';
 
 /// NotebooksScreen acts as the View in MVP pattern
 class NotebooksScreen extends StatefulWidget {
@@ -14,6 +13,7 @@ class NotebooksScreen extends StatefulWidget {
 }
 
 class _NotebooksScreenState extends State<NotebooksScreen> {
+  final Logger _logger = Logger('NotebooksScreen');
   final ScrollController _scrollController = ScrollController();
   int _currentPage = 1;
   bool _isLoadingMore = false;
@@ -65,7 +65,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
           _handleNewNotebook(notebookId.toString());
         }
       } catch (e) {
-        print('Error handling notebook creation in UI: $e');
+        _logger.error('Error handling notebook creation in UI', e);
       }
     });
     
@@ -94,11 +94,11 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
   void _handleNewNotebook(String notebookId) {
     // Check if this notebook is already loaded
     if (_loadedNotebookIds.contains(notebookId)) {
-      print('NotebooksScreen: Notebook $notebookId already loaded, skipping');
+      _logger.debug('Notebook $notebookId already loaded, skipping');
       return;
     }
     
-    print('NotebooksScreen: Adding new notebook $notebookId from WebSocket event');
+    _logger.info('Adding new notebook $notebookId from WebSocket event');
     
     // Fetch just this one notebook and add it to the list
     _presenter.fetchNotebookById(notebookId).then((_) {
@@ -151,24 +151,24 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Add Notebook'),
+        title: const Text('Add Notebook'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameController,
-              decoration: InputDecoration(labelText: 'Name'),
+              decoration: const InputDecoration(labelText: 'Name'),
             ),
             TextField(
               controller: _descriptionController,
-              decoration: InputDecoration(labelText: 'Description'),
+              decoration: const InputDecoration(labelText: 'Description'),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -178,12 +178,12 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to create notebook')),
+                    const SnackBar(content: Text('Failed to create notebook')),
                   );
                 }
               }
             },
-            child: Text('Add'),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -203,15 +203,15 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notebooks'),
+        title: const Text('Notebooks'),
         actions: [
           // Add refresh button
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: () {
               notebooksPresenter.fetchNotebooks();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Refreshing notebooks...'))
+                const SnackBar(content: Text('Refreshing notebooks...'))
               );
             },
             tooltip: 'Refresh notebooks',
@@ -240,18 +240,18 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       key: ValueKey('notebooks_screen_$notebookCount'),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddNotebookDialog,
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }
   
   Widget _buildBody(NotebooksProvider presenter) {
     if (presenter.isLoading && _currentPage == 1) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
 
     return presenter.notebooks.isEmpty
-        ? Center(child: Text('No notebooks found'))
+        ? const Center(child: Text('No notebooks found'))
         : Stack(
             children: [
               ListView.builder(
@@ -260,9 +260,9 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                 itemBuilder: (context, index) {
                   // Show loading indicator at the end
                   if (index == presenter.notebooks.length) {
-                    return Center(
+                    return const Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(8.0),
+                        padding: EdgeInsets.all(8.0),
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     );
@@ -271,11 +271,11 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                   final notebook = presenter.notebooks[index];
                   return Card(
                     key: ValueKey('notebook_${notebook.id}'), // Add key for stable identity
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: ListTile(
                       title: Text(notebook.name),
                       subtitle: Text(notebook.description),
-                      leading: Icon(Icons.book),
+                      leading: const Icon(Icons.book),
                       onTap: () => context.go('/notebooks/${notebook.id}'),
                     ),
                   );

@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/note.dart';
 import '../services/api_service.dart';
 import 'websocket_provider.dart';
-import '../models/subscription.dart';
 import '../utils/websocket_message_parser.dart';
+import '../utils/logger.dart';
 
 class NotesProvider with ChangeNotifier {
+  final Logger _logger = Logger('NotesProvider');
   // Use a Map instead of a List to prevent duplicates
   final Map<String, Note> _notesMap = {};
   bool _isLoading = false;
@@ -69,16 +70,16 @@ class NotesProvider with ChangeNotifier {
       if (noteId != null) {
         _fetchSingleNote(noteId);
       } else {
-        print('NotesProvider: Could not find note_id in update message');
+        _logger.warning('Could not find note_id in update message');
       }
     } catch (e) {
-      print('NotesProvider: Error handling note update: $e');
+      _logger.error('Error handling note update: $e');
     }
   }
 
   // Handle note create events with similar pattern to notebooks and blocks
   void _handleNoteCreate(Map<String, dynamic> message) {
-    print('NotesProvider: Received note.created event');
+    _logger.info('Received note.created event');
     
     try {
       // Use the new parser to extract data
@@ -86,7 +87,7 @@ class NotesProvider with ChangeNotifier {
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
       if (noteId != null) {
-        print('NotesProvider: Found note_id: $noteId');
+        _logger.info('Found note_id: $noteId');
         
         // Add a short delay to avoid race condition with database
         Future.delayed(Duration(milliseconds: 500), () {
@@ -96,11 +97,11 @@ class NotesProvider with ChangeNotifier {
             if (_notesMap.containsKey(noteId)) {
               // Update existing note
               _notesMap[noteId] = newNote;
-              print('NotesProvider: Updated existing note $noteId');
+              _logger.info('Updated existing note $noteId');
             } else {
               // Add new note to the list
               _notesMap[noteId] = newNote;
-              print('NotesProvider: Added new note $noteId to list');
+              _logger.info('Added new note $noteId to list');
               
               // Subscribe to this note
               _webSocketProvider?.subscribe('note', id: newNote.id);
@@ -108,12 +109,12 @@ class NotesProvider with ChangeNotifier {
             
             notifyListeners();
           }).catchError((error) {
-            print('NotesProvider: Error fetching new note $noteId: $error');
+            _logger.error('Error fetching new note $noteId: $error');
           });
         });
       }
     } catch (e) {
-      print('NotesProvider: Error handling note create: $e');
+      _logger.error('Error handling note create: $e');
     }
   }
   
@@ -125,7 +126,7 @@ class NotesProvider with ChangeNotifier {
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
       if (noteId != null) {
-        print('NotesProvider: Received note.deleted event for note ID $noteId');
+        _logger.info('Received note.deleted event for note ID $noteId');
         // Remove from local state if it exists
         if (_notesMap.containsKey(noteId)) {
           _notesMap.remove(noteId);
@@ -133,7 +134,7 @@ class NotesProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      print('NotesProvider: Error handling note delete: $e');
+      _logger.error('Error handling note delete: $e');
     }
   }
 
@@ -155,7 +156,7 @@ class NotesProvider with ChangeNotifier {
       notifyListeners();
       return note;
     } catch (error) {
-      print('NotesProvider: Error fetching note $noteId: $error');
+      _logger.error('Error fetching note $noteId: $error');
       throw error;
     }
   }
@@ -211,12 +212,12 @@ class NotesProvider with ChangeNotifier {
         
         notifyListeners();
         
-        print('NotesProvider: Added note $noteId from WebSocket event');
+        _logger.info('Added note $noteId from WebSocket event');
       } else {
-        print('NotesProvider: Note $noteId already exists, skipping fetch');
+        _logger.debug('Note $noteId already exists, skipping fetch');
       }
     } catch (error) {
-      print('Error fetching note from event: $error');
+      _logger.error('Error fetching note from event: $error');
     }
   }
 
@@ -231,7 +232,7 @@ class NotesProvider with ChangeNotifier {
       
       notifyListeners();
     } catch (error) {
-      print('NotesProvider: Error creating note: $error');
+      _logger.error('Error creating note: $error');
       rethrow;
     }
   }
@@ -247,7 +248,7 @@ class NotesProvider with ChangeNotifier {
       
       notifyListeners();
     } catch (error) {
-      print('NotesProvider: Error deleting note: $error');
+      _logger.error('Error deleting note: $error');
       rethrow;
     }
   }
@@ -290,7 +291,7 @@ class NotesProvider with ChangeNotifier {
       
       notifyListeners();
     } catch (error) {
-      print('NotesProvider: Error in fetchNoteFromEvent: $error');
+      _logger.error('Error in fetchNoteFromEvent: $error');
     }
   }
   

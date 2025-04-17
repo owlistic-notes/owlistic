@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'dart:async';
 import '../widgets/app_drawer.dart';
 import '../models/note.dart';
 import '../providers/notes_provider.dart';
-import '../providers/websocket_provider.dart';
 import '../utils/provider_extensions.dart';
+import '../utils/logger.dart';
 import 'note_editor_screen.dart';
 
 /// NotesScreen acts as the View in MVP pattern
@@ -15,6 +14,7 @@ class NotesScreen extends StatefulWidget {
 }
 
 class _NotesScreenState extends State<NotesScreen> {
+  final Logger _logger = Logger('NotesScreen');
   final ScrollController _scrollController = ScrollController();
   bool _isInitialized = false;
   int _currentPage = 1;
@@ -66,7 +66,7 @@ class _NotesScreenState extends State<NotesScreen> {
           _handleNewNote(noteId.toString());
         }
       } catch (e) {
-        print('Error handling note creation in UI: $e');
+        _logger.error('Error handling note creation in UI', e);
       }
     });
     
@@ -94,11 +94,11 @@ class _NotesScreenState extends State<NotesScreen> {
   void _handleNewNote(String noteId) {
     // Check if this note is already loaded
     if (_loadedNoteIds.contains(noteId)) {
-      print('NotesScreen: Note $noteId already loaded, skipping');
+      _logger.debug('Note $noteId already loaded, skipping');
       return;
     }
     
-    print('NotesScreen: Adding new note $noteId from WebSocket event');
+    _logger.info('Adding new note $noteId from WebSocket event');
     
     // Fetch just this one note and add it to the list
     _presenter.fetchNoteFromEvent(noteId).then((_) {
@@ -149,30 +149,30 @@ class _NotesScreenState extends State<NotesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Add Note'),
+        title: const Text('Add Note'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // ... notebook dropdown controls...
             TextField(
               controller: _titleController,
-              decoration: InputDecoration(labelText: 'Title'),
+              decoration: const InputDecoration(labelText: 'Title'),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
+              if (_titleController.text.isNotEmpty) {
                 Navigator.of(ctx).pop();
                 await _presenter.createNote(selectedNotebookId!, _titleController.text);
               }
             },
-            child: Text('Add'),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -196,15 +196,15 @@ class _NotesScreenState extends State<NotesScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notes'),
+        title: const Text('Notes'),
         actions: [
           // Add refresh button
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: () {
               notesPresenter.fetchNotes();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Refreshing notes...'))
+                const SnackBar(content: Text('Refreshing notes...'))
               );
             },
             tooltip: 'Refresh notes',
@@ -228,14 +228,14 @@ class _NotesScreenState extends State<NotesScreen> {
       body: _buildBody(notesPresenter),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddNoteDialog,
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }
   
   Widget _buildBody(NotesProvider presenter) {
     if (presenter.isLoading && presenter.notes.isEmpty) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
     
     if (presenter.notes.isEmpty) {
@@ -243,11 +243,11 @@ class _NotesScreenState extends State<NotesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('No notes found'),
-            SizedBox(height: 16),
+            const Text('No notes found'),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => presenter.fetchNotes(),
-              child: Text('Refresh'),
+              child: const Text('Refresh'),
             ),
           ],
         ),
@@ -260,9 +260,9 @@ class _NotesScreenState extends State<NotesScreen> {
       itemBuilder: (context, index) {
         // Show loading indicator at the end
         if (index == presenter.notes.length) {
-          return Center(
+          return const Center(
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: EdgeInsets.all(8.0),
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           );
@@ -271,14 +271,14 @@ class _NotesScreenState extends State<NotesScreen> {
         final note = presenter.notes[index];
         return Card(
           key: ValueKey('note_${note.id}'), // Ensure stable identity with key
-          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ListTile(
             title: Text(note.title),
             subtitle: Text(note.content),
-            leading: Icon(Icons.note),
+            leading: const Icon(Icons.note),
             onTap: () => _navigateToNoteEditor(note),
             trailing: IconButton(
-              icon: Icon(Icons.delete),
+              icon: const Icon(Icons.delete),
               onPressed: () => presenter.deleteNote(note.id),
             ),
           ),

@@ -6,9 +6,9 @@ class Task {
   final String? description;
   final String? dueDate;
   final String? noteId;
-  final String? blockId;  // Add blockId
+  final String? blockId;
 
-  Task({
+  const Task({
     required this.id,
     required this.title,
     required this.isCompleted,
@@ -16,7 +16,7 @@ class Task {
     this.description,
     this.dueDate,
     this.noteId,
-    this.blockId,  // Add blockId
+    this.blockId,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -28,7 +28,20 @@ class Task {
       description: json['Description'],
       dueDate: json['DueDate'],
       noteId: json['NoteID'],
-      blockId: json['block_id'],  // Add blockId
+      blockId: json['block_id'],
     );
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'ID': id,
+      'Title': title,
+      'IsCompleted': isCompleted,
+      'UserID': userId,
+      if (description != null) 'Description': description,
+      if (dueDate != null) 'DueDate': dueDate,
+      if (noteId != null) 'NoteID': noteId,
+      if (blockId != null) 'block_id': blockId,
+    };
   }
 }

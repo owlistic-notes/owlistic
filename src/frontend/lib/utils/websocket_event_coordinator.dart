@@ -26,7 +26,7 @@ class WebSocketEventCoordinator {
 
   // Handle entity creation
   void handleEntityCreated(String type, String id) {
-    print('WebSocketEventCoordinator: Entity created - $type:$id');
+    debugPrint('WebSocketEventCoordinator: Entity created - $type:$id');
     
     switch (type) {
       case 'note':
@@ -46,7 +46,7 @@ class WebSocketEventCoordinator {
   
   // Handle entity updated
   void handleEntityUpdated(String type, String id) {
-    print('WebSocketEventCoordinator: Entity updated - $type:$id');
+    debugPrint('WebSocketEventCoordinator: Entity updated - $type:$id');
     
     switch (type) {
       case 'note':
@@ -66,7 +66,7 @@ class WebSocketEventCoordinator {
   
   // Handle entity deleted
   void handleEntityDeleted(String type, String id) {
-    print('WebSocketEventCoordinator: Entity deleted - $type:$id');
+    debugPrint('WebSocketEventCoordinator: Entity deleted - $type:$id');
     
     switch (type) {
       case 'note':

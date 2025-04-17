@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../utils/logger.dart';
 
 /// A class representing the structure of WebSocket messages
 class WebSocketMessage {
@@ -6,7 +7,7 @@ class WebSocketMessage {
   final String event;
   final WebSocketPayload? payload;
 
-  WebSocketMessage({
+  const WebSocketMessage({
     required this.type,
     required this.event,
     this.payload,
@@ -29,8 +30,8 @@ class WebSocketMessage {
       final json = jsonDecode(rawMessage);
       return WebSocketMessage.fromJson(json);
     } catch (e) {
-      print('Error parsing WebSocket message: $e');
-      return WebSocketMessage(type: 'error', event: 'parse_error');
+      debugPrint('Error parsing WebSocket message: $e');
+      return const WebSocketMessage(type: 'error', event: 'parse_error');
     }
   }
 
@@ -51,12 +52,12 @@ class WebSocketMessage {
 
 /// A class representing the structure of the message payload
 class WebSocketPayload {
-  final dynamic id; // Changed from String? to dynamic to handle various ID types
-  final dynamic timestamp; // Changed from String? to dynamic
-  final dynamic type; // Changed from String? to dynamic
+  final dynamic id;
+  final dynamic timestamp;
+  final dynamic type;
   final WebSocketInnerPayload? innerPayload;
 
-  WebSocketPayload({
+  const WebSocketPayload({
     this.id,
     this.timestamp,
     this.type,
@@ -69,9 +70,9 @@ class WebSocketPayload {
   factory WebSocketPayload.fromJson(Map<String, dynamic> json) {
     // Handle the nested payload structure
     return WebSocketPayload(
-      id: json['id'], // No toString() conversion here
-      timestamp: json['timestamp'], // No toString() conversion here
-      type: json['type'], // No toString() conversion here
+      id: json['id'],
+      timestamp: json['timestamp'],
+      type: json['type'],
       innerPayload: json['payload'] != null 
           ? WebSocketInnerPayload.fromJson(json['payload'])
           : (json['data'] != null
@@ -84,11 +85,11 @@ class WebSocketPayload {
 /// A class representing the inner payload structure (payload.payload)
 class WebSocketInnerPayload {
   final Map<String, dynamic>? data;
-  final dynamic eventId; // Changed from String? to dynamic
-  final dynamic timestamp; // Changed from String? to dynamic
-  final dynamic type; // Changed from String? to dynamic
+  final dynamic eventId;
+  final dynamic timestamp;
+  final dynamic type;
 
-  WebSocketInnerPayload({
+  const WebSocketInnerPayload({
     this.data,
     this.eventId,
     this.timestamp,
@@ -98,9 +99,9 @@ class WebSocketInnerPayload {
   factory WebSocketInnerPayload.fromJson(Map<String, dynamic> json) {
     return WebSocketInnerPayload(
       data: json['data'],
-      eventId: json['event_id'], // No toString() conversion here
-      timestamp: json['timestamp'], // No toString() conversion here
-      type: json['type'], // No toString() conversion here
+      eventId: json['event_id'],
+      timestamp: json['timestamp'],
+      type: json['type'],
     );
   }
 }
@@ -167,43 +168,19 @@ class WebSocketModelExtractor {
     return null;
   }
 
-  /// Extract Note data from a message
-  static Map<String, dynamic>? extractNoteData(WebSocketMessage message) {
-    return extractData(message);
-  }
-  
-  /// Extract NoteID from a message
-  static String? extractNoteId(WebSocketMessage message) {
-    return extractId(message, 'note_id');
-  }
-    
-  /// Extract Notebook data from a message
-  static Map<String, dynamic>? extractNotebookData(WebSocketMessage message) {
-    return extractData(message);
-  }
-  
-  /// Extract NotebookID from a message
-  static String? extractNotebookId(WebSocketMessage message) {
-    return extractId(message, 'notebook_id');
-  }
-    
-  /// Extract Block data from a message
-  static Map<String, dynamic>? extractBlockData(WebSocketMessage message) {
-    return extractData(message);
-  }
-  
-  /// Extract BlockID from a message
-  static String? extractBlockId(WebSocketMessage message) {
-    return extractId(message, 'block_id');
-  }
-  
-  /// Extract Task data from a message
-  static Map<String, dynamic>? extractTaskData(WebSocketMessage message) {
-    return extractData(message);
-  }
-  
-  /// Extract TaskID from a message
-  static String? extractTaskId(WebSocketMessage message) {
-    return extractId(message, 'task_id');
-  }
+  // Resource-specific extraction methods
+  static Map<String, dynamic>? extractNoteData(WebSocketMessage message) => extractData(message);
+  static String? extractNoteId(WebSocketMessage message) => extractId(message, 'note_id');
+  static Map<String, dynamic>? extractNotebookData(WebSocketMessage message) => extractData(message);
+  static String? extractNotebookId(WebSocketMessage message) => extractId(message, 'notebook_id');
+  static Map<String, dynamic>? extractBlockData(WebSocketMessage message) => extractData(message);
+  static String? extractBlockId(WebSocketMessage message) => extractId(message, 'block_id');
+  static Map<String, dynamic>? extractTaskData(WebSocketMessage message) => extractData(message);
+  static String? extractTaskId(WebSocketMessage message) => extractId(message, 'task_id');
+}
+
+// Helper for logging outside of Flutter context
+void debugPrint(String message) {
+  final logger = Logger('WebSocketParser');
+  logger.debug(message);
 }

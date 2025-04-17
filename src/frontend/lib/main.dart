@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'core/router.dart';
-import 'core/providers.dart'; // Use the centralized providers file
+import 'core/providers.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Load environment variables
@@ -26,6 +26,7 @@ class ThinkStackApp extends StatelessWidget {
         theme: ThemeData(
           primarySwatch: Colors.blue,
           useMaterial3: true,
+          // Add more theme customization here
         ),
         routerConfig: AppRouter.router,
         debugShowCheckedModeBanner: false,

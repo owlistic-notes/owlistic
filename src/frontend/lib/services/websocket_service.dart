@@ -2,19 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 // Platform-specific imports - don't use conditional imports for the class
 import 'package:web_socket_channel/io.dart';
-import 'package:web_socket_channel/html.dart' if (dart.library.io) 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../utils/websocket_message_parser.dart';
+import '../utils/logger.dart';
 
 class WebSocketService {
-  static WebSocketService? _instance;
+  static final WebSocketService _instance = WebSocketService._internal();
   WebSocketChannel? _channel;
   String _userId = '90a12345-f12a-98c4-a456-513432930000'; // Default user ID
   final String _baseUrl;
+  final Logger _logger = Logger('WebSocketService');
   
   bool _isConnected = false;
   Timer? _reconnectTimer;
@@ -35,10 +36,7 @@ class WebSocketService {
       : _baseUrl = dotenv.env['WS_URL'] ?? 'ws://localhost:8082/ws';
   
   // Factory constructor to get instance
-  factory WebSocketService() {
-    _instance ??= WebSocketService._internal();
-    return _instance!;
-  }
+  factory WebSocketService() => _instance;
   
   // Initialize the connection with better error handling and platform awareness
   void connect({String? userId}) {
@@ -52,7 +50,7 @@ class WebSocketService {
     
     try {
       final wsUrl = '$_baseUrl?user_id=$_userId';
-      print('WebSocket: Connecting to $wsUrl');
+      _logger.debug('Connecting to $wsUrl');
       
       // Create WebSocketChannel using platform-specific implementation
       if (kIsWeb) {
@@ -63,7 +61,7 @@ class WebSocketService {
         try {
           _channel = IOWebSocketChannel.connect(Uri.parse(wsUrl));
         } catch (e) {
-          print('Error creating IOWebSocketChannel: $e');
+          _logger.error('Error creating IOWebSocketChannel', e);
           // Fallback to basic implementation
           _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
         }
@@ -72,16 +70,14 @@ class WebSocketService {
       _isConnected = true;
       _isReconnecting = false;
       
-      print('WebSocket: Connection established successfully');
+      _logger.info('Connection established successfully');
       
       // Listen for incoming messages
       _channel!.stream.listen(
-        (message) {
-          _handleWebSocketMessage(message);
-        },
+        _handleWebSocketMessage,
         onDone: _handleDisconnect,
         onError: (error) {
-          print('WebSocket error: $error');
+          _logger.error('WebSocket error', error);
           _handleDisconnect();
         },
         cancelOnError: true,
@@ -90,7 +86,7 @@ class WebSocketService {
       // Start ping timer
       _startPingTimer();
     } catch (e) {
-      print('WebSocket: Connection error - $e');
+      _logger.error('Connection error', e);
       _isConnected = false;
       _isReconnecting = false;
       _scheduleReconnect();
@@ -105,6 +101,7 @@ class WebSocketService {
     _channel?.sink.close();
     _pingTimer?.cancel();
     
+    _logger.info('Disconnected, scheduling reconnect');
     _scheduleReconnect();
   }
   
@@ -114,8 +111,8 @@ class WebSocketService {
     _reconnectTimer?.cancel();
     
     if (!_isReconnecting) {
-      _reconnectTimer = Timer(Duration(seconds: 5), () {
-        print('WebSocket: Attempting to reconnect...');
+      _reconnectTimer = Timer(const Duration(seconds: 5), () {
+        _logger.info('Attempting to reconnect...');
         connect();
       });
     }
@@ -124,7 +121,7 @@ class WebSocketService {
   // Start ping timer to keep connection alive
   void _startPingTimer() {
     _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(Duration(seconds: 30), (_) {
+    _pingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       sendPing();
     });
   }
@@ -134,11 +131,11 @@ class WebSocketService {
     if (!_isConnected) return;
     
     try {
-      _channel!.sink.add(json.encode({
-        'type': 'ping',
-      }));
+      final message = json.encode({'type': 'ping'});
+      _channel!.sink.add(message);
+      _logger.debug('Sent ping');
     } catch (e) {
-      print('Error sending ping: $e');
+      _logger.error('Error sending ping', e);
     }
   }
   
@@ -146,17 +143,17 @@ class WebSocketService {
   void subscribe(String resource, {String? id}) {
     if (!_isConnected) {
       try {
-        print('WebSocket not connected, connecting first...');
+        _logger.info('Not connected, connecting first...');
         connect();
         // Directly send subscribe after connecting
-        Future.delayed(Duration(milliseconds: 500), () {
+        Future.delayed(const Duration(milliseconds: 500), () {
           if (_isConnected) {
             _sendSubscribe(resource, id: id);
           }
         });
         return;
       } catch (e) {
-        print('Error during reconnection attempt: $e');
+        _logger.error('Error during reconnection attempt', e);
         return;
       }
     }
@@ -197,17 +194,12 @@ class WebSocketService {
         'payload': payload,
       };
       
-      print('WebSocket: Sending subscribe: ${json.encode(message)}');
+      _logger.debug('Sending subscribe: ${json.encode(message)}');
       _channel!.sink.add(json.encode(message));
       
-      // IMPORTANT: Remove the duplicate subscription to avoid server sending multiple
-      // confirmation messages that get concatenated
-      // Instead of sending a duplicate immediately, set a longer delay for retry
-      // in the WebSocketProvider class
-      
-      print('Subscribed to $resource ${id != null ? "ID: $id" : "(global)"}');
+      _logger.info('Subscribed to $resource ${id != null ? "ID: $id" : "(global)"}');
     } catch (e) {
-      print('Error subscribing to $resource: $e');
+      _logger.error('Error subscribing to $resource', e);
     }
   }
   
@@ -224,15 +216,17 @@ class WebSocketService {
         payload['id'] = id;
       }
       
-      _channel!.sink.add(json.encode({
+      final message = json.encode({
         'type': 'unsubscribe',
         'action': 'unsubscribe',
         'payload': payload,
-      }));
+      });
       
-      print('Unsubscribed from $resource ${id != null ? "ID: $id" : ""}');
+      _channel!.sink.add(message);
+      
+      _logger.info('Unsubscribed from $resource ${id != null ? "ID: $id" : ""}');
     } catch (e) {
-      print('Error unsubscribing from $resource: $e');
+      _logger.error('Error unsubscribing from $resource', e);
     }
   }
   
@@ -240,7 +234,7 @@ class WebSocketService {
   void updateBlock(String id, String content, {String? type}) {
     if (!_isConnected) {
       connect();
-      Future.delayed(Duration(milliseconds: 500), () {
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (_isConnected) {
           _sendBlockUpdate(id, content, type: type);
         }
@@ -269,12 +263,12 @@ class WebSocketService {
         'payload': payload,
       };
       
-      print('WebSocket: Sending block update: ${json.encode(message)}');
+      _logger.debug('Sending block update: ${json.encode(message)}');
       _channel!.sink.add(json.encode(message));
       
-      print('Sent block update for $id');
+      _logger.info('Sent block update for $id');
     } catch (e) {
-      print('Error updating block: $e');
+      _logger.error('Error updating block', e);
     }
   }
   
@@ -282,7 +276,7 @@ class WebSocketService {
   void updateNote(String id, String title) {
     if (!_isConnected) {
       connect();
-      Future.delayed(Duration(milliseconds: 500), () {
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (_isConnected) {
           _sendNoteUpdate(id, title);
         }
@@ -305,12 +299,12 @@ class WebSocketService {
         },
       };
       
-      print('WebSocket: Sending note update: ${json.encode(message)}');
+      _logger.debug('Sending note update: ${json.encode(message)}');
       _channel!.sink.add(json.encode(message));
       
-      print('Sent note update for $id');
+      _logger.info('Sent note update for $id');
     } catch (e) {
-      print('Error updating note: $e');
+      _logger.error('Error updating note', e);
     }
   }
 
@@ -319,10 +313,10 @@ class WebSocketService {
     if (!_isConnected) connect();
     
     try {
-      print('WebSocket: Sending raw message: $message');
+      _logger.debug('Sending raw message: $message');
       _channel!.sink.add(message);
     } catch (e) {
-      print('WebSocket: Error sending message: $e');
+      _logger.error('Error sending message', e);
     }
   }
   
@@ -332,7 +326,7 @@ class WebSocketService {
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
     _channel?.sink.close();
-    print('WebSocket disconnected');
+    _logger.info('WebSocket disconnected');
   }
   
   // Dispose resources
@@ -344,7 +338,7 @@ class WebSocketService {
   // Send a generic event
   void sendEvent(String action, String resourceType, Map<String, dynamic> data) {
     if (_channel == null) {
-      print('WebSocketService: Not connected, attempting to connect');
+      _logger.info('Not connected, attempting to connect');
       connect();
       return;
     }
@@ -357,9 +351,9 @@ class WebSocketService {
 
     try {
       _channel!.sink.add(json.encode(message));
-      print('WebSocketService: Sent $action event for $resourceType: ${data['id'] ?? ''}');
+      _logger.info('Sent $action event for $resourceType: ${data['id'] ?? ''}');
     } catch (e) {
-      print('WebSocketService: Error sending $action event: $e');
+      _logger.error('Error sending $action event', e);
     }
   }
 
@@ -367,7 +361,7 @@ class WebSocketService {
   void sendBlockDelta(String id, String delta, int version, String noteId) {
     if (!_isConnected) {
       connect();
-      Future.delayed(Duration(milliseconds: 500), () {
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (_isConnected) {
           _sendBlockDelta(id, delta, version, noteId);
         }
@@ -392,136 +386,28 @@ class WebSocketService {
         },
       };
       
-      print('WebSocket: Sending block delta: (message size: ${json.encode(message).length})');
-      _channel!.sink.add(json.encode(message));
+      final encodedMessage = json.encode(message);
+      _logger.debug('Sending block delta: (message size: ${encodedMessage.length})');
+      _channel!.sink.add(encodedMessage);
       
-      print('Sent block delta for $id (version: $version)');
+      _logger.info('Sent block delta for $id (version: $version)');
     } catch (e) {
-      print('Error sending block delta: $e');
+      _logger.error('Error sending block delta', e);
     }
   }
 
-  // Helper to parse multiple JSON objects that might be concatenated in a single message
-  List<Map<String, dynamic>> _parseMultipleJsonObjects(String input) {
-    List<Map<String, dynamic>> results = [];
-    String remaining = input.trim();
-    
-    // Process as long as there's content to parse
-    while (remaining.isNotEmpty) {
-      try {
-        // Try to find the end of a JSON object
-        int objectDepth = 0;
-        int endIndex = -1;
-        bool inString = false;
-        bool escaped = false;
-        
-        for (int i = 0; i < remaining.length; i++) {
-          final char = remaining[i];
-          
-          if (inString) {
-            if (char == '\\' && !escaped) {
-              escaped = true;
-            } else if (char == '"' && !escaped) {
-              inString = false;
-            } else {
-              escaped = false;
-            }
-          } else {
-            if (char == '"') {
-              inString = true;
-            } else if (char == '{') {
-              objectDepth++;
-            } else if (char == '}') {
-              objectDepth--;
-              if (objectDepth == 0) {
-                endIndex = i + 1;
-                break;
-              }
-            }
-          }
-        }
-        
-        if (endIndex > 0) {
-          // Extract the complete JSON object
-          String jsonStr = remaining.substring(0, endIndex);
-          remaining = remaining.substring(endIndex).trim();
-          
-          // Parse the JSON object
-          Map<String, dynamic> jsonObj = json.decode(jsonStr);
-          results.add(jsonObj);
-        } else {
-          // If no complete JSON object was found, try to parse whatever is left
-          if (remaining.isNotEmpty) {
-            try {
-              Map<String, dynamic> jsonObj = json.decode(remaining);
-              results.add(jsonObj);
-            } catch (e) {
-              print('WebSocket: Error parsing remaining JSON: $e');
-            }
-            break;
-          }
-        }
-      } catch (e) {
-        print('WebSocket: Error in multi-JSON parser: $e');
-        break;
-      }
-    }
-    
-    return results;
-  }
-
-  // Helper to extract resource type from payload for better logging
-  String _extractResourceType(dynamic payload) {
-    if (payload == null) return "unknown";
-    
-    // Try to identify the resource type from the payload
-    if (payload is Map) {
-      if (payload.containsKey('data')) {
-        var data = payload['data'];
-        if (data is Map) {
-          // CRITICAL FIX: Check for specific ID types
-          if (data.containsKey('note_id')) return "note";
-          if (data.containsKey('notebook_id')) return "notebook";
-          if (data.containsKey('block_id')) return "block";
-          if (data.containsKey('task_id')) return "task";
-          
-          // If we have an ID and can infer the type from context...
-          if (data.containsKey('id')) {
-            if (data.containsKey('title') && data.containsKey('notebook_id')) return "note";
-            if (data.containsKey('name') && data.containsKey('description')) return "notebook";
-            if (data.containsKey('content') && data.containsKey('type')) return "block";
-            if (data.containsKey('is_completed') || data.containsKey('completed')) return "task";
-          }
-        }
-      }
-      
-      // Look directly in payload
-      if (payload.containsKey('note_id')) return "note";
-      if (payload.containsKey('notebook_id')) return "notebook";
-      if (payload.containsKey('block_id')) return "block";
-      if (payload.containsKey('task_id')) return "task";
-      
-      // Don't return generic ID anymore as this encourages ID misuse
-      if (payload.containsKey('id')) {
-        return "unknown"; // Changed from returning the ID
-      }
-    }
-    
-    return "unknown";
-  }
-
-  void _handleWebSocketMessage(String message) {
-    print('WebSocket raw message: $message');
+  void _handleWebSocketMessage(dynamic message) {
+    _logger.debug('Raw message: $message');
     try {
-      // Parse the message with our new parser
-      final WebSocketMessage parsedMessage = WebSocketMessage.fromString(message);
+      // Parse the message with our parser
+      final WebSocketMessage parsedMessage = WebSocketMessage.fromString(message.toString());
       
       // Basic logging for event messages
       if (parsedMessage.type == 'event') {
         final String resourceType = _determineResourceType(parsedMessage);
         final String? resourceId = parsedMessage.getModelId(resourceType);
         
-        print('WebSocket EVENT: Type=${parsedMessage.type}, Event=${parsedMessage.event}, ' + 
+        _logger.debug('EVENT: Type=${parsedMessage.type}, Event=${parsedMessage.event}, ' + 
               'ResourceType=$resourceType, ResourceId=${resourceId ?? "none"}');
       }
       
@@ -546,7 +432,7 @@ class WebSocketService {
       
       _messageController.add(messageMap);
     } catch (e) {
-      print('WebSocket: Error parsing message: $e');
+      _logger.error('Error parsing message', e);
     }
   }
   

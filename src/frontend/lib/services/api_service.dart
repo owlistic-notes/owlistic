@@ -5,8 +5,10 @@ import '../models/note.dart';
 import '../models/task.dart';
 import '../models/notebook.dart';
 import '../models/block.dart';
+import '../utils/logger.dart';
 
 class ApiService {
+  static final Logger _logger = Logger('ApiService');
   static final String baseUrl = dotenv.env['BASE_URL'] ?? 'http://localhost:8080';
 
   static Future<List<Note>> fetchNotes({
@@ -44,7 +46,7 @@ class ApiService {
         throw Exception('Failed to load notes: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in fetchNotes: $e');
+      _logger.error('Error in fetchNotes', e);
       rethrow;
     }
   }
@@ -59,7 +61,7 @@ class ApiService {
       
       final uri = Uri.parse('$baseUrl/api/v1/tasks').replace(queryParameters: queryParams);
       
-      print('Fetching tasks from: $uri');
+      _logger.info('Fetching tasks from: $uri');
       final response = await http.get(
         uri,
         headers: {
@@ -67,19 +69,18 @@ class ApiService {
           'Access-Control-Allow-Origin': '*',
         },
       );
-      print('Response status: ${response.statusCode}');
+      _logger.debug('Response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('Parsed JSON data length: ${data.length}');
+        _logger.debug('Parsed JSON data length: ${data.length}');
         final tasks = data.map((json) => Task.fromJson(json)).toList();
         return tasks;
       } else {
         throw Exception('Failed to load tasks: ${response.statusCode}\nBody: ${response.body}');
       }
     } catch (e, stack) {
-      print('Error in fetchTasks: $e');
-      print('Stack trace: $stack');
+      _logger.error('Error in fetchTasks', e, stack);
       rethrow;
     }
   }
@@ -109,20 +110,20 @@ class ApiService {
         throw Exception('Failed to create note: ${response.statusCode}\nBody: ${response.body}');
       }
     } catch (e) {
-      print('Error in createNote: $e');
+      _logger.error('Error in createNote', e);
       rethrow;
     }
   }
 
   static Future<void> deleteNote(String id) async {
-    print('Deleting note with ID: $id');
+    _logger.info('Deleting note with ID: $id');
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v1/notes/$id'),
       headers: {'Content-Type': 'application/json'},
     );
 
     if (response.statusCode != 204) {
-      print('Delete note failed: ${response.statusCode}\nBody: ${response.body}');
+      _logger.error('Delete note failed: ${response.statusCode}\nBody: ${response.body}');
       throw Exception('Failed to delete note: ${response.statusCode}');
     }
   }
@@ -139,7 +140,7 @@ class ApiService {
     if (response.statusCode == 200) {
       return Note.fromJson(json.decode(response.body));
     } else {
-      print('Update note failed: ${response.statusCode}\nBody: ${response.body}');
+      _logger.error('Update note failed: ${response.statusCode}\nBody: ${response.body}');
       throw Exception('Failed to update note: ${response.statusCode}');
     }
   }
@@ -158,7 +159,7 @@ class ApiService {
         taskData['block_id'] = blockId;
       }
       
-      print('Creating task with data: $taskData');
+      _logger.info('Creating task with data: $taskData');
 
       final taskResponse = await http.post(
         Uri.parse('$baseUrl/api/v1/tasks'),
@@ -169,11 +170,11 @@ class ApiService {
       if (taskResponse.statusCode == 201) {
         return Task.fromJson(json.decode(taskResponse.body));
       } else {
-        print('Failed to create task: ${taskResponse.statusCode}, ${taskResponse.body}');
+        _logger.error('Failed to create task: ${taskResponse.statusCode}, ${taskResponse.body}');
         throw Exception('Failed to create task: ${taskResponse.statusCode}');
       }
     } catch (e) {
-      print('Error in createTask: $e');
+      _logger.error('Error in createTask', e);
       rethrow;
     }
   }
@@ -240,7 +241,7 @@ class ApiService {
         throw Exception('Failed to load notebooks');
       }
     } catch (e) {
-      print('Error in fetchNotebooks: $e');
+      _logger.error('Error in fetchNotebooks', e);
       rethrow;
     }
   }
@@ -263,7 +264,7 @@ class ApiService {
         throw Exception('Failed to create notebook');
       }
     } catch (e) {
-      print('Error in createNotebook: $e');
+      _logger.error('Error in createNotebook', e);
       rethrow;
     }
   }
@@ -296,7 +297,7 @@ class ApiService {
         throw Exception('Failed to update notebook');
       }
     } catch (e) {
-      print('Error in updateNotebook: $e');
+      _logger.error('Error in updateNotebook', e);
       rethrow;
     }
   }
@@ -312,7 +313,7 @@ class ApiService {
         throw Exception('Failed to delete notebook');
       }
     } catch (e) {
-      print('Error in deleteNotebook: $e');
+      _logger.error('Error in deleteNotebook', e);
       rethrow;
     }
   }
@@ -342,7 +343,7 @@ class ApiService {
         throw Exception('Failed to load blocks');
       }
     } catch (e) {
-      print('Error in fetchBlocksForNote: $e');
+      _logger.error('Error in fetchBlocksForNote', e);
       rethrow;
     }
   }
@@ -367,7 +368,7 @@ class ApiService {
         throw Exception('Failed to create block');
       }
     } catch (e) {
-      print('Error in createBlock: $e');
+      _logger.error('Error in createBlock', e);
       rethrow;
     }
   }
@@ -383,7 +384,7 @@ class ApiService {
         throw Exception('Failed to delete block');
       }
     } catch (e) {
-      print('Error in deleteBlock: $e');
+      _logger.error('Error in deleteBlock', e);
       rethrow;
     }
   }
@@ -410,7 +411,7 @@ class ApiService {
         throw Exception('Failed to update block: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in updateBlock: $e');
+      _logger.error('Error in updateBlock', e);
       rethrow;
     }
   }
@@ -431,7 +432,7 @@ class ApiService {
         throw Exception('Failed to load block');
       }
     } catch (e) {
-      print('Error in getBlock: $e');
+      _logger.error('Error in getBlock', e);
       rethrow;
     }
   }
@@ -452,7 +453,7 @@ class ApiService {
         throw Exception('Failed to load note');
       }
     } catch (e) {
-      print('Error in getNote: $e');
+      _logger.error('Error in getNote', e);
       rethrow;
     }
   }
@@ -473,7 +474,7 @@ class ApiService {
         throw Exception('Failed to load notebook');
       }
     } catch (e) {
-      print('Error in getNotebook: $e');
+      _logger.error('Error in getNotebook', e);
       rethrow;
     }
   }
@@ -494,7 +495,7 @@ class ApiService {
         throw Exception('Failed to load task');
       }
     } catch (e) {
-      print('Error in getTask: $e');
+      _logger.error('Error in getTask', e);
       rethrow;
     }
   }

@@ -6,6 +6,7 @@ import '../models/block.dart';
 import '../providers/notes_provider.dart';
 import '../providers/block_provider.dart';
 import '../providers/websocket_provider.dart';
+import '../utils/logger.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final Note note;
@@ -16,6 +17,7 @@ class NoteEditorScreen extends StatefulWidget {
 }
 
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
+  final Logger _logger = Logger('NoteEditorScreen');
   late TextEditingController _titleController;
   bool _isLoading = true;
   List<TextEditingController> _blockControllers = [];
@@ -57,7 +59,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       
       // Only update if there's actually a change in the update counter
       if (_blockProvider.updateCount != _updateCounter) {
-        print('NoteEditor: Block provider update detected ($_updateCounter → ${_blockProvider.updateCount})');
+        _logger.debug('Block provider update detected ($_updateCounter → ${_blockProvider.updateCount})');
         _updateBlocksFromProvider();
       }
     });
@@ -78,13 +80,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _webSocketProvider.subscribe('block.updated'); // Block update events
       _webSocketProvider.subscribe('block.deleted'); // Block deletion events
       
-      print('NoteEditor: Subscribed to note ${widget.note.id} and its blocks');
+      _logger.info('Subscribed to note ${widget.note.id} and its blocks');
     });
     
     // Fetch blocks regardless of WebSocket status
     _fetchBlocks();
     
-    print('NoteEditor: Initialized providers for note ${widget.note.id}');
+    _logger.info('Initialized providers for note ${widget.note.id}');
   }
 
   // Fetch blocks for this note
@@ -102,12 +104,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('NoteEditor: Error fetching blocks: $e');
+      _logger.error('Error fetching blocks', e);
       setState(() => _isLoading = false);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load note blocks')),
+          const SnackBar(content: Text('Failed to load note blocks')),
         );
       }
     }
@@ -116,7 +118,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // Update blocks from provider in a clean, simple way
   void _updateBlocksFromProvider() {
     if (_ignoreBlockUpdates) {
-      print('NoteEditor: Ignoring block updates due to local edit');
+      _logger.debug('Ignoring block updates due to local edit');
       return;
     }
     
@@ -162,7 +164,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     
     // Only update UI if blocks have actually changed
     if (needsUpdate) {
-      print('NoteEditor: Blocks changed, updating UI (${_blocks.length} → ${newBlocks.length})');
+      _logger.info('Blocks changed, updating UI (${_blocks.length} → ${newBlocks.length})');
       
       // Save cursor positions and selections for existing controllers
       final Map<String, TextEditingValue> controllerValues = {};
@@ -219,14 +221,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _ignoreBlockUpdates = true;
     
     if (content != block.content) {
-      print('NoteEditor: Updating block ${block.id}');
+      _logger.debug('Updating block ${block.id}');
       // Use the updateBlockContent method with debouncing
       Provider.of<BlockProvider>(context, listen: false)
           .updateBlockContent(block.id, content);
     }
     
     // Reset the flag after a short delay
-    Future.delayed(Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       _ignoreBlockUpdates = false;
     });
   }
@@ -237,7 +239,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final content = _blockControllers[index].text;
     
     if (content != block.content) {
-      print('NoteEditor: Saving block ${block.id} immediately');
+      _logger.debug('Saving block ${block.id} immediately');
       // Force immediate save
       Provider.of<BlockProvider>(context, listen: false)
           .updateBlockContent(block.id, content, immediate: true);
@@ -273,15 +275,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_blockControllers.isNotEmpty) {
           final controller = _blockControllers.last;
-          controller.selection = TextSelection.fromPosition(TextPosition(offset: 0));
+          controller.selection = TextSelection.fromPosition(const TextPosition(offset: 0));
           FocusScope.of(context).requestFocus(FocusNode());
         }
       });
     } catch (e) {
-      print('NoteEditor: Error adding block: $e');
+      _logger.error('Error adding block', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to add block')),
+          const SnackBar(content: Text('Failed to add block')),
         );
       }
     }
@@ -296,10 +298,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       await blockProvider.deleteBlock(blockId);
       _updateBlocksFromProvider();
     } catch (e) {
-      print('NoteEditor: Error deleting block: $e');
+      _logger.error('Error deleting block', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete block')),
+          const SnackBar(content: Text('Failed to delete block')),
         );
       }
     }
@@ -321,7 +323,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _webSocketProvider.unsubscribe('block.updated');
         _webSocketProvider.unsubscribe('block.deleted');
       } catch (e) {
-        print('Error during NoteEditor disposal: $e');
+        _logger.error('Error during disposal', e);
       }
     }
     
@@ -342,15 +344,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     return Scaffold(
       key: key,
       appBar: AppBar(
-        title: Text('Edit Note'),
+        title: const Text('Edit Note'),
         actions: [
           IconButton(
-            icon: Icon(Icons.add),
+            icon: const Icon(Icons.add),
             onPressed: _addBlock,
             tooltip: 'Add Block',
           ),
           IconButton(
-            icon: Icon(Icons.save),
+            icon: const Icon(Icons.save),
             onPressed: () {
               _saveTitle();
               Navigator.pop(context);
@@ -360,32 +362,32 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Title field
                   TextField(
                     controller: _titleController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Title',
                       border: OutlineInputBorder(),
                     ),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                     onChanged: (_) => _saveTitle(),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   
                   // Blocks
                   if (_blocks.isEmpty)
-                    Center(
+                    const Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(24.0),
+                        padding: EdgeInsets.all(24.0),
                         child: Text(
                           'This note is empty. Add a block to start writing.',
                           style: TextStyle(color: Colors.grey),
@@ -396,7 +398,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   
                   ..._blocks.asMap().entries.map((entry) {
                     final index = entry.key;
-                    final block = entry.value;
                     
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 16.0),
@@ -406,7 +407,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                           Expanded(
                             child: TextField(
                               controller: _blockControllers[index],
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 border: OutlineInputBorder(),
                                 hintText: 'Write something...',
                               ),
@@ -418,7 +419,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                             ),
                           ),
                           IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () => _deleteBlock(index),
                           ),
                         ],
@@ -429,8 +430,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   // Add block button
                   Center(
                     child: TextButton.icon(
-                      icon: Icon(Icons.add),
-                      label: Text('Add Block'),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Block'),
                       onPressed: _addBlock,
                     ),
                   ),

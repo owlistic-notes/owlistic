@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../models/note.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/websocket_provider.dart';
 import '../utils/provider_extensions.dart';
+import '../utils/logger.dart';
 import 'note_editor_screen.dart';
 
 /// NotebookDetailScreen acts as the View in MVP pattern
@@ -18,6 +18,7 @@ class NotebookDetailScreen extends StatefulWidget {
 }
 
 class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
+  final Logger _logger = Logger('NotebookDetailScreen');
   bool _isInitialized = false;
   
   // NotebooksProvider acts as the Presenter
@@ -59,7 +60,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     // Fetch notebook data
     await _presenter.fetchNotebookById(widget.notebookId);
     
-    print('NotebookDetailScreen: Initialized with notebook ID ${widget.notebookId}');
+    _logger.info('Initialized with notebook ID ${widget.notebookId}');
   }
 
   void _showAddNoteDialog(BuildContext context, String notebookId) {
@@ -68,15 +69,15 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Add Note'),
+        title: const Text('Add Note'),
         content: TextField(
           controller: _titleController,
-          decoration: InputDecoration(labelText: 'Title'),
+          decoration: const InputDecoration(labelText: 'Title'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -86,12 +87,12 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to create note')),
+                    const SnackBar(content: Text('Failed to create note')),
                   );
                 }
               }
             },
-            child: Text('Add'),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -134,11 +135,11 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         actions: [
           // Add refresh button
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: () {
               notebooksPresenter.fetchNotebookById(widget.notebookId);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Refreshing notebook...'))
+                const SnackBar(content: Text('Refreshing notebook...'))
               );
             },
           ),
@@ -150,15 +151,15 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
               color: wsProvider.isConnected ? Colors.green : Colors.red,
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
         ],
       ),
       body: !hasNotebook
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : _buildNotebookContent(notebook!),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddNoteDialog(context, widget.notebookId),
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -169,11 +170,11 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('No notes in this notebook'),
-            SizedBox(height: 16),
+            const Text('No notes in this notebook'),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => _showAddNoteDialog(context, widget.notebookId),
-              child: Text('Add Note'),
+              child: const Text('Add Note'),
             ),
           ],
         ),
@@ -187,21 +188,21 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         final note = notebook.notes[index];
         return Card(
           key: ValueKey('note_${note.id}'),
-          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ListTile(
             title: Text(note.title),
             subtitle: Text(note.blocks.isNotEmpty ? note.blocks.first.content : ''),
-            leading: Icon(Icons.note),
+            leading: const Icon(Icons.note),
             onTap: () => _navigateToNoteEditor(context, note),
             trailing: IconButton(
-              icon: Icon(Icons.delete),
+              icon: const Icon(Icons.delete),
               onPressed: () async {
                 try {
                   await _presenter.deleteNoteFromNotebook(
                       widget.notebookId, note.id);
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to delete note')),
+                    const SnackBar(content: Text('Failed to delete note')),
                   );
                 }
               },

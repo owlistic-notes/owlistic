@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../services/websocket_service.dart';
 import '../models/subscription.dart';
-import '../utils/websocket_event_coordinator.dart';
+import '../utils/logger.dart';
 
 class WebSocketProvider with ChangeNotifier {
   // Singleton WebSocket service
   final WebSocketService _webSocketService = WebSocketService();
+  final Logger _logger = Logger('WebSocketProvider');
   StreamSubscription? _subscription;
   
   // Map of event handlers by type:event
@@ -24,9 +24,6 @@ class WebSocketProvider with ChangeNotifier {
   // Subscription tracking
   final Set<String> _pendingSubscriptions = {};
   final Set<String> _confirmedSubscriptions = {};
-
-  // Use the coordinator for resource events
-  final WebSocketEventCoordinator _coordinator = WebSocketEventCoordinator();
 
   // Constructor - initialize and connect immediately
   WebSocketProvider() {
@@ -55,7 +52,7 @@ class WebSocketProvider with ChangeNotifier {
         _handleWebSocketMessage(message);
       },
       onError: (error) {
-        print('WebSocketProvider: Error from stream: $error');
+        _logger.error('Error from stream', error);
         _isConnected = false;
         notifyListeners();
       }
@@ -104,9 +101,9 @@ class WebSocketProvider with ChangeNotifier {
       // Detailed logging for block-related events
       final String eventKey = '$type:$event';
       if (type == 'event' && (event.contains('block') || event.startsWith('block.'))) {
-        print('WebSocketProvider: Received block event - $event');
-        print('WebSocketProvider: Looking for handlers for key: $eventKey');
-        print('WebSocketProvider: Available handlers: ${_eventHandlers.keys.join(', ')}');
+        _logger.debug('Received block event - $event');
+        _logger.debug('Looking for handlers for key: $eventKey');
+        _logger.debug('Available handlers: ${_eventHandlers.keys.join(', ')}');
       }
       
       // Handle events - immediate processing is better than Future.microtask
@@ -115,22 +112,22 @@ class WebSocketProvider with ChangeNotifier {
         final handlers = _eventHandlers[eventKey] ?? [];
         
         if (handlers.isNotEmpty) {
-          print('WebSocketProvider: Found ${handlers.length} handlers for $eventKey');
+          _logger.debug('Found ${handlers.length} handlers for $eventKey');
           for (final handler in handlers) {
             try {
               // Call handler synchronously to avoid timing issues
               handler(message);
             } catch (e) {
-              print('WebSocketProvider: Error in event handler: $e');
+              _logger.error('Error in event handler', e);
             }
           }
           notifyListeners();
         } else {
-          print('WebSocketProvider: No handlers registered for $eventKey');
+          _logger.debug('No handlers registered for $eventKey');
         }
       }
     } catch (e) {
-      print('WebSocketProvider: Error handling message: $e');
+      _logger.error('Error handling message', e);
     }
   }
 
@@ -149,7 +146,7 @@ class WebSocketProvider with ChangeNotifier {
       
       notifyListeners();
     } catch (e) {
-      print('WebSocketProvider: Error handling subscription confirmation: $e');
+      _logger.error('Error handling subscription confirmation', e);
     }
   }
 
@@ -170,9 +167,9 @@ class WebSocketProvider with ChangeNotifier {
     
     if (!isDuplicate) {
       _eventHandlers[key]!.add(handler);
-      print('WebSocketProvider: Registered handler for $key (now ${_eventHandlers[key]!.length} handlers)');
+      _logger.debug('Registered handler for $key (now ${_eventHandlers[key]!.length} handlers)');
     } else {
-      print('WebSocketProvider: Handler already registered for $key');
+      _logger.debug('Handler already registered for $key');
     }
   }
 
@@ -322,49 +319,5 @@ class WebSocketProvider with ChangeNotifier {
     _webSocketService.dispose();
     _eventHandlers.clear();
     super.dispose();
-  }
-
-  // Process incoming WebSocket messages (fixed formatting)
-  void _processMessage(dynamic data) {
-    try {
-      // Extract event type and resource ID
-      final String event = data['event'];
-      final String? resourceId = data['resourceId'];
-      final String? resourceType = data['resourceType'];
-      
-      print('WebSocket event: $event, resourceType: $resourceType, resourceId: $resourceId');
-      
-      // Handle resource creation/update events
-      if (event.contains('created') && resourceId != null) {
-        _notifyResourceCreation(resourceType, resourceId);
-      } else if (event.contains('updated') && resourceId != null) {
-        _notifyResourceUpdate(resourceType, resourceId);
-      } else if (event.contains('deleted') && resourceId != null) {
-        _notifyResourceDeletion(resourceType, resourceId);
-      }
-      
-      // Notify listeners
-      notifyListeners();
-    } catch (e) {
-      print('Error processing WebSocket message: $e');
-    }
-  }
-
-  // Notify appropriate provider about resource creation via coordinator
-  void _notifyResourceCreation(String? resourceType, String resourceId) {
-    if (resourceType == null) return;
-    _coordinator.handleEntityCreated(resourceType, resourceId);
-  }
-  
-  // Notify appropriate provider about resource update via coordinator
-  void _notifyResourceUpdate(String? resourceType, String resourceId) {
-    if (resourceType == null) return;
-    _coordinator.handleEntityUpdated(resourceType, resourceId);
-  }
-  
-  // Notify appropriate provider about resource deletion via coordinator
-  void _notifyResourceDeletion(String? resourceType, String resourceId) {
-    if (resourceType == null) return;
-    _coordinator.handleEntityDeleted(resourceType, resourceId);
   }
 }
