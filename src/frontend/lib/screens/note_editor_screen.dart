@@ -140,11 +140,22 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       for (final newBlock in newBlocks) {
         final existingBlock = existingBlocksMap[newBlock.id];
         if (existingBlock == null || 
-            existingBlock.content != newBlock.content ||
             existingBlock.type != newBlock.type ||
             existingBlock.order != newBlock.order) {
           needsUpdate = true;
           break;
+        }
+        
+        // Only consider content changes for blocks not currently being edited
+        final index = _blocks.indexWhere((b) => b.id == newBlock.id);
+        if (index >= 0 && index < _blockControllers.length) {
+          // Skip content comparison for blocks the user is currently editing
+          // This prevents cursor position loss when external changes come in
+          if (_blockControllers[index].text != existingBlock.content && 
+              !_blockControllers[index].selection.isValid) {
+            needsUpdate = true;
+            break;
+          }
         }
       }
     }
@@ -153,7 +164,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (needsUpdate) {
       print('NoteEditor: Blocks changed, updating UI (${_blocks.length} → ${newBlocks.length})');
       
-      // Save cursor positions for existing controllers
+      // Save cursor positions and selections for existing controllers
       final Map<String, TextEditingValue> controllerValues = {};
       for (int i = 0; i < _blocks.length && i < _blockControllers.length; i++) {
         controllerValues[_blocks[i].id] = _blockControllers[i].value;
@@ -167,14 +178,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       // Create new controllers for the updated blocks
       _blockControllers = [];
       for (var block in newBlocks) {
-        final controller = TextEditingController(text: block.content);
+        TextEditingController controller;
         
-        // Restore cursor position if possible
+        // Restore text content and cursor position if possible
         if (controllerValues.containsKey(block.id)) {
-          final oldValue = controllerValues[block.id]!;
-          if (oldValue.text == block.content) {
-            controller.value = oldValue;
-          }
+          // Use existing values to preserve cursor position
+          controller = TextEditingController.fromValue(controllerValues[block.id]!);
+        } else {
+          // For new blocks, just use the content
+          controller = TextEditingController(text: block.content);
         }
         
         _blockControllers.add(controller);
@@ -203,12 +215,20 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final block = _blocks[index];
     final content = _blockControllers[index].text;
     
+    // Set flag to prevent external updates from messing with cursor position
+    _ignoreBlockUpdates = true;
+    
     if (content != block.content) {
       print('NoteEditor: Updating block ${block.id}');
       // Use the updateBlockContent method with debouncing
       Provider.of<BlockProvider>(context, listen: false)
           .updateBlockContent(block.id, content);
     }
+    
+    // Reset the flag after a short delay
+    Future.delayed(Duration(milliseconds: 500), () {
+      _ignoreBlockUpdates = false;
+    });
   }
 
   // For saving on blur or explicit save request

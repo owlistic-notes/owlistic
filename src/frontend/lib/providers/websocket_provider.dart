@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../services/websocket_service.dart';
 import '../models/subscription.dart';
+import '../utils/websocket_event_coordinator.dart';
 
 class WebSocketProvider with ChangeNotifier {
   // Singleton WebSocket service
@@ -23,6 +24,9 @@ class WebSocketProvider with ChangeNotifier {
   // Subscription tracking
   final Set<String> _pendingSubscriptions = {};
   final Set<String> _confirmedSubscriptions = {};
+
+  // Use the coordinator for resource events
+  final WebSocketEventCoordinator _coordinator = WebSocketEventCoordinator();
 
   // Constructor - initialize and connect immediately
   WebSocketProvider() {
@@ -318,5 +322,49 @@ class WebSocketProvider with ChangeNotifier {
     _webSocketService.dispose();
     _eventHandlers.clear();
     super.dispose();
+  }
+
+  // Process incoming WebSocket messages (fixed formatting)
+  void _processMessage(dynamic data) {
+    try {
+      // Extract event type and resource ID
+      final String event = data['event'];
+      final String? resourceId = data['resourceId'];
+      final String? resourceType = data['resourceType'];
+      
+      print('WebSocket event: $event, resourceType: $resourceType, resourceId: $resourceId');
+      
+      // Handle resource creation/update events
+      if (event.contains('created') && resourceId != null) {
+        _notifyResourceCreation(resourceType, resourceId);
+      } else if (event.contains('updated') && resourceId != null) {
+        _notifyResourceUpdate(resourceType, resourceId);
+      } else if (event.contains('deleted') && resourceId != null) {
+        _notifyResourceDeletion(resourceType, resourceId);
+      }
+      
+      // Notify listeners
+      notifyListeners();
+    } catch (e) {
+      print('Error processing WebSocket message: $e');
+    }
+  }
+
+  // Notify appropriate provider about resource creation via coordinator
+  void _notifyResourceCreation(String? resourceType, String resourceId) {
+    if (resourceType == null) return;
+    _coordinator.handleEntityCreated(resourceType, resourceId);
+  }
+  
+  // Notify appropriate provider about resource update via coordinator
+  void _notifyResourceUpdate(String? resourceType, String resourceId) {
+    if (resourceType == null) return;
+    _coordinator.handleEntityUpdated(resourceType, resourceId);
+  }
+  
+  // Notify appropriate provider about resource deletion via coordinator
+  void _notifyResourceDeletion(String? resourceType, String resourceId) {
+    if (resourceType == null) return;
+    _coordinator.handleEntityDeleted(resourceType, resourceId);
   }
 }

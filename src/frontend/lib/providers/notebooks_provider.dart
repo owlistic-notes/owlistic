@@ -11,17 +11,15 @@ import '../utils/debug_utils.dart';
 import '../utils/websocket_message_parser.dart';
 
 class NotebooksProvider with ChangeNotifier {
-  List<Notebook> _notebooks = [];
+  // Use a Map instead of a List to prevent duplicates
+  final Map<String, Notebook> _notebooksMap = {};
   bool _isLoading = false;
   final WebSocketService _webSocketService = WebSocketService();
   WebSocketProvider? _webSocketProvider;
   bool _initialized = false;
   
-  // Use a set to track notebook IDs, preventing duplicates
-  final Set<String> _notebookIds = {};
-
   // Getters
-  List<Notebook> get notebooks => [..._notebooks];
+  List<Notebook> get notebooks => _notebooksMap.values.toList();
   bool get isLoading => _isLoading;
 
   NotebooksProvider() {
@@ -104,7 +102,7 @@ class NotebooksProvider with ChangeNotifier {
         print('NotebooksProvider: Received notebook.created event for notebook ID $notebookId');
         
         // Check if this notebook already exists in our list
-        if (_notebookIds.contains(notebookId)) {
+        if (_notebooksMap.containsKey(notebookId)) {
           print('NotebooksProvider: Notebook $notebookId already in list, skipping');
           return;
         }
@@ -114,8 +112,7 @@ class NotebooksProvider with ChangeNotifier {
           // Get the notebook by ID directly
           ApiService.getNotebook(notebookId).then((newNotebook) {
             // Track ID to prevent duplicates
-            _notebookIds.add(notebookId);
-            _notebooks.add(newNotebook);
+            _notebooksMap[notebookId] = newNotebook;
             print('NotebooksProvider: Added new notebook $notebookId to list');
             
             // Subscribe to this notebook
@@ -144,8 +141,7 @@ class NotebooksProvider with ChangeNotifier {
       if (notebookId != null) {
         print('NotebooksProvider: Received notebook.deleted event for notebook ID $notebookId');
         // Remove notebook from local state if it exists
-        _notebooks.removeWhere((notebook) => notebook.id == notebookId);
-        _notebookIds.remove(notebookId);
+        _notebooksMap.remove(notebookId);
         notifyListeners();
       }
     } catch (e) {
@@ -163,13 +159,11 @@ class NotebooksProvider with ChangeNotifier {
       print('NotebooksProvider: Fetched notebook ${notebook.id} with ${notebook.notes.length} notes');
       
       // Check if notebook exists in our list
-      final index = _notebooks.indexWhere((nb) => nb.id == notebookId);
-      if (index != -1) {
-        _notebooks[index] = notebook;
+      if (_notebooksMap.containsKey(notebookId)) {
+        _notebooksMap[notebookId] = notebook;
         print('NotebooksProvider: Updated existing notebook: $notebookId with ${notebook.notes.length} notes');
       } else {
-        _notebooks.add(notebook);
-        _notebookIds.add(notebook.id);
+        _notebooksMap[notebook.id] = notebook;
         print('NotebooksProvider: Added new notebook: $notebookId with ${notebook.notes.length} notes');
         
         // Subscribe to this notebook
@@ -244,9 +238,7 @@ class NotebooksProvider with ChangeNotifier {
     print('NotebooksProvider: Will refresh notebook $notebookId');
     
     // Check if this notebook is in our local state
-    final notebookIndex = _notebooks.indexWhere((nb) => nb.id == notebookId);
-    
-    if (notebookIndex == -1) {
+    if (!_notebooksMap.containsKey(notebookId)) {
       print('NotebooksProvider: Notebook not found in local state, skipping refresh');
       return;
     }
@@ -267,13 +259,12 @@ class NotebooksProvider with ChangeNotifier {
       
       if (notebookId != null && noteId != null) {
         // If this notebook is in our list, update it
-        final int index = _notebooks.indexWhere((notebook) => notebook.id == notebookId);
-        if (index != -1) {
+        if (_notebooksMap.containsKey(notebookId)) {
           // Remove the note from local state
-          final currentNotebook = _notebooks[index];
+          final currentNotebook = _notebooksMap[notebookId]!;
           final updatedNotes = currentNotebook.notes.where((note) => note.id != noteId).toList();
           
-          _notebooks[index] = Notebook(
+          _notebooksMap[notebookId] = Notebook(
             id: currentNotebook.id,
             name: currentNotebook.name,
             description: currentNotebook.description,
@@ -290,7 +281,11 @@ class NotebooksProvider with ChangeNotifier {
   }
 
   // Fetch notebooks with pagination and duplicate prevention
-  Future<void> fetchNotebooks({int page = 1, int pageSize = 20}) async {
+  Future<void> fetchNotebooks({
+    int page = 1, 
+    int pageSize = 20,
+    List<String>? excludeIds,
+  }) async {
     _isLoading = true;
     notifyListeners();
 
@@ -298,54 +293,65 @@ class NotebooksProvider with ChangeNotifier {
       // Fetch notebooks with pagination
       final fetchedNotebooks = await ApiService.fetchNotebooks(page: page, pageSize: pageSize);
       
+      // Keep track of existing IDs if not starting fresh
+      final existingIds = page > 1 ? _notebooksMap.keys.toSet() : <String>{};
+      
+      // On first page, clear the map unless specified to keep existing data
       if (page == 1) {
-        // First page, replace existing data and reset ID tracking
-        _notebooks = fetchedNotebooks;
-        _notebookIds.clear();
-        _notebookIds.addAll(_notebooks.map((n) => n.id));
-      } else {
-        // Build a set of existing IDs to check for duplicates
-        final existingIds = _notebooks.map((nb) => nb.id).toSet();
-        
-        // Only add notebooks that aren't already in our list
-        final newNotebooks = fetchedNotebooks.where((nb) => !existingIds.contains(nb.id)).toList();
-        
-        if (newNotebooks.isNotEmpty) {
-          _notebooks.addAll(newNotebooks);
-          _notebookIds.addAll(newNotebooks.map((nb) => nb.id));
-        }
+        _notebooksMap.clear();
       }
       
-      // Subscribe using batches for better performance
+      // Only add notebooks that aren't already in our list
+      for (var notebook in fetchedNotebooks) {
+        // Skip if this ID should be excluded or already exists
+        if ((excludeIds != null && excludeIds.contains(notebook.id)) || 
+            existingIds.contains(notebook.id)) {
+          continue;
+        }
+        
+        _notebooksMap[notebook.id] = notebook;
+      }
+      
+      // Subscribe to relevant events
       if (_webSocketProvider != null) {
-        // Prepare base subscriptions
-        final subscriptions = <Subscription>[
-          Subscription('notebook'),
-          Subscription('notebooks'),
-          Subscription('note')
-        ];
-        
-        // Add individual notebook subscriptions (limit to avoid overwhelming)
-        for (var i = 0; i < _notebooks.length && i < 20; i++) {
-          subscriptions.add(Subscription('notebook', id: _notebooks[i].id));
-          subscriptions.add(Subscription('notebook:notes', id: _notebooks[i].id));
+        for (var notebook in _notebooksMap.values) {
+          _webSocketProvider!.subscribe('notebook', id: notebook.id);
         }
-        
-        // Batch subscribe
-        await _webSocketProvider!.batchSubscribe(subscriptions);
-      } else {
-        print('NotebooksProvider: Warning - WebSocket provider not set, cannot subscribe to events');
       }
       
-      print('NotebooksProvider: Fetched ${fetchedNotebooks.length} notebooks (page $page)');
+      print('NotebooksProvider: Fetched notebooks (page $page), total: ${_notebooksMap.length}');
     } catch (error) {
       print('Error fetching notebooks: $error');
       // Only clear on first page error
-      if (page == 1) _notebooks = [];
+      if (page == 1) _notebooksMap.clear();
     }
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  // Add single notebook from websocket event - more efficient version
+  Future<void> addNotebookFromEvent(String notebookId) async {
+    try {
+      // Only fetch if we don't already have this notebook
+      if (!_notebooksMap.containsKey(notebookId)) {
+        final notebook = await ApiService.getNotebook(notebookId);
+        _notebooksMap[notebookId] = notebook;
+        
+        // Subscribe to this notebook and its notes
+        if (_webSocketProvider != null) {
+          _webSocketProvider!.subscribe('notebook', id: notebook.id);
+          _webSocketProvider!.subscribe('notebook:notes', id: notebook.id);
+        }
+        
+        notifyListeners();
+        print('NotebooksProvider: Added notebook $notebookId from WebSocket event');
+      } else {
+        print('NotebooksProvider: Notebook $notebookId already exists, skipping fetch');
+      }
+    } catch (error) {
+      print('Error fetching notebook from event: $error');
+    }
   }
 
   // Create a new notebook with optimized local update
@@ -354,13 +360,7 @@ class NotebooksProvider with ChangeNotifier {
       final notebook = await ApiService.createNotebook(name, description);
       
       // Add to local state immediately instead of refetching all notebooks
-      final index = _notebooks.indexWhere((nb) => nb.id == notebook.id);
-      if (index != -1) {
-        _notebooks[index] = notebook;
-      } else {
-        _notebooks.add(notebook);
-        _notebookIds.add(notebook.id);
-      }
+      _notebooksMap[notebook.id] = notebook;
       
       // Subscribe to this notebook
       if (_webSocketProvider != null) {
@@ -379,11 +379,10 @@ class NotebooksProvider with ChangeNotifier {
   Future<void> addNoteToNotebook(String notebookId, String title) async {
     try {
       final note = await ApiService.createNote(notebookId, title);
-      final index = _notebooks.indexWhere((nb) => nb.id == notebookId);
-      if (index != -1) {
-        final updatedNotebook = _notebooks[index];
+      if (_notebooksMap.containsKey(notebookId)) {
+        final updatedNotebook = _notebooksMap[notebookId]!;
         final notes = List<Note>.from(updatedNotebook.notes)..add(note);
-        _notebooks[index] = Notebook(
+        _notebooksMap[notebookId] = Notebook(
           id: updatedNotebook.id,
           name: updatedNotebook.name,
           description: updatedNotebook.description,
@@ -401,11 +400,10 @@ class NotebooksProvider with ChangeNotifier {
   Future<void> deleteNoteFromNotebook(String notebookId, String noteId) async {
     try {
       await ApiService.deleteNoteFromNotebook(notebookId, noteId);
-      final index = _notebooks.indexWhere((nb) => nb.id == notebookId);
-      if (index != -1) {
-        final updatedNotebook = _notebooks[index];
+      if (_notebooksMap.containsKey(notebookId)) {
+        final updatedNotebook = _notebooksMap[notebookId]!;
         final notes = updatedNotebook.notes.where((note) => note.id != noteId).toList();
-        _notebooks[index] = Notebook(
+        _notebooksMap[notebookId] = Notebook(
           id: updatedNotebook.id,
           name: updatedNotebook.name,
           description: updatedNotebook.description,
@@ -423,9 +421,8 @@ class NotebooksProvider with ChangeNotifier {
   Future<void> updateNotebook(String id, String name, String description) async {
     try {
       final notebook = await ApiService.updateNotebook(id, name, description);
-      final index = _notebooks.indexWhere((nb) => nb.id == id);
-      if (index != -1) {
-        _notebooks[index] = notebook;
+      if (_notebooksMap.containsKey(id)) {
+        _notebooksMap[id] = notebook;
         notifyListeners();
       }
     } catch (error) {
@@ -437,8 +434,7 @@ class NotebooksProvider with ChangeNotifier {
   Future<void> deleteNotebook(String id) async {
     try {
       await ApiService.deleteNotebook(id);
-      _notebooks.removeWhere((notebook) => notebook.id == id);
-      _notebookIds.remove(id);
+      _notebooksMap.remove(id);
       
       // Unsubscribe from this notebook
       _webSocketService.unsubscribe('notebook', id: id);
@@ -447,6 +443,14 @@ class NotebooksProvider with ChangeNotifier {
     } catch (error) {
       print('Error deleting notebook: $error');
       rethrow;
+    }
+  }
+
+  // Add method to handle notebook deletion events
+  void handleNotebookDeleted(String notebookId) {
+    if (_notebooksMap.containsKey(notebookId)) {
+      _notebooksMap.remove(notebookId);
+      notifyListeners();
     }
   }
   

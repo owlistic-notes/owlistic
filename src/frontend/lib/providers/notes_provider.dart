@@ -7,19 +7,29 @@ import '../models/subscription.dart';
 import '../utils/websocket_message_parser.dart';
 
 class NotesProvider with ChangeNotifier {
-  List<Note> _notes = [];
+  // Use a Map instead of a List to prevent duplicates
+  final Map<String, Note> _notesMap = {};
   bool _isLoading = false;
   WebSocketProvider? _webSocketProvider;
   final Set<String> _activeNoteIds = {};
 
   // Getters
-  List<Note> get notes => [..._notes];
+  List<Note> get notes => _notesMap.values.toList();
+  
+  // Fixed: Changed updatedAt to a different sorting method since Note doesn't have updatedAt
+  List<Note> get recentNotes {
+    final notesList = _notesMap.values.toList();
+    // Sort by ID for now, or any other field available in your Note model
+    // Assuming newer notes have higher IDs or you can modify this to suit your model
+    notesList.sort((a, b) => b.id.compareTo(a.id));
+    return notesList.take(5).toList();
+  }
+  
   bool get isLoading => _isLoading;
-  List<Note> get recentNotes => _notes.length > 3 ? _notes.sublist(0, 3) : _notes;
   
   Note? getNoteById(String id) {
     try {
-      return _notes.firstWhere((note) => note.id == id);
+      return _notesMap[id];
     } catch (e) {
       return null;
     }
@@ -83,15 +93,13 @@ class NotesProvider with ChangeNotifier {
           // Fetch the note by ID directly
           ApiService.getNote(noteId).then((newNote) {
             // Check if the note already exists in our list
-            final existingIndex = _notes.indexWhere((n) => n.id == noteId);
-            
-            if (existingIndex != -1) {
+            if (_notesMap.containsKey(noteId)) {
               // Update existing note
-              _notes[existingIndex] = newNote;
+              _notesMap[noteId] = newNote;
               print('NotesProvider: Updated existing note $noteId');
             } else {
               // Add new note to the list
-              _notes.add(newNote);
+              _notesMap[noteId] = newNote;
               print('NotesProvider: Added new note $noteId to list');
               
               // Subscribe to this note
@@ -119,9 +127,8 @@ class NotesProvider with ChangeNotifier {
       if (noteId != null) {
         print('NotesProvider: Received note.deleted event for note ID $noteId');
         // Remove from local state if it exists
-        final index = _notes.indexWhere((note) => note.id == noteId);
-        if (index != -1) {
-          _notes.removeAt(index);
+        if (_notesMap.containsKey(noteId)) {
+          _notesMap.remove(noteId);
           notifyListeners();
         }
       }
@@ -136,11 +143,10 @@ class NotesProvider with ChangeNotifier {
       final note = await ApiService.getNote(noteId);
       
       // Check if this note already exists in our list
-      final index = _notes.indexWhere((n) => n.id == noteId);
-      if (index != -1) {
-        _notes[index] = note;
+      if (_notesMap.containsKey(noteId)) {
+        _notesMap[noteId] = note;
       } else {
-        _notes.add(note);
+        _notesMap[noteId] = note;
       }
       
       // Subscribe to this note
@@ -154,55 +160,71 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Fetch all notes and subscribe to global note events
-  Future<void> fetchNotes({int page = 1, int pageSize = 20}) async {
-    if (_isLoading) return;
-    
+  // Fetch notes with pagination and duplicate prevention
+  Future<void> fetchNotes({int page = 1, List<String>? excludeIds}) async {
     _isLoading = true;
     notifyListeners();
-
+    
     try {
-      // Fetch notes with pagination
-      final fetchedNotes = await ApiService.fetchNotes(page: page, pageSize: pageSize);
+      // Fetch notes from API
+      final response = await ApiService.fetchNotes(page: page);
+      final List<Note> fetchedNotes = response;
       
+      // Keep track of existing IDs if not starting fresh
+      final existingIds = page > 1 ? _notesMap.keys.toSet() : <String>{};
+      
+      // Update the map without replacing existing notes if first page
       if (page == 1) {
-        // First page, replace existing data
-        _notes = fetchedNotes;
-      } else {
-        // Subsequent page, append to existing data
-        _notes.addAll(fetchedNotes);
+        _notesMap.clear();
       }
       
-      // Subscribe to note events
-      if (_webSocketProvider != null) {
-        // Prepare subscription batch
-        final subscriptions = <Subscription>[
-          Subscription('note'),
-        ];
-        
-        // Add individual note subscriptions
-        for (var i = 0; i < _notes.length && i < 20; i++) {
-          subscriptions.add(Subscription('note', id: _notes[i].id));
+      // Add new notes to the map, skipping duplicates
+      for (var note in fetchedNotes) {
+        // Skip if this ID should be excluded or already exists
+        if ((excludeIds != null && excludeIds.contains(note.id)) || 
+            existingIds.contains(note.id)) {
+          continue;
         }
         
-        // Batch subscribe
-        await _webSocketProvider!.batchSubscribe(subscriptions);
+        _notesMap[note.id] = note;
+      }
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (error) {
+      _isLoading = false;
+      notifyListeners();
+      throw error;
+    }
+  }
+
+  // Add single note from websocket event
+  Future<void> addNoteFromEvent(String noteId) async {
+    try {
+      // Only fetch if we don't already have this note
+      if (!_notesMap.containsKey(noteId)) {
+        final note = await ApiService.getNote(noteId);
+        _notesMap[noteId] = note;
+        
+        // Subscribe to this note
+        _webSocketProvider?.subscribe('note', id: note.id);
+        
+        notifyListeners();
+        
+        print('NotesProvider: Added note $noteId from WebSocket event');
+      } else {
+        print('NotesProvider: Note $noteId already exists, skipping fetch');
       }
     } catch (error) {
-      print('NotesProvider: Error fetching notes: $error');
-      // Only clear on first page error
-      if (page == 1) _notes = [];
+      print('Error fetching note from event: $error');
     }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
   // Create a new note
   Future<void> createNote(String notebookId, String title) async {
     try {
       final note = await ApiService.createNote(notebookId, title);
-      _notes.add(note);
+      _notesMap[note.id] = note;
       
       // Subscribe to this note
       _webSocketProvider?.subscribe('note', id: note.id);
@@ -218,7 +240,7 @@ class NotesProvider with ChangeNotifier {
   Future<void> deleteNote(String id) async {
     try {
       await ApiService.deleteNote(id);
-      _notes.removeWhere((note) => note.id == id);
+      _notesMap.remove(id);
       
       // Unsubscribe from this note
       _webSocketProvider?.unsubscribe('note', id: id);
@@ -236,16 +258,46 @@ class NotesProvider with ChangeNotifier {
     _webSocketProvider?.sendNoteUpdate(id, title);
     
     // Optimistically update local state
-    final index = _notes.indexWhere((note) => note.id == id);
-    if (index != -1) {
+    if (_notesMap.containsKey(id)) {
       final updatedNote = Note(
-        id: _notes[index].id,
+        id: _notesMap[id]!.id,
         title: title,
-        notebookId: _notes[index].notebookId,
-        userId: _notes[index].userId,
-        blocks: _notes[index].blocks,
+        notebookId: _notesMap[id]!.notebookId,
+        userId: _notesMap[id]!.userId,
+        blocks: _notesMap[id]!.blocks,
       );
-      _notes[index] = updatedNote;
+      _notesMap[id] = updatedNote;
+      notifyListeners();
+    }
+  }
+
+  // Add this method to match the coordinator's call - fixed return type
+  Future<void> fetchNoteFromEvent(String noteId) async {
+    try {
+      // Check if we already have this note first
+      if (_notesMap.containsKey(noteId)) {
+        // Refresh existing note
+        final note = await ApiService.getNote(noteId);
+        _notesMap[noteId] = note;
+      } else {
+        // Add new note
+        final note = await ApiService.getNote(noteId);
+        _notesMap[noteId] = note;
+        
+        // Subscribe to this note
+        _webSocketProvider?.subscribe('note', id: note.id);
+      }
+      
+      notifyListeners();
+    } catch (error) {
+      print('NotesProvider: Error in fetchNoteFromEvent: $error');
+    }
+  }
+  
+  // Add this method to handle note deletion events
+  void handleNoteDeleted(String noteId) {
+    if (_notesMap.containsKey(noteId)) {
+      _notesMap.remove(noteId);
       notifyListeners();
     }
   }

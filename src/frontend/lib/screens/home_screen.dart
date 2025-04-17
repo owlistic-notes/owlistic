@@ -72,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) {
                       final notebook = recentNotebooks[index];
                       return Card(
+                        key: ValueKey('notebook_${notebook.id}'), // Add key for stable identity
                         child: ListTile(
                           title: Text(notebook.name),
                           subtitle: Text(
@@ -109,6 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) {
                       final note = notesProvider.recentNotes[index];
                       return Card(
+                        key: ValueKey('note_${note.id}'), // Add key for stable identity
                         child: ListTile(
                           title: Text(
                             note.title,

@@ -6,15 +6,17 @@ import '../services/websocket_service.dart';
 import 'websocket_provider.dart';
 
 class TasksProvider with ChangeNotifier {
-  List<Task> _tasks = [];
+  // Change to Map to prevent duplicates and enable O(1) lookups
+  final Map<String, Task> _tasksMap = {};
   bool _isLoading = false;
   final WebSocketService _webSocketService = WebSocketService();
   WebSocketProvider? _webSocketProvider;
   bool _initialized = false;
 
-  List<Task> get tasks => [..._tasks];
+  // Update getters to use the map
+  List<Task> get tasks => _tasksMap.values.toList();
   bool get isLoading => _isLoading;
-  List<Task> get recentTasks => _tasks.take(3).toList();
+  List<Task> get recentTasks => _tasksMap.values.take(3).toList();
 
   TasksProvider() {
     // Initialize WebSocket connection
@@ -70,7 +72,7 @@ class TasksProvider with ChangeNotifier {
     
     if (taskId.isNotEmpty) {
       // Only fetch if we have tasks for this note already or if we're showing all tasks
-      if (noteId.isEmpty || _tasks.any((task) => task.noteId == noteId)) {
+      if (noteId.isEmpty || _tasksMap.values.any((task) => task.noteId == noteId)) {
         _fetchSingleTask(taskId);
       }
     }
@@ -82,7 +84,7 @@ class TasksProvider with ChangeNotifier {
     
     if (taskId.isNotEmpty) {
       // Remove task from local state if it exists
-      _tasks.removeWhere((task) => task.id == taskId);
+      _tasksMap.remove(taskId);
       notifyListeners();
     }
   }
@@ -105,21 +107,13 @@ class TasksProvider with ChangeNotifier {
     try {
       // Since there's no getTask method in ApiService, we'll fetch all tasks and filter
       // In a real app, you would add a getTask method to ApiService
-      final tasks = await ApiService.fetchTasks();
-      final task = tasks.firstWhere(
-        (t) => t.id == taskId,
-        orElse: () => throw Exception('Task not found'),
-      );
+      final task = await ApiService.getTask(taskId);
       
-      // Check if task exists in our list
-      final index = _tasks.indexWhere((t) => t.id == taskId);
-      if (index != -1) {
-        _tasks[index] = task;
-      } else {
-        _tasks.add(task);
-        // Subscribe to this task
-        _webSocketService.subscribe('task', id: task.id);
-      }
+      // Update the task in our map
+      _tasksMap[taskId] = task;
+      
+      // Subscribe to this task
+      _webSocketService.subscribe('task', id: task.id);
       
       print('Updated/added task: $taskId');
       notifyListeners();
@@ -133,17 +127,23 @@ class TasksProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _tasks = await ApiService.fetchTasks();
+      final tasksList = await ApiService.fetchTasks();
+      
+      // Convert list to map
+      _tasksMap.clear();
+      for (final task in tasksList) {
+        _tasksMap[task.id] = task;
+      }
       
       // Subscribe to all tasks
-      for (var task in _tasks) {
+      for (var task in tasksList) {
         _webSocketService.subscribe('task', id: task.id);
       }
       
-      print('Fetched ${_tasks.length} tasks');
+      print('Fetched ${_tasksMap.length} tasks');
     } catch (error) {
       print('Error fetching tasks: $error');
-      _tasks = []; // Reset tasks on error
+      _tasksMap.clear(); // Reset tasks on error
     }
 
     _isLoading = false;
@@ -153,7 +153,7 @@ class TasksProvider with ChangeNotifier {
   Future<void> createTask(String title, String noteId, {String? blockId}) async {
     try {
       final task = await ApiService.createTask(title, noteId, blockId: blockId);
-      _tasks.add(task);
+      _tasksMap[task.id] = task;
       
       // Subscribe to this task
       _webSocketService.subscribe('task', id: task.id);
@@ -168,7 +168,7 @@ class TasksProvider with ChangeNotifier {
   Future<void> deleteTask(String id) async {
     try {
       await ApiService.deleteTask(id);
-      _tasks.removeWhere((task) => task.id == id);
+      _tasksMap.remove(id);
       
       // Unsubscribe from this task
       _webSocketService.unsubscribe('task', id: id);
@@ -183,11 +183,8 @@ class TasksProvider with ChangeNotifier {
   Future<void> updateTaskTitle(String id, String title) async {
     try {
       final updatedTask = await ApiService.updateTask(id, title: title);
-      final index = _tasks.indexWhere((task) => task.id == id);
-      if (index != -1) {
-        _tasks[index] = updatedTask;
-        notifyListeners();
-      }
+      _tasksMap[id] = updatedTask;
+      notifyListeners();
     } catch (error) {
       print('Error updating task: $error');
       rethrow;
@@ -197,14 +194,45 @@ class TasksProvider with ChangeNotifier {
   Future<void> toggleTaskCompletion(String id, bool isCompleted) async {
     try {
       final updatedTask = await ApiService.updateTask(id, isCompleted: isCompleted);
-      final index = _tasks.indexWhere((task) => task.id == id);
-      if (index != -1) {
-        _tasks[index] = updatedTask;
-        notifyListeners();
-      }
+      _tasksMap[id] = updatedTask;
+      notifyListeners();
     } catch (error) {
       print('Error updating task: $error');
       rethrow;
+    }
+  }
+
+  // Method to fetch a task from a WebSocket event
+  Future<void> fetchTaskFromEvent(String taskId) async {
+    try {
+      // Only fetch if we don't already have this task or if it's being updated
+      final task = await ApiService.getTask(taskId);
+      _tasksMap[taskId] = task;
+      notifyListeners();
+    } catch (error) {
+      print('Error fetching task from event: $error');
+    }
+  }
+  
+  // Method to add a task from a WebSocket event
+  Future<void> addTaskFromEvent(String taskId) async {
+    try {
+      // Only fetch if we don't already have this task
+      if (!_tasksMap.containsKey(taskId)) {
+        final task = await ApiService.getTask(taskId);
+        _tasksMap[taskId] = task;
+        notifyListeners();
+      }
+    } catch (error) {
+      print('Error adding task from event: $error');
+    }
+  }
+  
+  // Method to handle task deletion events
+  void handleTaskDeleted(String taskId) {
+    if (_tasksMap.containsKey(taskId)) {
+      _tasksMap.remove(taskId);
+      notifyListeners();
     }
   }
   

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'core/router.dart';
-import 'core/providers.dart'; // Use centralized providers
+import 'core/providers.dart'; // Use the centralized providers file
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +20,7 @@ class ThinkStackApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: appProviders, // Use the centralized providers list
+      providers: appProviders, // Use the providers defined in core/providers.dart
       child: MaterialApp.router(
         title: 'ThinkStack',
         theme: ThemeData(
@@ -28,7 +28,7 @@ class ThinkStackApp extends StatelessWidget {
           useMaterial3: true,
         ),
         routerConfig: AppRouter.router,
-        debugShowCheckedModeBanner: false, // Remove debug banner
+        debugShowCheckedModeBanner: false,
       ),
     );
   }

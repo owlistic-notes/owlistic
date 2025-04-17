@@ -19,6 +19,8 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _isInitialized = false;
   int _currentPage = 1;
   bool _hasMoreData = true;
+  bool _isLoadingMore = false;
+  Set<String> _loadedNoteIds = {}; // Track loaded note IDs to prevent duplicates
   
   // NotesProvider acts as the Presenter
   late NotesProvider _presenter;
@@ -52,6 +54,22 @@ class _NotesScreenState extends State<NotesScreen> {
     // Ensure WebSocket is connected 
     await wsProvider.ensureConnected();
     
+    // Register a custom handler for note creation events
+    wsProvider.addEventListener('event', 'note.created', (message) {
+      try {
+        // Extract note ID from the message
+        final noteId = message['payload']?['data']?['note_id'] ?? 
+                      message['payload']?['data']?['id'];
+        
+        if (noteId != null) {
+          // Process just this note instead of refreshing everything
+          _handleNewNote(noteId.toString());
+        }
+      } catch (e) {
+        print('Error handling note creation in UI: $e');
+      }
+    });
+    
     // Subscribe to events
     wsProvider.subscribe('note');
     
@@ -59,29 +77,68 @@ class _NotesScreenState extends State<NotesScreen> {
     _presenter.activate();
     
     // Fetch initial data
-    _presenter.fetchNotes();
+    await _presenter.fetchNotes();
+    
+    // Initialize loaded note IDs
+    _updateLoadedNoteIds();
+  }
+  
+  // Update loaded note IDs to track what we've already loaded
+  void _updateLoadedNoteIds() {
+    setState(() {
+      _loadedNoteIds = _presenter.notes.map((note) => note.id).toSet();
+    });
+  }
+  
+  // Process a single new note from WebSocket without full refresh
+  void _handleNewNote(String noteId) {
+    // Check if this note is already loaded
+    if (_loadedNoteIds.contains(noteId)) {
+      print('NotesScreen: Note $noteId already loaded, skipping');
+      return;
+    }
+    
+    print('NotesScreen: Adding new note $noteId from WebSocket event');
+    
+    // Fetch just this one note and add it to the list
+    _presenter.fetchNoteFromEvent(noteId).then((_) {
+      // Update our tracking set
+      _updateLoadedNoteIds();
+    });
   }
   
   // Scroll listener for infinite scrolling
   void _scrollListener() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8 &&
-        !_presenter.isLoading && _hasMoreData) {
+        !_isLoadingMore && _hasMoreData) {
       _loadMoreNotes();
     }
   }
   
   // Load more notes for pagination
   Future<void> _loadMoreNotes() async {
-    if (_presenter.isLoading) return;
+    if (_isLoadingMore) return;
+    
+    setState(() {
+      _isLoadingMore = true;
+    });
     
     _currentPage++;
     final currentCount = _presenter.notes.length;
+    final currentIds = _presenter.notes.map((note) => note.id).toSet();
     
-    await _presenter.fetchNotes(page: _currentPage);
+    // Pass the currently loaded IDs to avoid fetching duplicates
+    await _presenter.fetchNotes(
+      page: _currentPage, 
+      excludeIds: currentIds.toList(),
+    );
     
     // Check if we got new data
+    final hasNewData = _presenter.notes.length > currentCount;
+    
     setState(() {
-      _hasMoreData = _presenter.notes.length > currentCount;
+      _hasMoreData = hasNewData;
+      _isLoadingMore = false;
     });
   }
 
@@ -199,7 +256,7 @@ class _NotesScreenState extends State<NotesScreen> {
     
     return ListView.builder(
       controller: _scrollController,
-      itemCount: presenter.notes.length + (presenter.isLoading ? 1 : 0),
+      itemCount: presenter.notes.length + (_isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         // Show loading indicator at the end
         if (index == presenter.notes.length) {
@@ -213,7 +270,7 @@ class _NotesScreenState extends State<NotesScreen> {
         
         final note = presenter.notes[index];
         return Card(
-          key: ValueKey('note_${note.id}'),
+          key: ValueKey('note_${note.id}'), // Ensure stable identity with key
           margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ListTile(
             title: Text(note.title),

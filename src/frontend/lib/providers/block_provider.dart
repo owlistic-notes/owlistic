@@ -7,6 +7,8 @@ import '../utils/websocket_message_parser.dart';
 
 class BlockProvider with ChangeNotifier {
   final Map<String, Block> _blocks = {};
+  // Add the missing map for blocks organized by note ID
+  final Map<String, List<Block>> _noteBlocksMap = {};
   bool _isLoading = false;
   int _updateCount = 0;
   
@@ -16,6 +18,11 @@ class BlockProvider with ChangeNotifier {
   
   // Map of timers for debounced saving
   final Map<String, Timer> _saveTimers = {};
+  
+  // Add debouncer for WebSocket notifications to prevent rapid UI refreshes
+  Timer? _notificationDebouncer;
+  final Map<String, Block> _pendingUpdates = {};
+  bool _hasPendingNotification = false;
 
   // Getters
   bool get isLoading => _isLoading;
@@ -67,6 +74,31 @@ class BlockProvider with ChangeNotifier {
         _saveTimers.remove(block.id);
       }
     }
+    
+    // Also cancel any pending notification
+    _cancelPendingNotification();
+  }
+  
+  // Debounced notification mechanism to avoid rapid UI refreshes
+  void _enqueueNotification() {
+    _hasPendingNotification = true;
+    
+    // Cancel existing timer
+    _notificationDebouncer?.cancel();
+    
+    // Create new timer that will fire the notification after the debounce period
+    _notificationDebouncer = Timer(Duration(milliseconds: 300), () {
+      if (_hasPendingNotification) {
+        _updateCount++;
+        notifyListeners();
+        _hasPendingNotification = false;
+      }
+    });
+  }
+  
+  void _cancelPendingNotification() {
+    _notificationDebouncer?.cancel();
+    _hasPendingNotification = false;
   }
 
   // Consolidate block update handling
@@ -87,12 +119,37 @@ class BlockProvider with ChangeNotifier {
         }
         
         if (shouldUpdate) {
-          // Use the existing _fetchSingleBlock method
-          _fetchSingleBlock(blockId);
+          // Use the existing _fetchSingleBlock method but don't notify immediately
+          _fetchSingleBlockWithoutNotifying(blockId);
         }
       }
     } catch (e) {
       print('BlockProvider: Error handling block update: $e');
+    }
+  }
+
+  // New method to fetch without immediate notification
+  Future<Block?> _fetchSingleBlockWithoutNotifying(String blockId) async {
+    try {
+      print('BlockProvider: Fetching block with ID $blockId (without immediate notification)');
+      final block = await ApiService.getBlock(blockId);
+      
+      // Log the retrieved block details
+      print('BlockProvider: Successfully retrieved block: ID=${block.id}, Type=${block.type}, NoteID=${block.noteId}');
+      
+      // Add to our _blocks map with direct assignment
+      _blocks[blockId] = block;
+      
+      // Subscribe to this block
+      _webSocketProvider?.subscribe('block', id: blockId);
+      
+      // Instead of notifying immediately, enqueue a debounced notification
+      _enqueueNotification();
+      
+      return block;
+    } catch (error) {
+      print('BlockProvider: Error fetching block $blockId: $error');
+      return null;
     }
   }
 
@@ -119,7 +176,7 @@ class BlockProvider with ChangeNotifier {
           
           // Add a delay to ensure the database transaction is complete
           Future.delayed(Duration(milliseconds: 500), () {
-            // Fetch the new block
+            // Fetch the new block but don't notify immediately
             ApiService.getBlock(blockId).then((newBlock) {
               print('BlockProvider: Successfully fetched block ${newBlock.id}');
               
@@ -129,11 +186,8 @@ class BlockProvider with ChangeNotifier {
               // Subscribe to this block
               _webSocketProvider?.subscribe('block', id: blockId);
               
-              // Increment update counter to trigger UI update
-              _updateCount++;
-              
-              // Notify listeners
-              notifyListeners();
+              // Use debounced notification
+              _enqueueNotification();
               
               print('BlockProvider: Added block to map, now have ${getBlocksForNote(noteId).length} blocks for note $noteId');
             }).catchError((error) {
@@ -166,8 +220,8 @@ class BlockProvider with ChangeNotifier {
         print('BlockProvider: Received block.deleted event for block ID $blockId');
         if (_blocks.containsKey(blockId)) {
           _blocks.remove(blockId);
-          _updateCount++;
-          notifyListeners();
+          // Use debounced notification
+          _enqueueNotification();
         }
       }
     } catch (e) {
@@ -237,9 +291,15 @@ class BlockProvider with ChangeNotifier {
       // Remove old blocks for this note
       _blocks.removeWhere((_, block) => block.noteId == noteId);
       
-      // Add all blocks to our map
+      // Clear existing note blocks in the map
+      _noteBlocksMap[noteId] = [];
+      
+      // Add all blocks to our maps
       for (var block in blocks) {
         _blocks[block.id] = block;
+        
+        // Also add to the noteBlocksMap
+        _noteBlocksMap[noteId]!.add(block);
         
         // Subscribe to this block
         _webSocketProvider?.subscribe('block', id: block.id);
@@ -363,6 +423,9 @@ class BlockProvider with ChangeNotifier {
     }
     _saveTimers.clear();
     
+    // Cancel notification debouncer
+    _notificationDebouncer?.cancel();
+    
     // Unregister event handlers
     if (_webSocketProvider != null) {
       _webSocketProvider?.removeEventListener('event', 'block.updated');
@@ -371,5 +434,82 @@ class BlockProvider with ChangeNotifier {
       _webSocketProvider?.removeEventListener('event', 'note.updated');
     }
     super.dispose();
+  }
+
+  // Method to handle block creation events
+  Future<void> addBlockFromEvent(String blockId) async {
+    try {
+      final block = await ApiService.getBlock(blockId);
+      
+      // Add to blocks map
+      _blocks[blockId] = block;
+      
+      // Add to note blocks map
+      _noteBlocksMap[block.noteId] ??= [];
+      
+      // Check if this block is already in the list for this note
+      final noteBlocks = _noteBlocksMap[block.noteId]!;
+      final index = noteBlocks.indexWhere((b) => b.id == blockId);
+      
+      if (index >= 0) {
+        // Update existing block
+        noteBlocks[index] = block;
+      } else {
+        // Add new block
+        noteBlocks.add(block);
+      }
+      
+      // Use debounced notification instead of immediate update
+      _enqueueNotification();
+    } catch (error) {
+      print('BlockProvider: Error adding block from event: $error');
+    }
+  }
+  
+  // Method to fetch a block from a WebSocket event
+  Future<void> fetchBlockFromEvent(String blockId) async {
+    try {
+      final block = await ApiService.getBlock(blockId);
+      
+      // Update block in maps
+      _blocks[blockId] = block;
+      
+      // Update in note blocks map
+      if (_noteBlocksMap.containsKey(block.noteId)) {
+        final noteBlocks = _noteBlocksMap[block.noteId]!;
+        final index = noteBlocks.indexWhere((b) => b.id == blockId);
+        
+        if (index >= 0) {
+          noteBlocks[index] = block;
+        } else {
+          noteBlocks.add(block);
+        }
+      }
+      
+      // Use debounced notification
+      _enqueueNotification();
+    } catch (error) {
+      print('BlockProvider: Error fetching block from event: $error');
+    }
+  }
+  
+  // Method to handle block deletion events
+  void handleBlockDeleted(String blockId) {
+    // Find the note ID for this block
+    final block = _blocks[blockId];
+    if (block != null) {
+      final noteId = block.noteId;
+      
+      // Remove from blocks map
+      _blocks.remove(blockId);
+      
+      // Remove from note blocks map
+      if (_noteBlocksMap.containsKey(noteId)) {
+        _noteBlocksMap[noteId]!.removeWhere((b) => b.id == blockId);
+      }
+      
+      // Use debounced notification
+      _enqueueNotification();
+    }
   }
 }

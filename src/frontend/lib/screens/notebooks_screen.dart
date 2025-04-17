@@ -19,6 +19,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
   bool _isInitialized = false;
+  Set<String> _loadedNotebookIds = {}; // Track loaded notebook IDs
   
   // NotebooksProvider acts as the Presenter
   late NotebooksProvider _presenter;
@@ -52,15 +53,58 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     // Ensure WebSocket is connected first
     await wsProvider.ensureConnected();
     
+    // Register a custom handler for notebook creation events
+    wsProvider.addEventListener('event', 'notebook.created', (message) {
+      try {
+        // Extract notebook ID from the message
+        final notebookId = message['payload']?['data']?['notebook_id'] ?? 
+                          message['payload']?['data']?['id'];
+        
+        if (notebookId != null) {
+          // Process just this notebook instead of refreshing everything
+          _handleNewNotebook(notebookId.toString());
+        }
+      } catch (e) {
+        print('Error handling notebook creation in UI: $e');
+      }
+    });
+    
     // Activate the presenter
     _presenter.activate();
     
     // Then fetch notebooks
     await _presenter.fetchNotebooks();
     
+    // Initialize loaded notebook IDs
+    _updateLoadedIds();
+    
     // Subscribe to events
     wsProvider.subscribe('notebook');
     wsProvider.subscribe('note');
+  }
+  
+  // Update the set of loaded IDs
+  void _updateLoadedIds() {
+    setState(() {
+      _loadedNotebookIds = _presenter.notebooks.map((nb) => nb.id).toSet();
+    });
+  }
+  
+  // Process a single new notebook from WebSocket without full refresh
+  void _handleNewNotebook(String notebookId) {
+    // Check if this notebook is already loaded
+    if (_loadedNotebookIds.contains(notebookId)) {
+      print('NotebooksScreen: Notebook $notebookId already loaded, skipping');
+      return;
+    }
+    
+    print('NotebooksScreen: Adding new notebook $notebookId from WebSocket event');
+    
+    // Fetch just this one notebook and add it to the list
+    _presenter.fetchNotebookById(notebookId).then((_) {
+      // Update our tracking set
+      _updateLoadedIds();
+    });
   }
   
   // Scroll listener for infinite scrolling
@@ -83,8 +127,14 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     
     // Get current notebook count to compare after fetch
     final currentCount = _presenter.notebooks.length;
+    final currentIds = _presenter.notebooks.map((nb) => nb.id).toSet();
     
-    await _presenter.fetchNotebooks(page: _currentPage);
+    // Pass currently loaded IDs to avoid duplicates
+    await _presenter.fetchNotebooks(
+      page: _currentPage,
+      pageSize: 20,
+      excludeIds: currentIds.toList(),
+    );
     
     // Check if we got new data
     _hasMoreData = _presenter.notebooks.length > currentCount;
@@ -220,6 +270,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                   
                   final notebook = presenter.notebooks[index];
                   return Card(
+                    key: ValueKey('notebook_${notebook.id}'), // Add key for stable identity
                     margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: ListTile(
                       title: Text(notebook.name),
