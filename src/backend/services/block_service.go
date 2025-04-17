@@ -2,13 +2,11 @@ package services
 
 import (
 	"errors"
-	"log"
 	"time"
 
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 )
@@ -87,21 +85,40 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, err
 	}
 
-	if err := tx.Commit().Error; err != nil {
+	// Create an event entry instead of directly publishing
+	actorID, _ := blockData["user_id"].(string)
+	if actorID == "" {
+		// Fallback to a system user ID if none provided
+		actorID = "system"
+	}
+
+	event, err := models.NewEvent(
+		"block.created", // Standardized event type
+		"block",
+		"create",
+		actorID,
+		map[string]interface{}{
+			"block_id": block.ID.String(),
+			"note_id":  block.NoteID.String(),
+			"type":     string(block.Type),
+			"order":    block.Order,
+			"content":  block.Content,
+		},
+	)
+
+	if err != nil {
 		tx.Rollback()
 		return models.Block{}, err
 	}
 
-	// Publish event after successful commit using standard EventType
-	payload := map[string]any{
-		"block_id": block.ID.String(),
-		"note_id":  block.NoteID.String(),
-		"type":     string(block.Type),
-		"order":    block.Order,
+	if err := tx.Create(event).Error; err != nil {
+		tx.Rollback()
+		return models.Block{}, err
 	}
 
-	if err := broker.PublishEvent(broker.NoteEventsTopic, broker.BlockCreated, payload); err != nil {
-		log.Printf("Failed to publish block created event: %v", err)
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return models.Block{}, err
 	}
 
 	return block, nil
@@ -197,19 +214,31 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string) error {
 		return err
 	}
 
-	if err := tx.Commit().Error; err != nil {
+	// Create an event entry instead of directly publishing
+	event, err := models.NewEvent(
+		"block.deleted", // Standardized event type
+		"block",
+		"delete",
+		"system", // Default to system since no actor ID is typically provided for deletion
+		map[string]interface{}{
+			"block_id": block.ID.String(),
+			"note_id":  block.NoteID.String(),
+		},
+	)
+
+	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Publish event after successful commit using standard EventType
-	payload := map[string]any{
-		"block_id": block.ID.String(),
-		"note_id":  block.NoteID.String(),
+	if err := tx.Create(event).Error; err != nil {
+		tx.Rollback()
+		return err
 	}
 
-	if err := broker.PublishEvent(broker.NoteEventsTopic, broker.BlockDeleted, payload); err != nil {
-		log.Printf("Failed to publish block deleted event: %v", err)
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	return nil

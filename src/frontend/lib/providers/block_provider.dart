@@ -40,11 +40,15 @@ class BlockProvider with ChangeNotifier {
     
     _webSocketProvider = provider;
     
-    // Register for relevant events
+    // Register for standardized resource.action events
+    print('BlockProvider: Registering event listeners for resource.action events');
     provider.addEventListener('event', 'block.updated', _handleBlockUpdate);
     provider.addEventListener('event', 'block.created', _handleBlockCreate);
     provider.addEventListener('event', 'block.deleted', _handleBlockDelete);
     provider.addEventListener('event', 'note.updated', _handleNoteUpdate);
+    
+    // Debug to confirm handlers are registered
+    print('BlockProvider: Registered event handlers successfully');
   }
 
   // Mark a note as active/inactive
@@ -65,7 +69,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Handle block update events with support for nested structures
+  // Consolidate block update handling
   void _handleBlockUpdate(Map<String, dynamic> message) {
     try {
       // Use the new parser
@@ -74,9 +78,16 @@ class BlockProvider with ChangeNotifier {
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
       if (blockId != null) {
-        if (_blocks.containsKey(blockId)) {
-          _fetchSingleBlock(blockId);
-        } else if (noteId != null && _activeNoteIds.contains(noteId)) {
+        print('BlockProvider: Received block.updated event for block ID $blockId');
+        
+        // Check if we should care about this block
+        bool shouldUpdate = _blocks.containsKey(blockId);
+        if (!shouldUpdate && noteId != null) {
+          shouldUpdate = _activeNoteIds.contains(noteId);
+        }
+        
+        if (shouldUpdate) {
+          // Use the existing _fetchSingleBlock method
           _fetchSingleBlock(blockId);
         }
       }
@@ -85,38 +96,82 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Handle block create events
+  // Handle block create events - aligned with the _handleNoteCreate pattern
   void _handleBlockCreate(Map<String, dynamic> message) {
-    // Get the block_id and note_id from payload.data
-    if (message.containsKey('payload') && 
-        message['payload'] is Map<String, dynamic> &&
-        message['payload']['data'] is Map<String, dynamic>) {
+    print('BlockProvider: Received block.created event');
+    
+    try {
+      // Parse message using ONLY the standard parser - no direct extraction
+      final parsedMessage = WebSocketMessage.fromJson(message);
       
-      final data = message['payload']['data'];
-      final blockId = data['block_id'];
-      final noteId = data['note_id'];
+      // Extract block_id and note_id using ONLY the extractor
+      final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
-      if (blockId != null && noteId != null && _activeNoteIds.contains(noteId)) {
-        _fetchSingleBlock(blockId.toString());
+      print('BlockProvider: Extracted from event: blockId=$blockId, noteId=$noteId');
+      
+      if (blockId != null && noteId != null) {
+        print('BlockProvider: Will process block creation for block $blockId in note $noteId');
+        
+        // Check if this note is active - only process blocks for active notes
+        if (_activeNoteIds.contains(noteId)) {
+          print('BlockProvider: Note $noteId is active, will refresh with new block');
+          
+          // Add a delay to ensure the database transaction is complete
+          Future.delayed(Duration(milliseconds: 500), () {
+            // Fetch the new block
+            ApiService.getBlock(blockId).then((newBlock) {
+              print('BlockProvider: Successfully fetched block ${newBlock.id}');
+              
+              // Add to the blocks map
+              _blocks[blockId] = newBlock;
+              
+              // Subscribe to this block
+              _webSocketProvider?.subscribe('block', id: blockId);
+              
+              // Increment update counter to trigger UI update
+              _updateCount++;
+              
+              // Notify listeners
+              notifyListeners();
+              
+              print('BlockProvider: Added block to map, now have ${getBlocksForNote(noteId).length} blocks for note $noteId');
+            }).catchError((error) {
+              print('BlockProvider: Error fetching new block $blockId: $error');
+            });
+          });
+        } else {
+          print('BlockProvider: Note $noteId is not active, ignoring block creation');
+        }
+      } else {
+        print('BlockProvider: Missing required IDs from block creation event');
+        // Log the message structure to help debug parser issues
+        print('BlockProvider: Message structure for debugging:');
+        print('BlockProvider: Event type: ${parsedMessage.type}, Event: ${parsedMessage.event}');
+        // Do not attempt any direct extraction, just report the problem
       }
+    } catch (e) {
+      print('BlockProvider: Error handling block create: $e');
     }
   }
 
   // Handle block delete events
   void _handleBlockDelete(Map<String, dynamic> message) {
-    // Get the block_id from payload.data
-    if (message.containsKey('payload') && 
-        message['payload'] is Map<String, dynamic> &&
-        message['payload']['data'] is Map<String, dynamic>) {
+    try {
+      // Use the new parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
       
-      final data = message['payload']['data'];
-      final blockId = data['block_id'];
-      
-      if (blockId != null && _blocks.containsKey(blockId)) {
-        _blocks.remove(blockId);
-        _updateCount++;
-        notifyListeners();
+      if (blockId != null) {
+        print('BlockProvider: Received block.deleted event for block ID $blockId');
+        if (_blocks.containsKey(blockId)) {
+          _blocks.remove(blockId);
+          _updateCount++;
+          notifyListeners();
+        }
       }
+    } catch (e) {
+      print('BlockProvider: Error handling block delete: $e');
     }
   }
 
@@ -135,16 +190,34 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Fetch a single block by ID
+  // Fetch a single block by ID with better logging and sorting
   Future<Block?> _fetchSingleBlock(String blockId) async {
     try {
+      print('BlockProvider: Fetching block with ID $blockId');
       final block = await ApiService.getBlock(blockId);
+      
+      // Log the retrieved block details
+      print('BlockProvider: Successfully retrieved block: ID=${block.id}, Type=${block.type}, NoteID=${block.noteId}');
+      
+      // Add to our _blocks map with direct assignment
       _blocks[blockId] = block;
       
       // Subscribe to this block
       _webSocketProvider?.subscribe('block', id: blockId);
       
+      // Increment update counter to force UI rebuild
       _updateCount++;
+      
+      // Explicitly log the update
+      print('BlockProvider: Added/updated block ${block.id} in cache, update counter: $_updateCount');
+      
+      // Check if this block belongs to an active note and log it
+      if (_activeNoteIds.contains(block.noteId)) {
+        print('BlockProvider: Block belongs to active note ${block.noteId}, UI should update');
+        final noteBlocks = getBlocksForNote(block.noteId);
+        print('BlockProvider: Note ${block.noteId} now has ${noteBlocks.length} blocks');
+      }
+      
       notifyListeners();
       return block;
     } catch (error) {

@@ -16,7 +16,11 @@ class NotebooksProvider with ChangeNotifier {
   final WebSocketService _webSocketService = WebSocketService();
   WebSocketProvider? _webSocketProvider;
   bool _initialized = false;
+  
+  // Use a set to track notebook IDs, preventing duplicates
+  final Set<String> _notebookIds = {};
 
+  // Getters
   List<Notebook> get notebooks => [..._notebooks];
   bool get isLoading => _isLoading;
 
@@ -25,7 +29,7 @@ class NotebooksProvider with ChangeNotifier {
     _webSocketService.connect();
     print('NotebooksProvider initialized');
   }
-  
+
   // Called by ProxyProvider in main.dart
   void initialize(WebSocketProvider webSocketProvider) {
     if (_initialized) return;
@@ -53,14 +57,14 @@ class NotebooksProvider with ChangeNotifier {
   }
   
   void _registerEventHandlers() {
-    // Register handlers for all relevant event types
+    // Register handlers for all standardized resource.action events
     _webSocketProvider?.addEventListener('event', 'notebook.updated', _handleNotebookUpdate);
     _webSocketProvider?.addEventListener('event', 'notebook.created', _handleNotebookCreate);
     _webSocketProvider?.addEventListener('event', 'notebook.deleted', _handleNotebookDelete);
     _webSocketProvider?.addEventListener('event', 'note.created', _handleNoteCreate);
     _webSocketProvider?.addEventListener('event', 'note.deleted', _handleNoteDelete);
     
-    print('NotebooksProvider: Event handlers registered');
+    print('NotebooksProvider: Event handlers registered for resource.action events');
   }
   
   void _unregisterEventHandlers() {
@@ -70,41 +74,85 @@ class NotebooksProvider with ChangeNotifier {
     _webSocketProvider?.removeEventListener('event', 'note.created');
     _webSocketProvider?.removeEventListener('event', 'note.deleted');
   }
-
-  void _handleNotebookUpdate(Map<String, dynamic> message) {
-    // Get notebook ID from payload
-    if (message.containsKey('payload') && 
-        message['payload'] is Map<String, dynamic> &&
-        message['payload']['data'] is Map<String, dynamic>) {
-        
-      final data = message['payload']['data'];
-      final notebookId = data['notebook_id'];
-      
-      if (notebookId != null) {
-        // Fetch updated notebook data from server
-        _fetchSingleNotebook(notebookId.toString());
-      }
-    }
-  }
   
-  void _handleNotebookCreate(Map<String, dynamic> message) {
-    // Get notebook ID from payload
-    if (message.containsKey('payload') && 
-        message['payload'] is Map<String, dynamic> &&
-        message['payload']['data'] is Map<String, dynamic>) {
-        
-      final data = message['payload']['data'];
-      final notebookId = data['notebook_id'];
+  void _handleNotebookUpdate(Map<String, dynamic> message) {
+    try {
+      // Use the new parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
       
       if (notebookId != null) {
-        // Add a delay before fetching to ensure database is updated
-        Future.delayed(Duration(milliseconds: 500), () {
-          _fetchSingleNotebook(notebookId.toString());
+        print('NotebooksProvider: Received notebook.updated event for notebook ID $notebookId');
+        
+        // Fetch updated notebook data from server
+        Future.delayed(Duration(milliseconds: 300), () {
+          _fetchSingleNotebook(notebookId);
         });
       }
+    } catch (e) {
+      print('NotebooksProvider: Error handling notebook update: $e');
     }
   }
-  
+
+  // Handle notebook create events - simplified to match pattern
+  void _handleNotebookCreate(Map<String, dynamic> message) {
+    try {
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null) {
+        print('NotebooksProvider: Received notebook.created event for notebook ID $notebookId');
+        
+        // Check if this notebook already exists in our list
+        if (_notebookIds.contains(notebookId)) {
+          print('NotebooksProvider: Notebook $notebookId already in list, skipping');
+          return;
+        }
+        
+        // Add a delay to ensure database transaction is complete
+        Future.delayed(Duration(milliseconds: 500), () {
+          // Get the notebook by ID directly
+          ApiService.getNotebook(notebookId).then((newNotebook) {
+            // Track ID to prevent duplicates
+            _notebookIds.add(notebookId);
+            _notebooks.add(newNotebook);
+            print('NotebooksProvider: Added new notebook $notebookId to list');
+            
+            // Subscribe to this notebook
+            if (_webSocketProvider != null) {
+              _webSocketProvider!.subscribe('notebook', id: newNotebook.id);
+              _webSocketProvider!.subscribe('notebook:notes', id: newNotebook.id);
+            }
+            
+            notifyListeners();
+          }).catchError((error) {
+            print('NotebooksProvider: Error fetching new notebook $notebookId: $error');
+          });
+        });
+      }
+    } catch (e) {
+      print('NotebooksProvider: Error handling notebook create: $e');
+    }
+  }
+
+  void _handleNotebookDelete(Map<String, dynamic> message) {
+    try {
+      // Use the new parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null) {
+        print('NotebooksProvider: Received notebook.deleted event for notebook ID $notebookId');
+        // Remove notebook from local state if it exists
+        _notebooks.removeWhere((notebook) => notebook.id == notebookId);
+        _notebookIds.remove(notebookId);
+        notifyListeners();
+      }
+    } catch (e) {
+      print('NotebooksProvider: Error handling notebook delete: $e');
+    }
+  }
+
   // Fetch a single notebook
   Future<Notebook> _fetchSingleNotebook(String notebookId) async {
     print('NotebooksProvider: Fetching single notebook: $notebookId');
@@ -121,6 +169,7 @@ class NotebooksProvider with ChangeNotifier {
         print('NotebooksProvider: Updated existing notebook: $notebookId with ${notebook.notes.length} notes');
       } else {
         _notebooks.add(notebook);
+        _notebookIds.add(notebook.id);
         print('NotebooksProvider: Added new notebook: $notebookId with ${notebook.notes.length} notes');
         
         // Subscribe to this notebook
@@ -151,18 +200,6 @@ class NotebooksProvider with ChangeNotifier {
     }
   }
   
-  void _handleNotebookDelete(Map<String, dynamic> payload) {
-    final data = payload['data'];
-    final String notebookId = _extractNotebookId(data);
-    
-    if (notebookId.isNotEmpty) {
-      // Remove notebook from local state if it exists
-      _notebooks.removeWhere((notebook) => notebook.id == notebookId);
-      notifyListeners();
-    }
-  }
-  
-  // More robust handling of note creation events with immediate UI update
   void _handleNoteCreate(Map<String, dynamic> message) {
     print('NotebooksProvider: Received note.created event');
     
@@ -209,6 +246,11 @@ class NotebooksProvider with ChangeNotifier {
     // Check if this notebook is in our local state
     final notebookIndex = _notebooks.indexWhere((nb) => nb.id == notebookId);
     
+    if (notebookIndex == -1) {
+      print('NotebooksProvider: Notebook not found in local state, skipping refresh');
+      return;
+    }
+    
     // Add a delay to allow database to complete the transaction
     Future.delayed(Duration(milliseconds: 2000), () {
       print('NotebooksProvider: Attempting to fetch notebook $notebookId after delay');
@@ -216,54 +258,38 @@ class NotebooksProvider with ChangeNotifier {
     });
   }
   
-  void _handleNoteDelete(Map<String, dynamic> payload) {
-    final data = payload['data'];
-    final String notebookId = data['notebook_id'] != null ? data['notebook_id'].toString() : '';
-    final String noteId = data['note_id'] != null ? data['note_id'].toString() : 
-                         (data['id'] != null ? data['id'].toString() : '');
-    
-    if (notebookId.isNotEmpty && noteId.isNotEmpty) {
-      // If this notebook is in our list, update it
-      final int index = _notebooks.indexWhere((notebook) => notebook.id == notebookId);
-      if (index != -1) {
-        // Remove the note from local state
-        final currentNotebook = _notebooks[index];
-        final updatedNotes = currentNotebook.notes.where((note) => note.id != noteId).toList();
-        
-        _notebooks[index] = Notebook(
-          id: currentNotebook.id,
-          name: currentNotebook.name,
-          description: currentNotebook.description,
-          userId: currentNotebook.userId,
-          notes: updatedNotes,
-        );
-        
-        notifyListeners();
+  void _handleNoteDelete(Map<String, dynamic> message) {
+    try {
+      // Use the parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null && noteId != null) {
+        // If this notebook is in our list, update it
+        final int index = _notebooks.indexWhere((notebook) => notebook.id == notebookId);
+        if (index != -1) {
+          // Remove the note from local state
+          final currentNotebook = _notebooks[index];
+          final updatedNotes = currentNotebook.notes.where((note) => note.id != noteId).toList();
+          
+          _notebooks[index] = Notebook(
+            id: currentNotebook.id,
+            name: currentNotebook.name,
+            description: currentNotebook.description,
+            userId: currentNotebook.userId,
+            notes: updatedNotes,
+          );
+          
+          notifyListeners();
+        }
       }
+    } catch (e) {
+      print('NotebooksProvider: Error handling note delete: $e');
     }
   }
-  
-  // More robust extraction of notebook ID
-  String _extractNotebookId(dynamic data) {
-    if (data == null) return '';
-    
-    String notebookId = '';
-    if (data is Map<String, dynamic>) {
-      if (data['notebook_id'] != null) {
-        notebookId = data['notebook_id'].toString();
-      } else if (data['id'] != null && 
-                (data['name'] != null || 
-                 data['description'] != null || 
-                 data['entity'] == 'notebook' || 
-                 data['resource'] == 'notebook')) {
-        notebookId = data['id'].toString();
-      }
-    }
-    
-    return notebookId;
-  }
-  
-  // Fetch notebooks and subscribe to them with more reliable subscriptions and pagination
+
+  // Fetch notebooks with pagination and duplicate prevention
   Future<void> fetchNotebooks({int page = 1, int pageSize = 20}) async {
     _isLoading = true;
     notifyListeners();
@@ -273,11 +299,21 @@ class NotebooksProvider with ChangeNotifier {
       final fetchedNotebooks = await ApiService.fetchNotebooks(page: page, pageSize: pageSize);
       
       if (page == 1) {
-        // First page, replace existing data
+        // First page, replace existing data and reset ID tracking
         _notebooks = fetchedNotebooks;
+        _notebookIds.clear();
+        _notebookIds.addAll(_notebooks.map((n) => n.id));
       } else {
-        // Subsequent page, append to existing data
-        _notebooks.addAll(fetchedNotebooks);
+        // Build a set of existing IDs to check for duplicates
+        final existingIds = _notebooks.map((nb) => nb.id).toSet();
+        
+        // Only add notebooks that aren't already in our list
+        final newNotebooks = fetchedNotebooks.where((nb) => !existingIds.contains(nb.id)).toList();
+        
+        if (newNotebooks.isNotEmpty) {
+          _notebooks.addAll(newNotebooks);
+          _notebookIds.addAll(newNotebooks.map((nb) => nb.id));
+        }
       }
       
       // Subscribe using batches for better performance
@@ -312,15 +348,28 @@ class NotebooksProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createNotebook(String name, String description) async {
+  // Create a new notebook with optimized local update
+  Future<Notebook?> createNotebook(String name, String description) async {
     try {
       final notebook = await ApiService.createNotebook(name, description);
-      _notebooks.add(notebook);
+      
+      // Add to local state immediately instead of refetching all notebooks
+      final index = _notebooks.indexWhere((nb) => nb.id == notebook.id);
+      if (index != -1) {
+        _notebooks[index] = notebook;
+      } else {
+        _notebooks.add(notebook);
+        _notebookIds.add(notebook.id);
+      }
       
       // Subscribe to this notebook
-      _webSocketService.subscribe('notebook', id: notebook.id);
+      if (_webSocketProvider != null) {
+        _webSocketProvider!.subscribe('notebook', id: notebook.id);
+        _webSocketProvider!.subscribe('notebook:notes', id: notebook.id);
+      }
       
       notifyListeners();
+      return notebook;
     } catch (error) {
       print('Error creating notebook: $error');
       rethrow;
@@ -348,7 +397,7 @@ class NotebooksProvider with ChangeNotifier {
       rethrow;
     }
   }
-
+  
   Future<void> deleteNoteFromNotebook(String notebookId, String noteId) async {
     try {
       await ApiService.deleteNoteFromNotebook(notebookId, noteId);
@@ -370,7 +419,7 @@ class NotebooksProvider with ChangeNotifier {
       rethrow;
     }
   }
-
+  
   Future<void> updateNotebook(String id, String name, String description) async {
     try {
       final notebook = await ApiService.updateNotebook(id, name, description);
@@ -389,6 +438,7 @@ class NotebooksProvider with ChangeNotifier {
     try {
       await ApiService.deleteNotebook(id);
       _notebooks.removeWhere((notebook) => notebook.id == id);
+      _notebookIds.remove(id);
       
       // Unsubscribe from this notebook
       _webSocketService.unsubscribe('notebook', id: id);

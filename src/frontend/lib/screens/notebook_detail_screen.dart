@@ -47,13 +47,19 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     // Activate the presenter
     _presenter.activate();
     
-    // Subscribe to the notebook and notes
+    // Subscribe to the notebook and notes events
     _webSocketProvider.subscribe('notebook', id: widget.notebookId);
     _webSocketProvider.subscribe('notebook:notes', id: widget.notebookId);
+    
+    // Also subscribe to general note events to catch updates
     _webSocketProvider.subscribe('note');
+    _webSocketProvider.subscribe('note.created'); // Add specific event subscription
+    _webSocketProvider.subscribe('note.deleted'); // Add specific event subscription
     
     // Fetch notebook data
     await _presenter.fetchNotebookById(widget.notebookId);
+    
+    print('NotebookDetailScreen: Initialized with notebook ID ${widget.notebookId}');
   }
 
   void _showAddNoteDialog(BuildContext context, String notebookId) {
@@ -118,8 +124,11 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         ? notebooksPresenter.notebooks[notebookIndex]
         : null;
     
+    // Add key based on note count to force rebuild when notes change
+    final noteCount = hasNotebook ? notebook!.notes.length : 0;
+    
     return Scaffold(
-      key: ValueKey('notebook_${widget.notebookId}'),
+      key: ValueKey('notebook_${widget.notebookId}_notes_$noteCount'),
       appBar: AppBar(
         title: Text(hasNotebook ? notebook!.name : 'Notebook Details'),
         actions: [
@@ -209,6 +218,8 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     if (_isInitialized) {
       _webSocketProvider.unsubscribe('notebook', id: widget.notebookId);
       _webSocketProvider.unsubscribe('notebook:notes', id: widget.notebookId);
+      _webSocketProvider.unsubscribe('note.created');
+      _webSocketProvider.unsubscribe('note.deleted');
       
       // Deactivate the presenter
       _presenter.deactivate();

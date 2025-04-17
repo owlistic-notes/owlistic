@@ -45,10 +45,10 @@ class TasksProvider with ChangeNotifier {
   }
   
   void _registerEventHandlers() {
-    // Register handlers for all relevant event types
-    _webSocketProvider?.addEventListener('event', 'task_updated', _handleTaskUpdate);
-    _webSocketProvider?.addEventListener('event', 'task_created', _handleTaskCreate);
-    _webSocketProvider?.addEventListener('event', 'task_deleted', _handleTaskDelete);
+    // Register handlers for all standardized resource.action events
+    _webSocketProvider?.addEventListener('event', 'task.updated', _handleTaskUpdate);
+    _webSocketProvider?.addEventListener('event', 'task.created', _handleTaskCreate);
+    _webSocketProvider?.addEventListener('event', 'task.deleted', _handleTaskDelete);
   }
   
   void _handleTaskUpdate(Map<String, dynamic> message) {

@@ -148,6 +148,9 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     // Listen to notebooks provider for data updates
     final notebooksPresenter = context.notebooksPresenter(listen: true);
     
+    // Add key based on notebook count to force rebuild when notebooks change
+    final notebookCount = notebooksPresenter.notebooks.length;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text('Notebooks'),
@@ -184,6 +187,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       ),
       drawer: AppDrawer(),
       body: _buildBody(notebooksPresenter),
+      key: ValueKey('notebooks_screen_$notebookCount'),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddNotebookDialog,
         child: Icon(Icons.add),

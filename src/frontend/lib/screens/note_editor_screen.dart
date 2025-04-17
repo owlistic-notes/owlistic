@@ -51,20 +51,32 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _blockProvider = Provider.of<BlockProvider>(context, listen: false);
     _webSocketProvider = Provider.of<WebSocketProvider>(context, listen: false);
     
+    // Simple listener that only updates when the block provider's counter changes
+    _blockProvider.addListener(() {
+      if (!mounted) return;
+      
+      // Only update if there's actually a change in the update counter
+      if (_blockProvider.updateCount != _updateCounter) {
+        print('NoteEditor: Block provider update detected ($_updateCounter → ${_blockProvider.updateCount})');
+        _updateBlocksFromProvider();
+      }
+    });
+    
     // Ensure WebSocket is connected
     _webSocketProvider.ensureConnected().then((_) {
       // Activate the note
       _notesProvider.activateNote(widget.note.id);
       _blockProvider.activateNote(widget.note.id);
       
-      // Subscribe to WebSocket with multiple resource types
+      // Subscribe to WebSocket events with standardized resource.action patterns
       _webSocketProvider.subscribe('note', id: widget.note.id);
       
-      // Also subscribe to all blocks for this note
-      _webSocketProvider.subscribe('block', id: null);
-      
-      // Add listener for block updates after connections are established
-      _blockProvider.addListener(_onBlockProviderUpdate);
+      // Enhanced block event subscriptions with standardized event names
+      _webSocketProvider.subscribe('block', id: null); // All blocks
+      _webSocketProvider.subscribe('note:blocks', id: widget.note.id); // Blocks for this note
+      _webSocketProvider.subscribe('block.created'); // Block creation events
+      _webSocketProvider.subscribe('block.updated'); // Block update events
+      _webSocketProvider.subscribe('block.deleted'); // Block deletion events
       
       print('NoteEditor: Subscribed to note ${widget.note.id} and its blocks');
     });
@@ -101,7 +113,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
-  // Update blocks from provider
+  // Update blocks from provider in a clean, simple way
   void _updateBlocksFromProvider() {
     if (_ignoreBlockUpdates) {
       print('NoteEditor: Ignoring block updates due to local edit');
@@ -109,58 +121,72 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
     
     final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-    final blocks = blockProvider.getBlocksForNote(widget.note.id);
+    final newBlocks = blockProvider.getBlocksForNote(widget.note.id);
     
-    print('NoteEditor: Updating with ${blocks.length} blocks from provider');
+    // Update our local update counter to match the provider
+    _updateCounter = blockProvider.updateCount;
     
-    // Save cursor positions and selections for existing controllers
-    final Map<String, TextEditingValue> controllerValues = {};
-    for (int i = 0; i < _blocks.length && i < _blockControllers.length; i++) {
-      controllerValues[_blocks[i].id] = _blockControllers[i].value;
-    }
+    // Check if the blocks have actually changed
+    bool needsUpdate = _blocks.length != newBlocks.length;
     
-    // Dispose existing controllers
-    for (var controller in _blockControllers) {
-      controller.dispose();
-    }
-    
-    // Create new controllers
-    _blockControllers = [];
-    for (var block in blocks) {
-      final controller = TextEditingController(text: block.content);
+    // If counts are same, check for content changes
+    if (!needsUpdate) {
+      // Build maps of existing blocks by ID for quick comparison
+      final Map<String, Block> existingBlocksMap = {
+        for (var block in _blocks) block.id: block
+      };
       
-      // Restore cursor position/selection if this block existed before
-      if (controllerValues.containsKey(block.id)) {
-        final oldValue = controllerValues[block.id]!;
-        
-        // Only restore selection if the text hasn't changed
-        if (oldValue.text == block.content) {
-          controller.value = oldValue;
+      // Check for any changes in content or new blocks
+      for (final newBlock in newBlocks) {
+        final existingBlock = existingBlocksMap[newBlock.id];
+        if (existingBlock == null || 
+            existingBlock.content != newBlock.content ||
+            existingBlock.type != newBlock.type ||
+            existingBlock.order != newBlock.order) {
+          needsUpdate = true;
+          break;
         }
       }
+    }
+    
+    // Only update UI if blocks have actually changed
+    if (needsUpdate) {
+      print('NoteEditor: Blocks changed, updating UI (${_blocks.length} → ${newBlocks.length})');
       
-      _blockControllers.add(controller);
-    }
-    
-    _blocks = blocks;
-    _updateCounter++;
-    
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  // Callback for block provider updates
-  void _onBlockProviderUpdate() {
-    if (!mounted) return;
-    
-    final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-    
-    // Only update if this note is still active
-    if (_blocks.isNotEmpty && 
-        blockProvider.getBlocksForNote(widget.note.id).isNotEmpty) {
-      print('NoteEditor: Block provider updated, refreshing blocks');
-      _updateBlocksFromProvider();
+      // Save cursor positions for existing controllers
+      final Map<String, TextEditingValue> controllerValues = {};
+      for (int i = 0; i < _blocks.length && i < _blockControllers.length; i++) {
+        controllerValues[_blocks[i].id] = _blockControllers[i].value;
+      }
+      
+      // Clean up old controllers
+      for (var controller in _blockControllers) {
+        controller.dispose();
+      }
+      
+      // Create new controllers for the updated blocks
+      _blockControllers = [];
+      for (var block in newBlocks) {
+        final controller = TextEditingController(text: block.content);
+        
+        // Restore cursor position if possible
+        if (controllerValues.containsKey(block.id)) {
+          final oldValue = controllerValues[block.id]!;
+          if (oldValue.text == block.content) {
+            controller.value = oldValue;
+          }
+        }
+        
+        _blockControllers.add(controller);
+      }
+      
+      // Update our blocks list
+      _blocks = List.from(newBlocks);
+      
+      // Update UI
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -268,11 +294,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _notesProvider.deactivateNote(widget.note.id);
         _blockProvider.deactivateNote(widget.note.id);
         
-        // Unsubscribe using stored provider reference
+        // Unsubscribe from standardized resource.action events
         _webSocketProvider.unsubscribe('note', id: widget.note.id);
-        
-        // Remove listener using stored provider reference
-        _blockProvider.removeListener(_onBlockProviderUpdate);
+        _webSocketProvider.unsubscribe('note:blocks', id: widget.note.id);
+        _webSocketProvider.unsubscribe('block.created');
+        _webSocketProvider.unsubscribe('block.updated');
+        _webSocketProvider.unsubscribe('block.deleted');
       } catch (e) {
         print('Error during NoteEditor disposal: $e');
       }
@@ -289,14 +316,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Monitor the WebSocket provider for any updates
-    final wsProvider = Provider.of<WebSocketProvider>(context);
-    final blockProvider = Provider.of<BlockProvider>(context);
-    
-    // Debug print
-    print('Note editor rebuilding. Last event: ${wsProvider.lastEventType}:${wsProvider.lastEventAction} at ${wsProvider.lastEventTime?.toString() ?? "never"}');
+    // Use a unique key based on the note ID and block count to force rebuild when needed
+    final key = ValueKey('note_${widget.note.id}_blocks_${_blocks.length}_v${_updateCounter}');
     
     return Scaffold(
+      key: key,
       appBar: AppBar(
         title: Text('Edit Note'),
         actions: [

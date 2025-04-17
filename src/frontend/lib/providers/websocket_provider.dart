@@ -80,7 +80,7 @@ class WebSocketProvider with ChangeNotifier {
     return _isConnected;
   }
 
-  // Central handler for all incoming WebSocket messages
+  // Central handler for all incoming WebSocket messages with improved block handling
   void _handleWebSocketMessage(Map<String, dynamic> message) {
     try {
       final String type = message['type'] ?? 'unknown';
@@ -97,23 +97,33 @@ class WebSocketProvider with ChangeNotifier {
         return;
       }
       
-      // Handle events
+      // Detailed logging for block-related events
+      final String eventKey = '$type:$event';
+      if (type == 'event' && (event.contains('block') || event.startsWith('block.'))) {
+        print('WebSocketProvider: Received block event - $event');
+        print('WebSocketProvider: Looking for handlers for key: $eventKey');
+        print('WebSocketProvider: Available handlers: ${_eventHandlers.keys.join(', ')}');
+      }
+      
+      // Handle events - immediate processing is better than Future.microtask
       if (type == 'event') {
-        Future.microtask(() {
-          // Get handlers for this exact event
-          final handlers = _eventHandlers['$type:$event'] ?? [];
-          
-          if (handlers.isNotEmpty) {
-            for (final handler in handlers) {
-              try {
-                handler(message);
-              } catch (e) {
-                print('WebSocketProvider: Error in event handler: $e');
-              }
+        // Get handlers for this exact event
+        final handlers = _eventHandlers[eventKey] ?? [];
+        
+        if (handlers.isNotEmpty) {
+          print('WebSocketProvider: Found ${handlers.length} handlers for $eventKey');
+          for (final handler in handlers) {
+            try {
+              // Call handler synchronously to avoid timing issues
+              handler(message);
+            } catch (e) {
+              print('WebSocketProvider: Error in event handler: $e');
             }
-            notifyListeners();
           }
-        });
+          notifyListeners();
+        } else {
+          print('WebSocketProvider: No handlers registered for $eventKey');
+        }
       }
     } catch (e) {
       print('WebSocketProvider: Error handling message: $e');
@@ -139,15 +149,26 @@ class WebSocketProvider with ChangeNotifier {
     }
   }
 
-  // Register event handler
+  // Register event handler with improved logging and duplicate prevention
   void addEventListener(String type, String event, Function(Map<String, dynamic>) handler) {
     final String key = '$type:$event';
     
     _eventHandlers[key] ??= [];
     
-    // Only add if not already registered
-    if (!_eventHandlers[key]!.contains(handler)) {
+    // Check if handler is already registered to avoid duplicates
+    bool isDuplicate = false;
+    for (var existingHandler in _eventHandlers[key]!) {
+      if (existingHandler == handler) {
+        isDuplicate = true;
+        break;
+      }
+    }
+    
+    if (!isDuplicate) {
       _eventHandlers[key]!.add(handler);
+      print('WebSocketProvider: Registered handler for $key (now ${_eventHandlers[key]!.length} handlers)');
+    } else {
+      print('WebSocketProvider: Handler already registered for $key');
     }
   }
 

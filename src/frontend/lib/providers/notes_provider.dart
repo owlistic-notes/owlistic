@@ -39,7 +39,7 @@ class NotesProvider with ChangeNotifier {
     
     _webSocketProvider = provider;
     
-    // Register for relevant events
+    // Register for standardized resource.action events
     provider.addEventListener('event', 'note.updated', _handleNoteUpdate);
     provider.addEventListener('event', 'note.created', _handleNoteCreate);
     provider.addEventListener('event', 'note.deleted', _handleNoteDelete);
@@ -66,7 +66,7 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Handle note create events
+  // Handle note create events with similar pattern to notebooks and blocks
   void _handleNoteCreate(Map<String, dynamic> message) {
     print('NotesProvider: Received note.created event');
     
@@ -80,10 +80,29 @@ class NotesProvider with ChangeNotifier {
         
         // Add a short delay to avoid race condition with database
         Future.delayed(Duration(milliseconds: 500), () {
-          _fetchSingleNote(noteId);
+          // Fetch the note by ID directly
+          ApiService.getNote(noteId).then((newNote) {
+            // Check if the note already exists in our list
+            final existingIndex = _notes.indexWhere((n) => n.id == noteId);
+            
+            if (existingIndex != -1) {
+              // Update existing note
+              _notes[existingIndex] = newNote;
+              print('NotesProvider: Updated existing note $noteId');
+            } else {
+              // Add new note to the list
+              _notes.add(newNote);
+              print('NotesProvider: Added new note $noteId to list');
+              
+              // Subscribe to this note
+              _webSocketProvider?.subscribe('note', id: newNote.id);
+            }
+            
+            notifyListeners();
+          }).catchError((error) {
+            print('NotesProvider: Error fetching new note $noteId: $error');
+          });
         });
-      } else {
-        print('NotesProvider: Could not find note_id in message');
       }
     } catch (e) {
       print('NotesProvider: Error handling note create: $e');
@@ -92,22 +111,22 @@ class NotesProvider with ChangeNotifier {
   
   // Handle note delete events
   void _handleNoteDelete(Map<String, dynamic> message) {
-    // Get the note_id from payload.data
-    if (message.containsKey('payload') && 
-        message['payload'] is Map<String, dynamic> &&
-        message['payload']['data'] is Map<String, dynamic>) {
-      
-      final data = message['payload']['data'];
-      final noteId = data['note_id'];
+    try {
+      // Use the new parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
       if (noteId != null) {
+        print('NotesProvider: Received note.deleted event for note ID $noteId');
         // Remove from local state if it exists
-        final index = _notes.indexWhere((note) => note.id == noteId.toString());
+        final index = _notes.indexWhere((note) => note.id == noteId);
         if (index != -1) {
           _notes.removeAt(index);
           notifyListeners();
         }
       }
+    } catch (e) {
+      print('NotesProvider: Error handling note delete: $e');
     }
   }
 

@@ -83,40 +83,18 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 		dataMap = make(map[string]interface{})
 	}
 
-	// Add ID directly to the event data for easier extraction
-	if id, ok := dataMap["id"]; ok {
-		switch event.Entity {
-		case "note":
-			dataMap["note_id"] = id
-		case "notebook":
-			dataMap["notebook_id"] = id
-		case "block":
-			dataMap["block_id"] = id
-		}
-	}
-
-	// Build a more consistent event structure that matches what the WebSocket handler expects
+	// Build a consistent event structure for all resources
 	eventPayload := map[string]interface{}{
-		"event_id":  event.ID.String(),
-		"timestamp": event.Timestamp,
-		"type":      event.Event,  // Add event type at top level too
-		"entity":    event.Entity, // Add entity type at top level
-		"data":      dataMap,      // Original event data
+		"data": dataMap, // Original event data
 	}
 
-	// Extract ID fields and promote them to the top level for better matching
-	if id, idExists := dataMap["id"]; idExists {
-		switch event.Entity {
-		case "note":
-			eventPayload["note_id"] = id
-		case "notebook":
-			eventPayload["notebook_id"] = id
-		case "block":
-			eventPayload["block_id"] = id
-		}
-	}
+	// Add standard metadata
+	eventPayload["event_id"] = event.ID.String()
+	eventPayload["timestamp"] = event.Timestamp
+	eventPayload["entity"] = event.Entity
+	eventPayload["type"] = event.Event
 
-	// Explicitly copy important fields to the top level
+	// Extract and add resource IDs to the top level for easier access
 	if noteId, exists := dataMap["note_id"]; exists {
 		eventPayload["note_id"] = noteId
 	}
@@ -126,10 +104,13 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 	if blockId, exists := dataMap["block_id"]; exists {
 		eventPayload["block_id"] = blockId
 	}
+	if userId, exists := dataMap["user_id"]; exists {
+		eventPayload["user_id"] = userId
+	}
 
 	log.Printf("Dispatching event to topic %s: %v", topic, eventPayload)
 
-	// Include the proper payload structure as expected by the client
+	// The type is only needed at the top level, not duplicated in the payload
 	fullPayload := map[string]interface{}{
 		"type":    event.Event,
 		"payload": eventPayload,
