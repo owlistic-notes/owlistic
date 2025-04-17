@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -17,16 +18,41 @@ func TestCreateNote_Success(t *testing.T) {
 	noteID := uuid.New()
 	userID := uuid.New()
 	notebookID := uuid.New()
+	blockID := uuid.New()
 	eventID := uuid.New()
+	now := time.Now()
 
 	// Begin transaction
 	mock.ExpectBegin()
 
+	// Check if user exists
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "users" WHERE id = \$1`).
+		WithArgs(userID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	// Check if notebook exists
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "notebooks" WHERE id = \$1`).
+		WithArgs(notebookID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 	// Create note - match exact column order: user_id, notebook_id, title, is_deleted, id
 	mock.ExpectQuery(`INSERT INTO "notes"`).
-		WithArgs(userID.String(), notebookID.String(), "Test Note", false, noteID.String()).
+		WithArgs(userID.String(), notebookID.String(), "Test Note", false, sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "notebook_id", "title", "is_deleted"}).
 			AddRow(noteID.String(), userID.String(), notebookID.String(), "Test Note", false))
+
+	// Note service also creates an initial empty block for the note
+	mock.ExpectQuery(`INSERT INTO "blocks"`).
+		WithArgs(
+			noteID.String(),  // note_id
+			"text",           // type
+			"",               // content (empty for initial block)
+			"{}",             // metadata
+			1,                // order
+			sqlmock.AnyArg(), // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
+			AddRow(blockID.String(), now, now)) // Use actual time values instead of sqlmock.AnyArg()
 
 	// Create event expectation
 	mock.ExpectQuery(`INSERT INTO "events"`).
@@ -77,17 +103,18 @@ func TestUpdateNote_Success(t *testing.T) {
 			AddRow(noteID.String(), "Old Title", userID.String()))
 
 	// Query for blocks associated with the note
-	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE "blocks"."note_id" = \\$1`).
+	mock.ExpectQuery("SELECT \\* FROM \"blocks\" WHERE \"blocks\".\"note_id\" = \\$1").
 		WithArgs(noteID.String()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "note_id"}))
 
-	// Update note
-	mock.ExpectExec(`UPDATE "notes"`).
+	// Update note - match actual number of arguments (3 instead of 4)
+	// The UPDATE query in the service doesn't include user_id, only title and updated_at
+	mock.ExpectExec("UPDATE \"notes\" SET").
 		WithArgs("Updated Title", sqlmock.AnyArg(), noteID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Create event expectation
-	mock.ExpectQuery(`INSERT INTO "events"`).
+	mock.ExpectQuery("INSERT INTO \"events\"").
 		WithArgs(
 			"note.updated",   // event
 			1,                // version
@@ -145,18 +172,18 @@ func TestDeleteNote_Success(t *testing.T) {
 	mock.ExpectBegin()
 
 	// Expect the initial note query
-	mock.ExpectQuery(`SELECT \* FROM "notes"`).
+	mock.ExpectQuery("SELECT \\* FROM \"notes\"").
 		WithArgs(existingID.String(), 1). // Fix: Expect two arguments
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "is_deleted", "update_date"}).
 			AddRow(existingID.String(), userID.String(), "Title", "Content", false, nil))
 
 	// Expect the delete
-	mock.ExpectExec(`DELETE FROM "notes"`).
+	mock.ExpectExec("DELETE FROM \"notes\"").
 		WithArgs(existingID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Expect event creation
-	mock.ExpectQuery(`INSERT INTO "events"`).
+	mock.ExpectQuery("INSERT INTO \"events\"").
 		WithArgs(
 			"note.deleted",   // event
 			1,                // version

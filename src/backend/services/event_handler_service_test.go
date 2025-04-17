@@ -15,7 +15,7 @@ func TestEventHandlerService_ProcessPendingEvents(t *testing.T) {
 	defer close()
 
 	// Setup test data
-	mock.ExpectQuery(`SELECT \* FROM "events" WHERE dispatched = \$1`).
+	mock.ExpectQuery("SELECT \\* FROM \"events\" WHERE dispatched = \\$1").
 		WithArgs(false).
 		WillReturnRows(testutils.MockEventRows([]models.Event{
 			{
@@ -28,7 +28,7 @@ func TestEventHandlerService_ProcessPendingEvents(t *testing.T) {
 
 	// Expect update after processing
 	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE "events" SET`).
+	mock.ExpectExec("UPDATE \"events\" SET").
 		WillReturnResult(testutils.NewResult(1, 1))
 	mock.ExpectCommit()
 

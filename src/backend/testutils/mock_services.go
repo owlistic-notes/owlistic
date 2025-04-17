@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
@@ -44,3 +45,40 @@ func (m *MockBlockService) GetBlocks(db *database.Database, params map[string]in
 }
 
 // Additional mock implementations for other services can be added as needed
+
+// MockUserService is a mock implementation of UserServiceInterface
+type MockUserService struct{}
+
+func (m *MockUserService) CreateUser(db *database.Database, user models.User) (models.User, error) {
+	return user, nil
+}
+
+func (m *MockUserService) GetUserById(db *database.Database, id string) (models.User, error) {
+	return models.User{
+		ID:    uuid.MustParse(id),
+		Email: "test@example.com",
+	}, nil
+}
+
+func (m *MockUserService) UpdateUser(db *database.Database, id string, user models.User) (models.User, error) {
+	user.ID = uuid.MustParse(id)
+	return user, nil
+}
+
+func (m *MockUserService) DeleteUser(db *database.Database, id string) error {
+	return nil
+}
+
+func (m *MockUserService) GetAllUsers(db *database.Database) ([]models.User, error) {
+	return []models.User{
+		{ID: uuid.New(), Email: "test1@example.com"},
+		{ID: uuid.New(), Email: "test2@example.com"},
+	}, nil
+}
+
+func (m *MockUserService) GetUsers(db *database.Database, params map[string]interface{}) ([]models.User, error) {
+	return []models.User{
+		{ID: uuid.New(), Email: "test1@example.com"},
+		{ID: uuid.New(), Email: "test2@example.com"},
+	}, nil
+}

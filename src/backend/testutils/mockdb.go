@@ -1,23 +1,44 @@
 package testutils
 
 import (
+	"database/sql"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/thinkstack/database"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
+// SetupMockDB sets up a mock database connection
 func SetupMockDB() (*database.Database, sqlmock.Sqlmock, func()) {
-	sqlDB, mock, err := sqlmock.New()
+	var db *sql.DB
+	var mock sqlmock.Sqlmock
+	var err error
+
+	db, mock, err = sqlmock.New()
 	if err != nil {
-		panic("failed to create sqlmock: " + err.Error())
+		panic(err)
 	}
-	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{})
+
+	dialector := postgres.New(postgres.Config{
+		DSN:                  "sqlmock_db_0",
+		DriverName:           "postgres",
+		Conn:                 db,
+		PreferSimpleProtocol: true,
+	})
+
+	gormDB, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
-		panic("failed to create gorm DB from sqlmock: " + err.Error())
+		panic(err)
 	}
-	closeFunc := func() {
-		sqlDB.Close()
+
+	mockDB := &database.Database{
+		DB: gormDB,
 	}
-	return &database.Database{DB: gormDB}, mock, closeFunc
+
+	close := func() {
+		db.Close()
+	}
+
+	return mockDB, mock, close
 }

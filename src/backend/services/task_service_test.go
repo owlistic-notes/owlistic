@@ -25,25 +25,29 @@ func TestCreateTask_Success(t *testing.T) {
 	// First expect a transaction
 	mock.ExpectBegin()
 
+	// Check if user exists - First check users table
+	mock.ExpectQuery("SELECT count(*) FROM \"users\" WHERE id = \\$1").
+		WithArgs(userID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 	// Expect a query to check if the note exists
-	mock.ExpectQuery(`SELECT \* FROM "notes" WHERE id = \$1`).
+	mock.ExpectQuery("SELECT count(*) FROM \"notes\" WHERE id = \\$1").
 		WithArgs(noteID.String()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title"}).
-			AddRow(noteID.String(), userID.String(), "Test Note"))
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	// Expect a query to find the last block by order
-	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE note_id = \$1 ORDER BY "order" DESC`).
+	mock.ExpectQuery("SELECT \\* FROM \"blocks\" WHERE note_id = \\$1 ORDER BY \"order\" DESC").
 		WithArgs(noteID.String()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "note_id", "type", "content", "order"}).
 			AddRow(blockID.String(), noteID.String(), "text", "Test Content", 1))
 
 	// Expect task creation
-	mock.ExpectQuery(`INSERT INTO "tasks"`).
-		WithArgs(sqlmock.AnyArg(), userID, blockID, "Test Task", "Test Description", false, "").
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(taskID))
+	mock.ExpectQuery("INSERT INTO \"tasks\"").
+		WithArgs(sqlmock.AnyArg(), userID.String(), blockID.String(), "Test Task", "Test Description", false, "").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(taskID.String()))
 
 	// Expect event creation
-	mock.ExpectQuery(`INSERT INTO "events"`).
+	mock.ExpectQuery("INSERT INTO \"events\"").
 		WithArgs(
 			"task.created",   // event
 			1,                // version
@@ -57,7 +61,7 @@ func TestCreateTask_Success(t *testing.T) {
 			nil,              // dispatched_at
 			sqlmock.AnyArg(), // id
 		).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New().String()))
 
 	mock.ExpectCommit()
 
@@ -83,23 +87,28 @@ func TestCreateTask_CreateNewBlock(t *testing.T) {
 	taskID := uuid.New()
 	userID := uuid.New()
 	noteID := uuid.New()
+	blockID := uuid.New()
 
 	// First expect a transaction
 	mock.ExpectBegin()
 
+	// Check if user exists - First check users table
+	mock.ExpectQuery("SELECT count(*) FROM \"users\" WHERE id = \\$1").
+		WithArgs(userID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 	// Expect a query to check if the note exists
-	mock.ExpectQuery(`SELECT \* FROM "notes" WHERE id = \$1`).
+	mock.ExpectQuery("SELECT count(*) FROM \"notes\" WHERE id = \\$1").
 		WithArgs(noteID.String()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title"}).
-			AddRow(noteID.String(), userID.String(), "Test Note"))
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	// Expect a query to find the last block by order - return empty to trigger block creation
-	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE note_id = \$1 ORDER BY "order" DESC`).
+	mock.ExpectQuery("SELECT \\* FROM \"blocks\" WHERE note_id = \\$1 ORDER BY \"order\" DESC").
 		WithArgs(noteID.String()).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	// Expect new block creation
-	mock.ExpectQuery(`INSERT INTO "blocks"`).
+	mock.ExpectQuery("INSERT INTO \"blocks\"").
 		WithArgs(
 			noteID.String(),  // note_id
 			"task",           // type
@@ -108,15 +117,15 @@ func TestCreateTask_CreateNewBlock(t *testing.T) {
 			1,                // order
 			sqlmock.AnyArg(), // id
 		).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(blockID.String()))
 
 	// Expect task creation
-	mock.ExpectQuery(`INSERT INTO "tasks"`).
-		WithArgs(sqlmock.AnyArg(), userID, sqlmock.AnyArg(), "Test Task", "", false, "").
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(taskID))
+	mock.ExpectQuery("INSERT INTO \"tasks\"").
+		WithArgs(sqlmock.AnyArg(), userID.String(), blockID.String(), "Test Task", "", false, "").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(taskID.String()))
 
 	// Expect event creation
-	mock.ExpectQuery(`INSERT INTO "events"`).
+	mock.ExpectQuery("INSERT INTO \"events\"").
 		WithArgs(
 			"task.created",   // event
 			1,                // version
@@ -130,7 +139,7 @@ func TestCreateTask_CreateNewBlock(t *testing.T) {
 			nil,              // dispatched_at
 			sqlmock.AnyArg(), // id
 		).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New().String()))
 
 	mock.ExpectCommit()
 
@@ -174,7 +183,7 @@ func TestUpdateTask_Success(t *testing.T) {
 	mock.ExpectBegin()
 
 	// Mock the SELECT query that GORM performs first
-	mock.ExpectQuery(`SELECT (.+) FROM "tasks" WHERE id = \$1 ORDER BY "tasks"."id" LIMIT \$2`).
+	mock.ExpectQuery("SELECT (.+) FROM \"tasks\" WHERE id = \\$1 ORDER BY \"tasks\".\"id\" LIMIT \\$2").
 		WithArgs(existingID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "block_id", "title", "description",
@@ -183,7 +192,7 @@ func TestUpdateTask_Success(t *testing.T) {
 				"Old Title", "", false, "", now, now))
 
 	// Mock the UPDATE query
-	mock.ExpectExec(`UPDATE "tasks" SET`).
+	mock.ExpectExec("UPDATE \"tasks\" SET").
 		WithArgs("Updated Task", sqlmock.AnyArg(), existingID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -208,7 +217,7 @@ func TestDeleteTask_Success(t *testing.T) {
 	mock.ExpectBegin()
 
 	// Mock the SELECT query that GORM performs first
-	mock.ExpectQuery(`SELECT \* FROM "tasks" WHERE id = \$1 ORDER BY "tasks"."id" LIMIT \$2`).
+	mock.ExpectQuery("SELECT \\* FROM \"tasks\" WHERE id = \\$1 ORDER BY \"tasks\".\"id\" LIMIT \\$2").
 		WithArgs(existingID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "block_id", "title", "description",
@@ -217,7 +226,7 @@ func TestDeleteTask_Success(t *testing.T) {
 				"Test Task", "", false, ""))
 
 	// Mock the DELETE query
-	mock.ExpectExec(`DELETE FROM "tasks" WHERE`).
+	mock.ExpectExec("DELETE FROM \"tasks\" WHERE").
 		WithArgs(existingID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 

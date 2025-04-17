@@ -1,46 +1,49 @@
 package testutils
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"time"
-
-	"database/sql/driver"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/thinkstack/models"
 )
 
+// MockEventRows creates mock SQL rows for events testing
 func MockEventRows(events []models.Event) *sqlmock.Rows {
 	rows := sqlmock.NewRows([]string{
-		"id",
-		"event",
-		"version",
-		"entity",
-		"operation",
-		"timestamp",
-		"actor_id",
-		"data",
-		"status",
-		"dispatched",
-		"dispatched_at",
+		"id", "event", "version", "entity", "operation",
+		"timestamp", "actor_id", "data", "status",
+		"dispatched", "dispatched_at",
 	})
 
-	defaultData := json.RawMessage(`{"test":"data"}`)
-
 	for _, event := range events {
+		if event.ID == uuid.Nil {
+			event.ID = uuid.New()
+		}
+		if event.Timestamp.IsZero() {
+			event.Timestamp = time.Now()
+		}
+		if event.Data == nil {
+			event.Data = json.RawMessage(`{}`)
+		}
+		if event.Status == "" {
+			event.Status = "pending"
+		}
+
 		rows.AddRow(
-			uuid.New(),      // id
-			event.Event,     // event
-			1,               // version
-			event.Entity,    // entity
-			event.Operation, // operation
-			time.Now(),      // timestamp
-			event.ActorID,   // actor_id
-			defaultData,     // data (as json.RawMessage)
-			"pending",       // status
-			false,           // dispatched
-			nil,             // dispatched_at
+			event.ID,
+			event.Event,
+			event.Version,
+			event.Entity,
+			event.Operation,
+			event.Timestamp,
+			event.ActorID,
+			event.Data,
+			event.Status,
+			event.Dispatched,
+			event.DispatchedAt,
 		)
 	}
 

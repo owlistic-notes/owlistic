@@ -16,38 +16,76 @@ func TestCreateUser_Success(t *testing.T) {
 	defer close()
 
 	userID := uuid.New()
-	user := models.User{
-		ID:    userID,
-		Email: "test@example.com",
-	}
+	email := "test@example.com"
+	passwordHash := "hashed_password"
 
+	// Check if email exists
+	mock.ExpectQuery("SELECT \\* FROM \"users\" WHERE email = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+		WithArgs(email, 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	// Create user
 	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "users"`).
-		WithArgs(sqlmock.AnyArg(), "test@example.com").
+	mock.ExpectQuery("INSERT INTO \"users\"").
+		WithArgs(email, passwordHash, userID).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
-
-	mock.ExpectQuery(`INSERT INTO "events"`).
-		WithArgs(
-			"user.created",   // event
-			1,                // version
-			"user",           // entity
-			"create",         // operation
-			sqlmock.AnyArg(), // timestamp
-			userID.String(),  // actor_id
-			sqlmock.AnyArg(), // data json
-			"pending",        // status
-			false,            // dispatched
-			nil,              // dispatched_at
-			sqlmock.AnyArg(), // id
-		).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
-
 	mock.ExpectCommit()
 
 	service := &UserService{}
+	user := models.User{
+		ID:           userID,
+		Email:        email,
+		PasswordHash: passwordHash,
+	}
+
 	createdUser, err := service.CreateUser(db, user)
 	assert.NoError(t, err)
-	assert.Equal(t, user.Email, createdUser.Email)
+	assert.Equal(t, email, createdUser.Email)
+	assert.Equal(t, userID, createdUser.ID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateUser_EmailExists(t *testing.T) {
+	db, mock, close := testutils.SetupMockDB()
+	defer close()
+
+	email := "existing@example.com"
+
+	// Check if email exists - return a user to simulate email exists
+	mock.ExpectQuery("SELECT (.+) FROM \"users\" WHERE email = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+		WithArgs(email, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
+			AddRow(uuid.New(), email))
+
+	service := &UserService{}
+	user := models.User{
+		Email:        email,
+		PasswordHash: "password",
+	}
+
+	_, err := service.CreateUser(db, user)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserById_Success(t *testing.T) {
+	db, mock, close := testutils.SetupMockDB()
+	defer close()
+
+	userID := uuid.New()
+	email := "test@example.com"
+
+	mock.ExpectQuery("SELECT \\* FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+		WithArgs(userID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
+			AddRow(userID, email))
+
+	service := &UserService{}
+	user, err := service.GetUserById(db, userID.String())
+	assert.NoError(t, err)
+	assert.Equal(t, email, user.Email)
+	assert.Equal(t, userID, user.ID)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -55,14 +93,14 @@ func TestGetUserById_NotFound(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
-	mock.ExpectQuery("SELECT (.+) FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+	mock.ExpectQuery("SELECT \\* FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
 		WithArgs("non-existent-id", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
-	userService := &UserService{}
-	_, err := userService.GetUserById(db, "non-existent-id")
+	service := &UserService{}
+	_, err := service.GetUserById(db, "non-existent-id")
 	assert.Error(t, err)
-	assert.Equal(t, err.Error(), "user not found")
+	assert.Equal(t, ErrUserNotFound, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -70,30 +108,48 @@ func TestUpdateUser_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
-	existingID := uuid.New()
+	userID := uuid.New()
+	oldEmail := "old@example.com"
+	newEmail := "new@example.com"
 
-	// Begin transaction
+	// Get existing user
+	mock.ExpectQuery("SELECT \\* FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+		WithArgs(userID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
+			AddRow(userID, oldEmail))
+
+	// Update user
 	mock.ExpectBegin()
-
-	// Expect the initial user query
-	mock.ExpectQuery(`SELECT \* FROM "users"`).
-		WithArgs(existingID.String(), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash"}).
-			AddRow(existingID.String(), "old@example.com", ""))
-
-	// Expect the update
-	mock.ExpectExec(`UPDATE "users" SET`).
-		WithArgs("updated@example.com", existingID.String()).
+	mock.ExpectExec("UPDATE \"users\" SET").
+		WithArgs(newEmail, sqlmock.AnyArg(), userID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Expect commit
 	mock.ExpectCommit()
 
-	userService := &UserService{}
-	updatedData := models.User{Email: "updated@example.com"}
-	user, err := userService.UpdateUser(db, existingID.String(), updatedData)
+	// Get updated user
+	mock.ExpectQuery("SELECT (.+) FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+		WithArgs(userID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
+			AddRow(userID, newEmail))
+
+	service := &UserService{}
+	updatedUser, err := service.UpdateUser(db, userID.String(), models.User{Email: newEmail})
 	assert.NoError(t, err)
-	assert.Equal(t, updatedData.Email, user.Email)
+	assert.Equal(t, newEmail, updatedUser.Email)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_NotFound(t *testing.T) {
+	db, mock, close := testutils.SetupMockDB()
+	defer close()
+
+	mock.ExpectQuery("SELECT \\* FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+		WithArgs("non-existent-id", 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	service := &UserService{}
+	_, err := service.UpdateUser(db, "non-existent-id", models.User{Email: "new@example.com"})
+	assert.Error(t, err)
+	assert.Equal(t, ErrUserNotFound, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -101,27 +157,58 @@ func TestDeleteUser_Success(t *testing.T) {
 	db, mock, close := testutils.SetupMockDB()
 	defer close()
 
-	existingID := uuid.New()
+	userID := uuid.New()
 
-	// Begin transaction
+	// Get existing user
+	mock.ExpectQuery("SELECT (.+) FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
+		WithArgs(userID.String(), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
+			AddRow(userID, "test@example.com"))
+
+	// Delete user
 	mock.ExpectBegin()
-
-	// Expect the initial user query
-	mock.ExpectQuery(`SELECT \* FROM "users"`).
-		WithArgs(existingID.String(), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash"}).
-			AddRow(existingID.String(), "test@example.com", ""))
-
-	// Expect the delete
-	mock.ExpectExec(`DELETE FROM "users"`).
-		WithArgs(existingID.String()).
+	mock.ExpectExec("DELETE FROM \"users\" WHERE").
+		WithArgs(userID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Expect commit
 	mock.ExpectCommit()
 
-	userService := &UserService{}
-	err := userService.DeleteUser(db, existingID.String())
+	service := &UserService{}
+	err := service.DeleteUser(db, userID.String())
 	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetAllUsers_Success(t *testing.T) {
+	db, mock, close := testutils.SetupMockDB()
+	defer close()
+
+	mock.ExpectQuery("SELECT (.+) FROM \"users\"").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
+			AddRow(uuid.New(), "user1@example.com").
+			AddRow(uuid.New(), "user2@example.com"))
+
+	service := &UserService{}
+	users, err := service.GetAllUsers(db)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(users))
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUsers_WithFilters(t *testing.T) {
+	db, mock, close := testutils.SetupMockDB()
+	defer close()
+
+	email := "filtered@example.com"
+
+	mock.ExpectQuery("SELECT (.+) FROM \"users\" WHERE email = \\$1").
+		WithArgs(email).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
+			AddRow(uuid.New(), email))
+
+	service := &UserService{}
+	users, err := service.GetUsers(db, map[string]interface{}{"email": email})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(users))
+	assert.Equal(t, email, users[0].Email)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
