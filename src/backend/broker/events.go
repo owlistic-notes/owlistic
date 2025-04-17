@@ -11,12 +11,19 @@ import (
 type EventType string
 
 const (
-	NoteCreated     EventType = "NOTE_CREATED"
-	NoteUpdated     EventType = "NOTE_UPDATED"
-	NoteDeleted     EventType = "NOTE_DELETED"
-	NotebookCreated EventType = "NOTEBOOK_CREATED"
-	NotebookUpdated EventType = "NOTEBOOK_UPDATED"
-	NotebookDeleted EventType = "NOTEBOOK_DELETED"
+	// Standardized event types in format: <resource>.<action>
+	NoteCreated     EventType = "note.created"
+	NoteUpdated     EventType = "note.updated"
+	NoteDeleted     EventType = "note.deleted"
+	NotebookCreated EventType = "notebook.created"
+	NotebookUpdated EventType = "notebook.updated"
+	NotebookDeleted EventType = "notebook.deleted"
+	BlockCreated    EventType = "block.created"
+	BlockUpdated    EventType = "block.updated"
+	BlockDeleted    EventType = "block.deleted"
+	TaskCreated     EventType = "task.created"
+	TaskUpdated     EventType = "task.updated"
+	TaskDeleted     EventType = "task.deleted"
 )
 
 type Event struct {

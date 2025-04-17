@@ -27,6 +27,7 @@ func NewEvent(event, entity, operation, actorID string, data interface{}) (*Even
 		return nil, err
 	}
 
+	// Use standardized event name format
 	return &Event{
 		ID:        uuid.New(),
 		Event:     event,

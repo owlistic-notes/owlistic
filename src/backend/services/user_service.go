@@ -30,7 +30,7 @@ func (s *UserService) CreateUser(db *database.Database, user models.User) (model
 	}
 
 	event, err := models.NewEvent(
-		"user.created",
+		"user.created", // Should use broker.UserCreated once defined
 		"user",
 		"create",
 		user.ID.String(),

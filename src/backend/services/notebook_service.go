@@ -4,8 +4,10 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
+
 	"gorm.io/gorm"
 )
 
@@ -71,7 +73,7 @@ func (s *NotebookService) CreateNotebook(db *database.Database, notebookData map
 	}
 
 	event, err := models.NewEvent(
-		"notebook.created",
+		string(broker.NotebookCreated), // Use standard event type
 		"notebook",
 		"create",
 		userIDStr,
@@ -132,7 +134,7 @@ func (s *NotebookService) UpdateNotebook(db *database.Database, id string, updat
 	}
 
 	event, err := models.NewEvent(
-		"notebook.updated",
+		string(broker.NotebookUpdated), // Use standard event type
 		"notebook",
 		"update",
 		notebook.UserID.String(),
@@ -186,7 +188,7 @@ func (s *NotebookService) DeleteNotebook(db *database.Database, id string) error
 	}
 
 	event, err := models.NewEvent(
-		"notebook.deleted",
+		string(broker.NotebookDeleted), // Use standard event type
 		"notebook",
 		"delete",
 		notebook.UserID.String(),

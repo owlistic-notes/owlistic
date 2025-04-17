@@ -4,8 +4,10 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
+
 	"gorm.io/gorm"
 )
 
@@ -137,7 +139,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 
 	// Create event
 	event, err := models.NewEvent(
-		"task.created",
+		string(broker.TaskCreated), // Use standard event type
 		"task",
 		"create",
 		task.UserID.String(),
@@ -200,7 +202,7 @@ func (s *TaskService) UpdateTask(db *database.Database, id string, updatedData m
 	}
 
 	event, err := models.NewEvent(
-		"task.updated",
+		string(broker.TaskUpdated), // Use standard event type
 		"task",
 		"update",
 		task.UserID.String(),
@@ -251,7 +253,7 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 	}
 
 	event, err := models.NewEvent(
-		"task.deleted",
+		string(broker.TaskDeleted), // Use standard event type
 		"task",
 		"delete",
 		task.UserID.String(),

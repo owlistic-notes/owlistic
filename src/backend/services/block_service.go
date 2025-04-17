@@ -92,7 +92,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, err
 	}
 
-	// Publish event after successful commit
+	// Publish event after successful commit using standard EventType
 	payload := map[string]any{
 		"block_id": block.ID.String(),
 		"note_id":  block.NoteID.String(),
@@ -100,7 +100,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		"order":    block.Order,
 	}
 
-	if err := broker.PublishEvent(broker.NoteEventsTopic, "BLOCK_CREATED", payload); err != nil {
+	if err := broker.PublishEvent(broker.NoteEventsTopic, broker.BlockCreated, payload); err != nil {
 		log.Printf("Failed to publish block created event: %v", err)
 	}
 
@@ -202,13 +202,13 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string) error {
 		return err
 	}
 
-	// Publish event after successful commit
+	// Publish event after successful commit using standard EventType
 	payload := map[string]any{
 		"block_id": block.ID.String(),
 		"note_id":  block.NoteID.String(),
 	}
 
-	if err := broker.PublishEvent(broker.NoteEventsTopic, "BLOCK_DELETED", payload); err != nil {
+	if err := broker.PublishEvent(broker.NoteEventsTopic, broker.BlockDeleted, payload); err != nil {
 		log.Printf("Failed to publish block deleted event: %v", err)
 	}
 

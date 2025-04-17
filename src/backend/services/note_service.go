@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 
@@ -103,10 +104,10 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 		return models.Note{}, err
 	}
 
-	// Replace broker publish with event creation
+	// Replace broker publish with event creation using standard event type
 	actorID, _ := noteData["user_id"].(string)
 	event, err := models.NewEvent(
-		"note.created",
+		string(broker.NoteCreated), // Use standard event type
 		"note",
 		"create",
 		actorID,
@@ -187,7 +188,7 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, updatedData m
 
 	actorID, _ := updatedData["user_id"].(string)
 	event, err := models.NewEvent(
-		"note.updated",
+		string(broker.NoteUpdated), // Use standard event type
 		"note",
 		"update",
 		actorID,
@@ -252,7 +253,7 @@ func (s *NoteService) DeleteNote(db *database.Database, id string) error {
 	}
 
 	event, err := models.NewEvent(
-		"note.deleted",
+		string(broker.NoteDeleted), // Use standard event type
 		"note",
 		"delete",
 		note.UserID.String(),
