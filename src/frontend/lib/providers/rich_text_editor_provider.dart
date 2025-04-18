@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import '../models/block.dart';
 import '../utils/logger.dart';
@@ -706,55 +705,6 @@ class RichTextEditorProvider with ChangeNotifier {
     }
   }
   
-  // Reconcile document blocks with original blocks to determine updates/deletes
-  void _syncBlocksWithServer() {
-    // Create maps for efficient lookups
-    final Map<String, Block> originalBlocksMap = {
-      for (var block in _originalBlocks) block.id: block
-    };
-    
-    final Map<String, Block> currentBlocksMap = {
-      for (var block in _blocks) block.id: block
-    };
-    
-    // List of block IDs to delete (in original but not current)
-    final List<String> blocksToDelete = [];
-    
-    // Find blocks that were deleted during editing
-    for (final originalBlock in _originalBlocks) {
-      if (!currentBlocksMap.containsKey(originalBlock.id)) {
-        blocksToDelete.add(originalBlock.id);
-      }
-    }
-    
-    // Report blocks to delete
-    if (blocksToDelete.isNotEmpty) {
-      _logger.info('Blocks removed during editing: ${blocksToDelete.join(', ')}');
-      // You could call onBlockDeleted for each block or add a bulk callback here
-    }
-    
-    // Now handle all current blocks - get their latest content
-    for (final blockId in currentBlocksMap.keys) {
-      // Find a node that belongs to this block
-      String? nodeId;
-      for (final entry in _nodeToBlockMap.entries) {
-        if (entry.value == blockId) {
-          nodeId = entry.key;
-          break;
-        }
-      }
-      
-      if (nodeId != null) {
-        final node = _document.getNodeById(nodeId);
-        if (node != null) {
-          // Extract and update content
-          final content = _extractContentFromNode(node, blockId);
-          onBlockContentChanged?.call(blockId, content);
-        }
-      }
-    }
-  }
-  
   // Request focus on the editor
   void requestFocus() {
     if (!_focusNode.hasFocus) {
@@ -762,7 +712,7 @@ class RichTextEditorProvider with ChangeNotifier {
       _focusNode.requestFocus();
     }
   }
-  
+    
   @override
   void dispose() {
     _logger.debug('Disposing rich text editor provider');
