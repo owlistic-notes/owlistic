@@ -18,19 +18,27 @@ class Logger {
   
   /// Track whether the logging system has been initialized
   static bool _initialized = false;
+  static bool _debugMode = false;
+  
+  // Set to true to enable more verbose logging
+  static bool get debugMode => _debugMode;
+  static set debugMode(bool value) {
+    _debugMode = value;
+    _configureLogging();
+  }
   
   /// Create a logger for a specific component
   Logger(this.tag) {
-    _ensureInitialized();
+    _configureLogging();
     _internalLogger = logging.Logger(tag);
   }
   
   /// Initialize the logging framework once
-  static void _ensureInitialized() {
+  static void _configureLogging() {
     if (!_initialized) {
       logging.hierarchicalLoggingEnabled = true;
       
-      logging.Logger.root.level = kDebugMode 
+      logging.Logger.root.level = _debugMode 
           ? logging.Level.ALL 
           : logging.Level.INFO;
       
@@ -40,13 +48,13 @@ class Logger {
         final message = record.message;
         final loggerName = record.loggerName;
         
-        print("$timestamp | $level | $loggerName | $message");
+        debugPrintSynchronously("$timestamp | $level | $loggerName | $message");
         
         if (record.error != null) {
-          print("$timestamp | $level | $loggerName | ↳ ${record.error}");
+          debugPrintSynchronously("$timestamp | $level | $loggerName | ↳ ${record.error}");
           
           if (record.stackTrace != null && kDebugMode) {
-            print("$timestamp | $level | $loggerName | ↳ ${record.stackTrace}");
+            debugPrintSynchronously("$timestamp | $level | $loggerName | ↳ ${record.stackTrace}");
           }
         }
       });
@@ -95,3 +103,11 @@ class Logger {
 
 /// Global logger for general use
 final Logger log = Logger('Global');
+
+/// Helper function to print synchronously without throttling
+void debugPrintSynchronously(String message, {int wrapWidth = 100}) {
+  final lines = message.split('\n');
+  for (final line in lines) {
+    debugPrint(line, wrapWidth: wrapWidth);
+  }
+}

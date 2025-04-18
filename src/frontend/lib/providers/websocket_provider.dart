@@ -25,6 +25,9 @@ class WebSocketProvider with ChangeNotifier {
   final Set<String> _pendingSubscriptions = {};
   final Set<String> _confirmedSubscriptions = {};
 
+  // Map to store event listeners
+  final Map<String, List<Function(dynamic)>> _eventListeners = {};
+
   // Constructor - initialize and connect immediately
   WebSocketProvider() {
     _initializeWebSocketListener();
@@ -50,6 +53,7 @@ class WebSocketProvider with ChangeNotifier {
       (message) {
         _messageCount++;
         _handleWebSocketMessage(message);
+        _processMessage(message);
       },
       onError: (error) {
         _logger.error('Error from stream', error);
@@ -188,6 +192,44 @@ class WebSocketProvider with ChangeNotifier {
       if (_eventHandlers[key]!.isEmpty) {
         _eventHandlers.remove(key);
       }
+    }
+  }
+
+  // Register an event listener
+  void on(String eventName, Function(dynamic) callback) {
+    _eventListeners[eventName] ??= [];
+    _eventListeners[eventName]!.add(callback);
+  }
+
+  // Remove an event listener
+  void off(String eventName, [Function(dynamic)? callback]) {
+    if (callback == null) {
+      _eventListeners.remove(eventName);
+    } else if (_eventListeners.containsKey(eventName)) {
+      _eventListeners[eventName]!.remove(callback);
+    }
+  }
+
+  // Trigger event listeners for an event
+  void _triggerEvent(String eventName, dynamic data) {
+    if (_eventListeners.containsKey(eventName)) {
+      for (final callback in _eventListeners[eventName]!) {
+        callback(data);
+      }
+    }
+  }
+
+  // Process incoming WebSocket message
+  void _processMessage(dynamic message) {
+    // The existing message processing code...
+    
+    // After processing, trigger appropriate events
+    if (message is Map && message.containsKey('event')) {
+      final eventName = message['event'];
+      final eventData = message['data'];
+      
+      // Trigger event listeners
+      _triggerEvent(eventName, eventData);
     }
   }
 

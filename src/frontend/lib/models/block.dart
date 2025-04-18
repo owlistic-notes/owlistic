@@ -1,6 +1,6 @@
 class Block {
   final String id;
-  final String content;
+  final dynamic content; // Changed from String to dynamic to support both String and Map
   final String type;
   final String noteId;
   final int order;
@@ -21,10 +21,13 @@ class Block {
         : rawOrder is int
             ? rawOrder
             : 0;
+    
+    // Handle content which could be a string (legacy) or a map (new format)
+    final dynamic contentValue = json['content'];
             
     return Block(
       id: json['id'] ?? '',
-      content: json['content'] ?? '',
+      content: contentValue, // Store as-is, will handle conversion when accessing
       type: json['type'] ?? 'text',
       noteId: json['note_id'] ?? '',
       order: orderValue,
@@ -44,7 +47,7 @@ class Block {
   /// Creates a copy of this block with the given fields replaced with the new values
   Block copyWith({
     String? id,
-    String? content,
+    dynamic content,
     String? type,
     String? noteId,
     int? order,
@@ -56,5 +59,38 @@ class Block {
       noteId: noteId ?? this.noteId,
       order: order ?? this.order,
     );
+  }
+  
+  /// Gets the text content of this block, handling both string and map formats
+  String getTextContent() {
+    if (content is String) {
+      return content as String;
+    } else if (content is Map) {
+      return (content as Map)['text']?.toString() ?? '';
+    }
+    return '';
+  }
+  
+  /// Gets the raw content as a Map, handling both formats
+  Map<String, dynamic> getContentMap() {
+    if (content is Map) {
+      return Map<String, dynamic>.from(content as Map);
+    } else if (content is String) {
+      // Convert legacy string content to the new format
+      return {'text': content};
+    }
+    return {'text': ''};
+  }
+  
+  /// Creates a content map for updating the block
+  Map<String, dynamic> createContentMap(String text) {
+    if (content is Map) {
+      // Preserve other fields from the map
+      final Map<String, dynamic> newMap = Map<String, dynamic>.from(content as Map);
+      newMap['text'] = text;
+      return newMap;
+    }
+    // Otherwise create a new map
+    return {'text': text};
   }
 }

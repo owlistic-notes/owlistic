@@ -348,28 +348,45 @@ class ApiService {
     }
   }
 
-  static Future<Block> createBlock(String noteId, String content, String type, int order) async {
-    try {
-      // Convert the order to a string to ensure proper parsing on the Go backend
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/blocks'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'note_id': noteId,
-          'content': content,
-          'type': type,
-          'order': order.toString() // Send order as a string to avoid float64/int conversion issues
-        }),
-      );
-
-      if (response.statusCode == 201) {
-        return Block.fromJson(json.decode(response.body));
-      } else {
-        throw Exception('Failed to create block');
+  static Future<Block> createBlock(String noteId, dynamic content, String type, int order) async {
+    // Convert content to proper format for API
+    Map<String, dynamic> contentMap;
+    
+    // Handle different content types
+    if (content is String) {
+      try {
+        // Try to parse as JSON first
+        contentMap = json.decode(content);
+      } catch (e) {
+        // If parsing fails, treat as plain string content
+        contentMap = {'text': content};
       }
-    } catch (e) {
-      _logger.error('Error in createBlock', e);
-      rethrow;
+    } else if (content is Map) {
+      contentMap = Map<String, dynamic>.from(content);
+    } else {
+      throw ArgumentError('Content must be a String or Map');
+    }
+    
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/v1/blocks'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'note_id': noteId,
+        'content': contentMap,
+        'type': type,
+        'order': order,
+        'user_id': '90a12345-f12a-98c4-a456-513432930000', // Use hardcoded user_id for now
+      }),
+    );
+    
+    if (response.statusCode == 201) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return Block.fromJson(data);
+    } else {
+      throw Exception('Failed to create block: ${response.statusCode}, ${response.body}');
     }
   }
 
@@ -389,30 +406,48 @@ class ApiService {
     }
   }
 
-  static Future<Block> updateBlock(String id, String content, {String? type}) async {
-    try {
-      final Map<String, dynamic> updates = {
-        'content': content,
-      };
-      
-      if (type != null) {
-        updates['type'] = type;
+  static Future<Block> updateBlock(String blockId, dynamic content, {String? type}) async {
+    // Convert content to proper format for API
+    Map<String, dynamic> contentMap;
+    
+    // Handle different content types
+    if (content is String) {
+      try {
+        // Try to parse as JSON first
+        contentMap = json.decode(content);
+      } catch (e) {
+        // If parsing fails, treat as plain string content
+        contentMap = {'text': content};
       }
-      
-      final response = await http.put(
-        Uri.parse('$baseUrl/api/v1/blocks/$id'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(updates),
-      );
-
-      if (response.statusCode == 200) {
-        return Block.fromJson(json.decode(response.body));
-      } else {
-        throw Exception('Failed to update block: ${response.statusCode}');
-      }
-    } catch (e) {
-      _logger.error('Error in updateBlock', e);
-      rethrow;
+    } else if (content is Map) {
+      contentMap = Map<String, dynamic>.from(content);
+    } else {
+      throw ArgumentError('Content must be a String or Map');
+    }
+    
+    final Map<String, dynamic> body = {
+      'content': contentMap,
+      'user_id': '90a12345-f12a-98c4-a456-513432930000', // Use hardcoded user_id for now
+    };
+    
+    if (type != null) {
+      body['type'] = type;
+    }
+    
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/v1/blocks/$blockId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+    
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return Block.fromJson(data);
+    } else {
+      throw Exception('Failed to update block: ${response.statusCode}, ${response.body}');
     }
   }
 
