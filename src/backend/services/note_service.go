@@ -81,10 +81,27 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 	if blocksData, ok := noteData["blocks"].([]interface{}); ok {
 		for i, blockData := range blocksData {
 			blockMap := blockData.(map[string]interface{})
+
+			// Process content based on input format
+			var content models.BlockContent
+
+			// Handle different content formats while preserving the interface
+			switch c := blockMap["content"].(type) {
+			case map[string]interface{}:
+				// If we get a structured content object, use it directly
+				content = c
+			case string:
+				// If content is provided as a string, convert to BlockContent
+				content = models.BlockContent{"text": c}
+			default:
+				// Default empty content
+				content = models.BlockContent{"text": ""}
+			}
+
 			block := models.Block{
 				ID:      uuid.New(),
 				Type:    models.BlockType(blockMap["type"].(string)),
-				Content: blockMap["content"].(string),
+				Content: content,
 				Order:   i + 1,
 			}
 			note.Blocks = append(note.Blocks, block)
@@ -94,7 +111,7 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 		note.Blocks = []models.Block{{
 			ID:      uuid.New(),
 			Type:    models.TextBlock,
-			Content: "",
+			Content: models.BlockContent{"text": ""},
 			Order:   1,
 		}}
 	}
@@ -169,11 +186,28 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, updatedData m
 		var newBlocks []models.Block
 		for i, blockData := range blocksData {
 			blockMap := blockData.(map[string]interface{})
+
+			// Process content based on input format
+			var content models.BlockContent
+
+			// Handle different content formats while preserving the interface
+			switch c := blockMap["content"].(type) {
+			case map[string]interface{}:
+				// If we get a structured content object, use it directly
+				content = c
+			case string:
+				// If content is provided as a string, convert to BlockContent
+				content = models.BlockContent{"text": c}
+			default:
+				// Default empty content
+				content = models.BlockContent{"text": ""}
+			}
+
 			block := models.Block{
 				ID:      uuid.New(),
 				NoteID:  note.ID,
 				Type:    models.BlockType(blockMap["type"].(string)),
-				Content: blockMap["content"].(string),
+				Content: content,
 				Order:   i + 1,
 			}
 			newBlocks = append(newBlocks, block)

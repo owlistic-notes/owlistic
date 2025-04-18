@@ -13,8 +13,8 @@ func TestBlockJSON(t *testing.T) {
 		ID:       uuid.New(),
 		NoteID:   uuid.New(),
 		Type:     TextBlock,
-		Content:  "Test Content",
-		Metadata: `{"key": "value"}`,
+		Content:  BlockContent{"text": "Test Content"},
+		Metadata: BlockContent{"format": "markdown"},
 		Order:    1,
 		Tasks:    []Task{},
 	}
@@ -27,8 +27,8 @@ func TestBlockJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, block.ID, result.ID)
 	assert.Equal(t, block.Type, result.Type)
-	assert.Equal(t, block.Content, result.Content)
-	assert.Equal(t, block.Metadata, result.Metadata)
+	assert.Equal(t, "Test Content", result.Content["text"])
+	assert.Equal(t, "markdown", result.Metadata["format"])
 	assert.Equal(t, block.Order, result.Order)
 }
 
@@ -45,7 +45,7 @@ func TestBlockWithTasks(t *testing.T) {
 		ID:      uuid.New(),
 		NoteID:  uuid.New(),
 		Type:    TaskBlock,
-		Content: "Task Block",
+		Content: BlockContent{"text": "Task Block"},
 		Tasks:   []Task{task},
 		Order:   1,
 	}
@@ -58,4 +58,35 @@ func TestBlockWithTasks(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(result.Tasks))
 	assert.Equal(t, task.Title, result.Tasks[0].Title)
+}
+
+func TestBlockContentSerialization(t *testing.T) {
+	// Test empty BlockContent
+	empty := BlockContent{}
+	emptyVal, err := empty.Value()
+	assert.NoError(t, err)
+	assert.Equal(t, "{}", string(emptyVal.([]byte)))
+
+	// Test complex BlockContent
+	content := BlockContent{
+		"text":   "Sample text",
+		"format": "markdown",
+		"nested": map[string]interface{}{
+			"key":  "value",
+			"list": []string{"item1", "item2"},
+		},
+	}
+
+	val, err := content.Value()
+	assert.NoError(t, err)
+
+	var scanned BlockContent
+	err = scanned.Scan(val)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "Sample text", scanned["text"])
+	assert.Equal(t, "markdown", scanned["format"])
+
+	nested := scanned["nested"].(map[string]interface{})
+	assert.Equal(t, "value", nested["key"])
 }

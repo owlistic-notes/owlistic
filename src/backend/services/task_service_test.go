@@ -36,11 +36,16 @@ func TestCreateTask_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "title", "content", "created_at", "updated_at"}).
 			AddRow(noteID.String(), "Test Note", "Test Content", time.Now(), time.Now()))
 
-	// Expect a query to find the last block by order - notice the backtick for `order`
+	// Expect a query to find the last block by order - FIXED: Added LIMIT parameter
 	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE note_id = \$1 ORDER BY `+"`order`"+` DESC,"blocks"."id" LIMIT \$2`).
 		WithArgs(noteID.String(), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "note_id", "type", "content", "order"}).
-			AddRow(blockID.String(), noteID.String(), "text", "Test Content", 1))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "note_id", "type", "content", "metadata", "order"}).
+			AddRow(blockID.String(),
+				noteID.String(),
+				"text",
+				[]byte(`{"text":"Test Content"}`), // Content as JSONB
+				[]byte(`{}`),                      // Metadata as JSONB
+				1))
 
 	// Expect task creation - use sqlmock.AnyArg() for the ID (which is the first parameter now)
 	mock.ExpectQuery(`INSERT INTO "tasks"`).
@@ -113,20 +118,19 @@ func TestCreateTask_CreateNewBlock(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "title", "content", "created_at", "updated_at"}).
 			AddRow(noteID.String(), "Test Note", "Test Content", time.Now(), time.Now()))
 
-	// Expect a query to find the last block by order - fixed the backtick escaping
+	// Expect a query to find the last block by order - FIXED: Added LIMIT parameter
 	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE note_id = \$1 ORDER BY `+"`order`"+` DESC,"blocks"."id" LIMIT \$2`).
 		WithArgs(noteID.String(), 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
-	// Expect new block creation
+	// Expect new block creation with metadata parameter
 	mock.ExpectQuery("INSERT INTO \"blocks\"").
 		WithArgs(
 			noteID.String(),  // note_id
 			"task",           // type
-			"Task",           // content
-			"{}",             // metadata
 			1,                // order
 			sqlmock.AnyArg(), // id
+			sqlmock.AnyArg(), // content as JSONB
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(blockID.String()))
 

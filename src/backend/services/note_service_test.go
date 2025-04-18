@@ -44,15 +44,14 @@ func TestCreateNote_Success(t *testing.T) {
 	// Note service also creates an initial empty block for the note
 	mock.ExpectQuery(`INSERT INTO "blocks"`).
 		WithArgs(
-			noteID.String(),  // note_id
-			"text",           // type
-			"",               // content (empty for initial block)
-			"{}",             // metadata
-			1,                // order
-			sqlmock.AnyArg(), // id
+			noteID.String(),       // note_id
+			"text",                // type
+			1,                     // order
+			sqlmock.AnyArg(),      // id
+			[]byte(`{"text":""}`), // content (empty for initial block)
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
-			AddRow(blockID.String(), now, now)) // Use actual time values instead of sqlmock.AnyArg()
+			AddRow(blockID.String(), now, now))
 
 	// Create event expectation
 	mock.ExpectQuery(`INSERT INTO "events"`).

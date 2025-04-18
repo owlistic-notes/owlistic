@@ -58,7 +58,7 @@ func TestNotebookWithNotes(t *testing.T) {
 	block := Block{
 		ID:      uuid.New(),
 		Type:    TextBlock,
-		Content: "Test Content",
+		Content: BlockContent{"text": "Test Content"},
 		Order:   1,
 	}
 
@@ -93,5 +93,5 @@ func TestNotebookWithNotes(t *testing.T) {
 	assert.Equal(t, 1, len(result.Notes))
 	assert.Equal(t, note.Title, result.Notes[0].Title)
 	assert.Equal(t, 1, len(result.Notes[0].Blocks))
-	assert.Equal(t, block.Content, result.Notes[0].Blocks[0].Content)
+	assert.Equal(t, "Test Content", result.Notes[0].Blocks[0].Content["text"])
 }

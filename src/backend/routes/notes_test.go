@@ -30,7 +30,7 @@ func (m *MockNoteService) GetNotes(db *database.Database, params map[string]inte
 			Blocks: []models.Block{{
 				ID:      uuid.New(),
 				Type:    models.TextBlock,
-				Content: "This is a test note",
+				Content: models.BlockContent{"text": "This is a test note"},
 				Order:   1,
 			}},
 			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
@@ -41,7 +41,7 @@ func (m *MockNoteService) GetNotes(db *database.Database, params map[string]inte
 			Blocks: []models.Block{{
 				ID:      uuid.New(),
 				Type:    models.TextBlock,
-				Content: "This is another test note",
+				Content: models.BlockContent{"text": "This is another test note"},
 				Order:   1,
 			}},
 			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
@@ -91,13 +91,27 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 	}
 
 	blocks, ok := noteData["blocks"].([]interface{})
-	if !ok {
+	if (!ok) {
 		return models.Note{}, errors.New("blocks must be an array")
 	}
 
 	userIDStr, ok := noteData["user_id"].(string)
 	if !ok {
 		return models.Note{}, errors.New("user_id must be a string")
+	}
+	
+	// Get content data from the first block
+	blockData := blocks[0].(map[string]interface{})
+	var blockContent models.BlockContent
+	
+	// Handle different content formats
+	switch c := blockData["content"].(type) {
+	case map[string]interface{}:
+		blockContent = c
+	case string:
+		blockContent = models.BlockContent{"text": c}
+	default:
+		blockContent = models.BlockContent{"text": "Default content"}
 	}
 
 	return models.Note{
@@ -106,7 +120,7 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 		Blocks: []models.Block{{
 			ID:      uuid.New(),
 			Type:    models.TextBlock,
-			Content: blocks[0].(map[string]interface{})["content"].(string),
+			Content: blockContent,
 			Order:   1,
 		}},
 		UserID: uuid.Must(uuid.Parse(userIDStr)),
@@ -121,7 +135,7 @@ func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.
 			Blocks: []models.Block{{
 				ID:      uuid.New(),
 				Type:    models.TextBlock,
-				Content: "This is a test note.",
+				Content: models.BlockContent{"text": "This is a test note."},
 				Order:   1,
 			}},
 			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
@@ -133,13 +147,26 @@ func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.
 func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedData map[string]interface{}) (models.Note, error) {
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		blocks := updatedData["blocks"].([]interface{})
+		blockData := blocks[0].(map[string]interface{})
+		
+		// Handle different content formats
+		var blockContent models.BlockContent
+		switch c := blockData["content"].(type) {
+		case map[string]interface{}:
+			blockContent = c
+		case string:
+			blockContent = models.BlockContent{"text": c}
+		default:
+			blockContent = models.BlockContent{"text": "Default content"}
+		}
+		
 		return models.Note{
 			ID:    uuid.Must(uuid.Parse(id)),
 			Title: updatedData["title"].(string),
 			Blocks: []models.Block{{
 				ID:      uuid.New(),
 				Type:    models.TextBlock,
-				Content: blocks[0].(map[string]interface{})["content"].(string),
+				Content: blockContent,
 				Order:   1,
 			}},
 			UserID: uuid.Must(uuid.Parse(updatedData["user_id"].(string))),
@@ -164,7 +191,7 @@ func (m *MockNoteService) ListNotesByUser(db *database.Database, userID string) 
 				Blocks: []models.Block{{
 					ID:      uuid.New(),
 					Type:    models.TextBlock,
-					Content: "This is a test note.",
+					Content: models.BlockContent{"text": "This is a test note."},
 					Order:   1,
 				}},
 				UserID: uuid.Must(uuid.Parse(userID)),
@@ -182,7 +209,7 @@ func (m *MockNoteService) GetAllNotes(db *database.Database) ([]models.Note, err
 			Blocks: []models.Block{{
 				ID:      uuid.New(),
 				Type:    models.TextBlock,
-				Content: "This is a test note",
+				Content: models.BlockContent{"text": "This is a test note"},
 				Order:   1,
 			}},
 			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
@@ -193,7 +220,7 @@ func (m *MockNoteService) GetAllNotes(db *database.Database) ([]models.Note, err
 			Blocks: []models.Block{{
 				ID:      uuid.New(),
 				Type:    models.TextBlock,
-				Content: "This is another test note",
+				Content: models.BlockContent{"text": "This is another test note"},
 				Order:   1,
 			}},
 			UserID: uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
@@ -222,11 +249,27 @@ func TestCreateNote(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 
-	t.Run("Valid JSON", func(t *testing.T) {
+	t.Run("Valid JSON with String Content", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte(`{
 			"title":"Test Note",
 			"blocks":[{"type":"text","content":"Test Content","order":1}],
+			"user_id":"90a12345-f12a-98c4-a456-513432930000"
+		}`)))
+		services.NoteServiceInstance = mockService
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+	
+	t.Run("Valid JSON with Structured Content", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte(`{
+			"title":"Test Note",
+			"blocks":[{
+				"type":"text",
+				"content":{"text":"Test Content", "format":"markdown"},
+				"order":1
+			}],
 			"user_id":"90a12345-f12a-98c4-a456-513432930000"
 		}`)))
 		services.NoteServiceInstance = mockService

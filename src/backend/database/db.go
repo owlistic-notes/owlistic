@@ -7,6 +7,7 @@ import (
 	"github.com/thinkstack/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type Database struct {
@@ -23,10 +24,26 @@ func Setup(cfg config.Config) (*Database, error) {
 		cfg.DBName,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// Configure GORM with performance settings for large datasets
+	gormConfig := &gorm.Config{
+		Logger:      logger.Default.LogMode(logger.Info),
+		PrepareStmt: true, // Cache prepared statements for better performance
+	}
+
+	db, err := gorm.Open(postgres.Open(dsn), gormConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
+
+	// Configure connection pool
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database instance: %w", err)
+	}
+
+	// Set connection pool limits from configuration
+	sqlDB.SetMaxIdleConns(cfg.DBMaxIdleConns)
+	sqlDB.SetMaxOpenConns(cfg.DBMaxOpenConns)
 
 	// Run migrations to properly set up tables and constraints
 	log.Println("Running database migrations...")

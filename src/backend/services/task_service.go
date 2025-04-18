@@ -100,7 +100,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 				ID:      uuid.New(),
 				NoteID:  noteID,
 				Type:    models.TaskBlock,
-				Content: "Task",
+				Content: models.BlockContent{"text": "Task"},
 				Order:   1,
 			}
 

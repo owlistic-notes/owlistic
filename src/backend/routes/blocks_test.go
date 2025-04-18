@@ -28,7 +28,7 @@ func (m *MockBlockService) GetBlocks(db *database.Database, params map[string]in
 				ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
 				NoteID:  uuid.Must(uuid.Parse(noteID)),
 				Type:    models.TextBlock,
-				Content: "Test Content",
+				Content: models.BlockContent{"text": "Test Content"},
 				Order:   1,
 			},
 		}
@@ -51,8 +51,8 @@ func (m *MockBlockService) GetBlocks(db *database.Database, params map[string]in
 }
 
 func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[string]interface{}) (models.Block, error) {
-	content, ok := blockData["content"].(string)
-	if !ok || content == "" {
+	content, ok := blockData["content"]
+	if !ok {
 		return models.Block{}, errors.New("content is required")
 	}
 
@@ -61,11 +61,22 @@ func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[stri
 		return models.Block{}, errors.New("note_id must be a string")
 	}
 
+	// Handle different content formats while preserving the service interface
+	var blockContent models.BlockContent
+	switch c := content.(type) {
+	case map[string]interface{}:
+		blockContent = c
+	case string:
+		blockContent = models.BlockContent{"text": c}
+	default:
+		return models.Block{}, errors.New("invalid content format")
+	}
+
 	return models.Block{
 		ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
 		NoteID:  uuid.Must(uuid.Parse(noteIDStr)),
 		Type:    models.TextBlock,
-		Content: content,
+		Content: blockContent,
 		Order:   1,
 	}, nil
 }
@@ -76,7 +87,7 @@ func (m *MockBlockService) GetBlockById(db *database.Database, id string) (model
 			ID:      uuid.Must(uuid.Parse(id)),
 			NoteID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
 			Type:    models.TextBlock,
-			Content: "Test Content",
+			Content: models.BlockContent{"text": "Test Content"},
 			Order:   1,
 		}, nil
 	}
@@ -85,10 +96,24 @@ func (m *MockBlockService) GetBlockById(db *database.Database, id string) (model
 
 func (m *MockBlockService) UpdateBlock(db *database.Database, id string, blockData map[string]interface{}) (models.Block, error) {
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
+		// Handle content updates
+		var content models.BlockContent
+		if c, ok := blockData["content"]; ok {
+			switch typedContent := c.(type) {
+			case map[string]interface{}:
+				content = typedContent
+			case string:
+				// Maintain backward compatibility with string content
+				content = models.BlockContent{"text": typedContent}
+			default:
+				return models.Block{}, errors.New("invalid content format")
+			}
+		}
+
 		return models.Block{
 			ID:      uuid.Must(uuid.Parse(id)),
 			NoteID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
-			Content: blockData["content"].(string),
+			Content: content,
 			Type:    models.TextBlock,
 			Order:   1,
 		}, nil
@@ -110,7 +135,7 @@ func (m *MockBlockService) ListBlocksByNote(db *database.Database, noteID string
 				ID:      uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")),
 				NoteID:  uuid.Must(uuid.Parse(noteID)),
 				Type:    models.TextBlock,
-				Content: "Test Content",
+				Content: models.BlockContent{"text": "Test Content"},
 				Order:   1,
 			},
 		}, nil
@@ -138,7 +163,7 @@ func TestCreateBlock(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 
-	t.Run("Valid Block", func(t *testing.T) {
+	t.Run("Valid Block with String Content", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/v1/blocks/", bytes.NewBuffer([]byte(`{
 			"note_id": "90a12345-f12a-98c4-a456-513432930000",
@@ -148,6 +173,36 @@ func TestCreateBlock(t *testing.T) {
 		}`)))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	t.Run("Valid Block with Structured Content", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/v1/blocks/", bytes.NewBuffer([]byte(`{
+			"note_id": "90a12345-f12a-98c4-a456-513432930000",
+			"type": "text",
+			"content": {
+				"text": "Test Content",
+				"format": "markdown"
+			},
+			"order": 1
+		}`)))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	// Add a test specifically for backward compatibility with string content
+	t.Run("Backward Compatibility with String Content", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/v1/blocks/", bytes.NewBuffer([]byte(`{
+			"note_id": "90a12345-f12a-98c4-a456-513432930000",
+			"type": "text",
+			"content": "Plain old string content",
+			"order": 1
+		}`)))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+		// Verify that response includes the content in the new format
+		assert.Contains(t, w.Body.String(), `{"text":"Plain old string content"}`)
 	})
 }
 

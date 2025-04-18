@@ -76,5 +76,21 @@ func RunMigrations(db *gorm.DB) error {
 			 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`)
 
 	log.Println("Database migrations completed successfully")
+
+	// Create GIN index on the Block content JSONB field for better performance
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_blocks_content ON blocks USING GIN (content)").Error; err != nil {
+		return err
+	}
+
+	// Create index on block type for faster filtering
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_blocks_type ON blocks (type)").Error; err != nil {
+		return err
+	}
+
+	// Create compound index on note_id and order for faster block retrieval
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_blocks_note_order ON blocks (note_id, \"order\")").Error; err != nil {
+		return err
+	}
+
 	return nil
 }

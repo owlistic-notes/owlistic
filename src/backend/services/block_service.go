@@ -72,12 +72,33 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, ErrInvalidInput
 	}
 
+	// Process content based on input type
+	var content models.BlockContent
+	if contentData, ok := blockData["content"].(map[string]interface{}); ok {
+		// If we get a structured content object, use it directly
+		content = contentData
+	} else if contentStr, ok := blockData["content"].(string); ok {
+		// If content is provided as a string, maintain backward compatibility
+		// by storing it as {"text": content} in the JSONB field
+		content = models.BlockContent{"text": contentStr}
+	} else {
+		tx.Rollback()
+		return models.Block{}, ErrInvalidInput
+	}
+
+	// Handle metadata if provided
+	metadata := models.BlockContent{}
+	if metaData, ok := blockData["metadata"].(map[string]interface{}); ok {
+		metadata = metaData
+	}
+
 	block := models.Block{
-		ID:      uuid.New(),
-		NoteID:  uuid.Must(uuid.Parse(noteIDStr)),
-		Type:    models.BlockType(blockType),
-		Content: blockData["content"].(string),
-		Order:   order,
+		ID:       uuid.New(),
+		NoteID:   uuid.Must(uuid.Parse(noteIDStr)),
+		Type:     models.BlockType(blockType),
+		Content:  content,
+		Metadata: metadata,
+		Order:    order,
 	}
 
 	if err := tx.Create(&block).Error; err != nil {
@@ -103,6 +124,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 			"type":     string(block.Type),
 			"order":    block.Order,
 			"content":  block.Content,
+			"metadata": block.Metadata,
 		},
 	)
 
@@ -156,10 +178,23 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 		"updated_at": time.Now().UTC(),
 	}
 
-	// Only add content and type if they exist in blockData
-	if content, ok := blockData["content"].(string); ok {
-		eventData["content"] = content
+	// Handle content updates
+	if content, exists := blockData["content"]; exists {
+		if contentMap, ok := content.(map[string]interface{}); ok {
+			// If we get a structured content object, use it directly
+			eventData["content"] = contentMap
+		} else if contentStr, ok := content.(string); ok {
+			// If content is provided as a string, maintain backward compatibility
+			contentObj := models.BlockContent{"text": contentStr}
+			eventData["content"] = contentObj
+			// Update the content in blockData to use the proper format
+			blockData["content"] = contentObj
+		} else {
+			tx.Rollback()
+			return models.Block{}, ErrInvalidInput
+		}
 	}
+
 	if blockType, ok := blockData["type"].(string); ok {
 		eventData["type"] = blockType
 	}

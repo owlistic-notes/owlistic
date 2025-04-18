@@ -18,7 +18,7 @@ func TestNoteToJSON(t *testing.T) {
 			{
 				ID:      uuid.New(),
 				Type:    TextBlock,
-				Content: "Test Content",
+				Content: BlockContent{"text": "Test Content"},
 				Order:   1,
 			},
 		},
@@ -34,6 +34,7 @@ func TestNoteToJSON(t *testing.T) {
 	assert.Equal(t, note.ID, result.ID)
 	assert.Equal(t, note.Title, result.Title)
 	assert.Equal(t, len(note.Blocks), len(result.Blocks))
+	assert.Equal(t, "Test Content", result.Blocks[0].Content["text"])
 }
 
 func TestNoteFromJSON(t *testing.T) {
@@ -43,10 +44,10 @@ func TestNoteFromJSON(t *testing.T) {
 		"user_id": "550e8400-e29b-41d4-a716-446655440001",
 		"notebook_id": "550e8400-e29b-41d4-a716-446655440002",
 		"title": "Test Title",
-			"blocks": [{
+		"blocks": [{
 			"id": "` + blockID.String() + `",
 			"type": "text",
-			"content": "Test Content",
+			"content": {"text": "Test Content"},
 			"order": 1
 		}],
 		"is_deleted": false
@@ -57,5 +58,5 @@ func TestNoteFromJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Test Title", note.Title)
 	assert.Equal(t, 1, len(note.Blocks))
-	assert.Equal(t, "Test Content", note.Blocks[0].Content)
+	assert.Equal(t, "Test Content", note.Blocks[0].Content["text"])
 }
