@@ -21,6 +21,17 @@ func RunMigrations(db *gorm.DB) error {
 	db.Exec("ALTER TABLE IF EXISTS notes DROP CONSTRAINT IF EXISTS fk_notes_notebook_id")
 	db.Exec("ALTER TABLE IF EXISTS notebooks DROP CONSTRAINT IF EXISTS fk_notebooks_user_id")
 
+	// Drop existing tables if they exist
+	// log.Println("Dropping existing tables...")
+	// db.Exec("DROP TABLE IF EXISTS tasks CASCADE")
+	// db.Exec("DROP TABLE IF EXISTS blocks CASCADE")
+	// db.Exec("DROP TABLE IF EXISTS notes CASCADE")
+	// db.Exec("DROP TABLE IF EXISTS notebooks CASCADE")
+	// db.Exec("DROP TABLE IF EXISTS users CASCADE")
+	// db.Exec("DROP TABLE IF EXISTS events CASCADE")
+	// db.Exec("DROP TABLE IF EXISTS migrations CASCADE")
+	// db.Exec("DROP TABLE IF EXISTS migrations_history CASCADE")
+
 	// Create tables with proper schema - do this one by one in correct order
 	log.Println("Creating tables in dependency order...")
 

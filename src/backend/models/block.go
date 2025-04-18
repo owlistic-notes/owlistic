@@ -49,6 +49,7 @@ func (bc *BlockContent) Scan(value interface{}) error {
 // Block represents a content block within a note
 type Block struct {
 	ID        uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID     uuid.UUID `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
 	NoteID    uuid.UUID    `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"note_id"`
 	Type      BlockType    `gorm:"type:varchar(20);not null" json:"type"`
 	Content   BlockContent `gorm:"type:jsonb;not null;default:'{}'::jsonb" json:"content"`
