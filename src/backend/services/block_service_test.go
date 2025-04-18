@@ -21,8 +21,8 @@ func TestCreateBlock_Success(t *testing.T) {
 	// Begin transaction
 	mock.ExpectBegin()
 
-	// First expect the note existence check
-	mock.ExpectQuery("SELECT count(*) FROM \"notes\" WHERE id = \\$1").
+	// First expect the note existence check - use backticks format
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "notes" WHERE id = \$1`).
 		WithArgs(noteID.String()).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -181,7 +181,7 @@ func TestListBlocksByNote_Success(t *testing.T) {
 	noteID := uuid.New()
 	blockID := uuid.New()
 
-	mock.ExpectQuery("SELECT \\* FROM \"blocks\" WHERE note_id = \\$1").
+	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE note_id = \$1`).
 		WithArgs(noteID.String()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "note_id", "type", "content", "order"}).
 			AddRow(blockID.String(), noteID.String(), "text", "Test Content", 1))

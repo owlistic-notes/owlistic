@@ -61,31 +61,62 @@ func (m *MockBroker) SendKafkaMessage(msg broker.KafkaMessage) {
 	}
 }
 
+// MockConsumer implements the broker.Consumer interface for testing
+type MockConsumer struct {
+	mock.Mock
+	messageChan chan broker.KafkaMessage
+	closed      bool
+}
+
+func NewMockConsumer() *MockConsumer {
+	return &MockConsumer{
+		messageChan: make(chan broker.KafkaMessage, 10),
+		closed:      false,
+	}
+}
+
+func (m *MockConsumer) GetMessageChannel() <-chan broker.KafkaMessage {
+	return m.messageChan
+}
+
+func (m *MockConsumer) Close() {
+	m.Called()
+	m.closed = true
+}
+
+func (m *MockConsumer) SendTestMessage(msg broker.KafkaMessage) {
+	if !m.closed {
+		m.messageChan <- msg
+	}
+}
+
 // Setup helper that uses our testable service
-func setupWebSocketTest(t *testing.T) (*WebSocketService, *MockBroker) {
+func setupWebSocketTest(t *testing.T) (*WebSocketService, *MockConsumer) {
 	db, _, _ := testutils.SetupMockDB()
 
-	// Create a mock broker with a channel for test messages
-	mockBroker := &MockBroker{
-		kafkaMessages: make(chan broker.KafkaMessage, 10),
-	}
+	// Create a mock consumer
+	mockConsumer := NewMockConsumer()
+	mockConsumer.On("Close").Return()
 
 	// Create the WebSocket service - we'll directly pass the mock channel
 	service := NewWebSocketService(db, []string{"test_topic"}).(*WebSocketService)
 
-	// Set our mock channel as the input source for Kafka messages
-	service.SetKafkaInputChannel(mockBroker.kafkaMessages)
+	// Set our mock consumer's channel as the input source for Kafka messages
+	service.SetKafkaInputChannel(mockConsumer.messageChan)
+
+	// Also store the mockConsumer for easy reference in tests
+	service.kafkaConsumer = mockConsumer
 
 	// Start the service - this will trigger the run() method but won't start HTTP server
 	service.isRunning = true
 	go service.run()
 
-	// Start forwarding from mock broker to service
-	go service.forwardKafkaMessages(mockBroker.kafkaMessages)
+	// Start forwarding from mock consumer to service
+	go service.forwardKafkaMessages(mockConsumer.messageChan)
 
 	log.Printf("Test WebSocket service started with mock Kafka channel")
 
-	return service, mockBroker
+	return service, mockConsumer
 }
 
 // safeStop provides a safe way to stop a test WebSocket service
@@ -98,7 +129,13 @@ func safeStop(service *WebSocketService) {
 	service.isRunning = false
 	close(service.stopChan)
 
-	// In tests, we don't need to close connections because they're nil
+	// Close the Kafka consumer properly
+	if service.kafkaConsumer != nil {
+		service.kafkaConsumer.Close()
+		service.kafkaConsumer = nil
+	}
+
+	// In tests, we don't need to close client connections because they're nil
 	log.Println("WebSocket service stopped for tests")
 }
 
@@ -164,10 +201,8 @@ func TestWebSocketService_HandleKafkaMessage(t *testing.T) {
 
 	// Create a test Kafka message
 	data := map[string]interface{}{
-		"data": map[string]interface{}{
-			"note_id": "note-123",
-			"title":   "Test Note",
-		},
+		"note_id": "note-123",
+		"title":   "Test Note",
 	}
 	jsonData, _ := json.Marshal(data)
 
@@ -265,10 +300,8 @@ func TestWebSocketService_ExtractResourceInfo(t *testing.T) {
 
 	// Test note resource
 	noteEvent := map[string]interface{}{
-		"data": map[string]interface{}{
-			"note_id": "note-123",
-			"title":   "Test Note",
-		},
+		"note_id": "note-123",
+		"title":   "Test Note",
 	}
 	id, resourceType := service.extractResourceInfo(noteEvent)
 	assert.Equal(t, "note-123", id)
@@ -276,10 +309,8 @@ func TestWebSocketService_ExtractResourceInfo(t *testing.T) {
 
 	// Test block resource
 	blockEvent := map[string]interface{}{
-		"data": map[string]interface{}{
-			"block_id": "block-456",
-			"content":  "Test content",
-		},
+		"block_id": "block-456",
+		"content":  "Test content",
 	}
 	id, resourceType = service.extractResourceInfo(blockEvent)
 	assert.Equal(t, "block-456", id)
@@ -287,10 +318,8 @@ func TestWebSocketService_ExtractResourceInfo(t *testing.T) {
 
 	// Test notebook resource
 	notebookEvent := map[string]interface{}{
-		"data": map[string]interface{}{
-			"notebook_id": "notebook-789",
-			"name":        "Test Notebook",
-		},
+		"notebook_id": "notebook-789",
+		"name":        "Test Notebook",
 	}
 	id, resourceType = service.extractResourceInfo(notebookEvent)
 	assert.Equal(t, "notebook-789", id)
@@ -391,7 +420,7 @@ func TestWebSocketHandler(t *testing.T) {
 
 // TestForwardKafkaMessages tests the Kafka message forwarding mechanism
 func TestForwardKafkaMessages(t *testing.T) {
-	service, mockBroker := setupWebSocketTest(t)
+	service, mockConsumer := setupWebSocketTest(t)
 
 	// Create a client that will receive the processed messages
 	messageReceived := make(chan struct{})
@@ -429,8 +458,8 @@ func TestForwardKafkaMessages(t *testing.T) {
 		close(messageReceived)
 	}()
 
-	// Send a test Kafka message through the mock broker
-	mockBroker.SendKafkaMessage(broker.KafkaMessage{
+	// Send a test Kafka message through the mock consumer
+	mockConsumer.SendTestMessage(broker.KafkaMessage{
 		Topic: "test_topic",
 		Key:   "test_key",
 		Value: `{"test":"value"}`,

@@ -19,16 +19,19 @@ func TestCreateNotebook_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 
+	// Check if user exists
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "users" WHERE id = \$1`).
+		WithArgs(userID.String()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 	// Expect notebook creation
 	mock.ExpectQuery("INSERT INTO \"notebooks\"").
 		WithArgs(
-			sqlmock.AnyArg(), // id
 			userID.String(),  // user_id
 			"Test Notebook",  // name
 			"Description",    // description
 			false,            // is_deleted
-			sqlmock.AnyArg(), // created_at
-			sqlmock.AnyArg(), // updated_at
+			sqlmock.AnyArg(), // id
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(notebookID))
 
@@ -97,13 +100,8 @@ func TestUpdateNotebook_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 
-	// Initial notebook query - match exact SQL
-	mock.ExpectQuery("SELECT count(*) FROM \"notebooks\" WHERE id = \\$1").
-		WithArgs(notebookID.String()).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-
-	// Initial notebook query
-	mock.ExpectQuery("SELECT \\* FROM \"notebooks\" WHERE id = \\$1 LIMIT \\$2").
+	// Initial notebook query - match the actual SQL query
+	mock.ExpectQuery(`SELECT \* FROM "notebooks" WHERE id = \$1 ORDER BY "notebooks"."id" LIMIT \$2`).
 		WithArgs(notebookID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "name", "description", "is_deleted", "created_at", "updated_at",
@@ -120,8 +118,8 @@ func TestUpdateNotebook_Success(t *testing.T) {
 	// Update notebook
 	mock.ExpectExec("UPDATE \"notebooks\"").
 		WithArgs(
-			"Updated Name",        // name
 			"Updated Description", // description
+			"Updated Name",        // name
 			sqlmock.AnyArg(),      // updated_at
 			notebookID.String(),   // where id = ?
 		).
@@ -164,16 +162,35 @@ func TestDeleteNotebook_Success(t *testing.T) {
 
 	notebookID := uuid.New()
 	userID := uuid.New()
+	eventID := uuid.New()
 
+	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT \* FROM "notebooks"`).
 		WithArgs(notebookID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "name"}).
 			AddRow(notebookID, userID, "Test Notebook"))
 
-	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE \"notebooks\" SET \"is_deleted\"=\\$1,\"updated_at\"=\\$2 WHERE \"id\" = \\$3").
-		WithArgs(true, userID.String(), sqlmock.AnyArg(), notebookID.String()).
+		WithArgs(true, sqlmock.AnyArg(), notebookID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Add missing event creation expectation
+	mock.ExpectQuery("INSERT INTO \"events\"").
+		WithArgs(
+			"notebook.deleted", // event
+			1,                  // version
+			"notebook",         // entity
+			"delete",           // operation
+			sqlmock.AnyArg(),   // timestamp
+			userID.String(),    // actor_id
+			sqlmock.AnyArg(),   // data json
+			"pending",          // status
+			false,              // dispatched
+			nil,                // dispatched_at
+			sqlmock.AnyArg(),   // id
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(eventID.String()))
+
 	mock.ExpectCommit()
 
 	notebookService := &NotebookService{}

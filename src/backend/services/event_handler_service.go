@@ -17,9 +17,10 @@ type EventHandlerServiceInterface interface {
 }
 
 type EventHandlerService struct {
-	db        *database.Database
-	isRunning bool
-	ticker    *time.Ticker
+	db            *database.Database
+	isRunning     bool
+	ticker        *time.Ticker
+	kafkaProducer broker.Producer
 }
 
 func NewEventHandlerService(db *database.Database) EventHandlerServiceInterface {
@@ -27,6 +28,18 @@ func NewEventHandlerService(db *database.Database) EventHandlerServiceInterface 
 		db:        db,
 		isRunning: false,
 		ticker:    time.NewTicker(1 * time.Second),
+		// By default, use the global producer. This can be overridden for testing
+		kafkaProducer: nil, // Will use the global producer via broker.PublishMessage
+	}
+}
+
+// NewEventHandlerServiceWithProducer creates a new EventHandlerService with a custom producer
+func NewEventHandlerServiceWithProducer(db *database.Database, producer broker.Producer) EventHandlerServiceInterface {
+	return &EventHandlerService{
+		db:            db,
+		isRunning:     false,
+		ticker:        time.NewTicker(1 * time.Second),
+		kafkaProducer: producer,
 	}
 }
 
@@ -122,8 +135,16 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 		return err
 	}
 
-	if err := broker.PublishMessage(topic, event.Event, string(jsonData)); err != nil {
-		return err
+	// Use either the custom producer if set, or the global function
+	var publishErr error
+	if s.kafkaProducer != nil {
+		publishErr = s.kafkaProducer.PublishMessage(topic, event.Event, string(jsonData))
+	} else {
+		publishErr = broker.PublishMessage(topic, event.Event, string(jsonData))
+	}
+
+	if publishErr != nil {
+		return publishErr
 	}
 
 	// Mark the event as dispatched in the database

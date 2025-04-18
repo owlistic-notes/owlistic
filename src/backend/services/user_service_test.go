@@ -118,16 +118,18 @@ func TestUpdateUser_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
 			AddRow(userID, oldEmail))
 
-	// Update user
 	mock.ExpectBegin()
+
+	// Update user
 	mock.ExpectExec("UPDATE \"users\" SET").
-		WithArgs(newEmail, sqlmock.AnyArg(), userID.String()).
+		WithArgs(newEmail, userID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
 	mock.ExpectCommit()
 
 	// Get updated user
-	mock.ExpectQuery("SELECT (.+) FROM \"users\" WHERE id = \\$1 ORDER BY \"users\".\"id\" LIMIT \\$2").
-		WithArgs(userID.String(), 1).
+	mock.ExpectQuery("SELECT \\* FROM \"users\" WHERE id = \\$1 AND \"users\".\"id\" = \\$2 ORDER BY \"users\".\"id\" LIMIT \\$3").
+		WithArgs(userID.String(), userID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).
 			AddRow(userID, newEmail))
 

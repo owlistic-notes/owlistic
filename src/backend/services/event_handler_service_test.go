@@ -5,17 +5,46 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 	"github.com/thinkstack/testutils"
 )
 
+// MockProducer implements the broker.Producer interface for testing
+type MockProducer struct {
+	mock.Mock
+	available bool
+}
+
+func NewMockProducer() *MockProducer {
+	return &MockProducer{available: true}
+}
+
+func (m *MockProducer) PublishMessage(topic string, key string, value string) error {
+	args := m.Called(topic, key, value)
+	return args.Error(0)
+}
+
+func (m *MockProducer) Close() {
+	m.Called()
+}
+
+func (m *MockProducer) IsAvailable() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
 func TestEventHandlerService_ProcessPendingEvents(t *testing.T) {
-	db, mock, close := testutils.SetupMockDB()
+	db, dbMock, close := testutils.SetupMockDB()
 	defer close()
 
+	// Create a mock producer
+	mockProducer := NewMockProducer()
+	mockProducer.On("PublishMessage", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
 	// Setup test data
-	mock.ExpectQuery("SELECT \\* FROM \"events\" WHERE dispatched = \\$1").
+	dbMock.ExpectQuery("SELECT \\* FROM \"events\" WHERE dispatched = \\$1").
 		WithArgs(false).
 		WillReturnRows(testutils.MockEventRows([]models.Event{
 			{
@@ -27,17 +56,20 @@ func TestEventHandlerService_ProcessPendingEvents(t *testing.T) {
 		}))
 
 	// Expect update after processing
-	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE \"events\" SET").
+	dbMock.ExpectBegin()
+	dbMock.ExpectExec("UPDATE \"events\" SET").
 		WillReturnResult(testutils.NewResult(1, 1))
-	mock.ExpectCommit()
+	dbMock.ExpectCommit()
 
-	service := NewEventHandlerService(db)
+	// Create service with our mock producer
+	service := NewEventHandlerServiceWithProducer(db, mockProducer)
+
 	service.Start()
 	time.Sleep(2 * time.Second) // Allow some time for processing
 	service.Stop()
 
-	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+	mockProducer.AssertExpectations(t)
 }
 
 func TestEventHandlerService_Lifecycle(t *testing.T) {

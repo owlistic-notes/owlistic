@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/thinkstack/broker"
+	"github.com/thinkstack/config"
 	"github.com/thinkstack/database"
 )
 
@@ -69,6 +71,9 @@ type WebSocketService struct {
 	isRunning bool
 	stopChan  chan struct{}
 
+	// Kafka consumer
+	kafkaConsumer broker.Consumer
+
 	// For testing
 	kafkaInputChannel <-chan broker.KafkaMessage
 }
@@ -99,6 +104,9 @@ func NewWebSocketService(db *database.Database, topics []string) WebSocketServic
 		// Control
 		isRunning: false,
 		stopChan:  make(chan struct{}),
+
+		// Initialize kafka consumer as nil - will be set in StartWithPort
+		kafkaConsumer: nil,
 
 		// Initialize kafkaInputChannel as nil - will be set in StartWithPort
 		kafkaInputChannel: nil,
@@ -140,14 +148,23 @@ func (ws *WebSocketService) StartWithPort(port string) {
 		go ws.forwardKafkaMessages(ws.kafkaInputChannel)
 	} else {
 		// Otherwise initialize real Kafka consumer and connect it to our channel
-		kafkaChan, err := broker.InitConsumer(ws.kafkaTopics, "websocket-group")
+		cfg := config.Load()
+		brokerURL := cfg.KafkaBroker
+
+		// Allow override from environment
+		if envBroker := os.Getenv("KAFKA_BROKER"); envBroker != "" {
+			brokerURL = envBroker
+		}
+
+		consumer, err := broker.NewKafkaConsumer(brokerURL, ws.kafkaTopics, "websocket-group")
 		if err != nil {
 			log.Printf("Failed to initialize Kafka consumer: %v", err)
 			log.Println("WebSocket service will run with reduced functionality")
+		} else {
+			ws.kafkaConsumer = consumer
+			// Start forwarding Kafka messages from the consumer's message channel
+			go ws.forwardKafkaMessages(consumer.GetMessageChannel())
 		}
-
-		// Start forwarding Kafka messages
-		go ws.forwardKafkaMessages(kafkaChan)
 	}
 
 	// Setup HTTP handler for WebSocket connections
@@ -204,6 +221,12 @@ func (ws *WebSocketService) Stop() {
 
 	ws.isRunning = false
 	close(ws.stopChan)
+
+	// Close Kafka consumer if it exists
+	if ws.kafkaConsumer != nil {
+		ws.kafkaConsumer.Close()
+		ws.kafkaConsumer = nil
+	}
 
 	// Close all client connections
 	ws.clientsMutex.Lock()

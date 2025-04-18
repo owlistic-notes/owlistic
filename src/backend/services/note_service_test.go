@@ -102,15 +102,15 @@ func TestUpdateNote_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "title", "user_id"}).
 			AddRow(noteID.String(), "Old Title", userID.String()))
 
-	// Query for blocks associated with the note
-	mock.ExpectQuery("SELECT \\* FROM \"blocks\" WHERE \"blocks\".\"note_id\" = \\$1").
+	// Query for blocks associated with the note - using backticks
+	mock.ExpectQuery(`SELECT \* FROM "blocks" WHERE "blocks"."note_id" = \$1`).
 		WithArgs(noteID.String()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "note_id"}))
 
 	// Update note - match actual number of arguments (3 instead of 4)
 	// The UPDATE query in the service doesn't include user_id, only title and updated_at
 	mock.ExpectExec("UPDATE \"notes\" SET").
-		WithArgs("Updated Title", sqlmock.AnyArg(), noteID.String()).
+		WithArgs("Updated Title", userID.String(), sqlmock.AnyArg(), noteID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Create event expectation
