@@ -14,6 +14,8 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  
   @override
   void initState() {
     super.initState();
@@ -169,10 +171,21 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Tasks'),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              // Implement search functionality
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -205,7 +218,7 @@ class _TasksScreenState extends State<TasksScreen> {
             onRefresh: () => tasksProvider.fetchTasks(),
             color: Theme.of(context).primaryColor,
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: tasksProvider.tasks.length,
               itemBuilder: (context, index) {
                 final task = tasksProvider.tasks[index];
@@ -248,10 +261,13 @@ class _TasksScreenState extends State<TasksScreen> {
                     ],
                   ),
                   child: task.description != null && task.description!.isNotEmpty
-                      ? Text(
-                          task.description!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            task.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         )
                       : const SizedBox.shrink(),
                 );

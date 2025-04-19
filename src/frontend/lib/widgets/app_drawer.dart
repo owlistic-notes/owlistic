@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../providers/websocket_provider.dart';
 import '../providers/theme_provider.dart';
 import '../core/theme.dart';
 import 'theme_switcher.dart';
@@ -30,7 +29,7 @@ class AppDrawer extends StatelessWidget {
             ),
             _buildMenuItem(
               context,
-              icon: Icons.book_outlined,
+              icon: Icons.folder_outlined,
               title: 'Notebooks',
               route: '/notebooks',
             ),
@@ -42,13 +41,10 @@ class AppDrawer extends StatelessWidget {
             ),
             _buildMenuItem(
               context,
-              icon: Icons.task_outlined,
+              icon: Icons.assignment_outlined,
               title: 'Tasks',
               route: '/tasks',
             ),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            _buildSyncStatus(context),
             const Spacer(),
             _buildBottomActions(context),
           ],
@@ -71,7 +67,7 @@ class AppDrawer extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(
-              Icons.auto_awesome,
+              Icons.psychology,
               color: Colors.white,
             ),
           ),
@@ -79,8 +75,8 @@ class AppDrawer extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
+              children: const [
+                Text(
                   'ThinkStack',
                   style: TextStyle(
                     fontSize: 18,
@@ -88,8 +84,8 @@ class AppDrawer extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 2),
-                const Text(
+                SizedBox(height: 2),
+                Text(
                   'Your connected workspace',
                   style: TextStyle(
                     fontSize: 12,
@@ -143,37 +139,6 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildSyncStatus(BuildContext context) {
-    final wsProvider = Provider.of<WebSocketProvider>(context);
-    final statusColor = wsProvider.isConnected ? Colors.green : Colors.orange;
-    final statusText = wsProvider.isConnected ? 'Connected' : 'Disconnected';
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: statusColor,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            statusText,
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).textTheme.bodySmall?.color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBottomActions(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -183,35 +148,17 @@ class AppDrawer extends StatelessWidget {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Theme switcher
           const ThemeSwitcher(),
           
-          // WebSocket reconnect
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              Navigator.pop(context);
-              final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
-              await wsProvider.reconnect();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    wsProvider.isConnected 
-                      ? 'WebSocket reconnected!' 
-                      : 'WebSocket reconnection failed'
-                  ),
-                ),
-              );
-            },
-            tooltip: 'Reconnect WebSocket',
-          ),
-          
           // Help button
           IconButton(
             icon: const Icon(Icons.help_outline),
-            onPressed: () {},
+            onPressed: () {
+              // Show help dialog or navigate to help section
+            },
             tooltip: 'Help',
           ),
         ],

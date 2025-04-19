@@ -610,6 +610,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            _saveAllContent();
+            Navigator.pop(context);
+          },
+        ),
         title: TextField(
           controller: _titleController,
           style: const TextStyle(

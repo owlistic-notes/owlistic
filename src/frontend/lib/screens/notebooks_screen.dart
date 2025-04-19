@@ -18,6 +18,7 @@ class NotebooksScreen extends StatefulWidget {
 class _NotebooksScreenState extends State<NotebooksScreen> {
   final Logger _logger = Logger('NotebooksScreen');
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _currentPage = 1;
   bool _isLoadingMore = false;
   bool _hasMoreData = true;
@@ -214,19 +215,18 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to websocket provider for connection status
-    final wsProvider = context.webSocketProvider(listen: true);
-    
     // Listen to notebooks provider for data updates
     final notebooksPresenter = context.notebooksPresenter(listen: true);
     
-    // Add key based on notebook count to force rebuild when notebooks change
-    final notebookCount = notebooksPresenter.notebooks.length;
-    
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Notebooks'),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         actions: [
           // Add refresh button
           IconButton(
@@ -239,28 +239,10 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
             },
             tooltip: 'Refresh notebooks',
           ),
-          // Connection indicator
-          IconButton(
-            icon: Icon(
-              wsProvider.isConnected ? Icons.wifi : Icons.wifi_off,
-              color: wsProvider.isConnected ? Colors.white : Colors.white70,
-            ),
-            onPressed: () {
-              // Use regular reconnect method and then refresh notebooks
-              wsProvider.reconnect().then((_) {
-                // Re-fetch notebooks after reconnect
-                Future.microtask(() {
-                  notebooksPresenter.fetchNotebooks();
-                });
-              });
-            },
-            tooltip: 'WebSocket status - click to reconnect',
-          )
         ],
       ),
       drawer: const AppDrawer(),
       body: _buildBody(notebooksPresenter),
-      key: ValueKey('notebooks_screen_$notebookCount'),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddNotebookDialog,
         child: const Icon(Icons.add),
@@ -289,7 +271,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       color: Theme.of(context).primaryColor,
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: presenter.notebooks.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           // Show loading indicator at the end

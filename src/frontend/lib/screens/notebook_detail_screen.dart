@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../models/note.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/websocket_provider.dart';
@@ -9,6 +10,7 @@ import '../core/theme.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import 'note_editor_screen.dart';
+import '../widgets/app_drawer.dart';
 
 /// NotebookDetailScreen acts as the View in MVP pattern
 class NotebookDetailScreen extends StatefulWidget {
@@ -22,6 +24,7 @@ class NotebookDetailScreen extends StatefulWidget {
 
 class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   final Logger _logger = Logger('NotebookDetailScreen');
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
   
   // NotebooksProvider acts as the Presenter
@@ -179,9 +182,6 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to websocket provider for connection status
-    final wsProvider = context.webSocketProvider(listen: true);
-    
     // Listen to notebooks provider for data updates
     final notebooksPresenter = context.notebooksPresenter(listen: true);
     
@@ -194,15 +194,20 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         ? notebooksPresenter.notebooks[notebookIndex]
         : null;
     
-    // Add key based on note count to force rebuild when notes change
-    final noteCount = hasNotebook ? notebook!.notes.length : 0;
-    
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      key: ValueKey('notebook_${widget.notebookId}_notes_$noteCount'),
       appBar: AppBar(
         title: Text(hasNotebook ? notebook!.name : 'Notebook Details'),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/notebooks'),
+          ),
           // Add refresh button
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -213,17 +218,9 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
               );
             },
           ),
-          // Connection indicator
-          Tooltip(
-            message: 'WebSocket ${wsProvider.isConnected ? "Connected" : "Disconnected"}',
-            child: Icon(
-              wsProvider.isConnected ? Icons.wifi : Icons.wifi_off,
-              color: wsProvider.isConnected ? Colors.white : Colors.white70,
-            ),
-          ),
-          const SizedBox(width: 16),
         ],
       ),
+      drawer: const AppDrawer(),
       body: !hasNotebook
           ? const Center(child: CircularProgressIndicator())
           : _buildNotebookContent(context, notebook!),
@@ -250,7 +247,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -311,9 +308,9 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
             ],
           ),
         ),
+        const Divider(),
         Expanded(
           child: ListView.builder(
-            key: ValueKey('notes_list_${notebook.notes.length}'),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: notebook.notes.length,
             itemBuilder: (context, index) {

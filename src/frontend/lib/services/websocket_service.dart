@@ -13,7 +13,7 @@ import '../utils/logger.dart';
 class WebSocketService {
   static final WebSocketService _instance = WebSocketService._internal();
   WebSocketChannel? _channel;
-  String _userId = '90a12345-f12a-98c4-a456-513432930000'; // Default user ID
+  String _userId = '5719498e-aaba-4dbd-8385-5b1b8cd49a17'; // Default user ID
   final String _baseUrl;
   final Logger _logger = Logger('WebSocketService');
   

@@ -43,8 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = context.isDarkMode;
-    
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
@@ -64,15 +62,16 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       drawer: const AppDrawer(),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildWelcomeCard(context),
-            _buildSectionHeader(context, 'Recent Notebooks', Icons.book),
+            _buildSectionHeader(context, 'Recent Notebooks', Icons.folder_outlined),
             _buildRecentNotebooks(),
-            _buildSectionHeader(context, 'Recent Notes', Icons.note),
+            _buildSectionHeader(context, 'Recent Notes', Icons.note_outlined),
             _buildRecentNotes(),
-            _buildSectionHeader(context, 'Recent Tasks', Icons.task_alt),
+            _buildSectionHeader(context, 'Recent Tasks', Icons.assignment_outlined),
             _buildRecentTasks(),
             const SizedBox(height: 80), // Space for FAB
           ],
@@ -186,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return EmptyState(
               title: 'No notebooks yet',
               message: 'Create your first notebook to organize your notes.',
-              icon: Icons.folder_outlined, // Folder icon for notebooks
+              icon: Icons.folder_outlined,
               onAction: () => _showAddNotebookDialog(context),
               actionLabel: 'Create Notebook',
             );

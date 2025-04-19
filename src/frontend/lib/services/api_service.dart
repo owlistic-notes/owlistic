@@ -92,7 +92,7 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'title': title,
-          'user_id': '90a12345-f12a-98c4-a456-513432930000',
+          'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17',
           'notebook_id': notebookId,
           'blocks': [
             {
@@ -150,7 +150,7 @@ class ApiService {
       final taskData = {
         'title': title,
         'is_completed': false,
-        'user_id': '90a12345-f12a-98c4-a456-513432930000',
+        'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17',
         'note_id': noteId,
       };
       
@@ -254,7 +254,7 @@ class ApiService {
         body: json.encode({
           'name': name,
           'description': description,
-          'user_id': '90a12345-f12a-98c4-a456-513432930000',
+          'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17',
         }),
       );
 
@@ -378,7 +378,7 @@ class ApiService {
         'content': contentMap,
         'type': type,
         'order': order,
-        'user_id': '90a12345-f12a-98c4-a456-513432930000', // Use hardcoded user_id for now
+        'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17', // Use hardcoded user_id for now
       }),
     );
     
@@ -427,7 +427,7 @@ class ApiService {
     
     final Map<String, dynamic> body = {
       'content': contentMap,
-      'user_id': '90a12345-f12a-98c4-a456-513432930000', // Use hardcoded user_id for now
+      'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17', // Use hardcoded user_id for now
     };
     
     if (type != null) {

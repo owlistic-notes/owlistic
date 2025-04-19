@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:go_router/go_router.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
@@ -19,6 +20,7 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   final Logger _logger = Logger('NotesScreen');
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
   int _currentPage = 1;
   bool _hasMoreData = true;
@@ -245,14 +247,24 @@ class _NotesScreenState extends State<NotesScreen> {
   @override
   Widget build(BuildContext context) {
     // Listen to presenters for updates
-    final wsProvider = context.webSocketProvider(listen: true);
     final notesPresenter = context.notesPresenter(listen: true);
     
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Notes'),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              // Implement search functionality
+            },
+          ),
           // Add refresh button
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -263,19 +275,6 @@ class _NotesScreenState extends State<NotesScreen> {
               );
             },
             tooltip: 'Refresh notes',
-          ),
-          // Connection indicator
-          IconButton(
-            icon: Icon(
-              wsProvider.isConnected ? Icons.wifi : Icons.wifi_off,
-              color: wsProvider.isConnected ? Colors.white : Colors.white70,
-            ),
-            onPressed: () {
-              wsProvider.reconnect().then((_) {
-                notesPresenter.fetchNotes();
-              });
-            },
-            tooltip: 'WebSocket status - click to reconnect',
           ),
         ],
       ),
@@ -309,7 +308,7 @@ class _NotesScreenState extends State<NotesScreen> {
       color: Theme.of(context).primaryColor,
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: presenter.notes.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           // Show loading indicator at the end
