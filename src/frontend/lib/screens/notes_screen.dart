@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../models/note.dart';
 import '../providers/notes_provider.dart';
+import '../providers/notebooks_provider.dart';
 import '../utils/provider_extensions.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
@@ -167,7 +168,57 @@ class _NotesScreenState extends State<NotesScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Notebook dropdown would go here
+            // Add notebook dropdown
+            Consumer<NotebooksProvider>(
+              builder: (context, notebooksProvider, _) {
+                final notebooks = notebooksProvider.notebooks;
+                
+                // Show loading if notebooks aren't loaded yet
+                if (notebooksProvider.isLoading) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  );
+                }
+                
+                // If no notebooks, show message
+                if (notebooks.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text(
+                      'You need to create a notebook first',
+                      style: TextStyle(color: AppTheme.dangerColor),
+                    ),
+                  );
+                }
+                
+                // Set the initial value if not set
+                if (selectedNotebookId == null && notebooks.isNotEmpty) {
+                  selectedNotebookId = notebooks.first.id;
+                }
+                
+                return DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Notebook',
+                    prefixIcon: Icon(Icons.folder_outlined),
+                  ),
+                  value: selectedNotebookId,
+                  isExpanded: true,
+                  items: notebooks.map((notebook) {
+                    return DropdownMenuItem<String>(
+                      value: notebook.id,
+                      child: Text(
+                        notebook.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    selectedNotebookId = value;
+                  },
+                );
+              },
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: _titleController,
@@ -188,13 +239,18 @@ class _NotesScreenState extends State<NotesScreen> {
             onPressed: () async {
               if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
                 try {
-                  await _presenter.createNote(selectedNotebookId, _titleController.text);
+                  await _presenter.createNote(selectedNotebookId!, _titleController.text);
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Failed to create note')),
                   );
                 }
+              } else {
+                // Show error if no notebook is selected
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please select a notebook and enter a title')),
+                );
               }
             },
             style: AppTheme.getSuccessButtonStyle(),

@@ -368,71 +368,81 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-              ),
-            ],
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              Text(
-                'Create New',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 20),
-              _buildQuickCreateItem(
-                context,
-                icon: Icons.note_add,
-                title: 'New Note',
-                description: 'Create a blank note',
-                onTap: () {
-                  Navigator.pop(context);
-                  // Show note creation dialog
-                },
-              ),
-              const Divider(),
-              _buildQuickCreateItem(
-                context,
-                icon: Icons.folder,
-                title: 'New Notebook',
-                description: 'Create a collection of notes',
-                onTap: () {
-                  Navigator.pop(context);
-                  _showAddNotebookDialog(context);
-                },
-              ),
-              const Divider(),
-              _buildQuickCreateItem(
-                context,
-                icon: Icons.check_circle_outline,
-                title: 'New Task',
-                description: 'Add a to-do item',
-                onTap: () {
-                  Navigator.pop(context);
-                  // Show task creation dialog
-                },
-              ),
-            ],
+                Text(
+                  'Create New',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                _buildQuickCreateItem(
+                  context,
+                  icon: Icons.note_add,
+                  title: 'New Note',
+                  description: 'Create a blank note',
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Show notebook selector and note creation dialog
+                    _showAddNoteDialog(context);
+                  },
+                ),
+                const Divider(),
+                _buildQuickCreateItem(
+                  context,
+                  icon: Icons.folder,
+                  title: 'New Notebook',
+                  description: 'Create a collection of notes',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showAddNotebookDialog(context);
+                  },
+                ),
+                const Divider(),
+                _buildQuickCreateItem(
+                  context,
+                  icon: Icons.check_circle_outline,
+                  title: 'New Task',
+                  description: 'Add a to-do item',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showAddTaskDialog(context);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
@@ -471,7 +481,160 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showAddNotebookDialog(BuildContext context) {
+  void _showAddNoteDialog(BuildContext context) {
+    final _titleController = TextEditingController();
+    String? selectedNotebookId;
+
+    // Get notebooks provider to check if notebooks exist
+    final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+    
+    // If no notebooks exist, show notebook creation dialog first
+    if (notebooksProvider.notebooks.isEmpty) {
+      _showAddNotebookDialog(context, showNoteDialogAfter: true);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.note_add_outlined, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            const Text('Add Note'),
+          ],
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Add notebook dropdown
+            Consumer<NotebooksProvider>(
+              builder: (context, notebooksProvider, _) {
+                final notebooks = notebooksProvider.notebooks;
+                
+                // Set the initial value if not set
+                if (selectedNotebookId == null && notebooks.isNotEmpty) {
+                  selectedNotebookId = notebooks.first.id;
+                }
+                
+                return DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Notebook',
+                    prefixIcon: Icon(Icons.folder_outlined),
+                  ),
+                  value: selectedNotebookId,
+                  isExpanded: true,
+                  items: notebooks.map((notebook) {
+                    return DropdownMenuItem<String>(
+                      value: notebook.id,
+                      child: Text(
+                        notebook.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    selectedNotebookId = value;
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                prefixIcon: Icon(Icons.title),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
+                try {
+                  final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+                  await notebooksProvider.addNoteToNotebook(
+                    selectedNotebookId!,
+                    _titleController.text,
+                  );
+                  Navigator.of(ctx).pop();
+                } catch (error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to create note')),
+                  );
+                }
+              }
+            },
+            style: AppTheme.getSuccessButtonStyle(),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddTaskDialog(BuildContext context) {
+    final _titleController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.add_task, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            const Text('Add Task'),
+          ],
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        content: TextField(
+          controller: _titleController,
+          decoration: const InputDecoration(
+            labelText: 'Task Title',
+            prefixIcon: Icon(Icons.title),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_titleController.text.isNotEmpty) {
+                try {
+                  final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
+                  await tasksProvider.createTask(_titleController.text, '');
+                  Navigator.of(ctx).pop();
+                } catch (error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to create task')),
+                  );
+                }
+              }
+            },
+            style: AppTheme.getSuccessButtonStyle(),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddNotebookDialog(BuildContext context, {bool showNoteDialogAfter = false}) {
     final _nameController = TextEditingController();
     final _descriptionController = TextEditingController();
 
@@ -525,6 +688,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     _descriptionController.text,
                   );
                   Navigator.of(ctx).pop();
+                  
+                  // If showNoteDialogAfter is true, show the note dialog after notebook creation
+                  if (showNoteDialogAfter) {
+                    // Add a short delay to allow the notebooks list to update
+                    Future.delayed(Duration(milliseconds: 300), () {
+                      _showAddNoteDialog(context);
+                    });
+                  }
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Failed to create notebook')),
