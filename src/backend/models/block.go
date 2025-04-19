@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type BlockType string
@@ -48,14 +49,15 @@ func (bc *BlockContent) Scan(value interface{}) error {
 
 // Block represents a content block within a note
 type Block struct {
-	ID        uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID     uuid.UUID `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
-	NoteID    uuid.UUID    `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"note_id"`
-	Type      BlockType    `gorm:"type:varchar(20);not null" json:"type"`
-	Content   BlockContent `gorm:"type:jsonb;not null;default:'{}'::jsonb" json:"content"`
-	Metadata  BlockContent `gorm:"type:jsonb;default:'{}'::jsonb" json:"metadata,omitempty"`
-	Tasks     []Task       `gorm:"foreignKey:BlockID" json:"tasks,omitempty"`
-	Order     int          `gorm:"not null" json:"order"`
-	CreatedAt time.Time    `gorm:"not null;default:now()" json:"created_at"`
-	UpdatedAt time.Time    `gorm:"not null;default:now()" json:"updated_at"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID    uuid.UUID      `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
+	NoteID    uuid.UUID      `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"note_id"`
+	Type      BlockType      `gorm:"type:varchar(20);not null" json:"type"`
+	Content   BlockContent   `gorm:"type:jsonb;not null;default:'{}'::jsonb" json:"content"`
+	Metadata  BlockContent   `gorm:"type:jsonb;default:'{}'::jsonb" json:"metadata,omitempty"`
+	Tasks     []Task         `gorm:"foreignKey:BlockID" json:"tasks,omitempty"`
+	Order     int            `gorm:"not null" json:"order"`
+	CreatedAt time.Time      `gorm:"not null;default:now()" json:"created_at"`
+	UpdatedAt time.Time      `gorm:"not null;default:now()" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }

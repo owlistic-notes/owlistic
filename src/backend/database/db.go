@@ -26,8 +26,10 @@ func Setup(cfg config.Config) (*Database, error) {
 
 	// Configure GORM with performance settings for large datasets
 	gormConfig := &gorm.Config{
-		Logger:      logger.Default.LogMode(logger.Info),
-		PrepareStmt: true, // Cache prepared statements for better performance
+		Logger:                 logger.Default.LogMode(logger.Info),
+		PrepareStmt:            true,  // Cache prepared statements for better performance
+		AllowGlobalUpdate:      false, // Prevent global updates without conditions
+		SkipDefaultTransaction: true,  // Skip default transaction for better performance
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), gormConfig)

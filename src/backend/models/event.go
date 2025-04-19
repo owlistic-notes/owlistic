@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type Event struct {
@@ -19,6 +20,7 @@ type Event struct {
 	Status       string          `gorm:"not null;default:'pending'" json:"status"`
 	Dispatched   bool            `gorm:"not null;default:false" json:"dispatched"`
 	DispatchedAt *time.Time      `json:"dispatched_at,omitempty"`
+	DeletedAt    gorm.DeletedAt  `gorm:"index" json:"deleted_at,omitempty"`
 }
 
 func NewEvent(event, entity, operation, actorID string, data interface{}) (*Event, error) {

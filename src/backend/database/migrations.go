@@ -21,17 +21,6 @@ func RunMigrations(db *gorm.DB) error {
 	db.Exec("ALTER TABLE IF EXISTS notes DROP CONSTRAINT IF EXISTS fk_notes_notebook_id")
 	db.Exec("ALTER TABLE IF EXISTS notebooks DROP CONSTRAINT IF EXISTS fk_notebooks_user_id")
 
-	// Drop existing tables if they exist
-	// log.Println("Dropping existing tables...")
-	// db.Exec("DROP TABLE IF EXISTS tasks CASCADE")
-	// db.Exec("DROP TABLE IF EXISTS blocks CASCADE")
-	// db.Exec("DROP TABLE IF EXISTS notes CASCADE")
-	// db.Exec("DROP TABLE IF EXISTS notebooks CASCADE")
-	// db.Exec("DROP TABLE IF EXISTS users CASCADE")
-	// db.Exec("DROP TABLE IF EXISTS events CASCADE")
-	// db.Exec("DROP TABLE IF EXISTS migrations CASCADE")
-	// db.Exec("DROP TABLE IF EXISTS migrations_history CASCADE")
-
 	// Create tables with proper schema - do this one by one in correct order
 	log.Println("Creating tables in dependency order...")
 
@@ -66,27 +55,16 @@ func RunMigrations(db *gorm.DB) error {
 	log.Println("Created tasks and events tables")
 
 	// Manually add foreign key constraints with CASCADE
+	// Note: With soft delete, we don't need physical CASCADE DELETE as GORM will handle the soft-delete operations
+	// but we still want referential integrity for other operations
 	log.Println("Adding foreign key constraints...")
-	db.Exec(`ALTER TABLE tasks ADD CONSTRAINT fk_tasks_user_id 
-			 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`)
 
-	db.Exec(`ALTER TABLE tasks ADD CONSTRAINT fk_tasks_block_id 
-			 FOREIGN KEY (block_id) REFERENCES blocks(id) ON DELETE CASCADE`)
-
-	// Define the blocks to notes relationship with CASCADE
-	db.Exec(`ALTER TABLE blocks ADD CONSTRAINT fk_blocks_note_id 
-			 FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE`)
-
-	db.Exec(`ALTER TABLE notes ADD CONSTRAINT fk_notes_user_id 
-			 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`)
-
-	db.Exec(`ALTER TABLE notes ADD CONSTRAINT fk_notes_notebook_id 
-			 FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE`)
-
-	db.Exec(`ALTER TABLE notebooks ADD CONSTRAINT fk_notebooks_user_id 
-			 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`)
-
-	log.Println("Database migrations completed successfully")
+	// Create indexes for deleted_at fields to speed up queries that filter on soft delete status
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users (deleted_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_notebooks_deleted_at ON notebooks (deleted_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes (deleted_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_blocks_deleted_at ON blocks (deleted_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_tasks_deleted_at ON tasks (deleted_at)")
 
 	// Create GIN index on the Block content JSONB field for better performance
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_blocks_content ON blocks USING GIN (content)").Error; err != nil {

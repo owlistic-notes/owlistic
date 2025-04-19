@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/thinkstack/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -55,4 +56,77 @@ func TestExecute(t *testing.T) {
 	err = db.Table("test").Count(&count).Error
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
+}
+
+// Add new test for soft delete functionality
+func TestSoftDelete(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// Create necessary tables for testing
+	err = db.AutoMigrate(&models.User{}, &models.Notebook{}, &models.Note{}, &models.Block{})
+	assert.NoError(t, err)
+
+	// Create a test user
+	user := models.User{
+		Email:        "test@example.com",
+		PasswordHash: "hash",
+	}
+	result := db.Create(&user)
+	assert.NoError(t, result.Error)
+
+	// Create a notebook
+	notebook := models.Notebook{
+		UserID:      user.ID,
+		Name:        "Test Notebook",
+		Description: "Description",
+	}
+	result = db.Create(&notebook)
+	assert.NoError(t, result.Error)
+
+	// Create a note
+	note := models.Note{
+		UserID:     user.ID,
+		NotebookID: notebook.ID,
+		Title:      "Test Note",
+	}
+	result = db.Create(&note)
+	assert.NoError(t, result.Error)
+
+	// Create a block
+	block := models.Block{
+		UserID:  user.ID,
+		NoteID:  note.ID,
+		Type:    models.TextBlock,
+		Content: models.BlockContent{"text": "Test content"},
+		Order:   1,
+	}
+	result = db.Create(&block)
+	assert.NoError(t, result.Error)
+
+	// Soft delete the note
+	result = db.Delete(&note)
+	assert.NoError(t, result.Error)
+
+	// Test note soft deletion
+	var deletedNote models.Note
+	result = db.Unscoped().First(&deletedNote, note.ID)
+	assert.NoError(t, result.Error)
+	assert.NotNil(t, deletedNote.DeletedAt.Time)
+
+	// Try to find the note with normal query (should not find it)
+	var foundNote models.Note
+	result = db.First(&foundNote, note.ID)
+	assert.Error(t, result.Error) // Should error because note is soft-deleted
+
+	// Test cascade effect - blocks should also be soft-deleted
+	var foundBlock models.Block
+	result = db.First(&foundBlock, block.ID)
+	assert.Error(t, result.Error) // Should not find the block
+
+	// But it should exist in the database with deletedAt set
+	var deletedBlock models.Block
+	result = db.Unscoped().First(&deletedBlock, block.ID)
+	assert.NoError(t, result.Error)
+	assert.NotNil(t, deletedBlock.DeletedAt.Time)
 }
