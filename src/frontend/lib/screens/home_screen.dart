@@ -210,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBarCommon(
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         showBackButton: false, // Home screen doesn't need back button
+        title: 'ThinkStack', // Set explicit title for home screen
       ),
       drawer: const AppDrawer(),
       body: SingleChildScrollView(

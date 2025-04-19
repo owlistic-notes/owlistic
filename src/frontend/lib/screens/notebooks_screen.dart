@@ -225,7 +225,11 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       appBar: AppBarCommon(
         title: 'Notebooks',
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onBackPressed: () => Navigator.of(context).pop(),
+        onBackPressed: () {
+          if (Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        },
       ),
       drawer: const AppDrawer(),
       body: _buildBody(notebooksPresenter),

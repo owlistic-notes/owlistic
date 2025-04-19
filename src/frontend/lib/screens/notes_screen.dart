@@ -334,7 +334,11 @@ class _NotesScreenState extends State<NotesScreen> {
       appBar: AppBarCommon(
         title: 'Notes',
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onBackPressed: () => Navigator.of(context).pop(),
+        onBackPressed: () {
+          if (Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        },
       ),
       drawer: const AppDrawer(),
       body: _buildBody(notesPresenter),

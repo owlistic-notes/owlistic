@@ -202,9 +202,39 @@ class _AppBarCommonState extends State<AppBarCommon> {
             onClear: _toggleSearch,
           )
         : widget.customTitle ?? Text(widget.title),
-      automaticallyImplyLeading: false, // Disable default leading widget
-      titleSpacing: 0, // Use zero spacing to maximize available space
-      leading: _buildLeadingSection(),
+      titleSpacing: widget.onMenuPressed != null || widget.showBackButton ? 8.0 : 16.0,
+      automaticallyImplyLeading: false,
+      leading: Container(
+        margin: const EdgeInsets.only(left: 8.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Menu button (hamburger) - always shown if provided
+            if (widget.onMenuPressed != null)
+              IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenuPressed,
+                tooltip: 'Menu',
+                padding: const EdgeInsets.all(8.0),
+              ),
+            
+            // Back button - only shown if showBackButton is true
+            if (widget.showBackButton)
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onBackPressed ?? () {
+                  // Fix navigation by checking mounted state
+                  if (Navigator.canPop(context)) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                tooltip: 'Back',
+                padding: const EdgeInsets.all(8.0),
+              ),
+          ],
+        ),
+      ),
+      leadingWidth: _calculateLeadingWidth(),
       actions: [
         // Search icon/button
         IconButton(
@@ -244,60 +274,20 @@ class _AppBarCommonState extends State<AppBarCommon> {
     );
   }
   
-  Widget? _buildLeadingSection() {
-    // Build a properly constrained leading section
-    if (widget.onMenuPressed != null && widget.showBackButton) {
-      // Both menu and back button - use a tight layout
-      return Container(
-        width: kToolbarHeight * 1.5, // Space for 1.5 buttons
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            // Menu button with smaller padding
-            Container(
-              width: kToolbarHeight * 0.75,
-              child: IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: widget.onMenuPressed,
-                tooltip: 'Menu',
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints(), // Remove constraints
-                iconSize: 22, // Slightly smaller icon
-              ),
-            ),
-            // Back button with smaller padding
-            Container(
-              width: kToolbarHeight * 0.75,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onBackPressed ?? () => Navigator.of(context).pop(),
-                tooltip: 'Back',
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints(), // Remove constraints
-                iconSize: 22, // Slightly smaller icon
-              ),
-            ),
-          ],
-        ),
-      );
-    } else if (widget.onMenuPressed != null) {
-      // Only menu button
-      return IconButton(
-        icon: const Icon(Icons.menu),
-        onPressed: widget.onMenuPressed,
-        tooltip: 'Menu',
-      );
-    } else if (widget.showBackButton) {
-      // Only back button
-      return IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: widget.onBackPressed ?? () => Navigator.of(context).pop(),
-        tooltip: 'Back',
-      );
-    } else {
-      // No leading widget
-      return null;
+  // Calculate appropriate leading width based on visible buttons
+  double _calculateLeadingWidth() {
+    double width = 8.0;  // Initial left margin
+    
+    // Add width for menu button if present
+    if (widget.onMenuPressed != null) {
+      width += 48.0;  // Standard IconButton width with padding
     }
+    
+    // Add width for back button if visible
+    if (widget.showBackButton) {
+      width += 48.0;  // Standard IconButton width with padding
+    }
+    
+    return width;
   }
 }

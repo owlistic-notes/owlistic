@@ -177,6 +177,11 @@ class _TasksScreenState extends State<TasksScreen> {
       appBar: AppBarCommon(
         title: 'Tasks',
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        onBackPressed: () {
+          if (Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        },
       ),
       drawer: const AppDrawer(),
       body: Consumer<TasksProvider>(
