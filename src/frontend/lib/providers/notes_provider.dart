@@ -161,6 +161,17 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
+  // Public method to fetch a single note by ID
+  Future<Note?> fetchNoteById(String noteId) async {
+    try {
+      final notebook = await _fetchSingleNote(noteId);
+      return notebook;
+    } catch (error) {
+      _logger.error('Error in fetchNotebookById: $error');
+      return null;
+    }
+  }
+
   // Fetch notes with pagination and duplicate prevention
   Future<void> fetchNotes({int page = 1, List<String>? excludeIds}) async {
     _isLoading = true;
@@ -261,29 +272,7 @@ class NotesProvider with ChangeNotifier {
     _logger.info('Sent note title update to server: $title');
   }
 
-  // Add this method to match the coordinator's call - fixed return type
-  Future<void> fetchNoteFromEvent(String noteId) async {
-    try {
-      // Check if we already have this note first
-      if (_notesMap.containsKey(noteId)) {
-        // Refresh existing note
-        final note = await ApiService.getNote(noteId);
-        _notesMap[noteId] = note;
-      } else {
-        // Add new note
-        final note = await ApiService.getNote(noteId);
-        _notesMap[noteId] = note;
-        
-        // Subscribe to this note
-        _webSocketProvider?.subscribe('note', id: note.id);
-      }
-      
-      notifyListeners();
-    } catch (error) {
-      _logger.error('Error in fetchNoteFromEvent: $error');
-    }
-  }
-  
+
   // Add this method to handle note deletion events
   void handleNoteDeleted(String noteId) {
     if (_notesMap.containsKey(noteId)) {

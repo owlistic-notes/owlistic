@@ -50,7 +50,7 @@ class WebSocketEventCoordinator {
     
     switch (type) {
       case 'note':
-        _notesProvider?.fetchNoteFromEvent(id);
+        _notesProvider?.fetchNoteById(id);
         break;
       case 'notebook':
         _notebooksProvider?.fetchNotebookById(id);

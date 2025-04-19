@@ -6,7 +6,7 @@ import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import 'websocket_provider.dart';
 import '../utils/websocket_message_parser.dart';
-import 'package:logging/logging.dart';
+import '../utils/logger.dart';
 
 class NotebooksProvider with ChangeNotifier {
   final Logger _logger = Logger('NotebooksProvider');
@@ -87,7 +87,7 @@ class NotebooksProvider with ChangeNotifier {
         });
       }
     } catch (e) {
-      _logger.severe('Error handling notebook update: $e');
+      _logger.error('Error handling notebook update: $e');
     }
   }
 
@@ -102,7 +102,7 @@ class NotebooksProvider with ChangeNotifier {
         
         // Check if this notebook already exists in our list
         if (_notebooksMap.containsKey(notebookId)) {
-          _logger.fine('Notebook $notebookId already in list, skipping');
+          _logger.info('Notebook $notebookId already in list, skipping');
           return;
         }
         
@@ -122,12 +122,12 @@ class NotebooksProvider with ChangeNotifier {
             
             notifyListeners();
           }).catchError((error) {
-            _logger.severe('Error fetching new notebook $notebookId: $error');
+            _logger.error('Error fetching new notebook $notebookId: $error');
           });
         });
       }
     } catch (e) {
-      _logger.severe('Error handling notebook create: $e');
+      _logger.error('Error handling notebook create: $e');
     }
   }
 
@@ -144,7 +144,7 @@ class NotebooksProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      _logger.severe('Error handling notebook delete: $e');
+      _logger.error('Error handling notebook delete: $e');
     }
   }
 
@@ -177,7 +177,7 @@ class NotebooksProvider with ChangeNotifier {
       
       return notebook;
     } catch (error) {
-      _logger.severe('Error fetching notebook: $error');
+      _logger.error('Error fetching notebook: $error');
       throw error;
     }
   }
@@ -188,7 +188,7 @@ class NotebooksProvider with ChangeNotifier {
       final notebook = await _fetchSingleNotebook(notebookId);
       return notebook;
     } catch (error) {
-      _logger.severe('Error in fetchNotebookById: $error');
+      _logger.error('Error in fetchNotebookById: $error');
       return null;
     }
   }
@@ -204,7 +204,7 @@ class NotebooksProvider with ChangeNotifier {
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
       
-      _logger.fine('Extracted from event: noteId=$noteId, notebookId=$notebookId');
+      _logger.info('Extracted from event: noteId=$noteId, notebookId=$notebookId');
       
       // If we have a notebook ID, refresh it
       if (notebookId != null) {
@@ -221,14 +221,14 @@ class NotebooksProvider with ChangeNotifier {
           _logger.info('Found note belongs to notebook ${note.notebookId}');
           _refreshNotebookWithNote(note.notebookId);
         }).catchError((e) {
-          _logger.severe('Failed to fetch note details: $e');
+          _logger.error('Failed to fetch note details: $e');
         });
         return;
       }
 
       _logger.warning('Not enough information to process note creation');
     } catch (e) {
-      _logger.severe('Error handling note create: $e');
+      _logger.error('Error handling note create: $e');
     }
   }
   
@@ -275,7 +275,7 @@ class NotebooksProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      _logger.severe('Error handling note delete: $e');
+      _logger.error('Error handling note delete: $e');
     }
   }
 
@@ -320,7 +320,7 @@ class NotebooksProvider with ChangeNotifier {
       
       _logger.info('Fetched notebooks (page $page), total: ${_notebooksMap.length}');
     } catch (error) {
-      _logger.severe('Error fetching notebooks: $error');
+      _logger.error('Error fetching notebooks: $error');
       // Only clear on first page error
       if (page == 1) _notebooksMap.clear();
     }
@@ -346,10 +346,10 @@ class NotebooksProvider with ChangeNotifier {
         notifyListeners();
         _logger.info('Added notebook $notebookId from WebSocket event');
       } else {
-        _logger.fine('Notebook $notebookId already exists, skipping fetch');
+        _logger.info('Notebook $notebookId already exists, skipping fetch');
       }
     } catch (error) {
-      _logger.severe('Error fetching notebook from event: $error');
+      _logger.error('Error fetching notebook from event: $error');
     }
   }
 
@@ -368,7 +368,7 @@ class NotebooksProvider with ChangeNotifier {
       _logger.info('Created notebook: $name, waiting for event');
       return notebook;
     } catch (error) {
-      _logger.severe('Error creating notebook: $error');
+      _logger.error('Error creating notebook: $error');
       rethrow;
     }
   }
@@ -381,7 +381,7 @@ class NotebooksProvider with ChangeNotifier {
       _logger.info('Added note to notebook: $notebookId, waiting for event');
       return note;
     } catch (error) {
-      _logger.severe('Error adding note to notebook: $error');
+      _logger.error('Error adding note to notebook: $error');
       rethrow;
     }
   }
@@ -393,7 +393,7 @@ class NotebooksProvider with ChangeNotifier {
       await ApiService.deleteNoteFromNotebook(notebookId, noteId);
       _logger.info('Deleted note from notebook, waiting for event');
     } catch (error) {
-      _logger.severe('Error deleting note from notebook: $error');
+      _logger.error('Error deleting note from notebook: $error');
       rethrow;
     }
   }
@@ -405,7 +405,7 @@ class NotebooksProvider with ChangeNotifier {
       await ApiService.updateNotebook(id, name, description);
       _logger.info('Updated notebook: $name, waiting for event');
     } catch (error) {
-      _logger.severe('Error updating notebook: $error');
+      _logger.error('Error updating notebook: $error');
       rethrow;
     }
   }
@@ -420,7 +420,7 @@ class NotebooksProvider with ChangeNotifier {
       
       notifyListeners();
     } catch (error) {
-      _logger.severe('Error deleting notebook: $error');
+      _logger.error('Error deleting notebook: $error');
       rethrow;
     }
   }

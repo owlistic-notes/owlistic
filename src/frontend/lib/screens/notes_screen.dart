@@ -80,8 +80,23 @@ class _NotesScreenState extends State<NotesScreen> {
   }
   
   void _registerEventHandlers() {
-    // Global handler for note creation and updates that will automatically refresh the notes list
-    _wsProvider.addEventListener('event', 'note.created', (_) => _handleNoteEvent());
+    // Track specific events with their appropriate handlers
+    _wsProvider.addEventListener('event', 'note.created', (message) {
+      try {
+        // Extract note ID from the message
+        final noteId = message['payload']?['data']?['note_id'] ?? 
+                       message['payload']?['data']?['id'];
+        
+        if (noteId != null) {
+          // Process just this note instead of refreshing everything
+          _handleNewNote(noteId.toString());
+        }
+      } catch (e) {
+        _logger.error('Error handling note creation in UI', e);
+      }
+    });
+    
+    // For updates and deletes, we'll refresh the list
     _wsProvider.addEventListener('event', 'note.updated', (_) => _handleNoteEvent());
     _wsProvider.addEventListener('event', 'note.deleted', (_) => _handleNoteEvent());
     
@@ -130,7 +145,7 @@ class _NotesScreenState extends State<NotesScreen> {
     _logger.info('Adding new note $noteId from WebSocket event');
     
     // Fetch just this one note and add it to the list
-    _presenter.fetchNoteFromEvent(noteId).then((_) {
+    _presenter.fetchNoteById(noteId).then((_) {
       // Update our tracking set
       _updateLoadedNoteIds();
     });
@@ -262,8 +277,9 @@ class _NotesScreenState extends State<NotesScreen> {
             onPressed: () async {
               if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
                 try {
-                  await _presenter.createNote(selectedNotebookId!, _titleController.text);
+                  final newNote = await _presenter.createNote(selectedNotebookId!, _titleController.text);
                   Navigator.of(ctx).pop();
+                  // No need to manually refresh - the WebSocket event will handle it
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Failed to create note')),
@@ -309,6 +325,7 @@ class _NotesScreenState extends State<NotesScreen> {
               Navigator.of(ctx).pop();
               try {
                 await _presenter.deleteNote(noteId);
+                // The note should be removed from the UI automatically when the provider updates
               } catch (error) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Failed to delete note')),
