@@ -77,7 +77,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         ),
         title: Row(
           children: [
-            Icon(Icons.note_add, color: Theme.of(context).primaryColor),
+            Icon(Icons.note_add_outlined, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Note'),
           ],
@@ -240,7 +240,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       return EmptyState(
         title: 'No notes in this notebook',
         message: 'Create your first note to get started taking notes',
-        icon: Icons.note_add,
+        icon: Icons.note_add_outlined,
         onAction: () => _showAddNoteDialog(context, widget.notebookId),
         actionLabel: 'Create Note',
       );
@@ -263,7 +263,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      Icons.book,
+                      Icons.folder,
                       color: Theme.of(context).primaryColor,
                       size: 20,
                     ),

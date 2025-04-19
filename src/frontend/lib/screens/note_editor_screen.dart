@@ -687,7 +687,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.note_add,
+            Icons.note_add_outlined,
             size: 80,
             color: Theme.of(context).primaryColor.withOpacity(0.5),
           ),

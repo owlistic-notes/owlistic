@@ -159,7 +159,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         ),
         title: Row(
           children: [
-            Icon(Icons.book, color: Theme.of(context).primaryColor),
+            Icon(Icons.folder, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Notebook'),
           ],
@@ -171,7 +171,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: 'Name',
-                prefixIcon: Icon(Icons.title),
+                prefixIcon: Icon(Icons.drive_file_rename_outline),
               ),
               autofocus: true,
             ),
@@ -180,7 +180,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
               controller: _descriptionController,
               decoration: const InputDecoration(
                 labelText: 'Description',
-                prefixIcon: Icon(Icons.description),
+                prefixIcon: Icon(Icons.subject),
               ),
               maxLines: 3,
             ),
@@ -278,7 +278,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       return EmptyState(
         title: 'No notebooks found',
         message: 'Create your first notebook to get started',
-        icon: Icons.book_outlined,
+        icon: Icons.folder_outlined,
         onAction: _showAddNotebookDialog,
         actionLabel: 'Create Notebook',
       );
@@ -314,7 +314,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                Icons.book,
+                Icons.folder,
                 color: Theme.of(context).primaryColor,
                 size: 24,
               ),

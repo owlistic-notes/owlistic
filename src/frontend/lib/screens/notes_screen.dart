@@ -154,7 +154,7 @@ class _NotesScreenState extends State<NotesScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.note_add, color: Theme.of(context).primaryColor),
+            Icon(Icons.note_add_outlined, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Note'),
           ],
@@ -298,7 +298,7 @@ class _NotesScreenState extends State<NotesScreen> {
       return EmptyState(
         title: 'No notes found',
         message: 'Create your first note to get started',
-        icon: Icons.note_add,
+        icon: Icons.note_add_outlined,
         onAction: _showAddNoteDialog,
         actionLabel: 'Create Note',
       );

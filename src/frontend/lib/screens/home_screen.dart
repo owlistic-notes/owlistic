@@ -135,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(35),
             ),
             child: const Icon(
-              Icons.auto_awesome,
+              Icons.psychology, // Brain icon for "ThinkStack"
               color: Colors.white,
               size: 32,
             ),
@@ -186,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return EmptyState(
               title: 'No notebooks yet',
               message: 'Create your first notebook to organize your notes.',
-              icon: Icons.book,
+              icon: Icons.folder_outlined, // Folder icon for notebooks
               onAction: () => _showAddNotebookDialog(context),
               actionLabel: 'Create Notebook',
             );
@@ -214,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(24),
                         ),
                         child: Icon(
-                          Icons.book,
+                          Icons.folder_outlined, // Folder icon for notebooks
                           color: Theme.of(context).primaryColor,
                           size: 24,
                         ),
@@ -254,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return EmptyState(
             title: 'No notes yet',
             message: 'Create your first note to get started.',
-            icon: Icons.note_alt,
+            icon: Icons.note_outlined, // Note icon for notes
           );
         }
 
@@ -273,7 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  Icons.description_outlined,
+                  Icons.note_outlined, // Note icon for notes
                   color: Theme.of(context).primaryColor,
                 ),
               ),
@@ -306,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return EmptyState(
             title: 'No tasks yet',
             message: 'Create tasks to stay organized and boost productivity.',
-            icon: Icons.task_alt,
+            icon: Icons.check_circle_outline, // Check circle for tasks
           );
         }
 
@@ -406,7 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const Divider(),
               _buildQuickCreateItem(
                 context,
-                icon: Icons.book,
+                icon: Icons.folder,
                 title: 'New Notebook',
                 description: 'Create a collection of notes',
                 onTap: () {
@@ -476,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         title: Row(
           children: [
-            Icon(Icons.book, color: Theme.of(context).primaryColor),
+            Icon(Icons.folder_outlined, color: Theme.of(context).primaryColor), // Folder icon for notebook
             const SizedBox(width: 8),
             const Text('Add Notebook'),
           ],
@@ -488,7 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: 'Name',
-                prefixIcon: Icon(Icons.title),
+                prefixIcon: Icon(Icons.drive_file_rename_outline), // Rename icon for name field
               ),
               autofocus: true,
             ),
@@ -497,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: _descriptionController,
               decoration: const InputDecoration(
                 labelText: 'Description',
-                prefixIcon: Icon(Icons.description),
+                prefixIcon: Icon(Icons.description_outlined), // Description icon
               ),
               maxLines: 3,
             ),

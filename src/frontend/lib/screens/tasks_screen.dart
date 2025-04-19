@@ -34,7 +34,7 @@ class _TasksScreenState extends State<TasksScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.task_alt, color: Theme.of(context).primaryColor),
+            Icon(Icons.add_task, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Task'),
           ],
@@ -92,7 +92,7 @@ class _TasksScreenState extends State<TasksScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.edit, color: Theme.of(context).primaryColor),
+            Icon(Icons.edit_note, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Edit Task'),
           ],
@@ -195,7 +195,7 @@ class _TasksScreenState extends State<TasksScreen> {
             return EmptyState(
               title: 'No tasks yet',
               message: 'Create your first task to stay organized',
-              icon: Icons.task_alt,
+              icon: Icons.assignment_outlined,
               onAction: _showAddTaskDialog,
               actionLabel: 'Create Task',
             );
