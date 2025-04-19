@@ -10,6 +10,7 @@ import '../providers/rich_text_editor_provider.dart';
 import '../utils/logger.dart';
 import '../widgets/rich_text_editor.dart';
 import '../core/theme.dart';
+import '../widgets/app_bar_common.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final Note note;
@@ -607,25 +608,26 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            _saveAllContent();
-            Navigator.pop(context);
-          },
-        ),
-        title: TextField(
+      appBar: AppBarCommon(
+        automaticallyImplyLeading: false,
+        onBackPressed: () {
+          _saveAllContent();
+          Navigator.pop(context);
+        },
+        showBackButton: true,
+        customTitle: TextField(
           controller: _titleController,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w500,
           ),
-          cursorColor: Colors.white, // Add cursor color to make it visible
-          cursorWidth: 2.0, // Increase cursor width for visibility
+          cursorColor: Colors.white,
+          cursorWidth: 2.0,
           decoration: const InputDecoration(
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
@@ -638,7 +640,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           ),
           onChanged: (_) => _saveTitle(),
         ),
-        actions: [
+        additionalActions: [
+          // Add Block button
           PopupMenuButton<String>(
             onSelected: (value) {
               _addBlock(type: value);
@@ -664,8 +667,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             icon: const Icon(Icons.add),
             tooltip: 'Add Block',
           ),
+          // Save button (replaces the check button)
           IconButton(
-            icon: const Icon(Icons.save),
+            icon: const Icon(Icons.check),
             onPressed: () {
               _saveAllContent();
               Navigator.pop(context);
@@ -674,11 +678,27 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           ),
         ],
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : _blocks.isEmpty
-              ? _buildEmptyState()
-              : _buildEditor(),
+      body: Theme(
+        // Apply explicit text color overrides for dark mode to ensure visibility
+        data: isDarkMode
+            ? Theme.of(context).copyWith(
+                textTheme: Theme.of(context).textTheme.apply(
+                  bodyColor: Colors.white,
+                  displayColor: Colors.white,
+                ),
+                // Also update the primary text theme for all text widgets
+                primaryTextTheme: Theme.of(context).primaryTextTheme.apply(
+                  bodyColor: Colors.white,
+                  displayColor: Colors.white,
+                ),
+              )
+            : Theme.of(context),
+        child: _isLoading 
+            ? const Center(child: CircularProgressIndicator())
+            : _blocks.isEmpty
+                ? _buildEmptyState()
+                : _buildEditor(),
+      ),
     );
   }
   
@@ -689,10 +709,18 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _createEditorProvider();
     }
     
-    // Return the editor widget
-    return _editorProvider != null
-        ? RichTextEditor(provider: _editorProvider!)
-        : const Center(child: Text('Error initializing editor'));
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    // Force text color in the editor based on theme
+    return DefaultTextStyle(
+      style: TextStyle(
+        color: isDarkMode ? Colors.white : Colors.black,
+        fontSize: 16,
+      ),
+      child: _editorProvider != null
+          ? RichTextEditor(provider: _editorProvider!)
+          : const Center(child: Text('Error initializing editor')),
+    );
   }
   
   // Build the empty state widget

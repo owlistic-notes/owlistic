@@ -5,12 +5,14 @@ import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../models/note.dart';
+import '../providers/websocket_provider.dart';
 import '../providers/notes_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../utils/provider_extensions.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import 'note_editor_screen.dart';
+import '../widgets/app_bar_common.dart';
 
 /// NotesScreen acts as the View in MVP pattern
 class NotesScreen extends StatefulWidget {
@@ -27,9 +29,11 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _hasMoreData = true;
   bool _isLoadingMore = false;
   Set<String> _loadedNoteIds = {}; // Track loaded note IDs to prevent duplicates
+  bool _isRefreshing = false; // Track refresh state to avoid multiple refreshes
   
   // NotesProvider acts as the Presenter
   late NotesProvider _presenter;
+  late WebSocketProvider _wsProvider;
   
   @override
   void initState() {
@@ -48,6 +52,7 @@ class _NotesScreenState extends State<NotesScreen> {
       
       // Get presenters
       _presenter = context.notesPresenter();
+      _wsProvider = context.webSocketProvider();
       
       // Initialize WebSocket and fetch data
       _initializeData();
@@ -55,37 +60,55 @@ class _NotesScreenState extends State<NotesScreen> {
   }
   
   Future<void> _initializeData() async {
-    final wsProvider = context.webSocketProvider();
-    
     // Ensure WebSocket is connected 
-    await wsProvider.ensureConnected();
+    await _wsProvider.ensureConnected();
     
-    // Register a custom handler for note creation events
-    wsProvider.addEventListener('event', 'note.created', (message) {
-      try {
-        // Extract note ID from the message
-        final noteId = message['payload']?['data']?['note_id'] ?? 
-                      message['payload']?['data']?['id'];
-        
-        if (noteId != null) {
-          // Process just this note instead of refreshing everything
-          _handleNewNote(noteId.toString());
-        }
-      } catch (e) {
-        _logger.error('Error handling note creation in UI', e);
-      }
-    });
+    // Register handlers for automatic refresh on events
+    _registerEventHandlers();
     
     // Subscribe to events
-    wsProvider.subscribe('note');
+    _wsProvider.subscribe('note');
+    _wsProvider.subscribe('note.created');
+    _wsProvider.subscribe('note.updated');
+    _wsProvider.subscribe('note.deleted');
     
     // Activate the presenter
     _presenter.activate();
     
     // Fetch initial data
-    await _presenter.fetchNotes();
+    await _refresh();
+  }
+  
+  void _registerEventHandlers() {
+    // Global handler for note creation and updates that will automatically refresh the notes list
+    _wsProvider.addEventListener('event', 'note.created', (_) => _handleNoteEvent());
+    _wsProvider.addEventListener('event', 'note.updated', (_) => _handleNoteEvent());
+    _wsProvider.addEventListener('event', 'note.deleted', (_) => _handleNoteEvent());
     
-    // Initialize loaded note IDs
+    _logger.info('Registered event handlers for automatic refresh');
+  }
+  
+  void _handleNoteEvent() {
+    // Debounce refreshes to avoid multiple API calls for batch updates
+    if (!_isRefreshing) {
+      _isRefreshing = true;
+      
+      // Small delay to batch potential multiple events
+      Future.delayed(const Duration(milliseconds: 300), () {
+        _refresh().then((_) {
+          _isRefreshing = false;
+        }).catchError((e) {
+          _isRefreshing = false;
+        });
+      });
+    }
+  }
+  
+  // Refresh notes data
+  Future<void> _refresh() async {
+    _logger.info('Refreshing notes data');
+    _currentPage = 1;
+    await _presenter.fetchNotes();
     _updateLoadedNoteIds();
   }
   
@@ -308,31 +331,10 @@ class _NotesScreenState extends State<NotesScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Notes'),
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // Implement search functionality
-            },
-          ),
-          // Add refresh button
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              notesPresenter.fetchNotes();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Refreshing notes...'))
-              );
-            },
-            tooltip: 'Refresh notes',
-          ),
-        ],
+      appBar: AppBarCommon(
+        title: 'Notes',
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        onBackPressed: () => Navigator.of(context).pop(),
       ),
       drawer: const AppDrawer(),
       body: _buildBody(notesPresenter),
@@ -360,7 +362,7 @@ class _NotesScreenState extends State<NotesScreen> {
     }
     
     return RefreshIndicator(
-      onRefresh: () => presenter.fetchNotes(),
+      onRefresh: _refresh, // Use our new refresh method
       color: Theme.of(context).primaryColor,
       child: ListView.builder(
         controller: _scrollController,
@@ -423,6 +425,18 @@ class _NotesScreenState extends State<NotesScreen> {
   void dispose() {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    
+    // Clean up WebSocket listeners
+    if (_isInitialized) {
+      _wsProvider.removeEventListener('event', 'note.created');
+      _wsProvider.removeEventListener('event', 'note.updated');
+      _wsProvider.removeEventListener('event', 'note.deleted');
+      
+      _wsProvider.unsubscribe('note');
+      _wsProvider.unsubscribe('note.created');
+      _wsProvider.unsubscribe('note.updated');
+      _wsProvider.unsubscribe('note.deleted');
+    }
     
     // Deactivate the presenter when the view is disposed
     _presenter.deactivate();

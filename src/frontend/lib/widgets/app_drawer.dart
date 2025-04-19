@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../providers/theme_provider.dart';
 import '../core/theme.dart';
-import 'theme_switcher.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = context.isDarkMode;
 
     return Drawer(
@@ -46,7 +42,7 @@ class AppDrawer extends StatelessWidget {
               route: '/tasks',
             ),
             const Spacer(),
-            _buildBottomActions(context),
+            // Removed theme switcher and help button from here
           ],
         ),
       ),
@@ -135,33 +131,6 @@ class AppDrawer extends StatelessWidget {
           context.go(route);
           Navigator.pop(context); // Close drawer
         },
-      ),
-    );
-  }
-
-  Widget _buildBottomActions(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Theme switcher
-          const ThemeSwitcher(),
-          
-          // Help button
-          IconButton(
-            icon: const Icon(Icons.help_outline),
-            onPressed: () {
-              // Show help dialog or navigate to help section
-            },
-            tooltip: 'Help',
-          ),
-        ],
       ),
     );
   }

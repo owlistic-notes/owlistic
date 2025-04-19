@@ -8,6 +8,7 @@ import '../providers/notebooks_provider.dart';
 import '../utils/provider_extensions.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
+import '../widgets/app_bar_common.dart';
 
 /// NotebooksScreen acts as the View in MVP pattern
 class NotebooksScreen extends StatefulWidget {
@@ -221,25 +222,10 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Notebooks'),
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        actions: [
-          // Add refresh button
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              notebooksPresenter.fetchNotebooks();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Refreshing notebooks...'))
-              );
-            },
-            tooltip: 'Refresh notebooks',
-          ),
-        ],
+      appBar: AppBarCommon(
+        title: 'Notebooks',
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        onBackPressed: () => Navigator.of(context).pop(),
       ),
       drawer: const AppDrawer(),
       body: _buildBody(notebooksPresenter),

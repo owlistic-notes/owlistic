@@ -712,7 +712,7 @@ class RichTextEditorProvider with ChangeNotifier {
       _focusNode.requestFocus();
     }
   }
-    
+      
   @override
   void dispose() {
     _logger.debug('Disposing rich text editor provider');

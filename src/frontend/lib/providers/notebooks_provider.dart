@@ -353,13 +353,11 @@ class NotebooksProvider with ChangeNotifier {
     }
   }
 
-  // Create a new notebook with optimized local update
+  // Create a new notebook - no optimistic updates
   Future<Notebook?> createNotebook(String name, String description) async {
     try {
+      // Create the notebook on server
       final notebook = await ApiService.createNotebook(name, description);
-      
-      // Add to local state immediately instead of refetching all notebooks
-      _notebooksMap[notebook.id] = notebook;
       
       // Subscribe to this notebook
       if (_webSocketProvider != null) {
@@ -367,7 +365,7 @@ class NotebooksProvider with ChangeNotifier {
         _webSocketProvider!.subscribe('notebook:notes', id: notebook.id);
       }
       
-      notifyListeners();
+      _logger.info('Created notebook: $name, waiting for event');
       return notebook;
     } catch (error) {
       _logger.severe('Error creating notebook: $error');
@@ -375,55 +373,37 @@ class NotebooksProvider with ChangeNotifier {
     }
   }
 
-  Future<void> addNoteToNotebook(String notebookId, String title) async {
+  // Add note to notebook - no optimistic updates
+  Future<Note?> addNoteToNotebook(String notebookId, String title) async {
     try {
+      // Create note on server
       final note = await ApiService.createNote(notebookId, title);
-      if (_notebooksMap.containsKey(notebookId)) {
-        final updatedNotebook = _notebooksMap[notebookId]!;
-        final notes = List<Note>.from(updatedNotebook.notes)..add(note);
-        _notebooksMap[notebookId] = Notebook(
-          id: updatedNotebook.id,
-          name: updatedNotebook.name,
-          description: updatedNotebook.description,
-          userId: updatedNotebook.userId,
-          notes: notes,
-        );
-        notifyListeners();
-      }
+      _logger.info('Added note to notebook: $notebookId, waiting for event');
+      return note;
     } catch (error) {
       _logger.severe('Error adding note to notebook: $error');
       rethrow;
     }
   }
   
+  // Delete note from notebook - no optimistic updates
   Future<void> deleteNoteFromNotebook(String notebookId, String noteId) async {
     try {
+      // Delete note on server
       await ApiService.deleteNoteFromNotebook(notebookId, noteId);
-      if (_notebooksMap.containsKey(notebookId)) {
-        final updatedNotebook = _notebooksMap[notebookId]!;
-        final notes = updatedNotebook.notes.where((note) => note.id != noteId).toList();
-        _notebooksMap[notebookId] = Notebook(
-          id: updatedNotebook.id,
-          name: updatedNotebook.name,
-          description: updatedNotebook.description,
-          userId: updatedNotebook.userId,
-          notes: notes,
-        );
-        notifyListeners();
-      }
+      _logger.info('Deleted note from notebook, waiting for event');
     } catch (error) {
       _logger.severe('Error deleting note from notebook: $error');
       rethrow;
     }
   }
-  
+
+  // Update notebook - no optimistic updates
   Future<void> updateNotebook(String id, String name, String description) async {
     try {
-      final notebook = await ApiService.updateNotebook(id, name, description);
-      if (_notebooksMap.containsKey(id)) {
-        _notebooksMap[id] = notebook;
-        notifyListeners();
-      }
+      // Update notebook on server
+      await ApiService.updateNotebook(id, name, description);
+      _logger.info('Updated notebook: $name, waiting for event');
     } catch (error) {
       _logger.severe('Error updating notebook: $error');
       rethrow;

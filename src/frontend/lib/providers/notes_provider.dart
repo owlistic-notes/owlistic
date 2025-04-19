@@ -221,55 +221,44 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Create a new note
-  Future<void> createNote(String notebookId, String title) async {
+  // Create a new note - no optimistic updates
+  Future<Note?> createNote(String notebookId, String title) async {
     try {
+      // Create note on server
       final note = await ApiService.createNote(notebookId, title);
-      _notesMap[note.id] = note;
       
       // Subscribe to this note
       _webSocketProvider?.subscribe('note', id: note.id);
       
-      notifyListeners();
+      _logger.info('Created note: $title, waiting for event');
+      return note;
     } catch (error) {
       _logger.error('Error creating note: $error');
       rethrow;
     }
   }
 
-  // Delete a note
+  // Delete a note - no optimistic updates
   Future<void> deleteNote(String id) async {
     try {
+      // Perform the delete operation on server
       await ApiService.deleteNote(id);
-      _notesMap.remove(id);
       
       // Unsubscribe from this note
       _webSocketProvider?.unsubscribe('note', id: id);
       
-      notifyListeners();
+      _logger.info('Deleted note: $id, waiting for event');
     } catch (error) {
       _logger.error('Error deleting note: $error');
       rethrow;
     }
   }
 
-  // Update a note via WebSocket
+  // Update a note via WebSocket - no optimistic updates
   void updateNote(String id, String title) {
-    // Optimistically update local state first
-    if (_notesMap.containsKey(id)) {
-      final updatedNote = Note(
-        id: _notesMap[id]!.id,
-        title: title,
-        notebookId: _notesMap[id]!.notebookId,
-        userId: _notesMap[id]!.userId,
-        blocks: _notesMap[id]!.blocks,
-      );
-      _notesMap[id] = updatedNote;
-      notifyListeners(); // Notify listeners immediately for local UI update
-    }
-    
-    // Then send update via WebSocket
+    // Simply send update via WebSocket and wait for event to come back
     _webSocketProvider?.sendNoteUpdate(id, title);
+    _logger.info('Sent note title update to server: $title');
   }
 
   // Add this method to match the coordinator's call - fixed return type

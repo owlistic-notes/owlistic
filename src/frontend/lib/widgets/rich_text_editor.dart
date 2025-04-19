@@ -84,6 +84,93 @@ class RichTextEditorState extends State<RichTextEditor> {
   
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkMode ? Colors.white : Colors.black;
+    
+    // Create a custom stylesheet that properly uses the copyWith method parameters
+    final customStylesheet = defaultStylesheet.copyWith(
+      // Use inlineTextStyler to handle text styling
+      inlineTextStyler: (attributions, existingStyle) {
+        // Start with text color based on theme mode
+        var style = existingStyle.copyWith(
+          color: textColor,
+        );
+        
+        // Apply styling based on attributions
+        for (final attribution in attributions) {
+          if (attribution.id == 'bold') {
+            style = style.copyWith(fontWeight: FontWeight.bold);
+          } else if (attribution.id == 'italic') {
+            style = style.copyWith(fontStyle: FontStyle.italic);
+          } else if (attribution.id == 'underline') {
+            style = style.copyWith(decoration: TextDecoration.underline);
+          }
+        }
+        
+        return style;
+      },
+      // Use addRulesBefore to add custom styling rules with the correct parameter types
+      addRulesBefore: [
+        StyleRule(
+          const BlockSelector("header1"),
+          (doc, node) => {
+            'textStyle': TextStyle(
+              fontSize: 24, 
+              fontWeight: FontWeight.bold, 
+              color: textColor,
+              height: 1.5,
+            ),
+          },
+        ),
+        StyleRule(
+          const BlockSelector("header2"),
+          (doc, node) => {
+            'textStyle': TextStyle(
+              fontSize: 20, 
+              fontWeight: FontWeight.bold, 
+              color: textColor,
+              height: 1.5,
+            ),
+          },
+        ),
+        StyleRule(
+          const BlockSelector("header3"),
+          (doc, node) => {
+            'textStyle': TextStyle(
+              fontSize: 18, 
+              fontWeight: FontWeight.bold, 
+              color: textColor,
+              height: 1.5,
+            ),
+          },
+        ),
+        StyleRule(
+          const BlockSelector("header"),
+          (doc, node) => {
+            'textStyle': TextStyle(
+              fontSize: 16,
+              color: textColor,
+              height: 1.5,
+            ),
+          },
+        ),
+        // Add code block styling
+        StyleRule(
+          const BlockSelector("code"),
+          (doc, node) => {
+            'textStyle': TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 14,
+              color: textColor,
+              height: 1.5,
+            ),
+            'padding': const EdgeInsets.all(16),
+            'backgroundColor': isDarkMode ? Colors.grey[850] : Colors.grey[200],
+          },
+        ),
+      ],
+    );
+
     return OverlayPortal(
       controller: _popoverToolbarController,
       overlayChildBuilder: _buildPopoverToolbar,
@@ -91,9 +178,14 @@ class RichTextEditorState extends State<RichTextEditor> {
         key: ValueKey('editor-${widget.provider.blocks.length}'),
         editor: widget.provider.editor,
         focusNode: widget.provider.focusNode,
-        stylesheet: defaultStylesheet,
+        stylesheet: customStylesheet,
         selectionLayerLinks: SelectionLayerLinks(),
         autofocus: true,
+        inputSource: TextInputSource.keyboard,
+        selectionStyle: SelectionStyles(
+          selectionColor: Theme.of(context).primaryColor.withOpacity(0.3),
+          highlightEmptyTextBlocks: true,
+        ),
       ),
     );
   }
@@ -145,8 +237,15 @@ class RichTextEditorState extends State<RichTextEditor> {
     );
   }
   
-  // Apply formatting to the selected text
+  // Apply formatting to selected text using SuperEditor's built-in commands
   void _applyFormatting(String format) {
+    final editor = widget.provider.editor;
+    final selection = widget.provider.composer.selection;
+    
+    // Exit if there's no selection or it's collapsed (cursor only)
+    if (selection == null || selection.isCollapsed) return;
+    
+    // Create the appropriate attribution based on formatting type
     Attribution attribution;
     switch (format) {
       case 'bold':
@@ -162,31 +261,15 @@ class RichTextEditorState extends State<RichTextEditor> {
         return;
     }
     
-    // Check if selection exists
-    // if (widget.provider.composer.selection != null) {
-    //   // Apply the formatting to selected text
-    //   final documentSelection = widget.provider.composer.selection!;
-      
-    //   widget.provider.editor.execute(
-    //     EditContent(
-    //       (document, transaction) {
-    //         // Find all spans of text with the given selection
-    //         if (document is MutableDocument) {
-    //           // Apply the attribution to the selected text
-    //           transaction.formatText(
-    //             documentSelection: documentSelection,
-    //             attribution: attribution,
-    //           );
-    //         }
-    //       },
-    //     ),
-    //   );
-      
-    //   // Make sure changes are committed to the backend
-    //   widget.provider.commitAllContent();
-    // }
+    // Use the editor's command system to toggle the attribution
+    // editor.execute(
+    //   ToggleAttributionsRequest(
+    //     documentSelection: selection,
+    //     attributions: {attribution},
+    //   ),
+    // );
   }
-  
+
   @override
   void dispose() {
     _logger.debug('Disposing rich text editor widget');

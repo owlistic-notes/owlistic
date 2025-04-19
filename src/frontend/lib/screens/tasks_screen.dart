@@ -7,6 +7,7 @@ import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../models/task.dart';
 import '../core/theme.dart';
+import '../widgets/app_bar_common.dart';
 
 class TasksScreen extends StatefulWidget {
   @override
@@ -173,29 +174,9 @@ class _TasksScreenState extends State<TasksScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Tasks'),
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // Implement search functionality
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              Provider.of<TasksProvider>(context, listen: false).fetchTasks();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Refreshing tasks...')),
-              );
-            },
-          ),
-        ],
+      appBar: AppBarCommon(
+        title: 'Tasks',
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
       ),
       drawer: const AppDrawer(),
       body: Consumer<TasksProvider>(

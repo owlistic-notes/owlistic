@@ -337,25 +337,16 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Create a new block
+  // Create a new block - no optimistic updates
   Future<Block> createBlock(String noteId, dynamic content, String type, int order) async {
     try {
+      // Create block on server
       final block = await ApiService.createBlock(noteId, content, type, order);
-      
-      // Add to blocks map
-      _blocks[block.id] = block;
-      
-      // Update note blocks map
-      _noteBlocksMap[noteId] ??= [];
-      _noteBlocksMap[noteId]!.add(block.id);
       
       // Subscribe to this block
       _webSocketProvider?.subscribe('block', id: block.id);
       
-      _updateCount++;
-      notifyListeners();
-      
-      _logger.debug('Created new block ${block.id} of type $type in note $noteId');
+      _logger.debug('Created new block of type $type in note $noteId, waiting for event');
       return block;
     } catch (error) {
       _logger.error('Error creating block in note $noteId', error);
@@ -363,7 +354,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Delete a block
+  // Delete a block - no optimistic updates
   Future<void> deleteBlock(String id) async {
     try {
       final block = _blocks[id];
@@ -372,32 +363,20 @@ class BlockProvider with ChangeNotifier {
         return;
       }
       
-      final noteId = block.noteId;
-      
+      // Delete block on server
       await ApiService.deleteBlock(id);
-      
-      // Remove from blocks map
-      _blocks.remove(id);
-      
-      // Update note blocks map
-      if (_noteBlocksMap.containsKey(noteId)) {
-        _noteBlocksMap[noteId]!.remove(id);
-      }
       
       // Unsubscribe from this block
       _webSocketProvider?.unsubscribe('block', id: id);
       
-      _updateCount++;
-      notifyListeners();
-      
-      _logger.debug('Deleted block $id from note $noteId');
+      _logger.debug('Deleted block, waiting for event');
     } catch (error) {
       _logger.error('Error deleting block $id', error);
       rethrow;
     }
   }
 
-  // Update a block with debouncing
+  // Update a block with debouncing but no optimistic updates
   void updateBlockContent(String id, dynamic content, {String? type, bool immediate = false}) {
     // Cancel any existing timer for this block
     if (_saveTimers.containsKey(id)) {
@@ -410,10 +389,8 @@ class BlockProvider with ChangeNotifier {
       return;
     }
     
-    final oldBlock = _blocks[id]!;
+    // Process content to proper format
     Map<String, dynamic> contentMap;
-    
-    // Convert content to proper format
     if (content is String) {
       // Legacy string content - wrap in a map
       contentMap = {'text': content};
@@ -425,16 +402,7 @@ class BlockProvider with ChangeNotifier {
       return;
     }
     
-    // Optimistically update UI immediately
-    _blocks[id] = Block(
-      id: id,
-      content: contentMap,
-      type: type ?? oldBlock.type,
-      noteId: oldBlock.noteId,
-      order: oldBlock.order,
-    );
-    _updateCount++;
-    notifyListeners(); // Update UI immediately
+    _logger.debug('Sending block update to server, waiting for event');
     
     // For full updates, use debounced saving to reduce API calls
     if (immediate) {

@@ -11,6 +11,7 @@ import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/app_bar_common.dart';
 
 /// NotebookDetailScreen acts as the View in MVP pattern
 class NotebookDetailScreen extends StatefulWidget {
@@ -197,28 +198,10 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(hasNotebook ? notebook!.name : 'Notebook Details'),
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.go('/notebooks'),
-          ),
-          // Add refresh button
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              notebooksPresenter.fetchNotebookById(widget.notebookId);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Refreshing notebook...'))
-              );
-            },
-          ),
-        ],
+      appBar: AppBarCommon(
+        title: hasNotebook ? notebook!.name : 'Notebook Details',
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        onBackPressed: () => context.go('/notebooks'), // Go back to notebooks list
       ),
       drawer: const AppDrawer(),
       body: !hasNotebook

@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'note_editor_screen.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/search_bar_widget.dart';
 import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/websocket_provider.dart';
+import '../providers/theme_provider.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
+import '../widgets/app_bar_common.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -20,6 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final Logger _logger = Logger('HomeScreen');
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void didChangeDependencies() {
@@ -42,23 +48,168 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchController.clear();
+      }
+    });
+  }
+
+  void _handleSearch(String query) {
+    // Implement search functionality
+    _logger.info('Searching for: $query');
+  }
+
+  void _showThemeMenu(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      items: [
+        PopupMenuItem(
+          value: ThemeMode.light,
+          child: Row(
+            children: [
+              Icon(Icons.wb_sunny, 
+                color: themeProvider.themeMode == ThemeMode.light 
+                  ? Theme.of(context).primaryColor 
+                  : null
+              ),
+              const SizedBox(width: 8),
+              const Text('Light Mode'),
+              if (themeProvider.themeMode == ThemeMode.light)
+                Icon(Icons.check, color: Theme.of(context).primaryColor),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: ThemeMode.dark,
+          child: Row(
+            children: [
+              Icon(Icons.nightlight_round,
+                color: themeProvider.themeMode == ThemeMode.dark 
+                  ? Theme.of(context).primaryColor 
+                  : null
+              ),
+              const SizedBox(width: 8),
+              const Text('Dark Mode'),
+              if (themeProvider.themeMode == ThemeMode.dark)
+                Icon(Icons.check, color: Theme.of(context).primaryColor),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        themeProvider.setThemeMode(value);
+      }
+    });
+  }
+
+  void _showNotificationsMenu(BuildContext context) {
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      items: [
+        const PopupMenuItem(
+          enabled: false,
+          child: ListTile(
+            title: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ),
+        const PopupMenuItem(
+          child: ListTile(
+            leading: Icon(Icons.notifications_active),
+            title: Text('Welcome to ThinkStack!'),
+            subtitle: Text('Get started by creating your first notebook'),
+          ),
+        ),
+        const PopupMenuItem(
+          child: ListTile(
+            leading: Icon(Icons.update),
+            title: Text('App updated to latest version'),
+            subtitle: Text('See what\'s new'),
+          ),
+        ),
+        PopupMenuItem(
+          child: Center(
+            child: TextButton(
+              child: const Text('View All Notifications'),
+              onPressed: () {
+                Navigator.pop(context);
+                // Navigate to notifications page
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showProfileMenu(BuildContext context) {
+    showMenu<dynamic>(
+      context: context,
+      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      items: <PopupMenuEntry<dynamic>>[
+        PopupMenuItem<String>(
+          value: 'profile_header',
+          child: ListTile(
+            leading: CircleAvatar(
+              child: const Icon(Icons.person),
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+            ),
+            title: const Text('John Doe'),
+            subtitle: const Text('john.doe@example.com'),
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'profile',
+          child: ListTile(
+            leading: Icon(Icons.person),
+            title: Text('My Profile'),
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'settings',
+          child: ListTile(
+            leading: Icon(Icons.settings),
+            title: Text('Settings'),
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'admin',
+          child: ListTile(
+            leading: Icon(Icons.admin_panel_settings),
+            title: Text('Admin Panel'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'logout',
+          child: ListTile(
+            leading: Icon(Icons.logout),
+            title: Text('Logout'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      appBar: AppBar(
-        title: const Text('ThinkStack'),
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // Implement search
-            },
-          ),
-        ],
+      appBar: AppBarCommon(
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        showBackButton: false, // Home screen doesn't need back button
       ),
       drawer: const AppDrawer(),
       body: SingleChildScrollView(
@@ -284,9 +435,14 @@ class _HomeScreenState extends State<HomeScreen> {
               title: note.title,
               subtitle: note.notebookId,
               onTap: () {
-                // Navigate to note
+                // Navigate to the note editor screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NoteEditorScreen(note: note),
+                  ),
+                );
               },
-              // Use getTextContent from the first block if available
               child: note.blocks.isNotEmpty
                 ? Text(
                     note.blocks.first.getTextContent(),
@@ -487,7 +643,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Get notebooks provider to check if notebooks exist
     final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
-    
     // If no notebooks exist, show notebook creation dialog first
     if (notebooksProvider.notebooks.isEmpty) {
       _showAddNotebookDialog(context, showNoteDialogAfter: true);
@@ -519,7 +674,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (selectedNotebookId == null && notebooks.isNotEmpty) {
                   selectedNotebookId = notebooks.first.id;
                 }
-                
+
                 return DropdownButtonFormField<String>(
                   decoration: const InputDecoration(
                     labelText: 'Notebook',
@@ -688,7 +843,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     _descriptionController.text,
                   );
                   Navigator.of(ctx).pop();
-                  
                   // If showNoteDialogAfter is true, show the note dialog after notebook creation
                   if (showNoteDialogAfter) {
                     // Add a short delay to allow the notebooks list to update
@@ -703,8 +857,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               }
             },
-            child: const Text('Create'),
             style: AppTheme.getSuccessButtonStyle(),
+            child: const Text('Create'),
           ),
         ],
       ),

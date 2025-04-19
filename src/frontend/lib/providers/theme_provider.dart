@@ -44,18 +44,12 @@ class ThemeProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Toggle between light, dark and system
+  // Toggle between light and dark only
   Future<void> toggleThemeMode() async {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        await setThemeMode(ThemeMode.dark);
-        break;
-      case ThemeMode.dark:
-        await setThemeMode(ThemeMode.system);
-        break;
-      case ThemeMode.system:
-        await setThemeMode(ThemeMode.light);
-        break;
+    if (_themeMode == ThemeMode.light) {
+      await setThemeMode(ThemeMode.dark);
+    } else {
+      await setThemeMode(ThemeMode.light);
     }
   }
 
@@ -64,18 +58,6 @@ class ThemeProvider with ChangeNotifier {
     if (value == 'ThemeMode.dark') return ThemeMode.dark;
     if (value == 'ThemeMode.light') return ThemeMode.light;
     return ThemeMode.system;
-  }
-
-  // Get theme mode name for display
-  String getThemeModeName() {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        return 'Light';
-      case ThemeMode.dark:
-        return 'Dark';
-      case ThemeMode.system:
-        return 'System';
-    }
   }
 
   // Get theme mode icon
@@ -89,4 +71,15 @@ class ThemeProvider with ChangeNotifier {
         return Icons.brightness_auto;
     }
   }
+
+  String getThemeModeName() {
+    switch (_themeMode) {
+      case ThemeMode.light:
+        return 'Light Mode';
+      case ThemeMode.dark:
+        return 'Dark Mode';
+      case ThemeMode.system:
+        return 'System Default';
+    }
+  }    
 }
