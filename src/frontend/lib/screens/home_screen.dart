@@ -258,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return EmptyState(
             title: 'No notes yet',
             message: 'Create your first note to get started.',
-            icon: Icons.note_outlined, // Note icon for notes
+            icon: Icons.note_outlined,
           );
         }
 
@@ -277,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  Icons.note_outlined, // Note icon for notes
+                  Icons.note_outlined,
                   color: Theme.of(context).primaryColor,
                 ),
               ),
@@ -286,12 +286,15 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 // Navigate to note
               },
-              child: Text(
-                note.content,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+              // Use getTextContent from the first block if available
+              child: note.blocks.isNotEmpty
+                ? Text(
+                    note.blocks.first.getTextContent(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  )
+                : const SizedBox.shrink(), // Don't show anything if no blocks
             );
           },
         );

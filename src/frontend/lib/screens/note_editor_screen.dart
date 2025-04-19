@@ -624,6 +624,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             fontSize: 18,
             fontWeight: FontWeight.w500,
           ),
+          cursorColor: Colors.white, // Add cursor color to make it visible
+          cursorWidth: 2.0, // Increase cursor width for visibility
           decoration: const InputDecoration(
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
@@ -695,6 +697,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   
   // Build the empty state widget
   Widget _buildEmptyState() {
+    final theme = Theme.of(context); // Get the theme from context
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -702,18 +706,18 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           Icon(
             Icons.note_add_outlined,
             size: 80,
-            color: Theme.of(context).primaryColor.withOpacity(0.5),
+            color: theme.primaryColor.withOpacity(0.5), // Use theme primary color
           ),
           const SizedBox(height: 24),
           Text(
             'This note is empty',
-            style: Theme.of(context).textTheme.headlineSmall,
+            style: theme.textTheme.headlineSmall, // Use theme text style
           ),
           const SizedBox(height: 16),
           Text(
             'Add a block to start writing',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).textTheme.bodySmall?.color,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodySmall?.color, // Use theme text color
             ),
           ),
           const SizedBox(height: 24),
@@ -723,6 +727,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             label: const Text('Add Text Block'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              // The button will automatically use the theme's primary color
             ),
           ),
         ],
