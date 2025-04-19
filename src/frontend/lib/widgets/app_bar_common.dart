@@ -236,29 +236,19 @@ class _AppBarCommonState extends State<AppBarCommon> {
       ),
       leadingWidth: _calculateLeadingWidth(),
       actions: [
-        // Search icon/button
-        IconButton(
-          icon: Icon(_isSearching ? Icons.close : Icons.search),
-          onPressed: _toggleSearch,
-          tooltip: 'Search',
-        ),
+        // Hide search icon in Note Editor screen
+        if (ModalRoute.of(context)?.settings.name?.contains('note_editor') != true)
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: _toggleSearch,
+            tooltip: 'Search',
+          ),
         
         // Notifications button
         IconButton(
           icon: const Icon(Icons.notifications_outlined),
           onPressed: () => _showNotificationsMenu(context),
           tooltip: 'Notifications',
-        ),
-        
-        // Theme toggle button
-        IconButton(
-          icon: Icon(
-            themeProvider.themeMode == ThemeMode.light 
-              ? Icons.wb_sunny
-              : Icons.nightlight_round
-          ),
-          onPressed: () => _showThemeMenu(context),
-          tooltip: 'Change Theme',
         ),
         
         // Profile button

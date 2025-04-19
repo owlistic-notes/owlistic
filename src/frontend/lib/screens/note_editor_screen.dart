@@ -640,43 +640,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           ),
           onChanged: (_) => _saveTitle(),
         ),
-        additionalActions: [
-          // Add Block button
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              _addBlock(type: value);
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'text',
-                child: Text('Add Text Block'),
-              ),
-              const PopupMenuItem(
-                value: 'heading',
-                child: Text('Add Heading Block'),
-              ),
-              const PopupMenuItem(
-                value: 'checklist',
-                child: Text('Add Checklist Block'),
-              ),
-              const PopupMenuItem(
-                value: 'code',
-                child: Text('Add Code Block'),
-              ),
-            ],
-            icon: const Icon(Icons.add),
-            tooltip: 'Add Block',
-          ),
-          // Save button (replaces the check button)
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: () {
-              _saveAllContent();
-              Navigator.pop(context);
-            },
-            tooltip: 'Save Note',
-          ),
-        ],
+        additionalActions: [], // Remove the add block and save buttons
       ),
       body: Theme(
         // Apply explicit text color overrides for dark mode to ensure visibility

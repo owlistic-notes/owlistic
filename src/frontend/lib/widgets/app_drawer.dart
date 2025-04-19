@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({Key? key}) : super(key: key);
@@ -10,85 +12,115 @@ class AppDrawer extends StatelessWidget {
     final isDark = context.isDarkMode;
 
     return Drawer(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      elevation: 2,
-      child: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(context),
-            const Divider(height: 1),
-            _buildMenuItem(
-              context,
-              icon: Icons.home_outlined,
-              title: 'Home',
-              route: '/',
+      child: Column(
+        children: [
+          _buildHeader(context),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _buildMenuItem(
+                  context, 
+                  title: 'Home', 
+                  icon: Icons.home_outlined, 
+                  route: '/',
+                ),
+                _buildMenuItem(
+                  context, 
+                  title: 'Notebooks', 
+                  icon: Icons.folder_outlined, 
+                  route: '/notebooks',
+                ),
+                _buildMenuItem(
+                  context, 
+                  title: 'Notes', 
+                  icon: Icons.description_outlined, 
+                  route: '/notes',
+                ),
+                _buildMenuItem(
+                  context, 
+                  title: 'Tasks', 
+                  icon: Icons.check_circle_outline, 
+                  route: '/tasks',
+                ),
+                const Divider(),
+                _buildMenuItem(
+                  context, 
+                  title: 'Tags', 
+                  icon: Icons.tag_outlined, 
+                  route: '/tags',
+                ),
+                _buildMenuItem(
+                  context, 
+                  title: 'Archive', 
+                  icon: Icons.archive_outlined, 
+                  route: '/archive',
+                ),
+                _buildMenuItem(
+                  context, 
+                  title: 'Trash', 
+                  icon: Icons.delete_outline, 
+                  route: '/trash',
+                ),
+                const Divider(),
+                _buildMenuItem(
+                  context, 
+                  title: 'Settings', 
+                  icon: Icons.settings_outlined, 
+                  route: '/settings',
+                ),
+                _buildMenuItem(
+                  context, 
+                  title: 'About', 
+                  icon: Icons.info_outline, 
+                  route: '/about',
+                ),
+              ],
             ),
-            _buildMenuItem(
-              context,
-              icon: Icons.folder_outlined,
-              title: 'Notebooks',
-              route: '/notebooks',
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.note_outlined,
-              title: 'Notes',
-              route: '/notes',
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.assignment_outlined,
-              title: 'Tasks',
-              route: '/tasks',
-            ),
-            const Spacer(),
-            // Removed theme switcher and help button from here
-          ],
-        ),
+          ),
+          // Add theme toggle at the bottom
+          _buildThemeToggle(context),
+        ],
       ),
     );
   }
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Theme.of(context).primaryColor,
-      child: Row(
+      height: 156, // Adjusted from 160px to 156px to fix overflow
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor,
+      ),
+      alignment: Alignment.bottomLeft,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
+          CircleAvatar(
+            backgroundColor: Colors.white.withOpacity(0.2),
+            radius: 30, // Reduced from 32 to 30
             child: const Icon(
-              Icons.psychology,
+              Icons.person,
+              size: 36, // Reduced from 40 to 36
               color: Colors.white,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'ThinkStack',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Your connected workspace',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 10), // Reduced from 12 to 10
+          const Text(
+            'ThinkStack',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22, // Reduced from 24 to 22
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Text(
+            'Your knowledge stack',
+            style: TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w300,
+              fontSize: 13, // Added explicit font size
             ),
           ),
         ],
@@ -98,40 +130,74 @@ class AppDrawer extends StatelessWidget {
 
   Widget _buildMenuItem(
     BuildContext context, {
-    required IconData icon,
     required String title,
+    required IconData icon,
     required String route,
   }) {
-    final isSelected = GoRouterState.of(context).matchedLocation == route;
-    final theme = Theme.of(context);
+    // Determine if this is the active route
+    final isCurrent = GoRouterState.of(context).path == route;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: isSelected ? theme.primaryColor.withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isCurrent 
+          ? Theme.of(context).primaryColor 
+          : null,
       ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected ? theme.primaryColor : theme.iconTheme.color,
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isCurrent 
+            ? Theme.of(context).primaryColor 
+            : null,
+          fontWeight: isCurrent 
+            ? FontWeight.bold 
+            : null,
         ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: isSelected ? theme.primaryColor : theme.textTheme.bodyLarge?.color,
-          ),
-        ),
-        dense: true,
-        visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        onTap: () {
+      ),
+      selected: isCurrent,
+      onTap: () {
+        // Close drawer before navigation
+        Navigator.pop(context);
+        
+        // Navigate to the selected route
+        if (GoRouterState.of(context).path != route) {
           context.go(route);
-          Navigator.pop(context); // Close drawer
-        },
-      ),
+        }
+      },
+    );
+  }
+  
+  // New method to build the theme toggle at the bottom of the drawer
+  Widget _buildThemeToggle(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        final isDarkMode = themeProvider.themeMode == ThemeMode.dark;
+        
+        return Container(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: ListTile(
+            leading: Icon(
+              isDarkMode ? Icons.nightlight_round : Icons.wb_sunny,
+            ),
+            title: Text(
+              isDarkMode ? 'Dark Mode' : 'Light Mode'
+            ),
+            trailing: Switch(
+              value: isDarkMode,
+              onChanged: (_) => themeProvider.toggleThemeMode(),
+            ),
+            onTap: () => themeProvider.toggleThemeMode(),
+          ),
+        );
+      },
     );
   }
 }
