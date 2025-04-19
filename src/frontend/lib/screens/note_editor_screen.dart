@@ -640,7 +640,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           ),
           onChanged: (_) => _saveTitle(),
         ),
-        additionalActions: [], // Remove the add block and save buttons
+        additionalActions: [], // Empty list to avoid any additional actions
       ),
       body: Theme(
         // Apply explicit text color overrides for dark mode to ensure visibility

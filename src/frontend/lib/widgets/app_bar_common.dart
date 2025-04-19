@@ -193,9 +193,13 @@ class _AppBarCommonState extends State<AppBarCommon> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    
+    // Check if we're in the note editor screen
+    final isNoteEditor = ModalRoute.of(context)?.settings.name?.contains('note_editor') == true || 
+                        _isInNoteEditorScreen(context);
 
     return AppBar(
-      title: _isSearching 
+      title: _isSearching && !isNoteEditor
         ? SearchBarWidget(
             controller: _searchController,
             onChanged: _handleSearch,
@@ -237,7 +241,7 @@ class _AppBarCommonState extends State<AppBarCommon> {
       leadingWidth: _calculateLeadingWidth(),
       actions: [
         // Hide search icon in Note Editor screen
-        if (ModalRoute.of(context)?.settings.name?.contains('note_editor') != true)
+        if (!isNoteEditor)
           IconButton(
             icon: Icon(_isSearching ? Icons.close : Icons.search),
             onPressed: _toggleSearch,
@@ -262,6 +266,36 @@ class _AppBarCommonState extends State<AppBarCommon> {
         ...widget.additionalActions,
       ],
     );
+  }
+  
+  // Helper method to check if we're in the note editor screen
+  bool _isInNoteEditorScreen(BuildContext context) {
+    // Check the current route for NoteEditorScreen
+    final currentRoute = ModalRoute.of(context);
+    if (currentRoute != null) {
+      // Check route settings 
+      final settings = currentRoute.settings;
+      
+      // Check route name
+      if (settings.name?.contains('note_editor') == true) {
+        return true;
+      }
+      
+      // Check route builder arguments
+      if (settings.arguments is Map) {
+        final args = settings.arguments as Map;
+        if (args.containsKey('isNoteEditor') && args['isNoteEditor'] == true) {
+          return true;
+        }
+      }
+      
+      // Check if current route is MaterialPageRoute with NoteEditorScreen
+      if (currentRoute is MaterialPageRoute) {
+        return currentRoute.builder.toString().contains('NoteEditorScreen');
+      }
+    }
+    
+    return false;
   }
   
   // Calculate appropriate leading width based on visible buttons
