@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/card_container.dart';
+import '../widgets/empty_state.dart';
 import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/websocket_provider.dart';
 import '../utils/logger.dart';
+import '../core/theme.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -40,192 +43,493 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = context.isDarkMode;
+    
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        title: Text('ThinkStack'),
+        title: const Text('ThinkStack'),
         leading: IconButton(
-          icon: Icon(Icons.menu),
+          icon: const Icon(Icons.menu),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              // Implement search
+            },
+          ),
+        ],
       ),
-      drawer: AppDrawer(),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
+      drawer: const AppDrawer(),
+      body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildWelcomeCard(context),
             _buildSectionHeader(context, 'Recent Notebooks', Icons.book),
-            SizedBox(height: 8),
-            Expanded(
-              child: Consumer<NotebooksProvider>(
-                builder: (ctx, notebooksProvider, _) {
-                  if (notebooksProvider.isLoading) {
-                    return Center(child: CircularProgressIndicator());
-                  }
-                  
-                  final recentNotebooks = notebooksProvider.notebooks.take(5).toList();
-                  
-                  if (recentNotebooks.isEmpty) {
-                    return Center(child: Text('No notebooks found'));
-                  }
-                  
-                  return ListView.builder(
-                    itemCount: recentNotebooks.length,
-                    itemBuilder: (context, index) {
-                      final notebook = recentNotebooks[index];
-                      return Card(
-                        key: ValueKey('notebook_${notebook.id}'), // Add key for stable identity
-                        child: ListTile(
-                          title: Text(notebook.name),
-                          subtitle: Text(
-                            '${notebook.notes.length} notes',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blue.withOpacity(0.1),
-                            child: Icon(Icons.book, color: Colors.blue),
-                          ),
-                          onTap: () => context.go('/notebooks/${notebook.id}'),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            SizedBox(height: 24),
+            _buildRecentNotebooks(),
             _buildSectionHeader(context, 'Recent Notes', Icons.note),
-            SizedBox(height: 8),
-            Expanded(
-              child: Consumer<NotesProvider>(
-                builder: (ctx, notesProvider, _) {
-                  if (notesProvider.isLoading) {
-                    return Center(child: CircularProgressIndicator());
-                  }
-                  
-                  if (notesProvider.recentNotes.isEmpty) {
-                    return Center(child: Text('No recent notes'));
-                  }
-                  
-                  return ListView.builder(
-                    itemCount: notesProvider.recentNotes.length,
-                    itemBuilder: (context, index) {
-                      final note = notesProvider.recentNotes[index];
-                      return Card(
-                        key: ValueKey('note_${note.id}'), // Add key for stable identity
-                        child: ListTile(
-                          title: Text(
-                            note.title,
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          subtitle: Text(
-                            note.content,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blue.withOpacity(0.1),
-                            child: Icon(Icons.note, color: Colors.blue),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            SizedBox(height: 24),
+            _buildRecentNotes(),
             _buildSectionHeader(context, 'Recent Tasks', Icons.task_alt),
-            SizedBox(height: 8),
-            Expanded(
-              child: Consumer<TasksProvider>(
-                builder: (ctx, tasksProvider, _) {
-                  if (tasksProvider.isLoading) {
-                    return Center(child: CircularProgressIndicator());
-                  }
-                  
-                  if (tasksProvider.recentTasks.isEmpty) {
-                    return Center(child: Text('No recent tasks'));
-                  }
-                  
-                  return ListView.builder(
-                    itemCount: tasksProvider.recentTasks.length,
-                    itemBuilder: (context, index) {
-                      final task = tasksProvider.recentTasks[index];
-                      return Card(
-                        child: ListTile(
-                          title: Text(
-                            task.title,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              decoration: task.isCompleted
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blue.withOpacity(0.1),
-                            child: Icon(Icons.task_alt, color: Colors.blue),
-                          ),
-                          trailing: Transform.scale(
-                            scale: 1.2,
-                            child: Checkbox(
-                              value: task.isCompleted,
-                              onChanged: (value) async {
-                                try {
-                                  await tasksProvider
-                                      .toggleTaskCompletion(
-                                          task.id, value ?? false);
-                                } catch (error) {
-                                  ScaffoldMessenger.of(context)
-                                      .showSnackBar(
-                                    SnackBar(
-                                        content: Text(
-                                            'Failed to update task status')),
-                                  );
-                                }
-                              },
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
+            _buildRecentTasks(),
+            const SizedBox(height: 80), // Space for FAB
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddNotebookDialog(context),
-        child: Icon(Icons.add),
-        tooltip: 'Add Notebook',
+        onPressed: () => _showQuickCreateMenu(context),
+        child: const Icon(Icons.add),
+        tooltip: 'Create New',
       ),
     );
   }
 
-  void _showAddNotebookDialog(BuildContext context) {
-    // ...existing code...
+  Widget _buildWelcomeCard(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).primaryColor.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Welcome back!',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Organize your thoughts and ideas all in one place.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(35),
+            ),
+            child: const Icon(
+              Icons.auto_awesome,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.blue),
-        SizedBox(width: 8),
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: () {
+              // Navigate to section
+              if (title.contains('Notebooks')) context.go('/notebooks');
+              if (title.contains('Notes')) context.go('/notes');
+              if (title.contains('Tasks')) context.go('/tasks');
+            },
+            child: const Text('View All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentNotebooks() {
+    return SizedBox(
+      height: 160,
+      child: Consumer<NotebooksProvider>(
+        builder: (ctx, notebooksProvider, _) {
+          if (notebooksProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final notebooks = notebooksProvider.notebooks.take(5).toList();
+          
+          if (notebooks.isEmpty) {
+            return EmptyState(
+              title: 'No notebooks yet',
+              message: 'Create your first notebook to organize your notes.',
+              icon: Icons.book,
+              onAction: () => _showAddNotebookDialog(context),
+              actionLabel: 'Create Notebook',
+            );
+          }
+
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            itemCount: notebooks.length,
+            itemBuilder: (context, index) {
+              final notebook = notebooks[index];
+              return SizedBox(
+                width: 160,
+                child: CardContainer(
+                  onTap: () => context.go('/notebooks/${notebook.id}'),
+                  padding: const EdgeInsets.all(0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Icon(
+                          Icons.book,
+                          color: Theme.of(context).primaryColor,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        notebook.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${notebook.notes.length} notes',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRecentNotes() {
+    return Consumer<NotesProvider>(
+      builder: (ctx, notesProvider, _) {
+        if (notesProvider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (notesProvider.recentNotes.isEmpty) {
+          return EmptyState(
+            title: 'No notes yet',
+            message: 'Create your first note to get started.',
+            icon: Icons.note_alt,
+          );
+        }
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: notesProvider.recentNotes.take(3).length,
+          itemBuilder: (context, index) {
+            final note = notesProvider.recentNotes[index];
+            return CardContainer(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.description_outlined,
+                  color: Theme.of(context).primaryColor,
+                ),
               ),
+              title: note.title,
+              subtitle: note.notebookId,
+              onTap: () {
+                // Navigate to note
+              },
+              child: Text(
+                note.content,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildRecentTasks() {
+    return Consumer<TasksProvider>(
+      builder: (ctx, tasksProvider, _) {
+        if (tasksProvider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (tasksProvider.recentTasks.isEmpty) {
+          return EmptyState(
+            title: 'No tasks yet',
+            message: 'Create tasks to stay organized and boost productivity.',
+            icon: Icons.task_alt,
+          );
+        }
+
+        // Card wrapping all tasks
+        return CardContainer(
+          padding: EdgeInsets.zero,
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: tasksProvider.recentTasks.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+            itemBuilder: (context, index) {
+              final task = tasksProvider.recentTasks[index];
+              return ListTile(
+                leading: Transform.scale(
+                  scale: 1.2,
+                  child: Checkbox(
+                    value: task.isCompleted,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    onChanged: (bool? value) async {
+                      try {
+                        await tasksProvider.toggleTaskCompletion(
+                          task.id,
+                          value ?? false,
+                        );
+                      } catch (error) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Failed to update task status')),
+                        );
+                      }
+                    },
+                  ),
+                ),
+                title: Text(
+                  task.title,
+                  style: TextStyle(
+                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                    color: task.isCompleted
+                        ? Theme.of(context).textTheme.bodySmall?.color
+                        : Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showQuickCreateMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Create New',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 20),
+              _buildQuickCreateItem(
+                context,
+                icon: Icons.note_add,
+                title: 'New Note',
+                description: 'Create a blank note',
+                onTap: () {
+                  Navigator.pop(context);
+                  // Show note creation dialog
+                },
+              ),
+              const Divider(),
+              _buildQuickCreateItem(
+                context,
+                icon: Icons.book,
+                title: 'New Notebook',
+                description: 'Create a collection of notes',
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddNotebookDialog(context);
+                },
+              ),
+              const Divider(),
+              _buildQuickCreateItem(
+                context,
+                icon: Icons.check_circle_outline,
+                title: 'New Task',
+                description: 'Add a to-do item',
+                onTap: () {
+                  Navigator.pop(context);
+                  // Show task creation dialog
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickCreateItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String description,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Theme.of(context).primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
         ),
-      ],
+        child: Icon(
+          icon,
+          color: Theme.of(context).primaryColor,
+        ),
+      ),
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      subtitle: Text(
+        description,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  void _showAddNotebookDialog(BuildContext context) {
+    final _nameController = TextEditingController();
+    final _descriptionController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.book, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            const Text('Add Notebook'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                prefixIcon: Icon(Icons.title),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                prefixIcon: Icon(Icons.description),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_nameController.text.isNotEmpty) {
+                try {
+                  final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+                  await notebooksProvider.createNotebook(
+                    _nameController.text,
+                    _descriptionController.text,
+                  );
+                  Navigator.of(ctx).pop();
+                } catch (error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to create notebook')),
+                  );
+                }
+              }
+            },
+            child: const Text('Create'),
+            style: AppTheme.getSuccessButtonStyle(),
+          ),
+        ],
+      ),
     );
   }
 }

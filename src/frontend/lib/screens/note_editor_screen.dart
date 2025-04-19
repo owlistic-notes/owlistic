@@ -9,6 +9,7 @@ import '../providers/websocket_provider.dart';
 import '../providers/rich_text_editor_provider.dart';
 import '../utils/logger.dart';
 import '../widgets/rich_text_editor.dart';
+import '../core/theme.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final Note note;
@@ -526,7 +527,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       );
       
       // Add block to local state immediately for better UX
-      _logger.debug('Block created with ID: ${block.id}, adding to local state');
       setState(() {
         // Only add if it doesn't already exist
         if (!_blocks.any((b) => b.id == block.id)) {
@@ -608,6 +608,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: TextField(
           controller: _titleController,
@@ -651,8 +652,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: () {
-              _saveTitle();
-              _saveAllBlockContents();
+              _saveAllContent();
               Navigator.pop(context);
             },
             tooltip: 'Save Note',
@@ -686,15 +686,31 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text(
-            'This note is empty. Add a block to start writing.',
-            style: TextStyle(color: Colors.grey),
-            textAlign: TextAlign.center,
+          Icon(
+            Icons.note_add,
+            size: 80,
+            color: Theme.of(context).primaryColor.withOpacity(0.5),
           ),
-          const SizedBox(height: 20),
-          ElevatedButton(
+          const SizedBox(height: 24),
+          Text(
+            'This note is empty',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Add a block to start writing',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).textTheme.bodySmall?.color,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
             onPressed: () => _addBlock(),
-            child: const Text('Add Text Block'),
+            icon: const Icon(Icons.add),
+            label: const Text('Add Text Block'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
           ),
         ],
       ),

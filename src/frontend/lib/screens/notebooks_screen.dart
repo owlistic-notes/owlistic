@@ -2,9 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/card_container.dart';
+import '../widgets/empty_state.dart';
 import '../providers/notebooks_provider.dart';
 import '../utils/provider_extensions.dart';
 import '../utils/logger.dart';
+import '../core/theme.dart';
 
 /// NotebooksScreen acts as the View in MVP pattern
 class NotebooksScreen extends StatefulWidget {
@@ -151,17 +154,35 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add Notebook'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.book, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            const Text('Add Notebook'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                prefixIcon: Icon(Icons.title),
+              ),
+              autofocus: true,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: _descriptionController,
-              decoration: const InputDecoration(labelText: 'Description'),
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                prefixIcon: Icon(Icons.description),
+              ),
+              maxLines: 3,
             ),
           ],
         ),
@@ -183,7 +204,8 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                 }
               }
             },
-            child: const Text('Add'),
+            child: const Text('Create'),
+            style: AppTheme.getSuccessButtonStyle(),
           ),
         ],
       ),
@@ -202,6 +224,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     final notebookCount = notebooksPresenter.notebooks.length;
     
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Notebooks'),
         actions: [
@@ -220,7 +243,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
           IconButton(
             icon: Icon(
               wsProvider.isConnected ? Icons.wifi : Icons.wifi_off,
-              color: wsProvider.isConnected ? Colors.green : Colors.red,
+              color: wsProvider.isConnected ? Colors.white : Colors.white70,
             ),
             onPressed: () {
               // Use regular reconnect method and then refresh notebooks
@@ -235,12 +258,13 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
           )
         ],
       ),
-      drawer: AppDrawer(),
+      drawer: const AppDrawer(),
       body: _buildBody(notebooksPresenter),
       key: ValueKey('notebooks_screen_$notebookCount'),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddNotebookDialog,
         child: const Icon(Icons.add),
+        tooltip: 'Add Notebook',
       ),
     );
   }
@@ -250,39 +274,66 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return presenter.notebooks.isEmpty
-        ? const Center(child: Text('No notebooks found'))
-        : Stack(
-            children: [
-              ListView.builder(
-                controller: _scrollController,
-                itemCount: presenter.notebooks.length + (_isLoadingMore ? 1 : 0),
-                itemBuilder: (context, index) {
-                  // Show loading indicator at the end
-                  if (index == presenter.notebooks.length) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    );
-                  }
-                  
-                  final notebook = presenter.notebooks[index];
-                  return Card(
-                    key: ValueKey('notebook_${notebook.id}'), // Add key for stable identity
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: ListTile(
-                      title: Text(notebook.name),
-                      subtitle: Text(notebook.description),
-                      leading: const Icon(Icons.book),
-                      onTap: () => context.go('/notebooks/${notebook.id}'),
-                    ),
-                  );
-                },
+    if (presenter.notebooks.isEmpty) {
+      return EmptyState(
+        title: 'No notebooks found',
+        message: 'Create your first notebook to get started',
+        icon: Icons.book_outlined,
+        onAction: _showAddNotebookDialog,
+        actionLabel: 'Create Notebook',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => presenter.fetchNotebooks(),
+      color: Theme.of(context).primaryColor,
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(16),
+        itemCount: presenter.notebooks.length + (_isLoadingMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          // Show loading indicator at the end
+          if (index == presenter.notebooks.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
-            ],
+            );
+          }
+          
+          final notebook = presenter.notebooks[index];
+          return CardContainer(
+            key: ValueKey('notebook_${notebook.id}'),
+            onTap: () => context.go('/notebooks/${notebook.id}'),
+            leading: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.book,
+                color: Theme.of(context).primaryColor,
+                size: 24,
+              ),
+            ),
+            title: notebook.name,
+            subtitle: '${notebook.notes.length} notes',
+            trailing: Icon(Icons.chevron_right, color: Theme.of(context).iconTheme.color),
+            child: notebook.description.isEmpty
+                ? const SizedBox.shrink()
+                : Text(
+                    notebook.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
           );
+        },
+      ),
+    );
   }
   
   @override

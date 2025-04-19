@@ -3,6 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'core/router.dart';
 import 'core/providers.dart';
+import 'core/theme.dart';
+import 'providers/theme_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,16 +22,24 @@ class ThinkStackApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: appProviders, // Use the providers defined in core/providers.dart
-      child: MaterialApp.router(
-        title: 'ThinkStack',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          useMaterial3: true,
-          // Add more theme customization here
-        ),
-        routerConfig: AppRouter.router,
-        debugShowCheckedModeBanner: false,
+      providers: [
+        // Theme provider
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        
+        // App providers
+        ...appProviders,
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp.router(
+            title: 'ThinkStack',
+            theme: AppTheme.getThemeData(ThemeMode.light),
+            darkTheme: AppTheme.getThemeData(ThemeMode.dark),
+            themeMode: themeProvider.themeMode,
+            routerConfig: AppRouter.router,
+            debugShowCheckedModeBanner: false,
+          );
+        },
       ),
     );
   }

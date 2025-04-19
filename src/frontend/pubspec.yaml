@@ -23,6 +23,7 @@ dependencies:
   web_socket_channel: ^3.0.2
   super_editor: ^0.3.0-dev.23
   attributed_text: ^0.4.4
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:
