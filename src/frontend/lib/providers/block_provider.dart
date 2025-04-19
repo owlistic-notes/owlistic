@@ -434,7 +434,7 @@ class BlockProvider with ChangeNotifier {
       order: oldBlock.order,
     );
     _updateCount++;
-    notifyListeners();
+    notifyListeners(); // Update UI immediately
     
     // For full updates, use debounced saving to reduce API calls
     if (immediate) {

@@ -622,11 +622,17 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
+            fontWeight: FontWeight.w500,
           ),
           decoration: const InputDecoration(
             border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
             hintText: 'Note Title',
             hintStyle: TextStyle(color: Colors.white70),
+            contentPadding: EdgeInsets.zero,
+            isDense: true,
+            filled: false,
           ),
           onChanged: (_) => _saveTitle(),
         ),

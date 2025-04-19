@@ -255,10 +255,7 @@ class NotesProvider with ChangeNotifier {
 
   // Update a note via WebSocket
   void updateNote(String id, String title) {
-    // Send update via WebSocket
-    _webSocketProvider?.sendNoteUpdate(id, title);
-    
-    // Optimistically update local state
+    // Optimistically update local state first
     if (_notesMap.containsKey(id)) {
       final updatedNote = Note(
         id: _notesMap[id]!.id,
@@ -268,8 +265,11 @@ class NotesProvider with ChangeNotifier {
         blocks: _notesMap[id]!.blocks,
       );
       _notesMap[id] = updatedNote;
-      notifyListeners();
+      notifyListeners(); // Notify listeners immediately for local UI update
     }
+    
+    // Then send update via WebSocket
+    _webSocketProvider?.sendNoteUpdate(id, title);
   }
 
   // Add this method to match the coordinator's call - fixed return type
