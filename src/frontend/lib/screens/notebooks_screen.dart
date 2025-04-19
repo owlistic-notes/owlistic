@@ -214,6 +214,36 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     );
   }
 
+  void _showDeleteConfirmation(BuildContext context, String notebookId, String notebookName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Notebook'),
+        content: Text('Are you sure you want to delete "$notebookName"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                await _presenter.deleteNotebook(notebookId);
+              } catch (error) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Failed to delete notebook')),
+                );
+              }
+            },
+            style: AppTheme.getDangerButtonStyle(),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Listen to notebooks provider for data updates
@@ -293,7 +323,17 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
             ),
             title: notebook.name,
             subtitle: '${notebook.notes.length} notes',
-            trailing: Icon(Icons.chevron_right, color: Theme.of(context).iconTheme.color),
+            trailing: IconButton(
+              icon: Icon(
+                Icons.delete_outline,
+                color: AppTheme.dangerColor,
+              ),
+              onPressed: () => _showDeleteConfirmation(
+                context, 
+                notebook.id, 
+                notebook.name,
+              ),
+            ),
             child: notebook.description.isEmpty
                 ? const SizedBox.shrink()
                 : Text(
