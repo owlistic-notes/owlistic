@@ -609,38 +609,60 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
     
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBarCommon(
-        automaticallyImplyLeading: false,
         onBackPressed: () {
           _saveAllContent();
           Navigator.pop(context);
         },
-        showBackButton: true,
-        customTitle: TextField(
-          controller: _titleController,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
+        title: _titleController.text.isEmpty ? 'Untitled Note' : _titleController.text,
+        titleEditAction: IconButton(
+          icon: Icon(
+            Icons.edit,
+            // Use appropriate color from theme
+            color: theme.appBarTheme.actionsIconTheme?.color ?? 
+                  theme.appBarTheme.foregroundColor ??
+                  theme.colorScheme.onPrimary,
+            size: 20, // Slightly smaller to look good next to title
           ),
-          cursorColor: Colors.white,
-          cursorWidth: 2.0,
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            hintText: 'Note Title',
-            hintStyle: TextStyle(color: Colors.white70),
-            contentPadding: EdgeInsets.zero,
-            isDense: true,
-            filled: false,
-          ),
-          onChanged: (_) => _saveTitle(),
+          tooltip: 'Edit title',
+          constraints: const BoxConstraints(), // Remove padding
+          padding: const EdgeInsets.only(left: 8.0), // Add a little space between title and icon
+          onPressed: () {
+            // Show a dialog to edit the title
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Edit Title'),
+                content: TextField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    hintText: 'Note Title',
+                  ),
+                  autofocus: true,
+                ),
+                actions: [
+                  TextButton(
+                    child: const Text('CANCEL'),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  TextButton(
+                    child: const Text('SAVE'),
+                    onPressed: () {
+                      _saveTitle();
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
         ),
-        additionalActions: [], // Empty list to avoid any additional actions
+        // Remove the edit icon from additional actions
+        additionalActions: [],
       ),
       body: Theme(
         // Apply explicit text color overrides for dark mode to ensure visibility

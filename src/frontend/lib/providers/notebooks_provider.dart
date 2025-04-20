@@ -427,8 +427,10 @@ class NotebooksProvider with ChangeNotifier {
 
   // Add method to handle notebook deletion events
   void handleNotebookDeleted(String notebookId) {
+    _logger.info('Handling notebook deleted: $notebookId');
     if (_notebooksMap.containsKey(notebookId)) {
       _notebooksMap.remove(notebookId);
+      _logger.info('Removed notebook $notebookId from local state');
       notifyListeners();
     }
   }

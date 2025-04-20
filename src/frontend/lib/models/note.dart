@@ -6,6 +6,7 @@ class Note {
   final String userId;
   final String notebookId;
   final List<Block> blocks;
+  final DateTime? deletedAt;
 
   const Note({
     required this.id,
@@ -13,6 +14,7 @@ class Note {
     required this.userId,
     required this.notebookId,
     this.blocks = const [],
+    this.deletedAt,
   });
 
   String get content {
@@ -21,6 +23,13 @@ class Note {
   }
 
   factory Note.fromJson(Map<String, dynamic> json) {
+    DateTime? deletedAt;
+    if (json['deleted_at'] != null) {
+      try {
+        deletedAt = DateTime.parse(json['deleted_at']);
+      } catch (_) {}
+    }
+    
     return Note(
       id: json['id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
@@ -29,6 +38,7 @@ class Note {
       blocks: (json['blocks'] as List<dynamic>?)
           ?.map((block) => Block.fromJson(block))
           .toList() ?? const [],
+      deletedAt: deletedAt,
     );
   }
 

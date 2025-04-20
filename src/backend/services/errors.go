@@ -2,16 +2,22 @@ package services
 
 import "errors"
 
-var ErrNotFound = errors.New("resource not found")
-
-var ErrUserNotFound = errors.New("user not found")
-var ErrTaskNotFound = errors.New("task not found")
-var ErrNoteNotFound = errors.New("note not found")
-var ErrNotebookNotFound = errors.New("notebook not found")
-
-var ErrInvalidInput = errors.New("invalid input")
-
-var ErrBlockNotFound = errors.New("block not found")
-var ErrInvalidBlockType = errors.New("invalid block type")
-var ErrInvalidBlockOrder = errors.New("invalid block order")
-var ErrInvalidUUID = errors.New("invalid UUID")
+// Common errors
+var (
+	ErrNotFound            = errors.New("resource not found")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrNoteNotFound        = errors.New("note not found")
+	ErrBlockNotFound       = errors.New("block not found")
+	ErrNotebookNotFound    = errors.New("notebook not found")
+	ErrTaskNotFound        = errors.New("task not found")
+	ErrInvalidBlockType    = errors.New("invalid block type")
+	ErrInvalidInput        = errors.New("invalid input")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrInvalidToken        = errors.New("invalid token")
+	ErrUnauthorized        = errors.New("unauthorized")
+	ErrInternal            = errors.New("internal server error")
+	ErrResourceExists      = errors.New("resource already exists")
+	ErrEventNotFound       = errors.New("event not found")
+	ErrValidation          = errors.New("validation error")
+	ErrWebSocketConnection = errors.New("websocket connection error")
+)

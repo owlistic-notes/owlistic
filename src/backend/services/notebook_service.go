@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/thinkstack/broker"
@@ -179,10 +180,15 @@ func (s *NotebookService) DeleteNotebook(db *database.Database, id string) error
 		return err
 	}
 
-	// Mark notebook as deleted
-	// If we wanted to physically delete it, the CASCADE constraints would
-	// automatically handle the deletion of notes, blocks, and tasks
-	if err := tx.Model(&notebook).Update("is_deleted", true).Error; err != nil {
+	// Mark notebook as soft deleted using GORM's delete
+	// This will set DeletedAt and trigger GORM's soft delete mechanism
+	if err := tx.Delete(&notebook).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Soft delete all notes belonging to this notebook
+	if err := tx.Model(&models.Note{}).Where("notebook_id = ?", id).Update("deleted_at", time.Now()).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -230,7 +236,13 @@ func (s *NotebookService) GetAllNotebooks(db *database.Database) ([]models.Noteb
 
 func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]interface{}) ([]models.Notebook, error) {
 	var notebooks []models.Notebook
-	query := db.DB.Preload("Notes")
+	query := db.DB.Preload("Notes", "deleted_at IS NULL") // Only load non-deleted notes
+
+	// By default, filter out deleted notebooks
+	includeDeleted, hasIncludeDeleted := params["include_deleted"].(bool)
+	if !hasIncludeDeleted || !includeDeleted {
+		query = query.Where("deleted_at IS NULL")
+	}
 
 	// Apply filters based on params
 	if userID, ok := params["user_id"].(string); ok && userID != "" {

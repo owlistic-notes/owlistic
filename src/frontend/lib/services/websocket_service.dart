@@ -399,69 +399,52 @@ class WebSocketService {
   void _handleWebSocketMessage(dynamic message) {
     _logger.debug('Raw message: $message');
     try {
-      // Parse the message with our parser
-      final WebSocketMessage parsedMessage = WebSocketMessage.fromString(message.toString());
+      // Parse the JSON message
+      Map<String, dynamic> jsonMessage;
+      if (message is String) {
+        jsonMessage = json.decode(message);
+      } else {
+        // If it's already a Map, just cast it
+        jsonMessage = message as Map<String, dynamic>;
+      }
+      
+      // Use our parser to get a structured message object
+      final parsedMessage = WebSocketMessage.fromJson(jsonMessage);
       
       // Basic logging for event messages
       if (parsedMessage.type == 'event') {
-        final String resourceType = _determineResourceType(parsedMessage);
-        final String? resourceId = parsedMessage.getModelId(resourceType);
+        String resourceType = 'unknown';
+        String? resourceId;
+        
+        // Try to determine resource type from event name or payload
+        if (parsedMessage.event.contains('note') && !parsedMessage.event.contains('notebook')) {
+          resourceType = 'note';
+          resourceId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+        } else if (parsedMessage.event.contains('notebook')) {
+          resourceType = 'notebook';
+          resourceId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+        } else if (parsedMessage.event.contains('block')) {
+          resourceType = 'block';
+          resourceId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+        }
         
         _logger.debug('EVENT: Type=${parsedMessage.type}, Event=${parsedMessage.event}, ' + 
               'ResourceType=$resourceType, ResourceId=${resourceId ?? "none"}');
       }
       
-      // Convert to Map for backwards compatibility with existing code
-      final Map<String, dynamic> messageMap = {
-        'type': parsedMessage.type,
-        'event': parsedMessage.event,
-      };
-      
-      // Add payload if present
-      if (parsedMessage.payload != null) {
-        messageMap['payload'] = {
-          'id': parsedMessage.payload!.id,
-          'timestamp': parsedMessage.payload!.timestamp,
-        };
-        
-        // Add data if present
-        if (parsedMessage.payload!.data != null) {
-          messageMap['payload']['data'] = parsedMessage.payload!.data;
-        }
-      }
-      
-      _messageController.add(messageMap);
+      // Pass the original message to existing listeners for compatibility
+      _messageController.add(jsonMessage);
     } catch (e) {
       _logger.error('Error parsing message', e);
+      
+      // Try to broadcast raw message as fallback
+      try {
+        if (message is String) {
+          Map<String, dynamic> fallbackJson = {"raw": message};
+          _messageController.add(fallbackJson);
+        }
+      } catch (_) {}
     }
   }
-  
-  // Helper to determine the resource type from a message
-  String _determineResourceType(WebSocketMessage message) {
-    // Try to determine from event name first
-    final String eventName = message.event.toLowerCase();
-    
-    if (eventName.contains('note') && !eventName.contains('notebook')) {
-      return 'note';
-    } else if (eventName.contains('notebook')) {
-      return 'notebook';
-    } else if (eventName.contains('block')) {
-      return 'block';
-    } else if (eventName.contains('task')) {
-      return 'task';
-    }
-    
-    // If event name doesn't reveal, check payload data
-    if (message.hasModelData('note')) {
-      return 'note';
-    } else if (message.hasModelData('notebook')) {
-      return 'notebook';
-    } else if (message.hasModelData('block')) {
-      return 'block';
-    } else if (message.hasModelData('task')) {
-      return 'task';
-    }
-    
-    return 'unknown';
-  }
+
 }

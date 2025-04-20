@@ -534,4 +534,103 @@ class ApiService {
       rethrow;
     }
   }
+
+  // Trash related methods
+  static Future<Map<String, dynamic>> fetchTrashedItems() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/v1/trash').replace(
+          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
+        ),
+        headers: {
+          'Accept': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Parse the notes and notebooks
+        final List<dynamic> notesList = data['notes'] ?? [];
+        final List<dynamic> notebooksList = data['notebooks'] ?? [];
+        
+        final parsedNotes = notesList.map((n) => Note.fromJson(n)).toList();
+        final parsedNotebooks = notebooksList.map((nb) => Notebook.fromJson(nb)).toList();
+        
+        return {
+          'notes': parsedNotes,
+          'notebooks': parsedNotebooks,
+        };
+      } else {
+        throw Exception('Failed to load trashed items: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in fetchTrashedItems', e);
+      rethrow;
+    }
+  }
+  
+  static Future<void> restoreItem(String type, String id) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/v1/trash/restore/$type/$id').replace(
+          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
+        ),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to restore item: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in restoreItem', e);
+      rethrow;
+    }
+  }
+  
+  static Future<void> permanentlyDeleteItem(String type, String id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/api/v1/trash/$type/$id').replace(
+          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
+        ),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to permanently delete item: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in permanentlyDeleteItem', e);
+      rethrow;
+    }
+  }
+  
+  static Future<void> emptyTrash() async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/api/v1/trash').replace(
+          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
+        ),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to empty trash: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in emptyTrash', e);
+      rethrow;
+    }
+  }
 }

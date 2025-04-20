@@ -22,13 +22,7 @@ class ThinkStackApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [
-        // Theme provider
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        
-        // App providers
-        ...appProviders,
-      ],
+      providers: appProviders,
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp.router(

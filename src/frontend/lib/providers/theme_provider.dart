@@ -1,85 +1,88 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/theme.dart';
 import '../utils/logger.dart';
 
 class ThemeProvider with ChangeNotifier {
   final Logger _logger = Logger('ThemeProvider');
-  ThemeMode _themeMode = ThemeMode.system;
-  static const String _themeModeKey = 'theme_mode';
-
-  ThemeMode get themeMode => _themeMode;
-
+  bool _isDarkMode = false;
+  bool _isInitialized = false;
+  
   ThemeProvider() {
     _loadThemePreference();
   }
-
-  // Load saved theme preference
+  
+  // Getters
+  bool get isDarkMode => _isDarkMode;
+  ThemeData get theme => _isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme;
+  ThemeMode get themeMode => _isDarkMode ? ThemeMode.dark : ThemeMode.light;
+  
+  // Load theme preference from shared preferences
   Future<void> _loadThemePreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedThemeMode = prefs.getString(_themeModeKey);
-      if (savedThemeMode != null) {
-        _themeMode = _parseThemeMode(savedThemeMode);
-        notifyListeners();
-      }
+      _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+      _isInitialized = true;
+      notifyListeners();
+      _logger.info('Theme loaded: ${_isDarkMode ? 'dark' : 'light'}');
     } catch (e) {
-      _logger.error('Failed to load theme preference', e);
+      _logger.error('Error loading theme preference', e);
+      _isInitialized = true;
+      notifyListeners();
     }
   }
-
-  // Save theme preference
-  Future<void> _saveThemePreference(ThemeMode mode) async {
+  
+  // Toggle theme between light and dark
+  Future<void> toggleTheme() async {
+    _isDarkMode = !_isDarkMode;
+    notifyListeners();
+    
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_themeModeKey, mode.toString());
+      await prefs.setBool('isDarkMode', _isDarkMode);
+      _logger.info('Theme changed to: ${_isDarkMode ? 'dark' : 'light'}');
     } catch (e) {
-      _logger.error('Failed to save theme preference', e);
+      _logger.error('Error saving theme preference', e);
     }
   }
-
-  // Set theme mode
+  
+  // For compatibility with drawer code
+  void toggleThemeMode() {
+    toggleTheme();
+  }
+  
+  // Set specific theme mode
   Future<void> setThemeMode(ThemeMode mode) async {
-    _themeMode = mode;
-    await _saveThemePreference(mode);
+    final newDarkMode = mode == ThemeMode.dark;
+    if (_isDarkMode == newDarkMode) return;
+    
+    _isDarkMode = newDarkMode;
     notifyListeners();
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isDarkMode', _isDarkMode);
+      _logger.info('Theme set to: ${_isDarkMode ? 'dark' : 'light'}');
+    } catch (e) {
+      _logger.error('Error saving theme preference', e);
+    }
   }
-
-  // Toggle between light and dark only
-  Future<void> toggleThemeMode() async {
-    if (_themeMode == ThemeMode.light) {
-      await setThemeMode(ThemeMode.dark);
-    } else {
-      await setThemeMode(ThemeMode.light);
+  
+  // Set specific theme
+  Future<void> setTheme(bool darkMode) async {
+    if (_isDarkMode == darkMode) return;
+    
+    _isDarkMode = darkMode;
+    notifyListeners();
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isDarkMode', _isDarkMode);
+      _logger.info('Theme set to: ${_isDarkMode ? 'dark' : 'light'}');
+    } catch (e) {
+      _logger.error('Error saving theme preference', e);
     }
   }
 
-  // Parse theme mode from string
-  ThemeMode _parseThemeMode(String value) {
-    if (value == 'ThemeMode.dark') return ThemeMode.dark;
-    if (value == 'ThemeMode.light') return ThemeMode.light;
-    return ThemeMode.system;
-  }
-
-  // Get theme mode icon
-  IconData getThemeModeIcon() {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        return Icons.wb_sunny;
-      case ThemeMode.dark:
-        return Icons.nightlight_round;
-      case ThemeMode.system:
-        return Icons.brightness_auto;
-    }
-  }
-
-  String getThemeModeName() {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        return 'Light Mode';
-      case ThemeMode.dark:
-        return 'Dark Mode';
-      case ThemeMode.system:
-        return 'System Default';
-    }
-  }    
+  
 }

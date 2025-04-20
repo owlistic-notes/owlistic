@@ -32,7 +32,7 @@ class CardContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = context.isDarkMode;
+    final isDark = theme.brightness == Brightness.dark; // Changed from context.isDarkMode
     final radius = borderRadius ?? BorderRadius.circular(12);
     final cardColor = color ?? theme.cardColor;
 
@@ -70,7 +70,8 @@ class CardContainer extends StatelessWidget {
                         Text(
                           subtitle!,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppTheme.getTextSecondaryColor(isDark),
+                            // Fixed: Use theme's text color instead of missing method
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
                         ),
                       ],

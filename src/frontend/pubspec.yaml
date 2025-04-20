@@ -24,6 +24,7 @@ dependencies:
   super_editor: ^0.3.0-dev.23
   attributed_text: ^0.4.4
   shared_preferences: ^2.5.3
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:

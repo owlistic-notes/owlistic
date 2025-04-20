@@ -11,6 +11,7 @@ class AppBarCommon extends StatefulWidget implements PreferredSizeWidget {
   final List<Widget> additionalActions;
   final bool automaticallyImplyLeading;
   final Widget? customTitle;
+  final Widget? titleEditAction; // New parameter for edit action next to title
 
   const AppBarCommon({
     Key? key,
@@ -21,6 +22,7 @@ class AppBarCommon extends StatefulWidget implements PreferredSizeWidget {
     this.additionalActions = const [],
     this.automaticallyImplyLeading = true,
     this.customTitle,
+    this.titleEditAction, // Add new parameter
   }) : super(key: key);
 
   @override
@@ -205,7 +207,14 @@ class _AppBarCommonState extends State<AppBarCommon> {
             onChanged: _handleSearch,
             onClear: _toggleSearch,
           )
-        : widget.customTitle ?? Text(widget.title),
+        : widget.customTitle ?? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: Text(widget.title)),
+              if (widget.titleEditAction != null)
+                widget.titleEditAction!,
+            ],
+          ),
       titleSpacing: widget.onMenuPressed != null || widget.showBackButton ? 8.0 : 16.0,
       automaticallyImplyLeading: false,
       leading: Container(

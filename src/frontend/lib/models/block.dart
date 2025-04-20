@@ -94,3 +94,27 @@ class Block {
     return {'text': text};
   }
 }
+
+extension BlockContentHelpers on Block {
+  // Helper method to extract text content safely for display
+  String getTextContent() {
+    if (content == null) return '';
+    
+    try {
+      // Handle different content structures
+      if (content is Map) {
+        final contentMap = content as Map;
+        if (contentMap.containsKey('text')) {
+          return contentMap['text']?.toString() ?? '';
+        } else if (contentMap.containsKey('content')) {
+          return contentMap['content']?.toString() ?? '';
+        }
+      }
+      
+      // If we can't extract structured content, convert the whole thing to string
+      return content.toString();
+    } catch (e) {
+      return '';
+    }
+  }
+}

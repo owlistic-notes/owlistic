@@ -8,10 +8,10 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Email        string    `gorm:"unique;not null"`
-	PasswordHash string
-	CreatedAt    time.Time      `gorm:"not null;default:now()"`
-	UpdatedAt    time.Time      `gorm:"not null;default:now()"`
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
+	ID           uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Email        string         `gorm:"unique;not null" json:"email"`
+	PasswordHash string         `json:"-"` // Don't expose password hash in JSON
+	CreatedAt    time.Time      `gorm:"not null;default:now()" json:"created_at"`
+	UpdatedAt    time.Time      `gorm:"not null;default:now()" json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }

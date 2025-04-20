@@ -5,10 +5,17 @@ import '../providers/block_provider.dart';
 import '../providers/notes_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/tasks_provider.dart';
+import '../providers/trash_provider.dart';
+import '../providers/theme_provider.dart'; // Add ThemeProvider import
 
 /// List of providers used in the app
 /// These providers also act as presenters in the MVP pattern
 List<SingleChildWidget> appProviders = [
+  // Add ThemeProvider first as it's used by app-wide UI components
+  ChangeNotifierProvider<ThemeProvider>(
+    create: (_) => ThemeProvider(),
+  ),
+  
   // Core WebSocket provider is the foundation for real-time updates
   ChangeNotifierProvider<WebSocketProvider>(
     create: (_) => WebSocketProvider(),
@@ -49,5 +56,10 @@ List<SingleChildWidget> appProviders = [
       provider.setWebSocketProvider(webSocketProvider);
       return provider;
     },
+  ),
+  
+  // Trash provider for managing deleted items
+  ChangeNotifierProvider<TrashProvider>(
+    create: (context) => TrashProvider(),
   ),
 ];

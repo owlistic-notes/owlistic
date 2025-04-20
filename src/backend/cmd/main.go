@@ -68,6 +68,7 @@ func main() {
 	routes.RegisterTaskRoutes(router, db, services.TaskServiceInstance)
 	routes.RegisterNotebookRoutes(router, db, services.NotebookServiceInstance)
 	routes.RegisterBlockRoutes(router, db, services.BlockServiceInstance)
+	routes.RegisterTrashRoutes(router, db, services.TrashServiceInstance) // Add this line
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

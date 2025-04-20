@@ -81,6 +81,9 @@ class WebSocketEventCoordinator {
       case 'block':
         _blockProvider?.handleBlockDeleted(id);
         break;
+      default:
+        debugPrint('WebSocketEventCoordinator: Unhandled entity type - $type');
+        break;
     }
   }
 }
