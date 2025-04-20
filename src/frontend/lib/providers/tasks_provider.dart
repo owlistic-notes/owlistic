@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../services/api_service.dart';
-import '../services/websocket_service.dart';
 import 'websocket_provider.dart';
 import '../utils/logger.dart';
 
@@ -10,7 +9,6 @@ class TasksProvider with ChangeNotifier {
   // Change to Map to prevent duplicates and enable O(1) lookups
   final Map<String, Task> _tasksMap = {};
   bool _isLoading = false;
-  final WebSocketService _webSocketService = WebSocketService();
   WebSocketProvider? _webSocketProvider;
   bool _initialized = false;
 
@@ -23,9 +21,7 @@ class TasksProvider with ChangeNotifier {
   List<Task> get recentTasks => _tasksMap.values.take(3).toList();
 
   TasksProvider() {
-    // Initialize WebSocket connection
-    _webSocketService.connect();
-    print('TasksProvider initialized');
+    _logger.info('TasksProvider initialized');
   }
 
   // Called by ProxyProvider in main.dart
@@ -36,7 +32,7 @@ class TasksProvider with ChangeNotifier {
     _webSocketProvider = webSocketProvider;
     _registerEventHandlers();
 
-    print('TasksProvider registered event handlers');
+    _logger.info('TasksProvider registered event handlers');
   }
 
   void setWebSocketProvider(WebSocketProvider provider) {
@@ -47,7 +43,7 @@ class TasksProvider with ChangeNotifier {
     // Register for relevant events
     _registerEventHandlers();
 
-    print('TasksProvider: WebSocket event listeners registered');
+    _logger.info('TasksProvider: WebSocket event listeners registered');
   }
 
   void _registerEventHandlers() {
@@ -122,7 +118,7 @@ class TasksProvider with ChangeNotifier {
       _tasksMap[taskId] = task;
 
       // Subscribe to this task
-      _webSocketService.subscribe('task', id: task.id);
+      _webSocketProvider?.subscribe('task', id: task.id);;
 
       print('Updated/added task: $taskId');
       notifyListeners();
@@ -146,7 +142,7 @@ class TasksProvider with ChangeNotifier {
 
       // Subscribe to all tasks
       for (var task in tasksList) {
-        _webSocketService.subscribe('task', id: task.id);
+        _webSocketProvider?.subscribe('task', id: task.id);;
       }
 
       print('Fetched ${_tasksMap.length} tasks');
@@ -166,7 +162,7 @@ class TasksProvider with ChangeNotifier {
       final task = await ApiService.createTask(title, noteId, blockId: blockId);
       
       // Subscribe to this task
-      _webSocketService.subscribe('task', id: task.id);
+      _webSocketProvider?.subscribe('task', id: task.id);;
       
       _logger.info('Created task: $title, waiting for event');
     } catch (error) {

@@ -446,10 +446,10 @@ class BlockProvider with ChangeNotifier {
       _logger.debug('Adding block from event: $blockId');
       final block = await ApiService.getBlock(blockId);
       
-      // Check if this is a block for an active note
-      if (_activeNoteIds.contains(block.noteId)) {
+      // Check if block exists and if this is a block for an active note
+      if (block != null && _activeNoteIds.contains(block.noteId)) {
         // Add to blocks map
-        _blocks[blockId] = block;
+        _blocks[blockId] = block!;
         
         // Update note blocks map
         _noteBlocksMap[block.noteId] ??= [];
@@ -465,7 +465,7 @@ class BlockProvider with ChangeNotifier {
         
         _logger.info('Successfully added block $blockId from event');
       } else {
-        _logger.debug('Block $blockId belongs to inactive note ${block.noteId}, not adding');
+        _logger.debug('Block $blockId belongs to inactive note ${block?.noteId}, not adding');
       }
     } catch (error) {
       _logger.error('Error adding block from event', error);

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../models/note.dart';
+import '../models/notebook.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/websocket_provider.dart';
 import '../utils/provider_extensions.dart';
@@ -27,6 +29,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   final Logger _logger = Logger('NotebookDetailScreen');
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
+  bool _isLoading = true;
   
   // NotebooksProvider acts as the Presenter
   late NotebooksProvider _presenter;
@@ -49,25 +52,44 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   }
   
   Future<void> _initializeData() async {
-    // Ensure WebSocket connection first
-    await _webSocketProvider.ensureConnected();
+    setState(() {
+      _isLoading = true;
+    });
     
-    // Activate the presenter
-    _presenter.activate();
-    
-    // Subscribe to the notebook and notes events
-    _webSocketProvider.subscribe('notebook', id: widget.notebookId);
-    _webSocketProvider.subscribe('notebook:notes', id: widget.notebookId);
-    
-    // Also subscribe to general note events to catch updates
-    _webSocketProvider.subscribe('note');
-    _webSocketProvider.subscribe('note.created'); // Add specific event subscription
-    _webSocketProvider.subscribe('note.deleted'); // Add specific event subscription
-    
-    // Fetch notebook data
-    await _presenter.fetchNotebookById(widget.notebookId);
-    
-    _logger.info('Initialized with notebook ID ${widget.notebookId}');
+    try {
+      // Ensure WebSocket connection first
+      await _webSocketProvider.ensureConnected();
+      
+      // Activate the presenter
+      _presenter.activate();
+      
+      // Subscribe to the notebook and notes events
+      _webSocketProvider.subscribe('notebook', id: widget.notebookId);
+      _webSocketProvider.subscribe('notebook:notes', id: widget.notebookId);
+      
+      // Also subscribe to general note events to catch updates
+      _webSocketProvider.subscribe('note');
+      _webSocketProvider.subscribe('note.created');
+      _webSocketProvider.subscribe('note.deleted');
+      
+      // Fetch notebook data
+      await _presenter.fetchNotebookById(widget.notebookId);
+      
+      _logger.info('Initialized with notebook ID ${widget.notebookId}');
+    } catch (e) {
+      _logger.error('Error initializing notebook detail screen', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load notebook data'))
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _showAddNoteDialog(BuildContext context, String notebookId) {
@@ -81,7 +103,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         ),
         title: Row(
           children: [
-            Icon(Icons.note_add_outlined, color: Theme.of(context).primaryColor),
+            Icon(Icons.note_add, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Note'),
           ],
@@ -91,6 +113,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
           decoration: const InputDecoration(
             labelText: 'Title',
             prefixIcon: Icon(Icons.title),
+            hintText: 'Enter note title',
           ),
           autofocus: true,
         ),
@@ -103,7 +126,10 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
                 try {
-                  await _presenter.addNoteToNotebook(notebookId, _titleController.text);
+                  await _presenter.addNoteToNotebook(
+                    notebookId,
+                    _titleController.text,
+                  );
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -112,8 +138,10 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
                 }
               }
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+            ),
             child: const Text('Create'),
-            style: AppTheme.getSuccessButtonStyle(),
           ),
         ],
       ),
@@ -125,36 +153,37 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+            Container(
+              height: 4,
+              width: 40,
+              margin: const EdgeInsets.only(top: 8, bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Sort Notes',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'Sort By',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
             ),
-            const SizedBox(height: 20),
-            _buildSortOption(context, 'Date Created (Newest)', Icons.calendar_today),
-            _buildSortOption(context, 'Date Created (Oldest)', Icons.calendar_today),
-            _buildSortOption(context, 'Title (A-Z)', Icons.sort_by_alpha),
-            _buildSortOption(context, 'Title (Z-A)', Icons.sort_by_alpha),
+            const Divider(),
+            _buildSortOption(context, 'Title (A to Z)', Icons.sort_by_alpha),
+            _buildSortOption(context, 'Title (Z to A)', Icons.sort),
+            _buildSortOption(context, 'Date (Newest First)', Icons.calendar_today),
+            _buildSortOption(context, 'Date (Oldest First)', Icons.calendar_view_day),
           ],
         ),
       ),
@@ -166,7 +195,6 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       leading: Icon(icon, color: Theme.of(context).iconTheme.color),
       title: Text(title),
       onTap: () {
-        // Implement sorting logic
         Navigator.pop(context);
       },
     );
@@ -199,18 +227,25 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBarCommon(
-        title: hasNotebook ? notebook!.name : 'Notebook Details',
-        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        title: hasNotebook ? notebook!.name : 'Notebook',
         onBackPressed: () => context.go('/notebooks'), // Go back to notebooks list
       ),
       drawer: const AppDrawer(),
-      body: !hasNotebook
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _buildNotebookContent(context, notebook!),
+          : !hasNotebook
+              ? EmptyState(
+                  title: 'Notebook not found',
+                  message: 'This notebook may have been deleted or you don\'t have access to it.',
+                  icon: Icons.folder_off,
+                  onAction: () => context.go('/notebooks'),
+                  actionLabel: 'Back to Notebooks',
+                )
+              : _buildNotebookContent(context, notebook!),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddNoteDialog(context, widget.notebookId),
-        child: const Icon(Icons.add),
         tooltip: 'Add Note',
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -218,10 +253,10 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   Widget _buildNotebookContent(BuildContext context, dynamic notebook) {
     if (notebook.notes.isEmpty) {
       return EmptyState(
-        title: 'No notes in this notebook',
-        message: 'Create your first note to get started taking notes',
-        icon: Icons.note_add_outlined,
-        onAction: () => _showAddNoteDialog(context, widget.notebookId),
+        title: 'No notes yet',
+        message: 'Create your first note in this notebook.',
+        icon: Icons.note_add,
+        onAction: () => _showAddNoteDialog(context, notebook.id),
         actionLabel: 'Create Note',
       );
     }
@@ -230,104 +265,71 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.folder,
-                      color: Theme.of(context).primaryColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          notebook.name,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        if (notebook.description.isNotEmpty)
-                          Text(
-                            notebook.description,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).textTheme.bodySmall?.color,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+              Text(
+                'Notes (${notebook.notes.length})',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text(
-                    '${notebook.notes.length} Notes',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () => _showSortOptionsBottomSheet(context),
-                    icon: const Icon(Icons.sort),
-                    label: const Text('Sort'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).textTheme.bodySmall?.color,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
-                ],
+              IconButton(
+                icon: const Icon(Icons.sort),
+                onPressed: () => _showSortOptionsBottomSheet(context),
+                tooltip: 'Sort notes',
               ),
             ],
           ),
         ),
-        const Divider(),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.only(bottom: 80),
             itemCount: notebook.notes.length,
             itemBuilder: (context, index) {
               final note = notebook.notes[index];
               return CardContainer(
-                key: ValueKey('note_${note.id}'),
                 onTap: () => _navigateToNoteEditor(context, note),
                 leading: Container(
-                  width: 42,
-                  height: 42,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: Theme.of(context).primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    Icons.description_outlined, 
+                    Icons.description,
                     color: Theme.of(context).primaryColor,
                   ),
                 ),
-                title: note.title,
-                trailing: IconButton(
-                  icon: Icon(
-                    Icons.delete_outline,
-                    color: AppTheme.dangerColor,
-                  ),
-                  onPressed: () => _showDeleteConfirmation(context, note),
+                title: note.title.isEmpty ? 'Untitled Note' : note.title,
+                subtitle: 'Last edited',
+                trailing: PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _showDeleteConfirmation(context, note);
+                    }
+                  },
+                  itemBuilder: (BuildContext context) => [
+                    const PopupMenuItem<String>(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(Icons.delete),
+                        title: Text('Delete'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
                 ),
-                child: note.blocks.isEmpty
-                  ? const Text('Empty note', style: TextStyle(fontStyle: FontStyle.italic))
-                  : Text(
+                child: note.blocks.isNotEmpty
+                  ? Text(
                       note.blocks.first.getTextContent(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                    ),
+                    )
+                  : Container(),
               );
             },
           ),
@@ -347,18 +349,20 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
             onPressed: () async {
-              Navigator.of(ctx).pop();
               try {
-                await _presenter.deleteNoteFromNotebook(widget.notebookId, note.id);
+                await _presenter.deleteNote(note.id);
+                Navigator.of(ctx).pop();
               } catch (error) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Failed to delete note')),
                 );
               }
             },
-            style: AppTheme.getDangerButtonStyle(),
             child: const Text('Delete'),
           ),
         ],

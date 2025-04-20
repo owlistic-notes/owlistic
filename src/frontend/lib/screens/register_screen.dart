@@ -31,21 +31,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       
-      final success = await authProvider.register(
-        _emailController.text.trim(),
-        _passwordController.text,
-        _confirmPasswordController.text,
-      );
-      
-      if (success) {
-        // Navigate to home screen on success
-        context.go('/');
-      } else {
-        // Show error message
+      try {
+        final success = await authProvider.register(
+          _emailController.text.trim(), 
+          _passwordController.text
+        );
+        
+        if (success) {
+          _logger.info('Registration successful, user authenticated');
+          // Navigation is handled by GoRouter redirect
+        } else {
+          // Show error message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(authProvider.errorMessage ?? 'Registration failed. Please try again.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        _logger.error('Error during registration', e);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registration failed. Please try again with a different email.'),
+              content: Text('An error occurred during registration. Please try again.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -61,6 +72,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Create Account'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/login'),
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -71,25 +89,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
               // App logo
               Icon(
                 Icons.psychology,
-                size: 80,
+                size: 60,
                 color: theme.primaryColor,
               ),
               const SizedBox(height: 24),
               
               // App name
               Text(
-                'ThinkStack',
-                style: theme.textTheme.headlineMedium?.copyWith(
+                'Join ThinkStack',
+                style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: theme.primaryColor,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              
-              Text(
-                'Create an Account',
-                style: theme.textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
@@ -148,7 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       obscureText: !_isPasswordVisible,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
+                          return 'Please enter a password';
                         }
                         if (value.length < 6) {
                           return 'Password must be at least 6 characters';
@@ -212,7 +222,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           )
                         : const Text(
-                            'Register',
+                            'Create Account',
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                     ),
@@ -224,7 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       onPressed: () {
                         context.go('/login');
                       },
-                      child: const Text('Already have an account? Login'),
+                      child: const Text('Already have an account? Log In'),
                     ),
                   ],
                 ),

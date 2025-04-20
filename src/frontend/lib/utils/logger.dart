@@ -1,113 +1,42 @@
 import 'package:flutter/foundation.dart';
-import 'package:logging/logging.dart' as logging;
 
-/// Log levels for the application
-enum LogLevel {
-  debug,   // Only shown in debug mode
-  info,    // Normal flow information
-  warning, // Potential issues
-  error,   // Errors that don't crash the app
-}
-
-/// A simple logging utility that wraps package:logging/logging.dart
+/// Simple logger class for consistent logging across the app
 class Logger {
-  late logging.Logger _internalLogger;
+  final String _tag;
   
-  /// The tag identifies the source of the log
-  final String tag;
-  
-  /// Track whether the logging system has been initialized
-  static bool _initialized = false;
-  static bool _debugMode = false;
-  
-  // Set to true to enable more verbose logging
-  static bool get debugMode => _debugMode;
-  static set debugMode(bool value) {
-    _debugMode = value;
-    _configureLogging();
-  }
-  
-  /// Create a logger for a specific component
-  Logger(this.tag) {
-    _configureLogging();
-    _internalLogger = logging.Logger(tag);
-  }
-  
-  /// Initialize the logging framework once
-  static void _configureLogging() {
-    if (!_initialized) {
-      logging.hierarchicalLoggingEnabled = true;
-      
-      logging.Logger.root.level = _debugMode 
-          ? logging.Level.ALL 
-          : logging.Level.INFO;
-      
-      logging.Logger.root.onRecord.listen((record) {
-        final timestamp = _formatTimestamp(record.time);
-        final level = record.level.name.padRight(5).substring(0, 5);
-        final message = record.message;
-        final loggerName = record.loggerName;
-        
-        debugPrintSynchronously("$timestamp | $level | $loggerName | $message");
-        
-        if (record.error != null) {
-          debugPrintSynchronously("$timestamp | $level | $loggerName | ↳ ${record.error}");
-          
-          if (record.stackTrace != null && kDebugMode) {
-            debugPrintSynchronously("$timestamp | $level | $loggerName | ↳ ${record.stackTrace}");
-          }
-        }
-      });
-      
-      _initialized = true;
-    }
-  }
-  
-  /// Format timestamp to consistent output
-  static String _formatTimestamp(DateTime time) {
-    return "${time.year}-${_pad(time.month)}-${_pad(time.day)} "
-           "${_pad(time.hour)}:${_pad(time.minute)}:${_pad(time.second)}"
-           ".${_pad(time.millisecond, 3)}";
-  }
-  
-  /// Pad a number with leading zeros
-  static String _pad(int n, [int width = 2]) {
-    return n.toString().padLeft(width, '0');
-  }
-  
-  /// Log a debug message (only shown in debug mode)
-  void debug(String message) {
-    _internalLogger.fine(message);
-  }
+  /// Create a logger with a tag (usually the class name)
+  Logger(this._tag);
   
   /// Log an info message
   void info(String message) {
-    _internalLogger.info(message);
+    _log('INFO', message);
+  }
+  
+  /// Log a debug message
+  void debug(String message) {
+    _log('DEBUG', message);
   }
   
   /// Log a warning message
   void warning(String message) {
-    _internalLogger.warning(message);
+    _log('WARNING', message);
   }
   
-  /// Log an error message
-  void error(String message, [Object? error, StackTrace? stackTrace]) {
-    _internalLogger.severe(message, error, stackTrace);
+  /// Log an error message with optional stack trace
+  void error(String message, [dynamic error, StackTrace? stackTrace]) {
+    _log('ERROR', message);
+    if (error != null) {
+      _log('ERROR', '  Cause: $error');
+    }
+    if (stackTrace != null) {
+      _log('ERROR', '  Stack: $stackTrace');
+    }
   }
   
-  /// Static method to get a logger for a class
-  static Logger forClass(Type type) {
-    return Logger(type.toString());
-  }
-}
-
-/// Global logger for general use
-final Logger log = Logger('Global');
-
-/// Helper function to print synchronously without throttling
-void debugPrintSynchronously(String message, {int wrapWidth = 100}) {
-  final lines = message.split('\n');
-  for (final line in lines) {
-    debugPrint(line, wrapWidth: wrapWidth);
+  /// Internal log method
+  void _log(String level, String message) {
+    if (kDebugMode) {
+      print('[$level] $_tag: $message');
+    }
   }
 }
