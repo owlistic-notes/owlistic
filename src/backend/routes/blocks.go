@@ -9,19 +9,16 @@ import (
 	"github.com/thinkstack/services"
 )
 
-func RegisterBlockRoutes(router *gin.Engine, db *database.Database, blockService services.BlockServiceInterface) {
-	group := router.Group("/api/v1/blocks")
-	{
-		// Collection endpoints with query parameters
-		group.GET("/", func(c *gin.Context) { GetBlocks(c, db, blockService) })
-		group.POST("/", func(c *gin.Context) { CreateBlock(c, db, blockService) })
+func RegisterBlockRoutes(group *gin.RouterGroup, db *database.Database, blockService services.BlockServiceInterface) {
+	// Collection endpoints with query parameters
+	group.GET("/blocks", func(c *gin.Context) { GetBlocks(c, db, blockService) })
+	group.POST("/blocks", func(c *gin.Context) { CreateBlock(c, db, blockService) })
 
-		// Resource-specific endpoints
-		group.GET("/:id", func(c *gin.Context) { GetBlockById(c, db, blockService) })
-		group.PUT("/:id", func(c *gin.Context) { UpdateBlock(c, db, blockService) })
-		group.DELETE("/:id", func(c *gin.Context) { DeleteBlock(c, db, blockService) })
-		group.GET("/note/:note_id", func(c *gin.Context) { ListBlocksByNote(c, db, blockService) })
-	}
+	// Resource-specific endpoints
+	group.GET("/blocks/:id", func(c *gin.Context) { GetBlockById(c, db, blockService) })
+	group.PUT("/blocks/:id", func(c *gin.Context) { UpdateBlock(c, db, blockService) })
+	group.DELETE("/blocks/:id", func(c *gin.Context) { DeleteBlock(c, db, blockService) })
+	group.GET("/blocks/note/:note_id", func(c *gin.Context) { ListBlocksByNote(c, db, blockService) })
 }
 
 func GetBlocks(c *gin.Context, db *database.Database, blockService services.BlockServiceInterface) {

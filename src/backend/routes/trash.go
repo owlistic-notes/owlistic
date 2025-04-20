@@ -9,21 +9,18 @@ import (
 )
 
 // RegisterTrashRoutes registers all routes related to trash functionality
-func RegisterTrashRoutes(router *gin.Engine, db *database.Database, trashService services.TrashServiceInterface) {
-	group := router.Group("/api/v1/trash")
-	{
-		// Get all trashed items
-		group.GET("/", func(c *gin.Context) { GetTrashedItems(c, db, trashService) })
+func RegisterTrashRoutes(group *gin.RouterGroup, db *database.Database, trashService services.TrashServiceInterface) {
+	// Get all trashed items
+	group.GET("/trash", func(c *gin.Context) { GetTrashedItems(c, db, trashService) })
 
-		// Restore a trashed item
-		group.POST("/restore/:type/:id", func(c *gin.Context) { RestoreItem(c, db, trashService) })
+	// Restore a trashed item
+	group.POST("/trash/restore/:type/:id", func(c *gin.Context) { RestoreItem(c, db, trashService) })
 
-		// Permanently delete a trashed item
-		group.DELETE("/:type/:id", func(c *gin.Context) { PermanentlyDeleteItem(c, db, trashService) })
+	// Permanently delete a trashed item
+	group.DELETE("/trash/:type/:id", func(c *gin.Context) { PermanentlyDeleteItem(c, db, trashService) })
 
-		// Empty trash (delete all trashed items permanently)
-		group.DELETE("/", func(c *gin.Context) { EmptyTrash(c, db, trashService) })
-	}
+	// Empty trash (delete all trashed items permanently)
+	group.DELETE("/trash", func(c *gin.Context) { EmptyTrash(c, db, trashService) })
 }
 
 // GetTrashedItems retrieves all soft-deleted notes and notebooks

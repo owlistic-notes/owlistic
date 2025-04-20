@@ -1,6 +1,10 @@
 package services
 
 import (
+	"errors"
+	"fmt"
+
+	"github.com/google/uuid"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 )
@@ -35,174 +39,269 @@ func (s *TrashService) GetTrashedItems(db *database.Database, userID string) (ma
 	return result, nil
 }
 
-func (s *TrashService) RestoreItem(db *database.Database, itemType string, itemID string, userID string) error {
+// RestoreItem restores a soft-deleted item from trash
+func (s *TrashService) RestoreItem(db *database.Database, itemType, itemID, userID string) error {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	var eventData map[string]interface{}
-	var err error
+	parsedItemID, err := uuid.Parse(itemID)
+	if err != nil {
+		tx.Rollback()
+		return errors.New("invalid item ID")
+	}
 
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		tx.Rollback()
+		return errors.New("invalid user ID")
+	}
+
+	var eventType, entityType, operationType string
+
+	// Handle different item types
 	switch itemType {
 	case "note":
-		// Update the note to remove the deleted_at timestamp
-		if err = tx.Exec("UPDATE notes SET deleted_at = NULL WHERE id = ? AND user_id = ?", itemID, userID).Error; err != nil {
+		// Restore the note and its blocks
+		result := tx.Exec("UPDATE notes SET deleted_at = NULL WHERE id = ? AND user_id = ?", parsedItemID, parsedUserID)
+		if result.RowsAffected == 0 {
 			tx.Rollback()
-			return err
+			return errors.New("note not found or not authorized")
 		}
 
-		// Also restore any blocks that were associated with this note
-		if err = tx.Exec("UPDATE blocks SET deleted_at = NULL WHERE note_id = ?", itemID).Error; err != nil {
-			tx.Rollback()
-			return err
+		// Restore blocks associated with the note
+		tx.Exec("UPDATE blocks SET deleted_at = NULL WHERE note_id = ?", itemID)
+
+		// Restore roles associated with the note and blocks
+		tx.Exec("UPDATE roles SET deleted_at = NULL WHERE resource_id = ? AND resource_type = ?",
+			parsedItemID, models.NoteResource)
+
+		// Get block IDs to restore their roles too
+		var blockIDs []uuid.UUID
+		tx.Model(&models.Block{}).Where("note_id = ?", parsedItemID).Pluck("id", &blockIDs)
+
+		for _, blockID := range blockIDs {
+			tx.Exec("UPDATE roles SET deleted_at = NULL WHERE resource_id = ? AND resource_type = ?",
+				blockID, models.BlockResource)
 		}
 
-		eventData = map[string]interface{}{
-			"note_id": itemID,
-			"user_id": userID,
-		}
+		eventType = "note.restored"
+		entityType = "note"
+		operationType = "restore"
+
 	case "notebook":
-		// Update the notebook to remove the deleted_at timestamp
-		if err = tx.Exec("UPDATE notebooks SET deleted_at = NULL WHERE id = ? AND user_id = ?", itemID, userID).Error; err != nil {
+		// Restore the notebook and its notes
+		result := tx.Exec("UPDATE notebooks SET deleted_at = NULL WHERE id = ? AND user_id = ?", itemID, userID)
+		if result.RowsAffected == 0 {
 			tx.Rollback()
-			return err
+			return errors.New("notebook not found or not authorized")
 		}
 
-		// Also restore all associated notes
-		if err = tx.Exec("UPDATE notes SET deleted_at = NULL WHERE notebook_id = ? AND user_id = ?", itemID, userID).Error; err != nil {
-			tx.Rollback()
-			return err
+		// Restore roles for the notebook
+		tx.Exec("UPDATE roles SET deleted_at = NULL WHERE resource_id = ? AND resource_type = ?",
+			parsedItemID, models.NotebookResource)
+
+		// Get related note IDs
+		var noteIDs []uuid.UUID
+		tx.Model(&models.Note{}).Where("notebook_id = ?", parsedItemID).Pluck("id", &noteIDs)
+
+		// Restore notes in the notebook
+		tx.Exec("UPDATE notes SET deleted_at = NULL WHERE notebook_id = ?", itemID)
+
+		// Restore roles for those notes
+		for _, noteID := range noteIDs {
+			tx.Exec("UPDATE roles SET deleted_at = NULL WHERE resource_id = ? AND resource_type = ?",
+				noteID, models.NoteResource)
+
+			// Restore blocks in those notes
+			tx.Exec("UPDATE blocks SET deleted_at = NULL WHERE note_id = ?", noteID)
+
+			// Get block IDs to restore their roles too
+			var blockIDs []uuid.UUID
+			tx.Model(&models.Block{}).Where("note_id = ?", noteID).Pluck("id", &blockIDs)
+
+			for _, blockID := range blockIDs {
+				tx.Exec("UPDATE roles SET deleted_at = NULL WHERE resource_id = ? AND resource_type = ?",
+					blockID, models.BlockResource)
+			}
 		}
 
-		// And restore blocks associated with those notes
-		if err = tx.Exec(`UPDATE blocks SET deleted_at = NULL WHERE note_id IN 
-			(SELECT id FROM notes WHERE notebook_id = ? AND user_id = ?)`, itemID, userID).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
+		eventType = "notebook.restored"
+		entityType = "notebook"
+		operationType = "restore"
 
-		eventData = map[string]interface{}{
-			"notebook_id": itemID,
-			"user_id":     userID,
-		}
 	default:
 		tx.Rollback()
 		return ErrInvalidInput
 	}
 
-	// Create event for the restoration
+	// Create an event for the restore action
 	event, err := models.NewEvent(
-		itemType+".restored",
-		itemType,
-		"restore",
+		eventType,
+		entityType,
+		operationType,
 		userID,
-		eventData,
+		map[string]interface{}{
+			fmt.Sprintf("%s_id", entityType): itemID,
+		},
 	)
+
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err = tx.Create(event).Error; err != nil {
+	if err := tx.Create(event).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (s *TrashService) PermanentlyDeleteItem(db *database.Database, itemType string, itemID string, userID string) error {
+// PermanentlyDeleteItem permanently deletes an item from trash
+func (s *TrashService) PermanentlyDeleteItem(db *database.Database, itemType, itemID, userID string) error {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	var err error
-	var eventData map[string]interface{}
+	parsedItemID, err := uuid.Parse(itemID)
+	if err != nil {
+		tx.Rollback()
+		return errors.New("invalid item ID")
+	}
 
+	// First, check ownership by verifying the role
+	var roleCount int64
+	if err := tx.Model(&models.Role{}).
+		Where("resource_id = ? AND user_id = ? AND role = ?", parsedItemID, userID, models.OwnerRole).
+		Count(&roleCount).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if roleCount == 0 {
+		tx.Rollback()
+		return errors.New("not authorized to delete this item permanently")
+	}
+
+	var eventType, entityType, operationType string
+
+	// Handle different item types
 	switch itemType {
 	case "note":
-		// Get tasks related to blocks in this note (correct relationship)
-		if err = tx.Unscoped().Exec(`DELETE FROM tasks WHERE block_id IN 
-			(SELECT id FROM blocks WHERE note_id = ?)`, itemID).Error; err != nil {
+		// Delete associated blocks first
+		tx.Exec("DELETE FROM tasks WHERE block_id IN (SELECT id FROM blocks WHERE note_id = ? AND user_id = ?)", itemID, userID)
+		tx.Exec("DELETE FROM blocks WHERE note_id = ? AND user_id = ?", itemID, userID)
+
+		// Delete associated roles
+		tx.Exec("DELETE FROM roles WHERE resource_id = ? AND resource_type = ?", parsedItemID, models.NoteResource)
+
+		// Now delete the note
+		result := tx.Exec("DELETE FROM notes WHERE id = ? AND user_id = ?", itemID, userID)
+		if result.RowsAffected == 0 {
 			tx.Rollback()
-			return err
+			return errors.New("note not found or not authorized")
 		}
 
-		// Hard delete the blocks
-		if err = tx.Unscoped().Exec("DELETE FROM blocks WHERE note_id = ?", itemID).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
+		eventType = "note.permanent_deleted"
+		entityType = "note"
+		operationType = "permanent_delete"
 
-		// Hard delete the note
-		if err = tx.Unscoped().Exec("DELETE FROM notes WHERE id = ? AND user_id = ?", itemID, userID).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		eventData = map[string]interface{}{
-			"note_id": itemID,
-			"user_id": userID,
-		}
 	case "notebook":
-		// Delete tasks related to blocks in notes in this notebook (correct relationship)
-		if err = tx.Unscoped().Exec(`DELETE FROM tasks WHERE block_id IN
-			(SELECT blocks.id FROM blocks 
-			JOIN notes ON blocks.note_id = notes.id 
-			WHERE notes.notebook_id = ? AND notes.user_id = ?)`, itemID, userID).Error; err != nil {
-			tx.Rollback()
-			return err
+		// First handle tasks related to blocks in notes of this notebook
+		tx.Exec(`DELETE FROM tasks 
+			WHERE block_id IN (
+				SELECT b.id FROM blocks b 
+				JOIN notes n ON b.note_id = n.id 
+				WHERE n.notebook_id = ? AND n.user_id = ?
+			)`, itemID, userID)
+
+		// Delete blocks related to notes in this notebook
+		tx.Exec(`DELETE FROM blocks 
+			WHERE note_id IN (
+				SELECT id FROM notes 
+				WHERE notebook_id = ? AND user_id = ?
+			)`, itemID, userID)
+
+		// Delete roles for those blocks
+		var blockIDs []uuid.UUID
+		tx.Raw(`SELECT id FROM blocks 
+			WHERE note_id IN (
+				SELECT id FROM notes 
+				WHERE notebook_id = ? AND user_id = ?
+			)`, itemID, userID).Scan(&blockIDs)
+
+		for _, blockID := range blockIDs {
+			tx.Exec("DELETE FROM roles WHERE resource_id = ? AND resource_type = ?",
+				blockID, models.BlockResource)
 		}
 
-		// Hard delete the blocks
-		if err = tx.Unscoped().Exec(`DELETE FROM blocks WHERE note_id IN 
-			(SELECT id FROM notes WHERE notebook_id = ? AND user_id = ?)`, itemID, userID).Error; err != nil {
-			tx.Rollback()
-			return err
+		// Delete notes in the notebook
+		tx.Exec("DELETE FROM notes WHERE notebook_id = ? AND user_id = ?", itemID, userID)
+
+		// Delete roles for those notes
+		var noteIDs []uuid.UUID
+		tx.Raw("SELECT id FROM notes WHERE notebook_id = ? AND user_id = ?",
+			itemID, userID).Scan(&noteIDs)
+
+		for _, noteID := range noteIDs {
+			tx.Exec("DELETE FROM roles WHERE resource_id = ? AND resource_type = ?",
+				noteID, models.NoteResource)
 		}
 
-		// Hard delete the notes
-		if err = tx.Unscoped().Exec("DELETE FROM notes WHERE notebook_id = ? AND user_id = ?", itemID, userID).Error; err != nil {
+		// Delete roles for the notebook
+		tx.Exec("DELETE FROM roles WHERE resource_id = ? AND resource_type = ?",
+			parsedItemID, models.NotebookResource)
+
+		// Now delete the notebook
+		result := tx.Exec("DELETE FROM notebooks WHERE id = ? AND user_id = ?", itemID, userID)
+		if result.RowsAffected == 0 {
 			tx.Rollback()
-			return err
+			return errors.New("notebook not found or not authorized")
 		}
 
-		// Hard delete the notebook
-		if err = tx.Unscoped().Exec("DELETE FROM notebooks WHERE id = ? AND user_id = ?", itemID, userID).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
+		eventType = "notebook.permanent_deleted"
+		entityType = "notebook"
+		operationType = "permanent_delete"
 
-		eventData = map[string]interface{}{
-			"notebook_id": itemID,
-			"user_id":     userID,
-		}
 	default:
 		tx.Rollback()
 		return ErrInvalidInput
 	}
 
-	// Create event for permanent deletion (matching pattern in NoteService)
+	// Create an event for the permanent deletion
 	event, err := models.NewEvent(
-		itemType+".permanent_deleted",
-		itemType,
-		"permanent_delete",
+		eventType,
+		entityType,
+		operationType,
 		userID,
-		eventData,
+		map[string]interface{}{
+			fmt.Sprintf("%s_id", entityType): itemID,
+		},
 	)
+
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err = tx.Create(event).Error; err != nil {
+	if err := tx.Create(event).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *TrashService) EmptyTrash(db *database.Database, userID string) error {

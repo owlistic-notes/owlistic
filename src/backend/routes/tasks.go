@@ -11,16 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterTaskRoutes(router *gin.Engine, db *database.Database, taskService services.TaskServiceInterface) {
-	group := router.Group("/api/v1/tasks")
-	{
-		// Use GetTasks instead of GetAllTasks to support query parameters
-		group.GET("/", func(c *gin.Context) { GetTasks(c, db, taskService) })
-		group.POST("/", func(c *gin.Context) { CreateTask(c, db, taskService) })
-		group.GET("/:id", func(c *gin.Context) { GetTaskById(c, db, taskService) })
-		group.PUT("/:id", func(c *gin.Context) { UpdateTask(c, db, taskService) })
-		group.DELETE("/:id", func(c *gin.Context) { DeleteTask(c, db, taskService) })
-	}
+func RegisterTaskRoutes(group *gin.RouterGroup, db *database.Database, taskService services.TaskServiceInterface) {
+	// Use GetTasks instead of GetAllTasks to support query parameters
+	group.GET("/tasks", func(c *gin.Context) { GetTasks(c, db, taskService) })
+	group.POST("/tasks", func(c *gin.Context) { CreateTask(c, db, taskService) })
+	group.GET("/tasks/:id", func(c *gin.Context) { GetTaskById(c, db, taskService) })
+	group.PUT("/tasks/:id", func(c *gin.Context) { UpdateTask(c, db, taskService) })
+	group.DELETE("/tasks/:id", func(c *gin.Context) { DeleteTask(c, db, taskService) })
 }
 
 func CreateTask(c *gin.Context, db *database.Database, taskService services.TaskServiceInterface) {

@@ -38,16 +38,24 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, ErrInvalidInput
 	}
 
-	// Validate that the note exists before creating the block
-	var noteCount int64
-	if err := tx.Model(&models.Note{}).Where("id = ?", noteIDStr).Count(&noteCount).Error; err != nil {
+	// Extract user_id for ownership
+	userIDStr, ok := blockData["user_id"].(string)
+	if !ok {
 		tx.Rollback()
-		return models.Block{}, err
+		return models.Block{}, ErrInvalidInput
 	}
 
-	if noteCount == 0 {
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
 		tx.Rollback()
-		return models.Block{}, errors.New("note not found")
+		return models.Block{}, ErrInvalidInput
+	}
+
+	// Validate that the note exists and is owned by the user
+	var note models.Note
+	if err := tx.Where("id = ? AND user_id = ?", noteIDStr, userID).First(&note).Error; err != nil {
+		tx.Rollback()
+		return models.Block{}, errors.New("note not found or access denied")
 	}
 
 	// Handle order value conversion from float64 to int
@@ -90,9 +98,11 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		metadata = metaData
 	}
 
+	blockID := uuid.New()
 	block := models.Block{
-		ID:       uuid.New(),
+		ID:       blockID,
 		NoteID:   uuid.Must(uuid.Parse(noteIDStr)),
+		UserID:   userID,
 		Type:     models.BlockType(blockType),
 		Content:  content,
 		Metadata: metadata,
@@ -113,6 +123,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		map[string]interface{}{
 			"block_id": block.ID.String(),
 			"note_id":  block.NoteID.String(),
+			"user_id":  block.UserID.String(),
 			"type":     string(block.Type),
 			"order":    block.Order,
 			"content":  block.Content,
@@ -152,19 +163,19 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 		return models.Block{}, tx.Error
 	}
 
-	var block models.Block
-	if err := tx.First(&block, "id = ?", id).Error; err != nil {
-		tx.Rollback()
-		return models.Block{}, ErrBlockNotFound
-	}
-
+	// Verify user owns the block using the user_id from the block
 	actorID, ok := blockData["user_id"].(string)
 	if !ok {
 		tx.Rollback()
 		return models.Block{}, ErrInvalidInput
 	}
 
-	// Create a copy of the original block for event tracking
+	var block models.Block
+	if err := tx.Where("id = ? AND user_id = ?", id, actorID).First(&block).Error; err != nil {
+		tx.Rollback()
+		return models.Block{}, errors.New("block not found or access denied")
+	}
+
 	eventData := map[string]interface{}{
 		"id":         block.ID,
 		"note_id":    block.NoteID,
@@ -260,10 +271,11 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string) error {
 		"block.deleted", // Standardized event type
 		"block",
 		"delete",
-		"system", // Default to system since no actor ID is typically provided for deletion
+		block.UserID.String(), // Use the block's owner as the actor
 		map[string]interface{}{
 			"block_id": block.ID.String(),
 			"note_id":  block.NoteID.String(),
+			"user_id":  block.UserID.String(),
 		},
 	)
 
@@ -297,7 +309,14 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	var blocks []models.Block
 	query := db.DB
 
-	// Apply filters based on params
+	// Always filter by user_id if provided - this is critical for RBAC
+	if userID, ok := params["user_id"].(string); ok && userID != "" {
+		query = query.Where("user_id = ?", userID)
+	} else {
+		return nil, errors.New("user_id is required for security reasons")
+	}
+
+	// Apply additional filters
 	if noteID, ok := params["note_id"].(string); ok && noteID != "" {
 		query = query.Where("note_id = ?", noteID)
 	}

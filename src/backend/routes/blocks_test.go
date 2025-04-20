@@ -147,11 +147,14 @@ func TestCreateBlock(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Invalid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/blocks/", bytes.NewBuffer([]byte("invalid json")))
+		req, _ := http.NewRequest("POST", "/api/v1/blocks", bytes.NewBuffer([]byte("invalid json")))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -210,7 +213,10 @@ func TestGetBlockById(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Block Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -231,7 +237,10 @@ func TestUpdateBlock(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Block Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -252,7 +261,10 @@ func TestDeleteBlock(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Block Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -273,7 +285,10 @@ func TestListBlocksByNote(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("No Blocks Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -297,7 +312,10 @@ func TestGetBlocks(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Get Blocks With No Filters", func(t *testing.T) {
 		w := httptest.NewRecorder()

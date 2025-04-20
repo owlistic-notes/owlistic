@@ -2,9 +2,11 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"log"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 
@@ -14,7 +16,7 @@ import (
 type NoteServiceInterface interface {
 	CreateNote(db *database.Database, noteData map[string]interface{}) (models.Note, error)
 	GetNoteById(db *database.Database, id string) (models.Note, error)
-	UpdateNote(db *database.Database, id string, updatedData map[string]interface{}) (models.Note, error)
+	UpdateNote(db *database.Database, id string, noteData map[string]interface{}) (models.Note, error)
 	DeleteNote(db *database.Database, id string) error
 	ListNotesByUser(db *database.Database, userID string) ([]models.Note, error)
 	GetAllNotes(db *database.Database) ([]models.Note, error)
@@ -23,26 +25,29 @@ type NoteServiceInterface interface {
 
 type NoteService struct{}
 
+var NoteServiceInstance NoteServiceInterface = &NoteService{}
+
 func (s *NoteService) CreateNote(db *database.Database, noteData map[string]interface{}) (models.Note, error) {
-	// Start transaction
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return models.Note{}, tx.Error
 	}
 
-	title, ok := noteData["title"].(string)
-	if !ok || title == "" {
-		return models.Note{}, errors.New("title is required")
-	}
-
+	// Extract user_id and validate user exists
 	userIDStr, ok := noteData["user_id"].(string)
 	if !ok {
+		tx.Rollback()
 		return models.Note{}, errors.New("user_id must be a string")
 	}
 
-	// Validate that the user exists before creating the note
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		tx.Rollback()
+		return models.Note{}, errors.New("user_id must be a valid UUID")
+	}
+
 	var userCount int64
-	if err := tx.Model(&models.User{}).Where("id = ?", userIDStr).Count(&userCount).Error; err != nil {
+	if err := tx.Model(&models.User{}).Where("id = ?", userID).Count(&userCount).Error; err != nil {
 		tx.Rollback()
 		return models.Note{}, err
 	}
@@ -52,15 +57,168 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 		return models.Note{}, errors.New("user not found")
 	}
 
-	note := models.Note{
-		ID:        uuid.New(),
-		UserID:    uuid.Must(uuid.Parse(userIDStr)),
-		Title:     title,
-		IsDeleted: false,
+	// Extract notebook_id and validate notebook exists
+	notebookIDStr, ok := noteData["notebook_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return models.Note{}, errors.New("notebook_id must be a string")
 	}
 
-	if notebookID, ok := noteData["notebook_id"].(string); ok {
-		// Validate that the notebook exists
+	notebookID, err := uuid.Parse(notebookIDStr)
+	if err != nil {
+		tx.Rollback()
+		return models.Note{}, errors.New("notebook_id must be a valid UUID")
+	}
+
+	var notebookCount int64
+	if err := tx.Model(&models.Notebook{}).Where("id = ?", notebookID).Count(&notebookCount).Error; err != nil {
+		tx.Rollback()
+		return models.Note{}, err
+	}
+
+	if notebookCount == 0 {
+		tx.Rollback()
+		return models.Note{}, errors.New("notebook not found")
+	}
+
+	// Create note
+	title, _ := noteData["title"].(string)
+	noteID := uuid.New()
+
+	note := models.Note{
+		ID:         noteID,
+		UserID:     userID,
+		NotebookID: notebookID,
+		Title:      title,
+	}
+
+	if err := tx.Create(&note).Error; err != nil {
+		tx.Rollback()
+		return models.Note{}, err
+	}
+
+	// Assign owner role to the creator
+	role := models.Role{
+		ID:           uuid.New(),
+		UserID:       userID,
+		ResourceID:   note.ID,
+		ResourceType: models.NoteResource,
+		Role:         models.OwnerRole,
+	}
+
+	if err := tx.Create(&role).Error; err != nil {
+		tx.Rollback()
+		return models.Note{}, err
+	}
+
+	// Create at least one initial empty block for the note
+	blockID := uuid.New()
+	block := models.Block{
+		ID:      blockID,
+		NoteID:  noteID,
+		UserID:  userID,
+		Type:    models.TextBlock,
+		Content: models.BlockContent{"text": ""},
+		Order:   1,
+	}
+
+	if err := tx.Create(&block).Error; err != nil {
+		tx.Rollback()
+		return models.Note{}, err
+	}
+
+	// Create event for note creation
+	event, err := models.NewEvent(
+		"note.created",
+		"note",
+		"create",
+		userIDStr,
+		map[string]interface{}{
+			"note_id":     note.ID.String(),
+			"notebook_id": note.NotebookID.String(),
+			"title":       note.Title,
+			"blocks":      []string{block.ID.String()},
+		},
+	)
+
+	if err != nil {
+		tx.Rollback()
+		return models.Note{}, err
+	}
+
+	if err := tx.Create(event).Error; err != nil {
+		tx.Rollback()
+		return models.Note{}, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return models.Note{}, err
+	}
+
+	// Reload note with its blocks
+	var completeNote models.Note
+	if err := db.DB.Preload("Blocks").First(&completeNote, "id = ?", note.ID).Error; err != nil {
+		return models.Note{}, err
+	}
+
+	return completeNote, nil
+}
+
+func (s *NoteService) GetNoteById(db *database.Database, id string) (models.Note, error) {
+	var note models.Note
+	if err := db.DB.Preload("Blocks", func(db *gorm.DB) *gorm.DB {
+		return db.Order("\"blocks\".\"order\" ASC")
+	}).First(&note, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Note{}, ErrNoteNotFound
+		}
+		return models.Note{}, err
+	}
+	return note, nil
+}
+
+func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[string]interface{}) (models.Note, error) {
+	tx := db.DB.Begin()
+	if tx.Error != nil {
+		return models.Note{}, tx.Error
+	}
+
+	var note models.Note
+	if err := tx.First(&note, "id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return models.Note{}, ErrNoteNotFound
+	}
+
+	// Verify user has permission to update this note
+	userIDStr, ok := noteData["user_id"].(string)
+	if ok {
+		userID, err := uuid.Parse(userIDStr)
+		if err == nil {
+			if note.UserID != userID {
+				// User is not the owner, check if they have editor role
+				hasEditorAccess, err := RoleServiceInstance.HasAccess(
+					db, userID, note.ID, models.NoteResource, models.EditorRole)
+				if err != nil || !hasEditorAccess {
+					tx.Rollback()
+					return models.Note{}, errors.New("not authorized to update this note")
+				}
+			}
+		}
+	}
+
+	// Update note fields
+	if title, ok := noteData["title"].(string); ok {
+		note.Title = title
+	}
+
+	if notebookIDStr, ok := noteData["notebook_id"].(string); ok {
+		notebookID, err := uuid.Parse(notebookIDStr)
+		if err != nil {
+			tx.Rollback()
+			return models.Note{}, errors.New("notebook_id must be a valid UUID")
+		}
+
+		// Verify notebook exists
 		var notebookCount int64
 		if err := tx.Model(&models.Notebook{}).Where("id = ?", notebookID).Count(&notebookCount).Error; err != nil {
 			tx.Rollback()
@@ -72,166 +230,27 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 			return models.Note{}, errors.New("notebook not found")
 		}
 
-		note.NotebookID = uuid.Must(uuid.Parse(notebookID))
-	} else {
-		note.NotebookID = uuid.New()
+		note.NotebookID = notebookID
 	}
 
-	// Handle blocks
-	if blocksData, ok := noteData["blocks"].([]interface{}); ok {
-		for i, blockData := range blocksData {
-			blockMap := blockData.(map[string]interface{})
+	note.UpdatedAt = time.Now()
 
-			// Process content based on input format
-			var content models.BlockContent
-
-			// Handle different content formats while preserving the interface
-			switch c := blockMap["content"].(type) {
-			case map[string]interface{}:
-				// If we get a structured content object, use it directly
-				content = c
-			case string:
-				// If content is provided as a string, convert to BlockContent
-				content = models.BlockContent{"text": c}
-			default:
-				// Default empty content
-				content = models.BlockContent{"text": ""}
-			}
-
-			block := models.Block{
-				ID:      uuid.New(),
-				Type:    models.BlockType(blockMap["type"].(string)),
-				Content: content,
-				Order:   i + 1,
-			}
-			note.Blocks = append(note.Blocks, block)
-		}
-	} else {
-		// Create default text block if no blocks provided
-		note.Blocks = []models.Block{{
-			ID:      uuid.New(),
-			Type:    models.TextBlock,
-			Content: models.BlockContent{"text": ""},
-			Order:   1,
-		}}
-	}
-
-	if err := tx.Create(&note).Error; err != nil {
+	if err := tx.Save(&note).Error; err != nil {
 		tx.Rollback()
 		return models.Note{}, err
 	}
 
-	// Replace broker publish with event creation using standard event type
-	actorID, _ := noteData["user_id"].(string)
+	// Create event for note update
+	userIDStr = noteData["user_id"].(string)
 	event, err := models.NewEvent(
-		string(broker.NoteCreated), // Use standard event type
-		"note",
-		"create",
-		actorID,
-		map[string]interface{}{
-			"note_id":     note.ID.String(),
-			"user_id":     note.UserID.String(),
-			"notebook_id": note.NotebookID.String(),
-			"title":       note.Title,
-			"created_at":  note.CreatedAt,
-		},
-	)
-
-	if err != nil {
-		return note, err
-	}
-
-	if err := tx.Create(event).Error; err != nil {
-		tx.Rollback()
-		return models.Note{}, err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
-		return models.Note{}, err
-	}
-
-	return note, nil
-}
-
-func (s *NoteService) UpdateNote(db *database.Database, id string, updatedData map[string]interface{}) (models.Note, error) {
-	tx := db.DB.Begin()
-	if tx.Error != nil {
-		return models.Note{}, tx.Error
-	}
-
-	var note models.Note
-	if err := tx.Preload("Blocks").First(&note, "id = ?", id).Error; err != nil {
-		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.Note{}, ErrNoteNotFound
-		}
-		return models.Note{}, err
-	}
-
-	// Update basic fields
-	if title, ok := updatedData["title"].(string); ok {
-		note.Title = title
-	}
-
-	// Handle blocks update
-	if blocksData, ok := updatedData["blocks"].([]interface{}); ok {
-		// Delete existing blocks
-		if err := tx.Where("note_id = ?", note.ID).Delete(&models.Block{}).Error; err != nil {
-			tx.Rollback()
-			return models.Note{}, err
-		}
-
-		// Create new blocks
-		var newBlocks []models.Block
-		for i, blockData := range blocksData {
-			blockMap := blockData.(map[string]interface{})
-
-			// Process content based on input format
-			var content models.BlockContent
-
-			// Handle different content formats while preserving the interface
-			switch c := blockMap["content"].(type) {
-			case map[string]interface{}:
-				// If we get a structured content object, use it directly
-				content = c
-			case string:
-				// If content is provided as a string, convert to BlockContent
-				content = models.BlockContent{"text": c}
-			default:
-				// Default empty content
-				content = models.BlockContent{"text": ""}
-			}
-
-			block := models.Block{
-				ID:      uuid.New(),
-				NoteID:  note.ID,
-				Type:    models.BlockType(blockMap["type"].(string)),
-				Content: content,
-				Order:   i + 1,
-			}
-			newBlocks = append(newBlocks, block)
-		}
-		note.Blocks = newBlocks
-	}
-
-	if err := tx.Model(&note).Updates(updatedData).Error; err != nil {
-		tx.Rollback()
-		return models.Note{}, err
-	}
-
-	actorID, _ := updatedData["user_id"].(string)
-	event, err := models.NewEvent(
-		string(broker.NoteUpdated), // Use standard event type
+		"note.updated",
 		"note",
 		"update",
-		actorID,
+		userIDStr,
 		map[string]interface{}{
 			"note_id":     note.ID.String(),
-			"user_id":     note.UserID.String(),
 			"notebook_id": note.NotebookID.String(),
 			"title":       note.Title,
-			"updated_at":  note.UpdatedAt,
 		},
 	)
 
@@ -246,22 +265,18 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, updatedData m
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
 		return models.Note{}, err
 	}
 
-	return note, nil
-}
-
-func (s *NoteService) GetNoteById(db *database.Database, id string) (models.Note, error) {
-	var note models.Note
-	if err := db.DB.First(&note, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.Note{}, ErrNoteNotFound
-		}
+	// Reload note with its blocks
+	var updatedNote models.Note
+	if err := db.DB.Preload("Blocks", func(db *gorm.DB) *gorm.DB {
+		return db.Order("\"blocks\".\"order\" ASC")
+	}).First(&updatedNote, "id = ?", note.ID).Error; err != nil {
 		return models.Note{}, err
 	}
-	return note, nil
+
+	return updatedNote, nil
 }
 
 func (s *NoteService) DeleteNote(db *database.Database, id string) error {
@@ -279,21 +294,21 @@ func (s *NoteService) DeleteNote(db *database.Database, id string) error {
 		return err
 	}
 
-	// With proper ON DELETE CASCADE constraints, deleting the note
-	// will automatically delete its blocks and tasks
+	// Soft delete note (gorm will handle this)
 	if err := tx.Delete(&note).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
+	// Create event for note deletion
 	event, err := models.NewEvent(
-		string(broker.NoteDeleted), // Use standard event type
+		"note.deleted",
 		"note",
 		"delete",
 		note.UserID.String(),
 		map[string]interface{}{
-			"note_id": note.ID.String(),
-			"user_id": note.UserID.String(),
+			"note_id":     note.ID.String(),
+			"notebook_id": note.NotebookID.String(),
 		},
 	)
 
@@ -307,7 +322,11 @@ func (s *NoteService) DeleteNote(db *database.Database, id string) error {
 		return err
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *NoteService) ListNotesByUser(db *database.Database, userID string) ([]models.Note, error) {
@@ -320,22 +339,37 @@ func (s *NoteService) ListNotesByUser(db *database.Database, userID string) ([]m
 
 func (s *NoteService) GetAllNotes(db *database.Database) ([]models.Note, error) {
 	var notes []models.Note
-	result := db.DB.Find(&notes)
-	if result.Error != nil {
-		return nil, result.Error
+	if err := db.DB.Find(&notes).Error; err != nil {
+		return nil, err
 	}
 	return notes, nil
 }
 
 func (s *NoteService) GetNotes(db *database.Database, params map[string]interface{}) ([]models.Note, error) {
 	var notes []models.Note
-	query := db.DB.Preload("Blocks")
+	query := db.DB
 
-	// Apply filters based on params
-	if userID, ok := params["user_id"].(string); ok && userID != "" {
-		query = query.Where("user_id = ?", userID)
+	// Always filter by user_id if provided - this is critical for RBAC
+	userID, ok := params["user_id"].(string)
+	if !ok || userID == "" {
+		return nil, errors.New("user_id is required for security reasons")
 	}
 
+	// Log for debugging
+	log.Printf("Fetching notes for user: %s", userID)
+
+	// Check if we need to look up by user roles instead of direct ownership
+	var userUUID uuid.UUID
+	var err error
+	userUUID, err = uuid.Parse(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID format: %v", err)
+	}
+
+	// Get all notes owned by the user
+	query = query.Where("user_id = ?", userID)
+
+	// Apply other filters
 	if notebookID, ok := params["notebook_id"].(string); ok && notebookID != "" {
 		query = query.Where("notebook_id = ?", notebookID)
 	}
@@ -344,9 +378,46 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 		query = query.Where("title LIKE ?", "%"+title+"%")
 	}
 
+	// Include or exclude deleted notes
+	if includeDeleted, ok := params["include_deleted"].(bool); ok && includeDeleted {
+		query = query.Unscoped().Where("deleted_at IS NOT NULL")
+	} else {
+		query = query.Where("deleted_at IS NULL")
+	}
+
+	// Execute the query
 	if err := query.Find(&notes).Error; err != nil {
+		log.Printf("Error executing note query: %v", err)
 		return nil, err
 	}
+
+	log.Printf("Found %d notes directly owned by user %s", len(notes), userID)
+
+	// Also find notes where the user has been given a role but is not the owner
+	var roleBasedNotes []models.Note
+	err = db.DB.Model(&models.Note{}).
+		Joins("JOIN roles ON roles.resource_id = notes.id").
+		Where("roles.user_id = ? AND roles.resource_type = ? AND notes.user_id != ? AND notes.deleted_at IS NULL",
+			userUUID, models.NoteResource, userID).
+		Find(&roleBasedNotes).Error
+
+	if err != nil {
+		log.Printf("Error finding role-based notes: %v", err)
+	} else {
+		log.Printf("Found %d additional notes where user has an explicit role", len(roleBasedNotes))
+		notes = append(notes, roleBasedNotes...)
+	}
+
+	// Load blocks for each note
+	for i := range notes {
+		if err := db.DB.Model(&notes[i]).Association("Blocks").Find(&notes[i].Blocks); err != nil {
+			log.Printf("Failed to load blocks for note %s: %v", notes[i].ID, err)
+		}
+
+		// Sort the blocks by order field
+		db.DB.Model(&models.Block{}).Where("note_id = ?", notes[i].ID).Order("\"order\" ASC").Find(&notes[i].Blocks)
+	}
+
 	return notes, nil
 }
 
@@ -354,6 +425,3 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 func NewNoteService() NoteServiceInterface {
 	return &NoteService{}
 }
-
-// Don't initialize here, will be set properly in main.go
-var NoteServiceInstance NoteServiceInterface

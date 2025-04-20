@@ -5,32 +5,34 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/services"
 )
 
-func RegisterNotebookRoutes(router *gin.Engine, db *database.Database, notebookService services.NotebookServiceInterface) {
-	group := router.Group("/api/v1/notebooks")
-	{
-		// Collection endpoints with query parameters
-		group.GET("/", func(c *gin.Context) { GetNotebooks(c, db, notebookService) })
-		group.POST("/", func(c *gin.Context) { CreateNotebook(c, db, notebookService) })
+func RegisterNotebookRoutes(group *gin.RouterGroup, db *database.Database, notebookService services.NotebookServiceInterface) {
+	// Collection endpoints with query parameters
+	group.GET("/notebooks", func(c *gin.Context) { GetNotebooks(c, db, notebookService) })
+	group.POST("/notebooks", func(c *gin.Context) { CreateNotebook(c, db, notebookService) })
 
-		// Resource-specific endpoints
-		group.GET("/:id", func(c *gin.Context) { GetNotebookById(c, db, notebookService) })
-		group.PUT("/:id", func(c *gin.Context) { UpdateNotebook(c, db, notebookService) })
-		group.DELETE("/:id", func(c *gin.Context) { DeleteNotebook(c, db, notebookService) })
-	}
+	// Resource-specific endpoints
+	group.GET("/notebooks/:id", func(c *gin.Context) { GetNotebookById(c, db, notebookService) })
+	group.PUT("/notebooks/:id", func(c *gin.Context) { UpdateNotebook(c, db, notebookService) })
+	group.DELETE("/notebooks/:id", func(c *gin.Context) { DeleteNotebook(c, db, notebookService) })
 }
 
 func GetNotebooks(c *gin.Context, db *database.Database, notebookService services.NotebookServiceInterface) {
 	// Extract query parameters
 	params := make(map[string]interface{})
 
-	if userID := c.Query("user_id"); userID != "" {
-		params["user_id"] = userID
+	// Get user ID from context (added by AuthMiddleware)
+	userIDInterface, exists := c.Get("userID")
+	if exists {
+		// Convert user ID to string and add to params
+		params["user_id"] = userIDInterface.(uuid.UUID).String()
 	}
 
+	// Extract other query parameters
 	if name := c.Query("name"); name != "" {
 		params["name"] = name
 	}

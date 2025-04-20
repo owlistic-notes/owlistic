@@ -17,11 +17,9 @@ type loginResponse struct {
 	Token string `json:"token"`
 }
 
-func RegisterAuthRoutes(router *gin.Engine, db *database.Database, authService services.AuthServiceInterface) {
-	group := router.Group("/api/v1/auth")
-	{
-		group.POST("/login", func(c *gin.Context) { Login(c, db, authService) })
-	}
+func RegisterAuthRoutes(group *gin.RouterGroup, db *database.Database, authService services.AuthServiceInterface) {
+	// No need to create a nested group since we're already receiving the auth group
+	group.POST("/login", func(c *gin.Context) { Login(c, db, authService) })
 }
 
 func Login(c *gin.Context, db *database.Database, authService services.AuthServiceInterface) {

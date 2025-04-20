@@ -47,7 +47,18 @@ func (s *AuthService) Login(db *database.Database, email, password string) (stri
 		return "", ErrInvalidCredentials
 	}
 
-	return s.generateToken(user)
+	// Check if the user has any notebooks
+	var notebookCount int64
+	if err := db.DB.Model(&models.Notebook{}).Where("user_id = ?", user.ID).Count(&notebookCount).Error; err != nil {
+		return "", err
+	}
+
+	token, err := s.generateToken(user)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }
 
 func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {

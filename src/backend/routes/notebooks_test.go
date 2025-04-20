@@ -154,11 +154,14 @@ func TestCreateNotebook(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNotebookService{}
-	RegisterNotebookRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNotebookRoutes(apiGroup, db, mockService)
 
 	t.Run("Invalid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/notebooks/", bytes.NewBuffer([]byte("invalid json")))
+		req, _ := http.NewRequest("POST", "/api/v1/notebooks", bytes.NewBuffer([]byte("invalid json")))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -182,7 +185,10 @@ func TestGetNotebookById(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNotebookService{}
-	RegisterNotebookRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNotebookRoutes(apiGroup, db, mockService)
 
 	t.Run("Notebook Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -203,7 +209,10 @@ func TestUpdateNotebook(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNotebookService{}
-	RegisterNotebookRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNotebookRoutes(apiGroup, db, mockService)
 
 	t.Run("Notebook Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -224,7 +233,10 @@ func TestDeleteNotebook(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNotebookService{}
-	RegisterNotebookRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNotebookRoutes(apiGroup, db, mockService)
 
 	t.Run("Notebook Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -245,7 +257,10 @@ func TestGetAllNotebooks(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNotebookService{}
-	RegisterNotebookRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNotebookRoutes(apiGroup, db, mockService)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/notebooks/", nil)
@@ -261,7 +276,10 @@ func TestGetNotebooks(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNotebookService{}
-	RegisterNotebookRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNotebookRoutes(apiGroup, db, mockService)
 
 	t.Run("Get Notebooks With No Filters", func(t *testing.T) {
 		w := httptest.NewRecorder()

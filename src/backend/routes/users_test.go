@@ -89,6 +89,20 @@ func (m *MockUserService) GetUserByEmail(db *database.Database, email string) (m
 	return models.User{}, services.ErrUserNotFound
 }
 
+func (m *MockUserService) AssignRole(db *database.Database, userID uuid.UUID, role models.RoleType) error {
+	if userID == uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")) {
+		return nil
+	}
+	return services.ErrUserNotFound
+}
+
+func (m *MockUserService) GetUserRole(db *database.Database, userID uuid.UUID) (models.RoleType, error) {
+	if userID == uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")) {
+		return models.OwnerRole, nil
+	}
+	return "", services.ErrUserNotFound
+}
+
 // Mock authentication service for testing
 type MockAuthService struct{}
 
@@ -129,26 +143,19 @@ func setupTestRouter() (*gin.Engine, *database.Database, *MockUserService, *Mock
 	mockUserService := &MockUserService{}
 	mockAuthService := &MockAuthService{}
 
-	// Replace the real auth middleware with one that always succeeds for tests
-	mockMiddleware := func(c *gin.Context) {
+	// Register public routes first
+	apiGroup := router.Group("/api/v1")
+
+	// Apply mock middleware for authentication
+	router.Use(func(c *gin.Context) {
 		// Set user context values that would normally come from JWT
 		c.Set("userID", uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")))
 		c.Set("email", "test@example.com")
 		c.Next()
-	}
+	})
 
-	// Public registration endpoint
-	router.POST("/api/v1/register", func(c *gin.Context) { CreateUser(c, db, mockUserService) })
-
-	// Protected routes group with mock middleware
-	group := router.Group("/api/v1/users")
-	group.Use(mockMiddleware)
-	{
-		group.GET("/", func(c *gin.Context) { GetUsers(c, db, mockUserService) })
-		group.GET("/:id", func(c *gin.Context) { GetUserById(c, db, mockUserService) })
-		group.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, mockUserService) })
-		group.DELETE("/:id", func(c *gin.Context) { DeleteUser(c, db, mockUserService) })
-	}
+	// Register routes with the apiGroup
+	RegisterUserRoutes(apiGroup, db, mockUserService, mockAuthService)
 
 	return router, db, mockUserService, mockAuthService
 }
@@ -158,8 +165,11 @@ func TestRegisterUser(t *testing.T) {
 	db := &database.Database{}
 	mockUserService := &MockUserService{}
 
-	// Register /register endpoint
-	router.POST("/api/v1/register", func(c *gin.Context) { CreateUser(c, db, mockUserService) })
+	// Create router group for user routes
+	apiGroup := router.Group("/api/v1")
+
+	// Register user routes
+	RegisterUserRoutes(apiGroup, db, mockUserService, nil)
 
 	t.Run("Register User with Valid Input", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -227,7 +237,9 @@ func TestLoginRoute(t *testing.T) {
 	db := &database.Database{}
 	mockAuthService := &MockAuthService{}
 
-	router.POST("/api/v1/auth/login", func(c *gin.Context) { Login(c, db, mockAuthService) })
+	// Create auth group
+	authGroup := router.Group("/api/v1/auth")
+	authGroup.POST("/login", func(c *gin.Context) { Login(c, db, mockAuthService) })
 
 	t.Run("Login with Valid Credentials", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -261,7 +273,15 @@ func TestLoginRoute(t *testing.T) {
 }
 
 func TestCreateUser(t *testing.T) {
-	router, _, _, _ := setupTestRouter()
+	router := gin.Default()
+	db := &database.Database{}
+	mockUserService := &MockUserService{}
+
+	// Create router group for user routes
+	apiGroup := router.Group("/api/v1")
+
+	// Register user routes
+	RegisterUserRoutes(apiGroup, db, mockUserService, nil)
 
 	t.Run("Valid Registration", func(t *testing.T) {
 		w := httptest.NewRecorder()

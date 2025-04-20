@@ -10,6 +10,7 @@ import (
 	"github.com/thinkstack/broker"
 	"github.com/thinkstack/config"
 	"github.com/thinkstack/database"
+	"github.com/thinkstack/middleware"
 	"github.com/thinkstack/routes"
 	"github.com/thinkstack/services"
 
@@ -81,18 +82,45 @@ func main() {
 
 	router := gin.Default()
 
-	// Register authentication routes
-	routes.RegisterAuthRoutes(router, db, authService)
+	// CORS middleware
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		c.Writer.Header().Set("Access-Control-Max-Age", "3600") // Cache preflight request for 1 hour
 
-	// Register user routes with auth service
-	routes.RegisterUserRoutes(router, db, userService, authService)
+		// Handle preflight requests
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
 
-	// Register other service routes
-	routes.RegisterNoteRoutes(router, db, services.NoteServiceInstance)
-	routes.RegisterTaskRoutes(router, db, services.TaskServiceInstance)
-	routes.RegisterNotebookRoutes(router, db, services.NotebookServiceInstance)
-	routes.RegisterBlockRoutes(router, db, services.BlockServiceInstance)
-	routes.RegisterTrashRoutes(router, db, services.TrashServiceInstance)
+		c.Next()
+	})
+
+	// Create public API groups
+	authGroup := router.Group("/api/v1/auth")
+	userPublicGroup := router.Group("/api/v1")
+
+	// Register public routes (no auth required)
+	routes.RegisterAuthRoutes(authGroup, db, authService)
+	routes.RegisterUserRoutes(userPublicGroup, db, userService, authService)
+
+	// Create protected API group with auth middleware
+	apiGroup := router.Group("/api/v1")
+	apiGroup.Use(middleware.AuthMiddleware(authService))
+
+	// Enable access control middleware for RBAC
+	apiGroup.Use(middleware.AccessControlMiddleware(db))
+
+	// Register protected API routes using the API group
+	routes.RegisterNoteRoutes(apiGroup, db, services.NoteServiceInstance)
+	routes.RegisterTaskRoutes(apiGroup, db, services.TaskServiceInstance)
+	routes.RegisterNotebookRoutes(apiGroup, db, services.NotebookServiceInstance)
+	routes.RegisterBlockRoutes(apiGroup, db, services.BlockServiceInstance)
+	routes.RegisterTrashRoutes(apiGroup, db, services.TrashServiceInstance)
+	routes.RegisterRoleRoutes(apiGroup, db, services.RoleServiceInstance)
 
 	// Register debug routes for monitoring events
 	routes.SetupDebugRoutes(router, db)
