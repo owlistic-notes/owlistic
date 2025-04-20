@@ -5,6 +5,9 @@ __pycache__/
 # VSCode settings
 .vscode/
 
+# intellij
+.idea/
+
 # Ignore Go build artifacts
 *.exe
 *.out
