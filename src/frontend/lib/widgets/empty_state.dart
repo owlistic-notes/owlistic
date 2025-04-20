@@ -11,37 +11,35 @@ class EmptyState extends StatelessWidget {
     Key? key,
     required this.title,
     required this.message,
-    this.icon = Icons.info_outline,
+    required this.icon,
     this.onAction,
     this.actionLabel,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
-              size: 70,
-              color: theme.primaryColor.withOpacity(0.5),
+              size: 80,
+              color: Theme.of(context).primaryColor.withOpacity(0.5),
             ),
             const SizedBox(height: 24),
             Text(
               title,
-              style: theme.textTheme.headlineSmall,
+              style: Theme.of(context).textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.textTheme.bodySmall?.color,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).textTheme.bodySmall?.color,
               ),
               textAlign: TextAlign.center,
             ),
