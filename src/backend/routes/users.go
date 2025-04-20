@@ -4,19 +4,30 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
+	"github.com/thinkstack/middleware"
 	"github.com/thinkstack/services"
 
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterUserRoutes(router *gin.Engine, db *database.Database, userService services.UserServiceInterface) {
+// Request model for registration since User no longer has Password field
+type registrationRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+func RegisterUserRoutes(router *gin.Engine, db *database.Database, userService services.UserServiceInterface, authService services.AuthServiceInterface) {
+	// Public registration endpoint - no auth required
+	router.POST("/api/v1/register", func(c *gin.Context) { CreateUser(c, db, userService) })
+
+	// Protected user routes
 	group := router.Group("/api/v1/users")
+	group.Use(middleware.AuthMiddleware(authService))
 	{
 		// Collection endpoints with query parameters
 		group.GET("/", func(c *gin.Context) { GetUsers(c, db, userService) })
-		group.POST("/", func(c *gin.Context) { CreateUser(c, db, userService) })
 
 		// Resource-specific endpoints
 		group.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
@@ -26,14 +37,24 @@ func RegisterUserRoutes(router *gin.Engine, db *database.Database, userService s
 }
 
 func CreateUser(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {
-	var user models.User
-	if err := c.ShouldBindJSON(&user); err != nil {
+	var req registrationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	createdUser, err := userService.CreateUser(db, user)
+	// Create user data map from request
+	userData := map[string]interface{}{
+		"email":    req.Email,
+		"password": req.Password,
+	}
+
+	createdUser, err := userService.CreateUser(db, userData)
 	if err != nil {
+		if errors.Is(err, services.ErrUserAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -54,15 +75,45 @@ func GetUserById(c *gin.Context, db *database.Database, userService services.Use
 	c.JSON(http.StatusOK, user)
 }
 
+// Request model for updates
+type updateUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 func UpdateUser(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {
 	id := c.Param("id")
-	var user models.User
-	if err := c.ShouldBindJSON(&user); err != nil {
+	var req updateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	updatedUser, err := userService.UpdateUser(db, id, user)
+	// Check if the authenticated user is updating their own account
+	// This is a simple authorization check
+	contextUserID, exists := c.Get("userID")
+	if exists {
+		userUUID, ok := contextUserID.(uuid.UUID)
+		if ok {
+			// Convert the path parameter ID to UUID for comparison
+			pathID, err := uuid.Parse(id)
+			if err == nil && userUUID != pathID {
+				c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own account"})
+				return
+			}
+		}
+	}
+
+	// Create update data map from request
+	updateData := make(map[string]interface{})
+	if req.Email != "" {
+		updateData["email"] = req.Email
+	}
+	if req.Password != "" {
+		updateData["password"] = req.Password
+	}
+
+	updatedUser, err := userService.UpdateUser(db, id, updateData)
 	if err != nil {
 		if errors.Is(err, services.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
@@ -76,6 +127,21 @@ func UpdateUser(c *gin.Context, db *database.Database, userService services.User
 
 func DeleteUser(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {
 	id := c.Param("id")
+
+	// Authorization check - same as update
+	contextUserID, exists := c.Get("userID")
+	if exists {
+		userUUID, ok := contextUserID.(uuid.UUID)
+		if ok {
+			// Convert the path parameter ID to UUID for comparison
+			pathID, err := uuid.Parse(id)
+			if err == nil && userUUID != pathID {
+				c.JSON(http.StatusForbidden, gin.H{"error": "You can only delete your own account"})
+				return
+			}
+		}
+	}
+
 	if err := userService.DeleteUser(db, id); err != nil {
 		if errors.Is(err, services.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})

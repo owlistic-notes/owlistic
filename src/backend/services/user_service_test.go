@@ -6,7 +6,6 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/thinkstack/models"
 	"github.com/thinkstack/testutils"
 	"gorm.io/gorm"
 )
@@ -32,10 +31,10 @@ func TestCreateUser_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	service := &UserService{}
-	user := models.User{
-		ID:           userID,
-		Email:        email,
-		PasswordHash: passwordHash,
+	user := map[string]interface{}{
+		"id":            userID,
+		"email":         email,
+		"password_hash": passwordHash,
 	}
 
 	createdUser, err := service.CreateUser(db, user)
@@ -58,12 +57,12 @@ func TestCreateUser_EmailExists(t *testing.T) {
 			AddRow(uuid.New(), email))
 
 	service := &UserService{}
-	user := models.User{
-		Email:        email,
-		PasswordHash: "password",
+	userData := map[string]interface{}{
+		"email":         email,
+		"password_hash": "password",
 	}
 
-	_, err := service.CreateUser(db, user)
+	_, err := service.CreateUser(db, userData)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -134,7 +133,7 @@ func TestUpdateUser_Success(t *testing.T) {
 			AddRow(userID, newEmail))
 
 	service := &UserService{}
-	updatedUser, err := service.UpdateUser(db, userID.String(), models.User{Email: newEmail})
+	updatedUser, err := service.UpdateUser(db, userID.String(), map[string]interface{}{"email": newEmail})
 	assert.NoError(t, err)
 	assert.Equal(t, newEmail, updatedUser.Email)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -149,7 +148,7 @@ func TestUpdateUser_NotFound(t *testing.T) {
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	service := &UserService{}
-	_, err := service.UpdateUser(db, "non-existent-id", models.User{Email: "new@example.com"})
+	_, err := service.UpdateUser(db, "non-existent-id", map[string]interface{}{"email": "new@example.com"})
 	assert.Error(t, err)
 	assert.Equal(t, ErrUserNotFound, err)
 	assert.NoError(t, mock.ExpectationsWereMet())

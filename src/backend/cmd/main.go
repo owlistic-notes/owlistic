@@ -61,14 +61,28 @@ func main() {
 		log.Println("EventHandler service is disabled due to Kafka unavailability")
 	}
 
+	// Initialize authentication service
+	authService := services.NewAuthService(cfg.JWTSecret, cfg.JWTExpirationHours)
+	services.AuthServiceInstance = authService
+
+	// Initialize user service with auth service dependency
+	userService := services.NewUserService(authService)
+	services.UserServiceInstance = userService
+
 	router := gin.Default()
 
-	routes.RegisterUserRoutes(router, db, services.UserServiceInstance)
+	// Register authentication routes
+	routes.RegisterAuthRoutes(router, db, authService)
+
+	// Register user routes with auth service
+	routes.RegisterUserRoutes(router, db, userService, authService)
+
+	// Register other service routes
 	routes.RegisterNoteRoutes(router, db, services.NoteServiceInstance)
 	routes.RegisterTaskRoutes(router, db, services.TaskServiceInstance)
 	routes.RegisterNotebookRoutes(router, db, services.NotebookServiceInstance)
 	routes.RegisterBlockRoutes(router, db, services.BlockServiceInstance)
-	routes.RegisterTrashRoutes(router, db, services.TrashServiceInstance) // Add this line
+	routes.RegisterTrashRoutes(router, db, services.TrashServiceInstance)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

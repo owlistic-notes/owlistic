@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/auth_provider.dart';
 import 'search_bar_widget.dart';
 
 class AppBarCommon extends StatefulWidget implements PreferredSizeWidget {
@@ -52,20 +54,20 @@ class _AppBarCommonState extends State<AppBarCommon> {
 
   void _showThemeMenu(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
+
     showMenu(
       context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      position:
+          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
       items: [
         PopupMenuItem(
           value: ThemeMode.light,
           child: Row(
             children: [
-              Icon(Icons.wb_sunny, 
-                color: themeProvider.themeMode == ThemeMode.light 
-                  ? Theme.of(context).primaryColor 
-                  : null
-              ),
+              Icon(Icons.wb_sunny,
+                  color: themeProvider.themeMode == ThemeMode.light
+                      ? Theme.of(context).primaryColor
+                      : null),
               const SizedBox(width: 8),
               const Text('Light Mode'),
               if (themeProvider.themeMode == ThemeMode.light)
@@ -78,10 +80,9 @@ class _AppBarCommonState extends State<AppBarCommon> {
           child: Row(
             children: [
               Icon(Icons.nightlight_round,
-                color: themeProvider.themeMode == ThemeMode.dark 
-                  ? Theme.of(context).primaryColor 
-                  : null
-              ),
+                  color: themeProvider.themeMode == ThemeMode.dark
+                      ? Theme.of(context).primaryColor
+                      : null),
               const SizedBox(width: 8),
               const Text('Dark Mode'),
               if (themeProvider.themeMode == ThemeMode.dark)
@@ -100,12 +101,14 @@ class _AppBarCommonState extends State<AppBarCommon> {
   void _showNotificationsMenu(BuildContext context) {
     showMenu(
       context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      position:
+          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
       items: [
         const PopupMenuItem(
           enabled: false,
           child: ListTile(
-            title: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: Text('Notifications',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
         const PopupMenuItem(
@@ -138,10 +141,14 @@ class _AppBarCommonState extends State<AppBarCommon> {
   }
 
   void _showProfileMenu(BuildContext context) {
-    showMenu<dynamic>(
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+
+    showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
-      items: <PopupMenuEntry<dynamic>>[
+      position:
+          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           value: 'profile_header',
           child: ListTile(
@@ -149,8 +156,8 @@ class _AppBarCommonState extends State<AppBarCommon> {
               child: const Icon(Icons.person),
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
             ),
-            title: const Text('John Doe'),
-            subtitle: const Text('john.doe@example.com'),
+            title: Text(user?.email?.split('@')[0] ?? 'User'),
+            subtitle: Text(user?.email ?? 'user@example.com'),
           ),
         ),
         const PopupMenuItem<String>(
@@ -183,7 +190,39 @@ class _AppBarCommonState extends State<AppBarCommon> {
           ),
         ),
       ],
-    );
+    ).then((value) async {
+      if (value == 'logout') {
+        // Show confirmation dialog before logout
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Logout'),
+              ),
+            ],
+          ),
+        );
+
+        // If user confirmed, perform logout
+        if (confirm == true && context.mounted) {
+          await authProvider.logout();
+
+          // Navigate to login screen after logout
+          if (context.mounted) {
+            context.go('/login');
+          }
+        }
+      }
+      // Handle other menu options here
+    });
   }
 
   @override
@@ -195,27 +234,30 @@ class _AppBarCommonState extends State<AppBarCommon> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    
+
     // Check if we're in the note editor screen
-    final isNoteEditor = ModalRoute.of(context)?.settings.name?.contains('note_editor') == true || 
-                        _isInNoteEditorScreen(context);
+    final isNoteEditor =
+        ModalRoute.of(context)?.settings.name?.contains('note_editor') ==
+                true ||
+            _isInNoteEditorScreen(context);
 
     return AppBar(
       title: _isSearching && !isNoteEditor
-        ? SearchBarWidget(
-            controller: _searchController,
-            onChanged: _handleSearch,
-            onClear: _toggleSearch,
-          )
-        : widget.customTitle ?? Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(child: Text(widget.title)),
-              if (widget.titleEditAction != null)
-                widget.titleEditAction!,
-            ],
-          ),
-      titleSpacing: widget.onMenuPressed != null || widget.showBackButton ? 8.0 : 16.0,
+          ? SearchBarWidget(
+              controller: _searchController,
+              onChanged: _handleSearch,
+              onClear: _toggleSearch,
+            )
+          : widget.customTitle ??
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(child: Text(widget.title)),
+                  if (widget.titleEditAction != null) widget.titleEditAction!,
+                ],
+              ),
+      titleSpacing:
+          widget.onMenuPressed != null || widget.showBackButton ? 8.0 : 16.0,
       automaticallyImplyLeading: false,
       leading: Container(
         margin: const EdgeInsets.only(left: 8.0),
@@ -230,17 +272,18 @@ class _AppBarCommonState extends State<AppBarCommon> {
                 tooltip: 'Menu',
                 padding: const EdgeInsets.all(8.0),
               ),
-            
+
             // Back button - only shown if showBackButton is true
             if (widget.showBackButton)
               IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onBackPressed ?? () {
-                  // Fix navigation by checking mounted state
-                  if (Navigator.canPop(context)) {
-                    Navigator.of(context).pop();
-                  }
-                },
+                onPressed: widget.onBackPressed ??
+                    () {
+                      // Fix navigation by checking mounted state
+                      if (Navigator.canPop(context)) {
+                        Navigator.of(context).pop();
+                      }
+                    },
                 tooltip: 'Back',
                 padding: const EdgeInsets.all(8.0),
               ),
@@ -256,40 +299,40 @@ class _AppBarCommonState extends State<AppBarCommon> {
             onPressed: _toggleSearch,
             tooltip: 'Search',
           ),
-        
+
         // Notifications button
         IconButton(
           icon: const Icon(Icons.notifications_outlined),
           onPressed: () => _showNotificationsMenu(context),
           tooltip: 'Notifications',
         ),
-        
+
         // Profile button
         IconButton(
           icon: const Icon(Icons.person_outline),
           onPressed: () => _showProfileMenu(context),
           tooltip: 'Profile',
         ),
-        
+
         // Additional custom actions
         ...widget.additionalActions,
       ],
     );
   }
-  
+
   // Helper method to check if we're in the note editor screen
   bool _isInNoteEditorScreen(BuildContext context) {
     // Check the current route for NoteEditorScreen
     final currentRoute = ModalRoute.of(context);
     if (currentRoute != null) {
-      // Check route settings 
+      // Check route settings
       final settings = currentRoute.settings;
-      
+
       // Check route name
       if (settings.name?.contains('note_editor') == true) {
         return true;
       }
-      
+
       // Check route builder arguments
       if (settings.arguments is Map) {
         final args = settings.arguments as Map;
@@ -297,30 +340,30 @@ class _AppBarCommonState extends State<AppBarCommon> {
           return true;
         }
       }
-      
+
       // Check if current route is MaterialPageRoute with NoteEditorScreen
       if (currentRoute is MaterialPageRoute) {
         return currentRoute.builder.toString().contains('NoteEditorScreen');
       }
     }
-    
+
     return false;
   }
-  
+
   // Calculate appropriate leading width based on visible buttons
   double _calculateLeadingWidth() {
-    double width = 8.0;  // Initial left margin
-    
+    double width = 8.0; // Initial left margin
+
     // Add width for menu button if present
     if (widget.onMenuPressed != null) {
-      width += 48.0;  // Standard IconButton width with padding
+      width += 48.0; // Standard IconButton width with padding
     }
-    
+
     // Add width for back button if visible
     if (widget.showBackButton) {
-      width += 48.0;  // Standard IconButton width with padding
+      width += 48.0; // Standard IconButton width with padding
     }
-    
+
     return width;
   }
 }

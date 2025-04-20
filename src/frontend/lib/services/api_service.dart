@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:thinkstack/models/user.dart';
 import '../models/note.dart';
 import '../models/task.dart';
 import '../models/notebook.dart';
@@ -10,9 +11,33 @@ import '../utils/logger.dart';
 class ApiService {
   static final Logger _logger = Logger('ApiService');
   static final String baseUrl = dotenv.env['BASE_URL'] ?? 'http://localhost:8080';
+  static String? _token;
+  static User? _currentUser;
+
+  // Helper method to get authenticated headers
+  static Map<String, String> _getAuthHeaders() {
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    };
+    
+    if (_token != null) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
+    
+    return headers;
+  }
+  
+  // Helper method to get current user ID or throw exception
+  static String _getCurrentUserId() {
+    if (_currentUser == null || _currentUser!.id.isEmpty) {
+      throw Exception('No authenticated user');
+    }
+    return _currentUser!.id;
+  }
 
   static Future<List<Note>> fetchNotes({
-    String? userId, 
     String? notebookId, 
     String? title,
     int page = 1,
@@ -21,7 +46,6 @@ class ApiService {
     try {
       // Build query parameters
       final queryParams = <String, String>{};
-      if (userId != null) queryParams['user_id'] = userId;
       if (notebookId != null) queryParams['notebook_id'] = notebookId;
       if (title != null) queryParams['title'] = title;
       
@@ -33,10 +57,7 @@ class ApiService {
       
       final response = await http.get(
         uri,
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
@@ -51,11 +72,10 @@ class ApiService {
     }
   }
 
-  static Future<List<Task>> fetchTasks({String? userId, String? completed, String? noteId}) async {
+  static Future<List<Task>> fetchTasks({String? completed, String? noteId}) async {
     try {
       // Build query parameters
       final queryParams = <String, String>{};
-      if (userId != null) queryParams['user_id'] = userId;
       if (completed != null) queryParams['completed'] = completed;
       if (noteId != null) queryParams['note_id'] = noteId;
       
@@ -64,23 +84,18 @@ class ApiService {
       _logger.info('Fetching tasks from: $uri');
       final response = await http.get(
         uri,
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
-      _logger.debug('Response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        _logger.debug('Parsed JSON data length: ${data.length}');
         final tasks = data.map((json) => Task.fromJson(json)).toList();
         return tasks;
       } else {
-        throw Exception('Failed to load tasks: ${response.statusCode}\nBody: ${response.body}');
+        throw Exception('Failed to load tasks: ${response.statusCode}');
       }
-    } catch (e, stack) {
-      _logger.error('Error in fetchTasks', e, stack);
+    } catch (e) {
+      _logger.error('Error in fetchTasks', e);
       rethrow;
     }
   }
@@ -89,10 +104,10 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/notes'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getAuthHeaders(),
         body: json.encode({
           'title': title,
-          'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17',
+          'user_id': _getCurrentUserId(),
           'notebook_id': notebookId,
           'blocks': [
             {
@@ -107,7 +122,7 @@ class ApiService {
       if (response.statusCode == 201) {
         return Note.fromJson(json.decode(response.body));
       } else {
-        throw Exception('Failed to create note: ${response.statusCode}\nBody: ${response.body}');
+        throw Exception('Failed to create note: ${response.statusCode}');
       }
     } catch (e) {
       _logger.error('Error in createNote', e);
@@ -119,7 +134,7 @@ class ApiService {
     _logger.info('Deleting note with ID: $id');
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v1/notes/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getAuthHeaders(),
     );
 
     if (response.statusCode != 204) {
@@ -131,7 +146,7 @@ class ApiService {
   static Future<Note> updateNote(String id, String title) async {
     final response = await http.put(
       Uri.parse('$baseUrl/api/v1/notes/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getAuthHeaders(),
       body: json.encode({
         'title': title,
       }),
@@ -150,27 +165,23 @@ class ApiService {
       final taskData = {
         'title': title,
         'is_completed': false,
-        'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17',
+        'user_id': _getCurrentUserId(),
         'note_id': noteId,
       };
       
-      // Only add blockId if it's provided and valid
       if (blockId != null && blockId.isNotEmpty && blockId != '00000000-0000-0000-0000-000000000000') {
         taskData['block_id'] = blockId;
       }
-      
-      _logger.info('Creating task with data: $taskData');
 
       final taskResponse = await http.post(
         Uri.parse('$baseUrl/api/v1/tasks'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getAuthHeaders(),
         body: json.encode(taskData),
       );
 
       if (taskResponse.statusCode == 201) {
         return Task.fromJson(json.decode(taskResponse.body));
       } else {
-        _logger.error('Failed to create task: ${taskResponse.statusCode}, ${taskResponse.body}');
         throw Exception('Failed to create task: ${taskResponse.statusCode}');
       }
     } catch (e) {
@@ -182,7 +193,7 @@ class ApiService {
   static Future<void> deleteTask(String id) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v1/tasks/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getAuthHeaders(),
     );
 
     if (response.statusCode != 204) {
@@ -197,7 +208,7 @@ class ApiService {
 
     final response = await http.put(
       Uri.parse('$baseUrl/api/v1/tasks/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getAuthHeaders(),
       body: json.encode(updates),
     );
 
@@ -209,7 +220,6 @@ class ApiService {
   }
 
   static Future<List<Notebook>> fetchNotebooks({
-    String? userId, 
     String? name,
     int page = 1,
     int pageSize = 20
@@ -217,7 +227,6 @@ class ApiService {
     try {
       // Build query parameters
       final queryParams = <String, String>{};
-      if (userId != null) queryParams['user_id'] = userId;
       if (name != null) queryParams['name'] = name;
       
       // Add pagination parameters
@@ -228,10 +237,7 @@ class ApiService {
       
       final response = await http.get(
         uri,
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
@@ -250,11 +256,11 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/v1/notebooks'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getAuthHeaders(),
         body: json.encode({
           'name': name,
           'description': description,
-          'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17',
+          'user_id': _getCurrentUserId(),
         }),
       );
 
@@ -272,7 +278,7 @@ class ApiService {
   static Future<void> deleteNoteFromNotebook(String notebookId, String noteId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v1/notes/$noteId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getAuthHeaders(),
     );
 
     if (response.statusCode != 204) {
@@ -284,7 +290,7 @@ class ApiService {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/api/v1/notebooks/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getAuthHeaders(),
         body: json.encode({
           'name': name,
           'description': description,
@@ -306,7 +312,7 @@ class ApiService {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/api/v1/notebooks/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getAuthHeaders(),
       );
 
       if (response.statusCode != 204) {
@@ -330,10 +336,7 @@ class ApiService {
       
       final response = await http.get(
         uri,
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
@@ -352,13 +355,10 @@ class ApiService {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
     
-    // Handle different content types
     if (content is String) {
       try {
-        // Try to parse as JSON first
         contentMap = json.decode(content);
       } catch (e) {
-        // If parsing fails, treat as plain string content
         contentMap = {'text': content};
       }
     } else if (content is Map) {
@@ -369,24 +369,20 @@ class ApiService {
     
     final response = await http.post(
       Uri.parse('$baseUrl/api/v1/blocks'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: _getAuthHeaders(),
       body: jsonEncode({
         'note_id': noteId,
         'content': contentMap,
         'type': type,
         'order': order,
-        'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17', // Use hardcoded user_id for now
+        'user_id': _getCurrentUserId(),
       }),
     );
     
     if (response.statusCode == 201) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      return Block.fromJson(data);
+      return Block.fromJson(jsonDecode(response.body));
     } else {
-      throw Exception('Failed to create block: ${response.statusCode}, ${response.body}');
+      throw Exception('Failed to create block: ${response.statusCode}');
     }
   }
 
@@ -394,7 +390,7 @@ class ApiService {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/api/v1/blocks/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getAuthHeaders(),
       );
 
       if (response.statusCode != 204) {
@@ -410,13 +406,10 @@ class ApiService {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
     
-    // Handle different content types
     if (content is String) {
       try {
-        // Try to parse as JSON first
         contentMap = json.decode(content);
       } catch (e) {
-        // If parsing fails, treat as plain string content
         contentMap = {'text': content};
       }
     } else if (content is Map) {
@@ -427,7 +420,7 @@ class ApiService {
     
     final Map<String, dynamic> body = {
       'content': contentMap,
-      'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17', // Use hardcoded user_id for now
+      'user_id': _getCurrentUserId(),
     };
     
     if (type != null) {
@@ -436,18 +429,14 @@ class ApiService {
     
     final response = await http.put(
       Uri.parse('$baseUrl/api/v1/blocks/$blockId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: _getAuthHeaders(),
       body: jsonEncode(body),
     );
     
     if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      return Block.fromJson(data);
+      return Block.fromJson(jsonDecode(response.body));
     } else {
-      throw Exception('Failed to update block: ${response.statusCode}, ${response.body}');
+      throw Exception('Failed to update block: ${response.statusCode}');
     }
   }
 
@@ -455,10 +444,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/blocks/$id'),
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
@@ -476,10 +462,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/notes/$id'),
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
@@ -497,10 +480,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/notebooks/$id'),
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
@@ -518,10 +498,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/tasks/$id'),
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
@@ -539,19 +516,13 @@ class ApiService {
   static Future<Map<String, dynamic>> fetchTrashedItems() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/trash').replace(
-          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
-        ),
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        Uri.parse('$baseUrl/api/v1/trash'),
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         
-        // Parse the notes and notebooks
         final List<dynamic> notesList = data['notes'] ?? [];
         final List<dynamic> notebooksList = data['notebooks'] ?? [];
         
@@ -574,13 +545,8 @@ class ApiService {
   static Future<void> restoreItem(String type, String id) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/trash/restore/$type/$id').replace(
-          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
-        ),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        Uri.parse('$baseUrl/api/v1/trash/restore/$type/$id'),
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode != 200) {
@@ -595,13 +561,8 @@ class ApiService {
   static Future<void> permanentlyDeleteItem(String type, String id) async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/api/v1/trash/$type/$id').replace(
-          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
-        ),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        Uri.parse('$baseUrl/api/v1/trash/$type/$id'),
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode != 200) {
@@ -616,13 +577,8 @@ class ApiService {
   static Future<void> emptyTrash() async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/api/v1/trash').replace(
-          queryParameters: {'user_id': '5719498e-aaba-4dbd-8385-5b1b8cd49a17'}
-        ),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        Uri.parse('$baseUrl/api/v1/trash'),
+        headers: _getAuthHeaders(),
       );
       
       if (response.statusCode != 200) {
@@ -632,5 +588,178 @@ class ApiService {
       _logger.error('Error in emptyTrash', e);
       rethrow;
     }
+  }
+
+  // Authentication methods
+  static Future<Map<String, dynamic>> login(String email, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/v1/auth/login'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _token = data['token']; // Update token for future requests
+        
+        // Parse the user information from the token
+        await _parseUserFromToken(_token!);
+        
+        return data;
+      } else {
+        _logger.error('Login failed with status: ${response.statusCode}');
+        throw Exception('Failed to login: ${response.body}');
+      }
+    } catch (e) {
+      _logger.error('Error during login', e);
+      throw e;
+    }
+  }
+
+  static Future<void> _parseUserFromToken(String token) async {
+    try {
+      final tokenParts = token.split('.');
+      if (tokenParts.length != 3) {
+        _logger.error("Invalid JWT token format");
+        return;
+      }
+      
+      String normalized = base64Url.normalize(tokenParts[1]);
+      final payloadJson = utf8.decode(base64Url.decode(normalized));
+      final payload = jsonDecode(payloadJson);
+      
+      _currentUser = User(
+        id: payload['UserID'] ?? payload['user_id'] ?? payload['sub'] ?? '',
+        email: payload['email'] ?? '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      
+      _logger.info("User ID from token: ${_currentUser!.id}");
+    } catch (e) {
+      _logger.error('Error parsing token', e);
+    }
+  }
+
+  static Future<User> register(String email, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/v1/register'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return User.fromJson(data);
+      } else {
+        _logger.error('Registration failed with status: ${response.statusCode}');
+        throw Exception('Failed to register: ${response.body}');
+      }
+    } catch (e) {
+      _logger.error('Error during registration', e);
+      throw e;
+    }
+  }
+
+  static Future<User?> getUserProfile() async {
+    if (_token == null) return null;
+    
+    try {
+      _logger.info("Parsing JWT token to extract user info");
+      
+      // Extract user information from token
+      final tokenParts = _token!.split('.');
+      if (tokenParts.length != 3) {
+        _logger.error("Invalid JWT token format");
+        return null; // Not a valid JWT
+      }
+      
+      // Decode the payload part (second part)
+      String normalized = base64Url.normalize(tokenParts[1]);
+      final payloadJson = utf8.decode(base64Url.decode(normalized));
+      final payload = jsonDecode(payloadJson);
+      
+      _logger.info("Successfully extracted user info from token: ${payload['email']}");
+      
+      // Create a user object from the token payload
+      return User(
+        id: payload['UserID'] ?? payload['user_id'] ?? payload['sub'] ?? '',
+        email: payload['email'] ?? '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      _logger.error('Error getting user profile', e);
+      return null;
+    }
+  }
+
+  static Future<User> updateUserProfile(Map<String, dynamic> data) async {
+    try {
+      // Since we don't have a proper endpoint, we'll simulate an update
+      // In a real app, you would use a proper API endpoint
+      _logger.info('Profile update would send data: $data');
+      
+      // Return a mock updated user
+      return User(
+        id: data['id'] ?? '',
+        email: data['email'] ?? '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      _logger.error('Error updating user profile', e);
+      throw e;
+    }
+  }
+
+  static Future<bool> changePassword(String currentPassword, String newPassword) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/v1/auth/password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $_token',
+        },
+        body: jsonEncode({
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      _logger.error('Error changing password', e);
+      return false;
+    }
+  }
+
+  static User? getCurrentUser() {
+    return _currentUser;
+  }
+
+  static void setToken(String token) {
+    _token = token;
+    _parseUserFromToken(token);
+  }
+
+  static void clearToken() {
+    _token = null;
+    _currentUser = null;
   }
 }

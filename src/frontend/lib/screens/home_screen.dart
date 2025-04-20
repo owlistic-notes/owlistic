@@ -11,6 +11,7 @@ import '../providers/tasks_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/websocket_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/auth_provider.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
@@ -205,6 +206,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBarCommon(
@@ -218,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildWelcomeCard(context),
+            _buildWelcomeCard(context, authProvider),
             _buildSectionHeader(context, 'Recent Notebooks', Icons.folder_outlined),
             _buildRecentNotebooks(),
             _buildSectionHeader(context, 'Recent Notes', Icons.note_outlined),
@@ -237,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildWelcomeCard(BuildContext context) {
+  Widget _buildWelcomeCard(BuildContext context, AuthProvider authProvider) {
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
@@ -257,17 +260,17 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
-                  'Welcome back!',
-                  style: TextStyle(
+                  'Welcome back${authProvider.currentUser != null ? ', ${authProvider.currentUser!.email.split('@')[0]}' : ''}!',
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
+                const SizedBox(height: 8),
+                const Text(
                   'Organize your thoughts and ideas all in one place.',
                   style: TextStyle(
                     fontSize: 14,
