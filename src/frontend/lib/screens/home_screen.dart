@@ -326,27 +326,32 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentNotebooks() {
-    return SizedBox(
-      height: 160,
-      child: Consumer<NotebooksProvider>(
-        builder: (ctx, notebooksProvider, _) {
-          if (notebooksProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return Consumer<NotebooksProvider>(
+      builder: (ctx, notebooksProvider, _) {
+        if (notebooksProvider.isLoading) {
+          return const SizedBox(
+            height: 160,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          final notebooks = notebooksProvider.notebooks.take(5).toList();
-          
-          if (notebooks.isEmpty) {
-            return EmptyState(
-              title: 'No notebooks yet',
-              message: 'Create your first notebook to organize your notes.',
-              icon: Icons.folder_outlined,
-              onAction: () => _showAddNotebookDialog(context),
-              actionLabel: 'Create Notebook',
-            );
-          }
+        final notebooks = notebooksProvider.notebooks.take(5).toList();
+        
+        if (notebooks.isEmpty) {
+          // Return EmptyState without fixed height constraint
+          return EmptyState(
+            title: 'No notebooks yet',
+            message: 'Create your first notebook to organize your notes.',
+            icon: Icons.folder_outlined,
+            onAction: () => _showAddNotebookDialog(context),
+            actionLabel: 'Create Notebook',
+          );
+        }
 
-          return ListView.builder(
+        // Use fixed height only when showing notebooks
+        return SizedBox(
+          height: 160,
+          child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             itemCount: notebooks.length,
@@ -396,9 +401,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -410,10 +415,20 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         if (notesProvider.recentNotes.isEmpty) {
+          // Check if notebooks exist before showing the create note button
+          final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+          final hasNotebooks = notebooksProvider.notebooks.isNotEmpty;
+          
           return EmptyState(
             title: 'No notes yet',
-            message: 'Create your first note to get started.',
+            message: hasNotebooks 
+                ? 'Create your first note to get started.' 
+                : 'Create a notebook first, then add notes to it.',
             icon: Icons.note_outlined,
+            onAction: () => hasNotebooks 
+                ? _showAddNoteDialog(context)
+                : _showAddNotebookDialog(context, showNoteDialogAfter: true),
+            actionLabel: hasNotebooks ? 'Create Note' : 'Create Notebook',
           );
         }
 
@@ -474,6 +489,8 @@ class _HomeScreenState extends State<HomeScreen> {
             title: 'No tasks yet',
             message: 'Create tasks to stay organized and boost productivity.',
             icon: Icons.check_circle_outline, // Check circle for tasks
+            onAction: () => _showAddTaskDialog(context),
+            actionLabel: 'Create Task',
           );
         }
 
