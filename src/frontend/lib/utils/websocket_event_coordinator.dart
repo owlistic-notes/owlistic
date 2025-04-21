@@ -20,7 +20,7 @@ class WebSocketEventCoordinator {
   
   // Subscribe to a resource
   Future<void> subscribe(String resource, {String? id}) async {
-    final subscription = Subscription(resource, id: id);
+    final subscription = Subscription(resource: resource, id: id);
     
     if (!_activeSubscriptions.contains(subscription)) {
       _activeSubscriptions.add(subscription);
@@ -48,7 +48,7 @@ class WebSocketEventCoordinator {
   
   // Unsubscribe from a resource
   void unsubscribe(String resource, {String? id}) {
-    final subscription = Subscription(resource, id: id);
+    final subscription = Subscription(resource: resource, id: id);
     
     if (_activeSubscriptions.contains(subscription)) {
       _activeSubscriptions.remove(subscription);

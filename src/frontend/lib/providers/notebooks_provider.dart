@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:thinkstack/models/subscription.dart';
 import '../models/notebook.dart';
 import '../models/note.dart';
 import '../services/notebook_service.dart';
@@ -91,21 +92,19 @@ class NotebooksProvider with ChangeNotifier {
         
         _notebooksMap[notebook.id] = notebook;
         
-        // Subscribe to this notebook with explicit ID validation
+        // Subscribe to this notebook with explicit ID validation and duplicate prevention
         if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
-          if (notebook.id.isNotEmpty) {
+          if (notebook.id.isNotEmpty && 
+              !_webSocketProvider!.isSubscribed('notebook', id: notebook.id)) {
             _logger.debug('Subscribing to notebook with ID: ${notebook.id}');
             _webSocketProvider?.subscribe('notebook', id: notebook.id);
-          } else {
-            _logger.warning('Notebook has empty ID, cannot subscribe');
           }
-        } else {
-          _logger.warning('WebSocketProvider not connected, will subscribe when connection is established');
         }
       }
       
-      // Subscribe to notebooks as a collection
-      if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+      // Subscribe to notebooks as a collection - only if not already subscribed
+      if (_webSocketProvider != null && _webSocketProvider!.isConnected && 
+          !_webSocketProvider!.isSubscribed('notebook')) {
         _logger.debug('Subscribing to global notebooks resource');
         _webSocketProvider?.subscribe('notebook');
       }
@@ -292,6 +291,20 @@ class NotebooksProvider with ChangeNotifier {
   void setWebSocketProvider(WebSocketProvider provider) {
     if (_webSocketProvider == provider) return;
     
+    // Unregister and unsubscribe from previous provider
+    if (_webSocketProvider != null) {
+      _webSocketProvider!.removeEventListener('event', 'notebook.updated');
+      _webSocketProvider!.removeEventListener('event', 'notebook.created');
+      _webSocketProvider!.removeEventListener('event', 'notebook.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('notebook.updated');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.created');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.deleted');
+      }
+    }
+    
     _webSocketProvider = provider;
     
     // Register event listeners
@@ -299,25 +312,44 @@ class NotebooksProvider with ChangeNotifier {
     provider.addEventListener('event', 'notebook.created', _handleNotebookCreate);
     provider.addEventListener('event', 'notebook.deleted', _handleNotebookDelete);
     
+    // Subscribe to events using correct pattern
+    if (provider.isConnected) {
+      provider.subscribeToEvent('notebook.updated');
+      provider.subscribeToEvent('notebook.created');
+      provider.subscribeToEvent('notebook.deleted');
+    }
+    
     _logger.info('WebSocketProvider set for NotebooksProvider');
     
-    // If we already have notebooks, subscribe to them
+    // If we already have notebooks, subscribe to them - only if not already subscribed
     if (_notebooksMap.isNotEmpty && provider.isConnected) {
       _logger.info('Subscribing to existing notebooks after WebSocketProvider connection');
       
-      // First subscribe to the global notebooks resource
-      provider.subscribe('notebook');
+      // First subscribe to the global notebooks resource - only if not already subscribed
+      if (!provider.isSubscribed('notebook')) {
+        provider.subscribe('notebook');
+      }
+      
+      // Batch subscribe to individual notebooks to minimize subscription messages
+      final List<Subscription> pendingSubscriptions = [];
       
       // Then subscribe to individual notebooks
       for (var notebook in _notebooksMap.values) {
-        if (notebook.id.isNotEmpty) {
-          provider.subscribe('notebook', id: notebook.id);
+        if (notebook.id.isNotEmpty && !provider.isSubscribed('notebook', id: notebook.id)) {
+          pendingSubscriptions.add(Subscription(resource: 'notebook', id: notebook.id));
         }
       }
+      
+      // Only batch subscribe if we have subscriptions to add
+      if (pendingSubscriptions.isNotEmpty) {
+        provider.batchSubscribe(pendingSubscriptions);
+      }
     } else if (provider.isConnected) {
-      // Subscribe to global notebooks even if we don't have any yet
-      _logger.info('No notebooks in memory yet, subscribing to global notebooks resource');
-      provider.subscribe('notebook');
+      // Subscribe to global notebooks even if we don't have any yet - if not already subscribed
+      if (!provider.isSubscribed('notebook')) {
+        _logger.info('No notebooks in memory yet, subscribing to global notebooks resource');
+        provider.subscribe('notebook');
+      }
     }
   }
   
@@ -426,6 +458,13 @@ class NotebooksProvider with ChangeNotifier {
       _webSocketProvider!.removeEventListener('event', 'notebook.updated');
       _webSocketProvider!.removeEventListener('event', 'notebook.created');
       _webSocketProvider!.removeEventListener('event', 'notebook.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('notebook.updated');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.created');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.deleted');
+      }
     }
   }
   

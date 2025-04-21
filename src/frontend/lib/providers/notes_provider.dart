@@ -63,6 +63,13 @@ class NotesProvider with ChangeNotifier {
       _webSocketProvider?.removeEventListener('event', 'note.updated');
       _webSocketProvider?.removeEventListener('event', 'note.created');
       _webSocketProvider?.removeEventListener('event', 'note.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('note.updated');
+        _webSocketProvider?.unsubscribeFromEvent('note.created');
+        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
+      }
     }
     
     _webSocketProvider = provider;
@@ -71,6 +78,14 @@ class NotesProvider with ChangeNotifier {
     provider.addEventListener('event', 'note.updated', _handleNoteUpdate);
     provider.addEventListener('event', 'note.created', _handleNoteCreate);
     provider.addEventListener('event', 'note.deleted', _handleNoteDelete);
+    
+    // Subscribe to these events using the correct pattern for events
+    if (provider.isConnected) {
+      // Use subscribeToEvent instead of subscribe for event types
+      provider.subscribeToEvent('note.updated');
+      provider.subscribeToEvent('note.created');
+      provider.subscribeToEvent('note.deleted');
+    }
   }
 
   // Mark a note as active/inactive
@@ -242,8 +257,11 @@ class NotesProvider with ChangeNotifier {
         
         _notesMap[note.id] = note;
         
-        // Subscribe to this note for real-time updates
-        _webSocketProvider?.subscribe('note', id: note.id);
+        // Subscribe to this note for real-time updates - only if not already subscribed
+        if (_webSocketProvider != null && 
+            !_webSocketProvider!.isSubscribed('note', id: note.id)) {
+          _webSocketProvider?.subscribe('note', id: note.id);
+        }
       }
       
       _isLoading = false;
@@ -403,6 +421,13 @@ class NotesProvider with ChangeNotifier {
       _webSocketProvider?.removeEventListener('event', 'note.updated');
       _webSocketProvider?.removeEventListener('event', 'note.created');
       _webSocketProvider?.removeEventListener('event', 'note.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('note.updated');
+        _webSocketProvider?.unsubscribeFromEvent('note.created');
+        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
+      }
     }
     super.dispose();
   }

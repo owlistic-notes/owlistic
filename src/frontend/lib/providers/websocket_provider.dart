@@ -28,9 +28,11 @@ class WebSocketProvider with ChangeNotifier {
   // Current user from auth service
   User? _currentUser;
   
-  // Subscription tracking
+  // Enhanced subscription tracking
   final Set<String> _pendingSubscriptions = {};
   final Set<String> _confirmedSubscriptions = {};
+  final Map<String, DateTime> _lastSubscriptionAttempt = {}; // Track when we last tried to subscribe
+  static const Duration _subscriptionThrottleTime = Duration(seconds: 10); // Don't retry subscription within this time
 
   // Map to store event listeners
   final Map<String, List<Function(dynamic)>> _eventListeners = {};
@@ -58,6 +60,11 @@ class WebSocketProvider with ChangeNotifier {
   DateTime? get lastEventTime => _lastEventTime;
   int get messageCount => _messageCount;
   User? get currentUser => _currentUser;
+  
+  // Getters for subscription debugging
+  Set<String> get confirmedSubscriptions => Set.from(_confirmedSubscriptions);
+  Set<String> get pendingSubscriptions => Set.from(_pendingSubscriptions);
+  int get totalSubscriptions => _confirmedSubscriptions.length + _pendingSubscriptions.length;
 
   // Setup auth listeners for improved auth state synchronization
   void _setupAuthListeners() {
@@ -175,6 +182,7 @@ class WebSocketProvider with ChangeNotifier {
     // Clear subscription sets
     _pendingSubscriptions.clear();
     _confirmedSubscriptions.clear();
+    _lastSubscriptionAttempt.clear();
     
     notifyListeners();
   }
@@ -238,20 +246,39 @@ class WebSocketProvider with ChangeNotifier {
         return;
       }
       
-      final resource = payload['resource']?.toString();
-      if (resource == null || resource.isEmpty) {
-        _logger.warning('Received subscription confirmation with missing resource');
-        return;
+      String? subscriptionKey;
+      
+      // Handle resource subscription confirmations
+      if (payload['resource'] != null) {
+        final resource = payload['resource']?.toString();
+        if (resource == null || resource.isEmpty) {
+          _logger.warning('Received subscription confirmation with missing resource');
+          return;
+        }
+        
+        final id = payload['id']?.toString();
+        subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
+      } 
+      // Handle event subscription confirmations
+      else if (payload['event_type'] != null) {
+        final eventType = payload['event_type']?.toString();
+        if (eventType == null || eventType.isEmpty) {
+          _logger.warning('Received subscription confirmation with missing event_type');
+          return;
+        }
+        
+        subscriptionKey = 'event:$eventType';
       }
       
-      final id = payload['id']?.toString();
-      final subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
-      
-      _logger.info('Confirmed subscription: $subscriptionKey');
-      _pendingSubscriptions.remove(subscriptionKey);
-      _confirmedSubscriptions.add(subscriptionKey);
-      
-      notifyListeners();
+      if (subscriptionKey != null) {
+        _logger.info('Confirmed subscription: $subscriptionKey');
+        _pendingSubscriptions.remove(subscriptionKey);
+        _confirmedSubscriptions.add(subscriptionKey);
+        
+        notifyListeners();
+      } else {
+        _logger.warning('Could not determine subscription key from payload: $payload');
+      }
     } catch (e) {
       _logger.error('Error handling subscription confirmation', e);
     }
@@ -328,7 +355,7 @@ class WebSocketProvider with ChangeNotifier {
     }
   }
 
-  // Subscribe to a resource - only if user is authenticated
+  // Subscribe to a resource - with duplicate subscription prevention
   Future<void> subscribe(String resource, {String? id}) async {
     // Check if user is authenticated
     if (_currentUser == null) {
@@ -342,27 +369,102 @@ class WebSocketProvider with ChangeNotifier {
     final String subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
     
     // Check if already subscribed to avoid duplicates
-    if (_confirmedSubscriptions.contains(subscriptionKey) || 
-        _pendingSubscriptions.contains(subscriptionKey)) {
-      _logger.debug('Already subscribed to $subscriptionKey, skipping');
+    if (_confirmedSubscriptions.contains(subscriptionKey)) {
+      _logger.debug('Already confirmed subscription to $subscriptionKey, skipping');
       return;
+    }
+    
+    if (_pendingSubscriptions.contains(subscriptionKey)) {
+      // Check if we've recently tried to subscribe to this resource
+      final lastAttempt = _lastSubscriptionAttempt[subscriptionKey];
+      if (lastAttempt != null && 
+          DateTime.now().difference(lastAttempt) < _subscriptionThrottleTime) {
+        _logger.debug('Subscription to $subscriptionKey is pending and was attempted recently, throttling');
+        return;
+      }
+      _logger.debug('Subscription to $subscriptionKey is pending but attempt was long ago, retrying');
     }
     
     _logger.info('Subscribing to $resource${id != null && id.isNotEmpty ? " ID: $id" : " (global)"}');
     
-    // Validate ID to make sure it's not empty
-    if (id != null && id.isEmpty) {
-      _logger.warning('Empty ID provided for $resource subscription, treating as global');
-      _webSocketService.subscribe(resource);
-    } else {
-      _webSocketService.subscribe(resource, id: id);
+    // Update last attempt time
+    _lastSubscriptionAttempt[subscriptionKey] = DateTime.now();
+    
+    // Use the WebSocketService subscribe method for resources
+    _webSocketService.subscribe(resource, id: id);
+    
+    _pendingSubscriptions.add(subscriptionKey);
+    notifyListeners();
+  }
+  
+  // Subscribe to an event type (like block.created)
+  Future<void> subscribeToEvent(String eventType) async {
+    // Check if user is authenticated
+    if (_currentUser == null) {
+      _logger.warning('Cannot subscribe to event: No authenticated user');
+      return;
     }
+    
+    await ensureConnected();
+    
+    // Properly format event type for subscription tracking
+    final String subscriptionKey = 'event:$eventType';
+    
+    // Check if already subscribed to avoid duplicates
+    if (_confirmedSubscriptions.contains(subscriptionKey)) {
+      _logger.debug('Already confirmed subscription to event $eventType, skipping');
+      return;
+    }
+    
+    if (_pendingSubscriptions.contains(subscriptionKey)) {
+      // Check if we've recently tried to subscribe to this event
+      final lastAttempt = _lastSubscriptionAttempt[subscriptionKey];
+      if (lastAttempt != null && 
+          DateTime.now().difference(lastAttempt) < _subscriptionThrottleTime) {
+        _logger.debug('Subscription to event $eventType is pending and was attempted recently, throttling');
+        return;
+      }
+      _logger.debug('Subscription to event $eventType is pending but attempt was long ago, retrying');
+    }
+    
+    _logger.info('Subscribing to event: $eventType');
+    
+    // Update last attempt time
+    _lastSubscriptionAttempt[subscriptionKey] = DateTime.now();
+    
+    // Use the WebSocketService subscribeToEvent method
+    _webSocketService.subscribeToEvent(eventType);
     
     _pendingSubscriptions.add(subscriptionKey);
     notifyListeners();
   }
 
-  // Batch subscribe to multiple resources simultaneously
+  // Check if subscribed to a resource
+  bool isSubscribed(String resource, {String? id}) {
+    final subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
+    return _confirmedSubscriptions.contains(subscriptionKey) || 
+           _pendingSubscriptions.contains(subscriptionKey);
+  }
+  
+  // Check if subscribed to an event
+  bool isSubscribedToEvent(String eventType) {
+    final subscriptionKey = 'event:$eventType';
+    return _confirmedSubscriptions.contains(subscriptionKey) || 
+           _pendingSubscriptions.contains(subscriptionKey);
+  }
+  
+  // Unsubscribe from an event
+  void unsubscribeFromEvent(String eventType) {
+    final subscriptionKey = 'event:$eventType';
+    
+    _webSocketService.unsubscribeFromEvent(eventType);
+    
+    _pendingSubscriptions.remove(subscriptionKey);
+    _confirmedSubscriptions.remove(subscriptionKey);
+    _lastSubscriptionAttempt.remove(subscriptionKey);
+  }
+
+  // Batch subscribe to multiple resources simultaneously, with duplicate prevention
   Future<void> batchSubscribe(List<Subscription> subscriptions) async {
     // Check if user is authenticated
     if (_currentUser == null) {
@@ -374,28 +476,54 @@ class WebSocketProvider with ChangeNotifier {
     
     if (subscriptions.isEmpty) return;
     
-    _logger.info('Batch subscribing to ${subscriptions.length} resources');
+    // Filter out subscriptions that are already confirmed or pending recently
+    final List<Subscription> newSubscriptions = subscriptions.where((sub) {
+      final subscriptionKey = sub.id != null ? '${sub.resource}:${sub.id}' : sub.resource;
+      
+      // Skip if already confirmed
+      if (_confirmedSubscriptions.contains(subscriptionKey)) {
+        return false;
+      }
+      
+      // Skip if pending and recently attempted
+      if (_pendingSubscriptions.contains(subscriptionKey)) {
+        final lastAttempt = _lastSubscriptionAttempt[subscriptionKey];
+        if (lastAttempt != null && 
+            DateTime.now().difference(lastAttempt) < _subscriptionThrottleTime) {
+          return false;
+        }
+      }
+      
+      return true;
+    }).toList();
+    
+    if (newSubscriptions.isEmpty) {
+      _logger.info('No new subscriptions to process in batch');
+      return;
+    }
+    
+    _logger.info('Batch subscribing to ${newSubscriptions.length} resources');
     
     // Process in batches of 5 to avoid overwhelming the connection
-    for (int i = 0; i < subscriptions.length; i += 5) {
-      final end = (i + 5 < subscriptions.length) ? i + 5 : subscriptions.length;
-      final batch = subscriptions.sublist(i, end);
+    for (int i = 0; i < newSubscriptions.length; i += 5) {
+      final end = (i + 5 < newSubscriptions.length) ? i + 5 : newSubscriptions.length;
+      final batch = newSubscriptions.sublist(i, end);
       
       // Process this batch
       for (final sub in batch) {
         final subscriptionKey = sub.id != null ? '${sub.resource}:${sub.id}' : sub.resource;
         
-        if (!_confirmedSubscriptions.contains(subscriptionKey) && 
-            !_pendingSubscriptions.contains(subscriptionKey)) {
-          _logger.debug('Subscribing to ${sub.resource}${sub.id != null ? " ID: ${sub.id}" : ""}');
-          _pendingSubscriptions.add(subscriptionKey);
-          _webSocketService.subscribe(sub.resource, id: sub.id);
-        }
+        _logger.debug('Subscribing to ${sub.resource}${sub.id != null ? " ID: ${sub.id}" : ""}');
+        _pendingSubscriptions.add(subscriptionKey);
+        _lastSubscriptionAttempt[subscriptionKey] = DateTime.now();
+        _webSocketService.subscribe(sub.resource, id: sub.id);
       }
       
       // Add a small delay between batches
       await Future.delayed(Duration(milliseconds: 100));
     }
+    
+    notifyListeners();
   }
 
   // Unsubscribe from a resource
@@ -406,6 +534,7 @@ class WebSocketProvider with ChangeNotifier {
     
     _pendingSubscriptions.remove(subscriptionKey);
     _confirmedSubscriptions.remove(subscriptionKey);
+    _lastSubscriptionAttempt.remove(subscriptionKey);
   }
 
   // Force reconnection with resubscription
@@ -458,6 +587,21 @@ class WebSocketProvider with ChangeNotifier {
     _isConnected = false;
     
     notifyListeners();
+  }
+
+  // Debug info method
+  Map<String, dynamic> getDebugInfo() {
+    return {
+      'isConnected': _isConnected,
+      'confirmedSubscriptions': _confirmedSubscriptions.length,
+      'pendingSubscriptions': _pendingSubscriptions.length,
+      'connectionState': _webSocketService.connectionState.toString(),
+      'messageCount': _messageCount,
+      'lastEventTime': _lastEventTime?.toString() ?? 'never',
+      'lastEventType': _lastEventType,
+      'lastEventAction': _lastEventAction,
+      'hasUser': _currentUser != null,
+    };
   }
 
   // Cleanup

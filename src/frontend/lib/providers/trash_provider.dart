@@ -56,6 +56,24 @@ class TrashProvider with ChangeNotifier {
   
   // Set the WebSocketProvider
   void setWebSocketProvider(WebSocketProvider provider) {
+    if (_webSocketProvider == provider) return;
+    
+    // Unregister from previous provider if exists
+    if (_webSocketProvider != null) {
+      _webSocketProvider!.removeEventListener('event', 'note.deleted');
+      _webSocketProvider!.removeEventListener('event', 'notebook.deleted');
+      _webSocketProvider!.removeEventListener('event', 'note.restored');
+      _webSocketProvider!.removeEventListener('event', 'notebook.restored');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.deleted');
+        _webSocketProvider?.unsubscribeFromEvent('note.restored');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.restored');
+      }
+    }
+    
     _webSocketProvider = provider;
     
     // Register for events that would affect the trash
@@ -63,6 +81,14 @@ class TrashProvider with ChangeNotifier {
     provider.addEventListener('event', 'notebook.deleted', _handleItemDeleted);
     provider.addEventListener('event', 'note.restored', _handleItemRestored);
     provider.addEventListener('event', 'notebook.restored', _handleItemRestored);
+    
+    // Subscribe to these events using the correct pattern
+    if (provider.isConnected) {
+      provider.subscribeToEvent('note.deleted');
+      provider.subscribeToEvent('notebook.deleted');
+      provider.subscribeToEvent('note.restored');
+      provider.subscribeToEvent('notebook.restored');
+    }
     
     _logger.info('WebSocketProvider set for TrashProvider');
   }
@@ -182,6 +208,14 @@ class TrashProvider with ChangeNotifier {
       _webSocketProvider!.removeEventListener('event', 'notebook.deleted');
       _webSocketProvider!.removeEventListener('event', 'note.restored');
       _webSocketProvider!.removeEventListener('event', 'notebook.restored');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.deleted');
+        _webSocketProvider?.unsubscribeFromEvent('note.restored');
+        _webSocketProvider?.unsubscribeFromEvent('notebook.restored');
+      }
     }
     super.dispose();
   }

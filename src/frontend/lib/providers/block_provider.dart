@@ -93,6 +93,15 @@ class BlockProvider with ChangeNotifier {
     _webSocketProvider?.addEventListener('event', 'block.deleted', _handleBlockDelete);
     _webSocketProvider?.addEventListener('event', 'note.updated', _handleNoteUpdate);
     
+    // Subscribe to these events using the correct pattern for events
+    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+      // Use subscribeToEvent instead of subscribe for events
+      _webSocketProvider?.subscribeToEvent('block.updated');
+      _webSocketProvider?.subscribeToEvent('block.created');
+      _webSocketProvider?.subscribeToEvent('block.deleted');
+      _webSocketProvider?.subscribeToEvent('note.updated');
+    }
+    
     // Debug to confirm handlers are registered
     _logger.debug('Registered event handlers successfully');
   }
@@ -102,6 +111,14 @@ class BlockProvider with ChangeNotifier {
     _webSocketProvider?.removeEventListener('event', 'block.created');
     _webSocketProvider?.removeEventListener('event', 'block.deleted');
     _webSocketProvider?.removeEventListener('event', 'note.updated');
+    
+    // Unsubscribe from events
+    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+      _webSocketProvider?.unsubscribeFromEvent('block.updated');
+      _webSocketProvider?.unsubscribeFromEvent('block.created');
+      _webSocketProvider?.unsubscribeFromEvent('block.deleted');
+      _webSocketProvider?.unsubscribeFromEvent('note.updated');
+    }
   }
 
   // Mark a note as active/inactive
@@ -293,12 +310,18 @@ class BlockProvider with ChangeNotifier {
         // Also add to the noteBlocksMap
         _noteBlocksMap[noteId]!.add(block.id);
         
-        // Subscribe to this block
-        _webSocketProvider?.subscribe('block', id: block.id);
+        // Subscribe to this block - only if not already subscribed
+        if (_webSocketProvider != null && 
+            !_webSocketProvider!.isSubscribed('block', id: block.id)) {
+          _webSocketProvider?.subscribe('block', id: block.id);
+        }
       }
       
-      // Also subscribe to note's blocks as a collection
-      _webSocketProvider?.subscribe('note:blocks', id: noteId);
+      // Also subscribe to note's blocks as a collection - only if not already subscribed
+      if (_webSocketProvider != null && 
+          !_webSocketProvider!.isSubscribed('note:blocks', id: noteId)) {
+        _webSocketProvider?.subscribe('note:blocks', id: noteId);
+      }
       
       _isLoading = false;
       _updateCount++;

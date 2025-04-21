@@ -82,6 +82,13 @@ class TasksProvider with ChangeNotifier {
         'event', 'task.created', _handleTaskCreate);
     _webSocketProvider?.addEventListener(
         'event', 'task.deleted', _handleTaskDelete);
+        
+    // Subscribe to these events using the correct pattern
+    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+      _webSocketProvider?.subscribeToEvent('task.updated');
+      _webSocketProvider?.subscribeToEvent('task.created');
+      _webSocketProvider?.subscribeToEvent('task.deleted');
+    }
   }
 
   void _handleTaskUpdate(Map<String, dynamic> message) {
@@ -296,9 +303,16 @@ class TasksProvider with ChangeNotifier {
   void dispose() {
     // Unregister event handlers
     if (_webSocketProvider != null) {
-      _webSocketProvider?.removeEventListener('event', 'task_updated');
-      _webSocketProvider?.removeEventListener('event', 'task_created');
-      _webSocketProvider?.removeEventListener('event', 'task_deleted');
+      _webSocketProvider?.removeEventListener('event', 'task.updated');
+      _webSocketProvider?.removeEventListener('event', 'task.created');
+      _webSocketProvider?.removeEventListener('event', 'task.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('task.updated');
+        _webSocketProvider?.unsubscribeFromEvent('task.created');
+        _webSocketProvider?.unsubscribeFromEvent('task.deleted');
+      }
     }
     super.dispose();
   }
