@@ -6,17 +6,29 @@ import 'base_service.dart';
 class TaskService extends BaseService {
   final Logger _logger = Logger('TaskService');
 
-  Future<List<Task>> fetchTasks({String? completed, String? noteId}) async {
+  Future<List<Task>> fetchTasks({
+    String? completed, 
+    String? noteId, 
+    String? userId,
+    Map<String, dynamic>? queryParams,
+  }) async {
     try {
       // Build query parameters
-      final queryParams = <String, dynamic>{};
-      if (completed != null) queryParams['completed'] = completed;
-      if (noteId != null) queryParams['note_id'] = noteId;
+      final Map<String, dynamic> params = {};
       
-      _logger.info('Fetching tasks with params: $queryParams');
+      if (completed != null) params['completed'] = completed;
+      if (noteId != null) params['note_id'] = noteId;
+      if (userId != null) params['user_id'] = userId;
+      
+      // Add any additional query parameters
+      if (queryParams != null) {
+        params.addAll(queryParams);
+      }
+      
+      _logger.info('Fetching tasks with params: $params');
       final response = await authenticatedGet(
         '/api/v1/tasks',
-        queryParams: queryParams
+        queryParameters: params
       );
       
       if (response.statusCode == 200) {

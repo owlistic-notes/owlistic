@@ -4,12 +4,13 @@ import '../models/subscription.dart';
 import '../services/websocket_service.dart';
 import '../services/auth_service.dart';
 import '../utils/logger.dart';
+import '../models/user.dart';
 
 class WebSocketProvider with ChangeNotifier {
   // Singleton WebSocket service
   final Logger _logger = Logger('WebSocketProvider');
   final WebSocketService _webSocketService;
-  final AuthService? _authProvider;
+  final AuthService _authService;
   StreamSubscription? _subscription;
   StreamSubscription? _authSubscription;
   
@@ -23,6 +24,9 @@ class WebSocketProvider with ChangeNotifier {
   DateTime? _lastEventTime;
   int _messageCount = 0;
   bool _initialized = false;
+  
+  // Current user from auth service
+  User? _currentUser;
   
   // Subscription tracking
   final Set<String> _pendingSubscriptions = {};
@@ -40,9 +44,9 @@ class WebSocketProvider with ChangeNotifier {
   // Standard constructor with required dependencies
   WebSocketProvider({
     required WebSocketService webSocketService,
-    AuthService? authProvider
+    required AuthService authService
   }) : _webSocketService = webSocketService,
-       _authProvider = authProvider {
+       _authService = authService {
     _initializeWebSocketListener();
     _setupAuthListeners();
   }
@@ -53,41 +57,53 @@ class WebSocketProvider with ChangeNotifier {
   String get lastEventAction => _lastEventAction;
   DateTime? get lastEventTime => _lastEventTime;
   int get messageCount => _messageCount;
+  User? get currentUser => _currentUser;
 
-  // Setup auth listeners if auth provider is available
+  // Setup auth listeners for improved auth state synchronization
   void _setupAuthListeners() {
     try {
-      // If auth provider is available, listen for auth state changes
-      if (_authProvider != null) {
-        _logger.debug('Setting up auth listeners');
-        
-        // Listen to auth changes to connect/disconnect WebSocket
-        final authStream = _authProvider!.authStateStream;
-        if (authStream != null) {
-          _authSubscription = authStream.listen((isLoggedIn) {
-            if (isLoggedIn) {
-              _logger.info('User logged in, ensuring WebSocket connection');
-              ensureConnected();
-            } else {
-              _logger.info('User logged out, disconnecting WebSocket');
-              disconnect();
-            }
-          });
-        }
-        
-        // If user is already logged in, connect immediately
-        if (_authProvider!.isLoggedIn) {
-          _logger.info("User already logged in, connecting WebSocket");
-          ensureConnected();
-        }
-      } else {
-        // If no auth provider, just connect
-        _logger.info('No auth provider, connecting WebSocket without auth');
-        ensureConnected();
+      _logger.debug('Setting up auth listeners');
+      
+      // Listen to auth state changes to connect/disconnect WebSocket
+      final authStream = _authService.authStateChanges;
+      if (authStream != null) {
+        _authSubscription = authStream.listen((isLoggedIn) {
+          _logger.info('Auth state changed: isLoggedIn=$isLoggedIn');
+          
+          if (isLoggedIn) {
+            // User logged in - get current user and connect WebSocket
+            _authService.getUserProfile().then((user) {
+              _currentUser = user;
+              if (user != null) {
+                _logger.info('Setting WebSocket user ID from auth: ${user.id}');
+                _webSocketService.setUserId(user.id);
+                ensureConnected();
+              }
+            });
+          } else {
+            // User logged out - disconnect WebSocket
+            _logger.info('User logged out, disconnecting WebSocket');
+            _currentUser = null;
+            clearAllSubscriptions();
+            disconnect();
+            _webSocketService.setUserId(null);
+          }
+        });
       }
+      
+      // Check current auth state immediately
+      _authService.getUserProfile().then((user) {
+        _currentUser = user;
+        if (user != null) {
+          _logger.info('User already logged in with ID: ${user.id}, connecting WebSocket');
+          _webSocketService.setUserId(user.id);
+          ensureConnected();
+        } else {
+          _logger.info('No logged in user found');
+        }
+      });
     } catch (e) {
-      _logger.error("Error initializing WebSocketProvider", e);
-      // Don't re-throw, just log, to prevent provider errors
+      _logger.error("Error initializing WebSocketProvider auth listeners", e);
     }
   }
 
@@ -95,8 +111,7 @@ class WebSocketProvider with ChangeNotifier {
   void _initializeWebSocketListener() {
     if (_initialized) return;
     
-    // Connect immediately
-    _webSocketService.connect();
+    // Do not connect immediately - wait for auth state
     
     // Set up the message listener
     _subscription = _webSocketService.messageStream.listen(
@@ -118,12 +133,20 @@ class WebSocketProvider with ChangeNotifier {
 
   // Ensure connection is established
   Future<bool> ensureConnected() async {
+    // Check if we have a user before allowing connection
+    if (_currentUser == null) {
+      _logger.warning('Cannot connect WebSocket: No authenticated user');
+      return false;
+    }
+    
     if (_webSocketService.isConnected) {
       _isConnected = true;
       notifyListeners();
       return true;
     }
     
+    // Make sure WebSocket service has the current user ID
+    _webSocketService.setUserId(_currentUser!.id);
     _webSocketService.connect();
     
     // Wait a short time for connection to establish
@@ -133,6 +156,27 @@ class WebSocketProvider with ChangeNotifier {
     notifyListeners();
     
     return _isConnected;
+  }
+
+  // Clear all subscriptions
+  void clearAllSubscriptions() {
+    _logger.info('Clearing all WebSocket subscriptions');
+    
+    // Unsubscribe from all confirmed subscriptions
+    for (final subscription in _confirmedSubscriptions) {
+      if (subscription.contains(':')) {
+        final parts = subscription.split(':');
+        _webSocketService.unsubscribe(parts[0], id: parts[1]);
+      } else {
+        _webSocketService.unsubscribe(subscription);
+      }
+    }
+    
+    // Clear subscription sets
+    _pendingSubscriptions.clear();
+    _confirmedSubscriptions.clear();
+    
+    notifyListeners();
   }
 
   // Central handler for all incoming WebSocket messages with improved block handling
@@ -189,12 +233,21 @@ class WebSocketProvider with ChangeNotifier {
   void _handleSubscriptionConfirmation(Map<String, dynamic> message) {
     try {
       final payload = message['payload'];
-      if (payload == null) return;
+      if (payload == null) {
+        _logger.warning('Received subscription confirmation with null payload');
+        return;
+      }
       
-      final resource = payload['resource']?.toString() ?? '';
+      final resource = payload['resource']?.toString();
+      if (resource == null || resource.isEmpty) {
+        _logger.warning('Received subscription confirmation with missing resource');
+        return;
+      }
+      
       final id = payload['id']?.toString();
-      final subscriptionKey = id != null ? '$resource:$id' : resource;
+      final subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
       
+      _logger.info('Confirmed subscription: $subscriptionKey');
       _pendingSubscriptions.remove(subscriptionKey);
       _confirmedSubscriptions.add(subscriptionKey);
       
@@ -275,21 +328,53 @@ class WebSocketProvider with ChangeNotifier {
     }
   }
 
-  // Subscribe to a resource
+  // Subscribe to a resource - only if user is authenticated
   Future<void> subscribe(String resource, {String? id}) async {
-    await ensureConnected();
-    _webSocketService.subscribe(resource, id: id);
+    // Check if user is authenticated
+    if (_currentUser == null) {
+      _logger.warning('Cannot subscribe: No authenticated user');
+      return;
+    }
     
-    final subscriptionKey = id != null ? '$resource:$id' : resource;
+    await ensureConnected();
+    
+    // Properly format resource and id for subscription
+    final String subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
+    
+    // Check if already subscribed to avoid duplicates
+    if (_confirmedSubscriptions.contains(subscriptionKey) || 
+        _pendingSubscriptions.contains(subscriptionKey)) {
+      _logger.debug('Already subscribed to $subscriptionKey, skipping');
+      return;
+    }
+    
+    _logger.info('Subscribing to $resource${id != null && id.isNotEmpty ? " ID: $id" : " (global)"}');
+    
+    // Validate ID to make sure it's not empty
+    if (id != null && id.isEmpty) {
+      _logger.warning('Empty ID provided for $resource subscription, treating as global');
+      _webSocketService.subscribe(resource);
+    } else {
+      _webSocketService.subscribe(resource, id: id);
+    }
+    
     _pendingSubscriptions.add(subscriptionKey);
     notifyListeners();
   }
 
   // Batch subscribe to multiple resources simultaneously
   Future<void> batchSubscribe(List<Subscription> subscriptions) async {
+    // Check if user is authenticated
+    if (_currentUser == null) {
+      _logger.warning('Cannot batch subscribe: No authenticated user');
+      return;
+    }
+    
     await ensureConnected();
     
     if (subscriptions.isEmpty) return;
+    
+    _logger.info('Batch subscribing to ${subscriptions.length} resources');
     
     // Process in batches of 5 to avoid overwhelming the connection
     for (int i = 0; i < subscriptions.length; i += 5) {
@@ -302,6 +387,7 @@ class WebSocketProvider with ChangeNotifier {
         
         if (!_confirmedSubscriptions.contains(subscriptionKey) && 
             !_pendingSubscriptions.contains(subscriptionKey)) {
+          _logger.debug('Subscribing to ${sub.resource}${sub.id != null ? " ID: ${sub.id}" : ""}');
           _pendingSubscriptions.add(subscriptionKey);
           _webSocketService.subscribe(sub.resource, id: sub.id);
         }
@@ -352,13 +438,35 @@ class WebSocketProvider with ChangeNotifier {
     return _isConnected;
   }
 
+  // Clean up WebSocket state on logout
+  void clearOnLogout() {
+    _logger.info('Cleaning up WebSocket provider state on logout');
+    
+    // Clear all subscriptions
+    clearAllSubscriptions();
+    
+    // Disconnect WebSocket
+    disconnect();
+    
+    // Clear current user
+    _currentUser = null;
+    
+    // Clear WebSocket service state
+    _webSocketService.clearState();
+    
+    // Reset connection status
+    _isConnected = false;
+    
+    notifyListeners();
+  }
+
   // Cleanup
   @override
   void dispose() {
     _subscription?.cancel();
     _authSubscription?.cancel();
-    _webSocketService.dispose();
     _eventHandlers.clear();
+    _webSocketService.dispose();
     super.dispose();
   }
 }

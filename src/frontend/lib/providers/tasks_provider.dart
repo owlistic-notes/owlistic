@@ -32,6 +32,14 @@ class TasksProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   List<Task> get recentTasks => _tasksMap.values.take(3).toList();
   
+  // Reset state on logout
+  void resetState() {
+    _logger.info('Resetting TasksProvider state');
+    _tasksMap.clear();
+    _isActive = false;
+    notifyListeners();
+  }
+  
   // Add activation/deactivation pattern
   void activate() {
     _isActive = true;
@@ -152,14 +160,26 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchTasks() async {
+  // Fetch tasks with proper user filtering
+  Future<void> fetchTasks({String? completed, String? noteId}) async {
     if (!_isActive) return; // Don't fetch if not active
+    
+    // Get current user ID for filtering
+    final currentUser = await _authService.getUserProfile();
+    if (currentUser == null) {
+      _logger.warning('Cannot fetch tasks: No authenticated user');
+      return;
+    }
     
     _isLoading = true;
     notifyListeners();
 
     try {
-      final tasksList = await _taskService.fetchTasks();
+      final tasksList = await _taskService.fetchTasks(
+        completed: completed,
+        noteId: noteId,
+        userId: currentUser.id, // Only fetch tasks for this user
+      );
 
       // Convert list to map
       _tasksMap.clear();
@@ -172,9 +192,9 @@ class TasksProvider with ChangeNotifier {
         _webSocketProvider?.subscribe('task', id: task.id);
       }
 
-      print('Fetched ${_tasksMap.length} tasks');
+      _logger.debug('Fetched ${_tasksMap.length} tasks');
     } catch (error) {
-      print('Error fetching tasks: $error');
+      _logger.error('Error fetching tasks: $error');
       _tasksMap.clear(); // Reset tasks on error
     }
 

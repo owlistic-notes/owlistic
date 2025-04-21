@@ -9,20 +9,35 @@ class NotebookService extends BaseService {
   Future<List<Notebook>> fetchNotebooks({
     String? name,
     int page = 1,
-    int pageSize = 20
+    int pageSize = 20,
+    String? userId,
+    Map<String, dynamic>? queryParams,
   }) async {
     try {
       // Build query parameters
-      final queryParams = <String, dynamic>{};
-      if (name != null) queryParams['name'] = name;
+      final Map<String, dynamic> params = {
+        'page': page,
+        'page_size': pageSize,
+      };
       
-      // Add pagination parameters
-      queryParams['page'] = page;
-      queryParams['page_size'] = pageSize;
+      // Add name filter if provided
+      if (name != null) {
+        params['name'] = name;
+      }
+      
+      // Add user ID filter if provided
+      if (userId != null) {
+        params['user_id'] = userId;
+      }
+      
+      // Add any additional query parameters
+      if (queryParams != null) {
+        params.addAll(queryParams);
+      }
       
       final response = await authenticatedGet(
         '/api/v1/notebooks',
-        queryParams: queryParams
+        queryParameters: params
       );
       
       if (response.statusCode == 200) {

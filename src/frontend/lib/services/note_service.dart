@@ -7,21 +7,52 @@ import '../utils/logger.dart';
 class NoteService extends BaseService {
   final Logger _logger = Logger('NoteService');
   
-  // Fetch all notes with pagination
-  Future<List<Note>> fetchNotes({int page = 1, int pageSize = 20}) async {
+  // Fetch all notes with pagination and user filtering
+  Future<List<Note>> fetchNotes({
+    int page = 1, 
+    int pageSize = 20, 
+    String? userId,
+    Map<String, dynamic>? queryParams,
+  }) async {
     try {
+      // Build query parameters with user filtering
+      final Map<String, dynamic> params = {
+        'page': page,
+        'page_size': pageSize,
+      };
+      
+      // Add user ID filter if provided
+      if (userId != null) {
+        params['user_id'] = userId;
+      }
+      
+      // Add any additional query parameters
+      if (queryParams != null) {
+        params.addAll(queryParams);
+      }
+      
       // Use the authenticated GET helper method
       final response = await authenticatedGet(
         '/api/v1/notes',
-        queryParams: {
-          'page': page.toString(),
-          'page_size': pageSize.toString(),
-        },
+        queryParameters: params,
       );
       
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List<dynamic> notesJson = data['data'] ?? [];
+        final dynamic responseData = jsonDecode(response.body);
+        List<dynamic> notesJson;
+        
+        // Handle different response formats
+        if (responseData is List) {
+          // Direct list of notes
+          notesJson = responseData;
+        } else if (responseData is Map) {
+          // Response with data field containing list of notes
+          notesJson = responseData['data'] ?? [];
+        } else {
+          _logger.error('Unexpected response format: ${response.body}');
+          throw Exception('Unexpected response format');
+        }
+        
         return notesJson.map((json) => Note.fromJson(json)).toList();
       } else {
         _logger.error('Failed to fetch notes: ${response.statusCode}');

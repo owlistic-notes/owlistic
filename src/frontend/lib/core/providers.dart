@@ -83,7 +83,7 @@ List<SingleChildWidget> get appProviders {
             // Initial creation without auth dependency
             return WebSocketProvider(
               webSocketService: websocketService, 
-              authProvider: null
+              authService: authService
             );
           } catch (e) {
             _logger.error("Error creating WebSocketProvider", e);
@@ -91,19 +91,31 @@ List<SingleChildWidget> get appProviders {
           }
         },
         update: (context, auth, previous) {
-          // If we already have a previous instance with the same dependencies, keep it
-          if (previous != null) {
+          // If we already have a previous instance and auth state hasn't changed, keep it
+          if (previous != null && previous.currentUser?.id == auth.currentUser?.id) {
             _logger.debug("Reusing existing WebSocketProvider");
             return previous;
           }
 
           _logger.info("Updating WebSocketProvider with AuthProvider");
           try {
-            // Create a new instance with auth dependency
-            return WebSocketProvider(
-              webSocketService: websocketService,
-              authProvider: authService
-            );
+            if (previous != null) {
+              // Update user ID in the existing instance
+              if (auth.currentUser != null) {
+                _logger.info("Setting WebSocket user ID: ${auth.currentUser!.id}");
+                websocketService.setUserId(auth.currentUser!.id);
+                previous.connect();
+              } else {
+                previous.disconnect();
+              }
+              return previous;
+            } else {
+              // Create a new instance with auth dependency
+              return WebSocketProvider(
+                webSocketService: websocketService,
+                authService: authService
+              );
+            }
           } catch (e) {
             _logger.error("Error updating WebSocketProvider", e);
             throw e;
@@ -112,7 +124,7 @@ List<SingleChildWidget> get appProviders {
       ),
       
       // Create NotebooksProvider after WebSocketProvider
-      ChangeNotifierProvider<NotebooksProvider>(
+      ChangeNotifierProxyProvider<WebSocketProvider, NotebooksProvider>(
         create: (context) {
           _logger.info("Creating NotebooksProvider");
           try {
@@ -122,12 +134,40 @@ List<SingleChildWidget> get appProviders {
               authService: authService,
             );
             
-            final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
-            notebooksProvider.setWebSocketProvider(wsProvider);
-            
             return notebooksProvider;
           } catch (e) {
             _logger.error("Error creating NotebooksProvider", e);
+            throw e;
+          }
+        },
+        update: (context, wsProvider, previous) {
+          try {
+            // If we have a previous instance, update it
+            if (previous != null) {
+              // Set WebSocketProvider and activate if user is logged in
+              previous.setWebSocketProvider(wsProvider);
+              
+              // Fetch notebooks if user is logged in
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              if (authProvider.isLoggedIn) {
+                _logger.info("User is logged in, ensuring NotebooksProvider is activated");
+                previous.activate();
+              }
+              
+              return previous;
+            } else {
+              // Create a new instance
+              final notebooksProvider = NotebooksProvider(
+                notebookService: notebookService,
+                noteService: noteService,
+                authService: authService,
+              );
+              
+              notebooksProvider.setWebSocketProvider(wsProvider);
+              return notebooksProvider;
+            }
+          } catch (e) {
+            _logger.error("Error updating NotebooksProvider", e);
             throw e;
           }
         },

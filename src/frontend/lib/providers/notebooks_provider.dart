@@ -39,23 +39,42 @@ class NotebooksProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   
-  // Fetch notebooks with optional filtering
+  // Clear state on logout
+  void resetState() {
+    _logger.info('Resetting NotebooksProvider state');
+    _notebooksMap.clear();
+    _error = null;
+    _isActive = false;
+    notifyListeners();
+  }
+  
+  // Fetch notebooks with proper user filtering
   Future<void> fetchNotebooks({
     String? name, 
     int page = 1, 
     int pageSize = 20,
     List<String>? excludeIds,
   }) async {
-    if (!_isActive) return;
+    // Remove the _isActive check to allow fetching notebooks even if not explicitly activated
+    // This allows fetching from other screens like the home screen after login
+    
+    // Get current user ID for filtering
+    final currentUser = await _authService.getUserProfile();
+    if (currentUser == null) {
+      _logger.warning('Cannot fetch notebooks: No authenticated user');
+      return;
+    }
     
     _isLoading = true;
     notifyListeners();
     
     try {
+      _logger.info('Fetching notebooks for user: ${currentUser.id}');
       final fetchedNotebooks = await _notebookService.fetchNotebooks(
         name: name,
         page: page,
         pageSize: pageSize,
+        userId: currentUser.id,  // Only fetch notebooks where user is owner
       );
       
       // Clear existing notebooks if this is the first page
@@ -72,13 +91,30 @@ class NotebooksProvider with ChangeNotifier {
         
         _notebooksMap[notebook.id] = notebook;
         
-        // Subscribe to this notebook
-        _webSocketProvider?.subscribe('notebook', id: notebook.id);
+        // Subscribe to this notebook with explicit ID validation
+        if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+          if (notebook.id.isNotEmpty) {
+            _logger.debug('Subscribing to notebook with ID: ${notebook.id}');
+            _webSocketProvider?.subscribe('notebook', id: notebook.id);
+          } else {
+            _logger.warning('Notebook has empty ID, cannot subscribe');
+          }
+        } else {
+          _logger.warning('WebSocketProvider not connected, will subscribe when connection is established');
+        }
+      }
+      
+      // Subscribe to notebooks as a collection
+      if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+        _logger.debug('Subscribing to global notebooks resource');
+        _webSocketProvider?.subscribe('notebook');
       }
       
       _isLoading = false;
       _error = null;
       notifyListeners();
+      
+      _logger.info('Fetched ${fetchedNotebooks.length} notebooks');
     } catch (e) {
       _logger.error('Error fetching notebooks', e);
       _error = e.toString();
@@ -92,7 +128,11 @@ class NotebooksProvider with ChangeNotifier {
     try {
       // Get user ID from the auth service directly
       final currentUser = await _authService.getUserProfile();
-      final userId = currentUser?.id ?? '';
+      if (currentUser == null) {
+        throw Exception('Cannot create notebook: No authenticated user');
+      }
+      
+      final userId = currentUser.id;
       
       // Create the notebook
       final notebook = await _notebookService.createNotebook(
@@ -260,26 +300,124 @@ class NotebooksProvider with ChangeNotifier {
     provider.addEventListener('event', 'notebook.deleted', _handleNotebookDelete);
     
     _logger.info('WebSocketProvider set for NotebooksProvider');
+    
+    // If we already have notebooks, subscribe to them
+    if (_notebooksMap.isNotEmpty && provider.isConnected) {
+      _logger.info('Subscribing to existing notebooks after WebSocketProvider connection');
+      
+      // First subscribe to the global notebooks resource
+      provider.subscribe('notebook');
+      
+      // Then subscribe to individual notebooks
+      for (var notebook in _notebooksMap.values) {
+        if (notebook.id.isNotEmpty) {
+          provider.subscribe('notebook', id: notebook.id);
+        }
+      }
+    } else if (provider.isConnected) {
+      // Subscribe to global notebooks even if we don't have any yet
+      _logger.info('No notebooks in memory yet, subscribing to global notebooks resource');
+      provider.subscribe('notebook');
+    }
   }
   
   // WebSocket event handlers
   void _handleNotebookUpdate(Map<String, dynamic> message) {
-    // Implementation depends on your WebSocket message format
     _logger.info('Notebook update event received');
-    // Extract notebook ID and fetch updated notebook
-    // For example:
-    // String notebookId = message['payload']['id'];
-    // if (notebookId != null) fetchNotebookById(notebookId);
+    
+    // Only process if provider is active
+    if (!_isActive) {
+      _logger.debug('Provider not active, ignoring update');
+      return;
+    }
+    
+    try {
+      final payload = message['payload'];
+      if (payload != null && payload['data'] != null) {
+        final data = payload['data'];
+        String notebookId = '';
+        
+        // Extract notebook ID
+        if (data['id'] != null) {
+          notebookId = data['id'].toString();
+        } else if (data['notebook_id'] != null) {
+          notebookId = data['notebook_id'].toString();
+        }
+        
+        if (notebookId.isNotEmpty) {
+          _logger.info('Fetching updated notebook: $notebookId');
+          fetchNotebookById(notebookId);
+        }
+      }
+    } catch (e) {
+      _logger.error('Error handling notebook update event', e);
+    }
   }
   
   void _handleNotebookCreate(Map<String, dynamic> message) {
     _logger.info('Notebook created event received');
-    // Add created notebook to list
+    
+    // Only process if provider is active
+    if (!_isActive) {
+      _logger.debug('Provider not active, ignoring create event');
+      return;
+    }
+    
+    try {
+      final payload = message['payload'];
+      if (payload != null && payload['data'] != null) {
+        final data = payload['data'];
+        String notebookId = '';
+        
+        // Extract notebook ID
+        if (data['id'] != null) {
+          notebookId = data['id'].toString();
+        } else if (data['notebook_id'] != null) {
+          notebookId = data['notebook_id'].toString();
+        }
+        
+        if (notebookId.isNotEmpty) {
+          _logger.info('Fetching new notebook: $notebookId');
+          fetchNotebookById(notebookId);
+        }
+      }
+    } catch (e) {
+      _logger.error('Error handling notebook create event', e);
+    }
   }
   
   void _handleNotebookDelete(Map<String, dynamic> message) {
     _logger.info('Notebook deleted event received');
-    // Remove deleted notebook from list
+    
+    // Only process if provider is active
+    if (!_isActive) {
+      _logger.debug('Provider not active, ignoring delete event');
+      return;
+    }
+    
+    try {
+      final payload = message['payload'];
+      if (payload != null && payload['data'] != null) {
+        final data = payload['data'];
+        String notebookId = '';
+        
+        // Extract notebook ID
+        if (data['id'] != null) {
+          notebookId = data['id'].toString();
+        } else if (data['notebook_id'] != null) {
+          notebookId = data['notebook_id'].toString();
+        }
+        
+        if (notebookId.isNotEmpty && _notebooksMap.containsKey(notebookId)) {
+          _logger.info('Removing deleted notebook: $notebookId');
+          _notebooksMap.remove(notebookId);
+          _webSocketProvider?.unsubscribe('notebook', id: notebookId);
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      _logger.error('Error handling notebook delete event', e);
+    }
   }
   
   // Cleanup

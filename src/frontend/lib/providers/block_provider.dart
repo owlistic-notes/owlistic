@@ -542,6 +542,26 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
+  // Reset state on logout
+  void resetState() {
+    _logger.info('Resetting BlockProvider state');
+    
+    // Cancel any pending timers
+    for (final timer in _saveTimers.values) {
+      timer.cancel();
+    }
+    _saveTimers.clear();
+    _notificationDebouncer?.cancel();
+    
+    // Clear data
+    _blocks.clear();
+    _noteBlocksMap.clear();
+    _activeNoteIds.clear();
+    _isActive = false;
+    
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     // Cancel all debounce timers

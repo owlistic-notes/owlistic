@@ -45,6 +45,14 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
+  // Reset state on logout
+  void resetState() {
+    _logger.info('Resetting NotesProvider state');
+    _notesMap.clear();
+    _activeNoteIds.clear();
+    notifyListeners();
+  }
+
   // Set the WebSocketProvider and register event listeners
   void setWebSocketProvider(WebSocketProvider provider) {
     // Skip if the provider is the same
@@ -88,6 +96,7 @@ class NotesProvider with ChangeNotifier {
 
   // Handle note create events with similar pattern to notebooks and blocks
   void _handleNoteCreate(Map<String, dynamic> message) {
+    // Check if provider is active
     if (!_isActive) {
       _logger.info('Ignoring note.created event because provider is not active');
       return;
@@ -196,14 +205,24 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Fetch notes with pagination and duplicate prevention
+  // Fetch notes with pagination and proper user filtering
   Future<void> fetchNotes({int page = 1, List<String>? excludeIds}) async {
+    // Check if user is logged in
+    final currentUser = await _authService.getUserProfile();
+    if (currentUser == null) {
+      _logger.warning('Cannot fetch notes: No authenticated user');
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
     
     try {
-      // Fetch notes from API
-      final fetchedNotes = await _noteService.fetchNotes(page: page);
+      // Fetch notes from API with user filter (API must filter by owner role)
+      final fetchedNotes = await _noteService.fetchNotes(
+        page: page,
+        userId: currentUser.id,  // Only get notes where current user is owner
+      );
       
       // Keep track of existing IDs if not starting fresh
       final existingIds = page > 1 ? _notesMap.keys.toSet() : <String>{};
@@ -222,14 +241,17 @@ class NotesProvider with ChangeNotifier {
         }
         
         _notesMap[note.id] = note;
+        
+        // Subscribe to this note for real-time updates
+        _webSocketProvider?.subscribe('note', id: note.id);
       }
       
       _isLoading = false;
       notifyListeners();
     } catch (error) {
+      _logger.error('Error fetching notes', error);
       _isLoading = false;
       notifyListeners();
-      throw error;
     }
   }
 
@@ -264,10 +286,16 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Create a new note - ensure API call and notification
+  // Create a new note - get user ID from auth service
   Future<Note?> createNote(String notebookId, String title) async {
     try {
-      _logger.info('Creating new note in notebook $notebookId with title: $title');
+      // Get current user ID from AuthService directly
+      final currentUser = await _authService.getUserProfile();
+      if (currentUser == null) {
+        throw Exception('Cannot create note: No authenticated user');
+      }
+      
+      final userId = currentUser.id;
       
       // Create note on server via REST API
       final note = await ApiService.createNote(notebookId, title);

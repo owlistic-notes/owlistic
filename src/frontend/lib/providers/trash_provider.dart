@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
 import '../services/trash_service.dart';
+import '../services/auth_service.dart';
 import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/logger.dart';
@@ -18,15 +19,28 @@ class TrashProvider with ChangeNotifier {
   
   // Services
   final TrashService _trashService;
+  final AuthService _authService;
   
   // Constructor with dependency injection
-  TrashProvider({TrashService? trashService})
-    : _trashService = trashService ?? ServiceLocator.get<TrashService>();
+  TrashProvider({
+    TrashService? trashService,
+    AuthService? authService
+  }) : _trashService = trashService ?? ServiceLocator.get<TrashService>(),
+       _authService = authService ?? ServiceLocator.get<AuthService>();
   
   // Getters
   List<Note> get trashedNotes => _trashedNotes;
   List<Notebook> get trashedNotebooks => _trashedNotebooks;
   bool get isLoading => _isLoading;
+  
+  // Reset state on logout
+  void resetState() {
+    _logger.info('Resetting TrashProvider state');
+    _trashedNotes = [];
+    _trashedNotebooks = [];
+    _isActive = false;
+    notifyListeners();
+  }
   
   // Activate/deactivate pattern to manage resource usage
   void activate() {
@@ -68,15 +82,23 @@ class TrashProvider with ChangeNotifier {
     }
   }
   
-  // Fetch all trashed items
+  // Fetch all trashed items with user filtering
   Future<void> fetchTrashedItems() async {
     if (!_isActive) return;
+    
+    // Get current user ID for filtering
+    final currentUser = await _authService.getUserProfile();
+    if (currentUser == null) {
+      _logger.warning('Cannot fetch trash: No authenticated user');
+      return;
+    }
     
     _isLoading = true;
     notifyListeners();
     
     try {
-      final trashedItems = await _trashService.fetchTrashedItems();
+      // Pass user ID for proper filtering
+      final trashedItems = await _trashService.fetchTrashedItems(userId: currentUser.id);
       
       // Convert List<dynamic> to List<Note> and List<Notebook>
       _trashedNotes = (trashedItems['notes'] as List).cast<Note>();

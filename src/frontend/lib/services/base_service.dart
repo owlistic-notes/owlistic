@@ -1,38 +1,28 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
-// Service locator for dependency injection
-class ServiceLocator {
-  static final Map<Type, dynamic> _services = {};
-
-  static void register<T>(T service) {
-    _services[T] = service;
-  }
-
-  static T get<T>() {
-    if (!_services.containsKey(T)) {
-      throw Exception('Service of type $T not registered');
-    }
-    return _services[T];
-  }
-}
-
-// Base class for all API services
-class BaseService {
+// Enhanced version of BaseService with better error handling and validation
+abstract class BaseService {
   static String? _token;
-  final Logger _logger = Logger('BaseService');
+  static String _baseUrl = '';
+  static final Logger _logger = Logger('BaseService');
   static const String TOKEN_KEY = 'auth_token';
   
   // Stream controllers for auth state changes
   static final _authStateController = StreamController<bool>.broadcast();
   Stream<bool> get authStateChanges => _authStateController.stream;
   
+  // Initialize with environment configuration
   BaseService() {
+    _baseUrl = dotenv.env['API_URL'] ?? '';
+    if (_baseUrl.isEmpty) {
+      _logger.warning('API_URL environment variable not set. Using default empty base URL.');
+    }
     // Try to load token on initialization
     _loadTokenFromStorage();
   }
@@ -49,33 +39,39 @@ class BaseService {
   }
   
   // Update token when it changes
-  void notifyTokenChange(String? token) {
+  static void notifyTokenChange(String? token) {
     _token = token;
     _logger.debug('Auth token updated: ${_token != null ? 'Present' : 'Cleared'}');
     _authStateController.add(_token != null);
   }
 
-  // Base URL from environment
-  String get baseApiUrl {
-    return dotenv.env['API_URL'] ?? 'http://localhost:8080';
-  }
-  
-  // Create URI for API endpoints with proper query parameter handling
+  // Create URIs with proper encoding of parameters
   Uri createUri(String path, {Map<String, dynamic>? queryParameters}) {
-    final uri = Uri.parse('$baseApiUrl$path');
-
-    if (queryParameters != null && queryParameters.isNotEmpty) {
-      // Convert all values to strings for proper URL encoding
-      final stringParams = queryParameters.map((key, value) => 
-        MapEntry(key, value?.toString() ?? ''));
-      
-      return uri.replace(queryParameters: stringParams);
+    // Validate path
+    if (!path.startsWith('/')) {
+      path = '/' + path;
     }
     
-    return uri;
+    // Handle empty base URL
+    String fullUrl = _baseUrl.isEmpty 
+        ? 'http://localhost:8080$path'  // Default fallback
+        : _baseUrl + path;
+    
+    // Convert all query parameter values to strings
+    Map<String, String>? stringParams;
+    if (queryParameters != null) {
+      stringParams = {};
+      queryParameters.forEach((key, value) {
+        if (value != null) {
+          stringParams![key] = value.toString();
+        }
+      });
+    }
+    
+    return Uri.parse(fullUrl).replace(queryParameters: stringParams);
   }
 
-  // Get headers including auth token if available
+  // Get authorization headers
   Map<String, String> getBaseHeaders() {
     return {
       'Content-Type': 'application/json',
@@ -83,93 +79,120 @@ class BaseService {
     };
   }
   
-  // Get authenticated headers - ALWAYS include the token if available
   Map<String, String> getAuthHeaders() {
     final headers = getBaseHeaders();
-    
-    if (_token != null && _token!.isNotEmpty) {
+    if (_token != null) {
       headers['Authorization'] = 'Bearer $_token';
-      _logger.debug('Added auth token to request headers');
-    } else {
-      _logger.warning('No auth token available for authenticated request');
     }
-    
     return headers;
   }
-  
-  // Helper method for authenticated GET requests
-  Future<http.Response> authenticatedGet(String path, {Map<String, dynamic>? queryParams}) async {
-    final uri = createUri(path, queryParameters: queryParams);
-    _logger.debug('Making authenticated GET request to: $uri');
+
+  // Helper methods for API calls with better error handling
+  Future<http.Response> authenticatedGet(String path, {Map<String, dynamic>? queryParameters}) async {
+    final uri = createUri(path, queryParameters: queryParameters);
+    _logger.debug('GET: $uri');
     
-    // Always use auth headers for authenticated requests
-    final response = await http.get(
-      uri,
-      headers: getAuthHeaders(),
-    );
-    
-    _handleResponseStatus(response);
-    return response;
+    try {
+      final response = await http.get(uri, headers: getAuthHeaders());
+      _validateResponse(response, 'GET', uri.toString());
+      return response;
+    } catch (e) {
+      _logger.error('HTTP GET error: $path', e);
+      rethrow;
+    }
   }
-  
-  // Helper method for authenticated POST requests
+
   Future<http.Response> authenticatedPost(String path, dynamic body) async {
     final uri = createUri(path);
-    _logger.debug('Making authenticated POST request to: $uri');
+    _logger.debug('POST: $uri');
     
-    final response = await http.post(
-      uri,
-      headers: getAuthHeaders(),
-      body: jsonEncode(body),
-    );
-    
-    _handleResponseStatus(response);
-    return response;
+    try {
+      final bodyJson = jsonEncode(body);
+      final response = await http.post(
+        uri,
+        headers: getAuthHeaders(),
+        body: bodyJson,
+      );
+      _validateResponse(response, 'POST', uri.toString(), body: body);
+      return response;
+    } catch (e) {
+      _logger.error('HTTP POST error: $path', e);
+      rethrow;
+    }
   }
-  
-  // Helper method for authenticated PUT requests
+
   Future<http.Response> authenticatedPut(String path, dynamic body) async {
     final uri = createUri(path);
-    _logger.debug('Making authenticated PUT request to: $uri');
+    _logger.debug('PUT: $uri');
     
-    final response = await http.put(
-      uri,
-      headers: getAuthHeaders(),
-      body: jsonEncode(body),
-    );
-    
-    _handleResponseStatus(response);
-    return response;
+    try {
+      final response = await http.put(
+        uri,
+        headers: getAuthHeaders(),
+        body: jsonEncode(body),
+      );
+      _validateResponse(response, 'PUT', uri.toString(), body: body);
+      return response;
+    } catch (e) {
+      _logger.error('HTTP PUT error: $path', e);
+      rethrow;
+    }
   }
-  
-  // Helper method for authenticated DELETE requests
+
   Future<http.Response> authenticatedDelete(String path) async {
     final uri = createUri(path);
-    _logger.debug('Making authenticated DELETE request to: $uri');
+    _logger.debug('DELETE: $uri');
     
-    final response = await http.delete(
-      uri,
-      headers: getAuthHeaders(),
-    );
-    
-    _handleResponseStatus(response);
-    return response;
+    try {
+      final response = await http.delete(uri, headers: getAuthHeaders());
+      _validateResponse(response, 'DELETE', uri.toString());
+      return response;
+    } catch (e) {
+      _logger.error('HTTP DELETE error: $path', e);
+      rethrow;
+    }
   }
   
-  // Handle response status and log accordingly
-  void _handleResponseStatus(http.Response response) {
-    final statusCode = response.statusCode;
-    final requestUrl = response.request?.url.toString() ?? 'unknown';
+  // Validate HTTP responses
+  void _validateResponse(http.Response response, String method, String url, {dynamic body}) {
+    bool isSuccess = response.statusCode >= 200 && response.statusCode < 300;
     
-    if (statusCode >= 200 && statusCode < 300) {
-      _logger.debug('Request successful: $requestUrl (status: $statusCode)');
-    } else {
-      _logger.error('Request failed: $requestUrl (status: $statusCode), body: ${response.body}');
+    if (!isSuccess) {
+      _logger.error(
+        'HTTP $method failed: $url\nStatus: ${response.statusCode}\nResponse: ${response.body}',
+      );
       
-      // Handle authentication errors
-      if (statusCode == 401) {
-        _logger.warning('Authentication error - token might be invalid or expired');
+      if (kDebugMode && body != null) {
+        _logger.debug('Request body: ${jsonEncode(body)}');
       }
     }
+  }
+  
+  // Validate IDs to prevent empty or malformed IDs
+  bool isValidId(String? id) {
+    return id != null && id.isNotEmpty;
+  }
+  
+  // Validate required string parameters
+  void validateRequiredParam(String? value, String paramName) {
+    if (value == null || value.isEmpty) {
+      throw ArgumentError('$paramName cannot be null or empty');
+    }
+  }
+}
+
+// ServiceLocator for DI support
+class ServiceLocator {
+  static final Map<Type, Object> _services = {};
+  
+  static void register<T>(T service) {
+    _services[T] = service!;
+  }
+  
+  static T get<T>() {
+    if (_services.containsKey(T)) {
+      return _services[T] as T;
+    }
+    throw Exception('Service $T not registered');
   }
 }

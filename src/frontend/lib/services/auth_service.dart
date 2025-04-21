@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
@@ -9,9 +10,13 @@ class AuthService extends BaseService {
   final Logger _logger = Logger('AuthService');
   static const String TOKEN_KEY = 'auth_token';
   
-  // Properties needed by WebSocketProvider
-  Stream<bool>? get authStateStream => null; // Stream of auth state changes
-  bool get isLoggedIn => false; // Whether user is logged in
+  // Stream controller for auth state changes
+  final StreamController<bool> _authStateController = StreamController<bool>.broadcast();
+  Stream<bool> get authStateChanges => _authStateController.stream;
+  
+  // Use instance variable for token
+  String? _token;
+  bool get isLoggedIn => _token != null;
   
   // Authentication methods
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -97,18 +102,19 @@ class AuthService extends BaseService {
   // Token management
   Future<String?> getStoredToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(TOKEN_KEY);
-    if (token != null && token.isNotEmpty) {
+    _token = prefs.getString(TOKEN_KEY);
+    if (_token != null && _token!.isNotEmpty) {
       _logger.debug('Retrieved token from storage');
       // Also update the BaseService token
-      await onTokenChanged(token);
+      await onTokenChanged(_token);
     } else {
       _logger.debug('No token found in storage');
     }
-    return token;
+    return _token;
   }
   
   Future<void> _storeToken(String token) async {
+    _token = token;
     _logger.debug('Storing new auth token');
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(TOKEN_KEY, token);
@@ -116,6 +122,7 @@ class AuthService extends BaseService {
   }
   
   Future<void> clearToken() async {
+    _token = null;
     _logger.debug('Clearing auth token');
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(TOKEN_KEY);
@@ -125,17 +132,24 @@ class AuthService extends BaseService {
   // This will be called when token changes
   Future<void> onTokenChanged(String? token) async {
     _logger.debug('Notifying token change: ${token != null ? 'Token present' : 'Token cleared'}');
-    // Override in base_service to update global token
-    notifyTokenChange(token);
+    // Update the token in this instance
+    _token = token;
+    // Update in base_service to update global token
+    BaseService.notifyTokenChange(token);
+    // Update auth state
+    _authStateController.add(token != null);
   }
   
   Future<User?> getUserProfile() async {
-    String? token = await getStoredToken();
-    if (token == null) return null;
+    if (_token == null) {
+      _token = await getStoredToken();
+    }
+    
+    if (_token == null) return null;
     
     try {
       // Extract user information from token
-      final tokenParts = token.split('.');
+      final tokenParts = _token!.split('.');
       if (tokenParts.length != 3) {
         _logger.error("Invalid JWT token format");
         return null;

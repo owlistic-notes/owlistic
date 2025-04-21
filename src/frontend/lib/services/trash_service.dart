@@ -8,10 +8,27 @@ import 'base_service.dart';
 class TrashService extends BaseService {
   final Logger _logger = Logger('TrashService');
 
-  Future<Map<String, dynamic>> fetchTrashedItems() async {
+  Future<Map<String, dynamic>> fetchTrashedItems({
+    String? userId,
+    Map<String, dynamic>? queryParams
+  }) async {
     try {
+      // Build base query parameters if userId is provided
+      Map<String, dynamic> params = {};
+      
+      if (userId != null) {
+        params['user_id'] = userId;
+      }
+      
+      // Add any additional query parameters
+      if (queryParams != null) {
+        params.addAll(queryParams);
+      }
+      
+      final uri = createUri('/api/v1/trash', queryParameters: params);
+      
       final response = await http.get(
-        createUri('/api/v1/trash'),
+        uri,
         headers: getAuthHeaders(),
       );
       

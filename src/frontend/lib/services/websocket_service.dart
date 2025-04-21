@@ -13,7 +13,7 @@ import '../utils/logger.dart';
 class WebSocketService {
   static final WebSocketService _instance = WebSocketService._internal();
   WebSocketChannel? _channel;
-  String _userId = '5719498e-aaba-4dbd-8385-5b1b8cd49a17'; // Default user ID
+  String? _userId; // Remove default user ID - will be set dynamically
   String _baseUrl;
   String? _customUrl;
   final Logger _logger = Logger('WebSocketService');
@@ -43,6 +43,23 @@ class WebSocketService {
   // Factory constructor to get instance
   factory WebSocketService() => _instance;
 
+  // Set user ID for WebSocket connection
+  void setUserId(String? userId) {
+    _userId = userId;
+    _logger.info('WebSocket user ID set: ${userId ?? 'null'}');
+    
+    // Reconnect if we're already connected with new user ID
+    if (_isConnected && userId != null) {
+      _logger.info('Reconnecting WebSocket with new user ID');
+      disconnect();
+      connect();
+    } else if (_isConnected && userId == null) {
+      // If userId is null, disconnect
+      _logger.info('User ID is null, disconnecting WebSocket');
+      disconnect();
+    }
+  }
+
   // Set custom URL
   void setCustomUrl(String url) {
     _customUrl = url;
@@ -63,6 +80,12 @@ class WebSocketService {
   // Initialize the connection with better error handling and platform awareness
   Future<void> connect() async {
     if (_isConnected || _isReconnecting) return;
+    
+    // Don't connect if no user ID is provided
+    if (_userId == null) {
+      _logger.warning('Cannot connect WebSocket: No user ID provided');
+      return;
+    }
     
     _isReconnecting = true;
     _connectionState = WebSocketConnectionState.connecting;
@@ -125,7 +148,10 @@ class WebSocketService {
     _connectionState = WebSocketConnectionState.disconnected;
     
     _logger.info('Disconnected, scheduling reconnect');
-    _scheduleReconnect();
+    // Only reconnect if we have a user ID
+    if (_userId != null) {
+      _scheduleReconnect();
+    }
   }
   
   // Schedule reconnection
@@ -133,7 +159,7 @@ class WebSocketService {
     // Attempt to reconnect with exponential backoff
     _reconnectTimer?.cancel();
     
-    if (!_isReconnecting) {
+    if (!_isReconnecting && _userId != null) {
       _reconnectTimer = Timer(const Duration(seconds: 5), () {
         _logger.info('Attempting to reconnect...');
         connect();
@@ -147,6 +173,15 @@ class WebSocketService {
     _pingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       sendPing();
     });
+  }
+  
+  // Clear all subscriptions and state on logout
+  void clearState() {
+    _logger.info('Clearing WebSocket state');
+    // Close existing connection
+    disconnect();
+    // Clear user ID
+    _userId = null;
   }
   
   // Send a ping message
@@ -187,12 +222,25 @@ class WebSocketService {
   // Helper method to send subscribe message with improved payload format
   void _sendSubscribe(String resource, {String? id}) {
     try {
+      // Validate resource and ID
+      if (resource.isEmpty) {
+        _logger.error('Cannot subscribe with empty resource');
+        return;
+      }
+      
+      // Create well-formatted payload
       final Map<String, dynamic> payload = {
         'resource': resource,
       };
       
-      if (id != null) {
+      // Only add ID if it's not null and not empty
+      if (id != null && id.isNotEmpty) {
         payload['id'] = id;
+        _logger.debug('Adding ID to subscription payload: $id');
+      } else {
+        // If no ID is provided, we need to explicitly say this is a global subscription
+        payload['global_resource'] = true;  // Changed from 'true' string to boolean
+        _logger.debug('Adding global_resource flag for subscription without ID');
       }
       
       // For special resource types, add extra identifiers to help server routing
@@ -206,18 +254,27 @@ class WebSocketService {
         payload['resource_type'] = 'task';
       }
       
-      // If no ID is provided, indicate this is a global subscription for all items
-      if (id == null) {
-        payload['global_resource'] = 'true';
+      // Always include user ID for proper authorization filtering
+      if (_userId != null) {
+        payload['user_id'] = _userId;
       }
       
+      // Construct the final message
       final message = {
         'type': 'subscribe',
         'action': 'subscribe',
         'payload': payload,
       };
       
+      // Log the full message for debugging
       _logger.debug('Sending subscribe: ${json.encode(message)}');
+      
+      // Make sure channel exists
+      if (_channel == null) {
+        _logger.error('Cannot send subscribe: WebSocket channel is null');
+        return;
+      }
+      
       _channel!.sink.add(json.encode(message));
       
       _logger.info('Subscribed to $resource ${id != null ? "ID: $id" : "(global)"}');

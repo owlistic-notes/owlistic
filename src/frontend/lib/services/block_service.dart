@@ -6,14 +6,22 @@ import 'base_service.dart';
 class BlockService extends BaseService {
   final Logger _logger = Logger('BlockService');
 
-  Future<List<Block>> fetchBlocksForNote(String noteId) async {
+  Future<List<Block>> fetchBlocksForNote(
+    String noteId, 
+    {Map<String, dynamic>? queryParams}
+  ) async {
     try {
-      // Use query parameter
-      final queryParams = <String, dynamic>{'note_id': noteId};
+      // Build base query parameters
+      Map<String, dynamic> params = {'note_id': noteId};
+      
+      // Add any additional query parameters
+      if (queryParams != null) {
+        params.addAll(queryParams);
+      }
       
       final response = await authenticatedGet(
         '/api/v1/blocks',
-        queryParams: queryParams
+        queryParameters: params
       );
       
       if (response.statusCode == 200) {
