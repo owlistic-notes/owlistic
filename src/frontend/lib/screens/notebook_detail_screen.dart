@@ -65,12 +65,13 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       
       // Subscribe to the notebook and notes events
       _webSocketProvider.subscribe('notebook', id: widget.notebookId);
-      _webSocketProvider.subscribe('notebook:notes', id: widget.notebookId);
       
       // Also subscribe to general note events to catch updates
-      _webSocketProvider.subscribe('note');
       _webSocketProvider.subscribe('note.created');
       _webSocketProvider.subscribe('note.deleted');
+      
+      // Set up event handlers for automatic updates
+      _setupEventHandlers();
       
       // Fetch notebook data
       await _presenter.fetchNotebookById(widget.notebookId);
@@ -89,6 +90,39 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+  
+  void _setupEventHandlers() {
+    // Set up event handlers for real-time updates
+    _webSocketProvider.addEventListener('event', 'note.created', (message) {
+      _logger.info('Note created event received');
+      _refreshNotebook();
+    });
+    
+    _webSocketProvider.addEventListener('event', 'note.updated', (message) {
+      _logger.info('Note updated event received');
+      _refreshNotebook();
+    });
+    
+    _webSocketProvider.addEventListener('event', 'note.deleted', (message) {
+      _logger.info('Note deleted event received');
+      _refreshNotebook();
+    });
+    
+    _webSocketProvider.addEventListener('event', 'notebook.updated', (message) {
+      _logger.info('Notebook updated event received');
+      _refreshNotebook();
+    });
+  }
+  
+  Future<void> _refreshNotebook() async {
+    if (!mounted) return;
+    
+    try {
+      await _presenter.fetchNotebookById(widget.notebookId);
+    } catch (e) {
+      _logger.error('Error refreshing notebook', e);
     }
   }
 
@@ -355,7 +389,8 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
             ),
             onPressed: () async {
               try {
-                await _presenter.deleteNote(note.id);
+                // Fix the method call to use the proper method
+                await _presenter.deleteNote(widget.notebookId, note.id);
                 Navigator.of(ctx).pop();
               } catch (error) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -374,8 +409,12 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   void dispose() {
     // Unsubscribe and deactivate when the view is disposed
     if (_isInitialized) {
+      _webSocketProvider.removeEventListener('event', 'note.created');
+      _webSocketProvider.removeEventListener('event', 'note.updated');
+      _webSocketProvider.removeEventListener('event', 'note.deleted');
+      _webSocketProvider.removeEventListener('event', 'notebook.updated');
+      
       _webSocketProvider.unsubscribe('notebook', id: widget.notebookId);
-      _webSocketProvider.unsubscribe('notebook:notes', id: widget.notebookId);
       _webSocketProvider.unsubscribe('note.created');
       _webSocketProvider.unsubscribe('note.deleted');
       

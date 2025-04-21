@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/note.dart';
-import '../services/api_service.dart';
+import '../services/note_service.dart';
+import '../services/auth_service.dart';
+import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
@@ -13,6 +15,13 @@ class NotesProvider with ChangeNotifier {
   bool _isLoading = false;
   WebSocketProvider? _webSocketProvider;
   final Set<String> _activeNoteIds = {};
+  final NoteService _noteService;
+  final AuthService _authService;
+
+  // Constructor with dependency injection
+  NotesProvider({NoteService? noteService, AuthService? authService}) 
+    : _noteService = noteService ?? ServiceLocator.get<NoteService>(),
+      _authService = authService ?? ServiceLocator.get<AuthService>();
 
   // Getters
   List<Note> get notes => _notesMap.values.toList();
@@ -106,7 +115,7 @@ class NotesProvider with ChangeNotifier {
           if (!_isActive) return;
           
           // Fetch the note by ID directly
-          ApiService.getNote(noteId).then((newNote) {
+          _noteService.getNote(noteId).then((newNote) {
             // Only add if provider is active and note is not deleted
             if (_isActive && newNote.deletedAt == null) {
               _notesMap[noteId] = newNote;
@@ -156,7 +165,7 @@ class NotesProvider with ChangeNotifier {
   // Fetch a single note by ID
   Future<Note> _fetchSingleNote(String noteId) async {
     try {
-      final note = await ApiService.getNote(noteId);
+      final note = await _noteService.getNote(noteId);
       
       // Check if this note already exists in our list
       if (_notesMap.containsKey(noteId)) {
@@ -179,10 +188,10 @@ class NotesProvider with ChangeNotifier {
   // Public method to fetch a single note by ID
   Future<Note?> fetchNoteById(String noteId) async {
     try {
-      final notebook = await _fetchSingleNote(noteId);
-      return notebook;
+      final note = await _fetchSingleNote(noteId);
+      return note;
     } catch (error) {
-      _logger.error('Error in fetchNotebookById: $error');
+      _logger.error('Error in fetchNoteById: $error');
       return null;
     }
   }
@@ -194,8 +203,7 @@ class NotesProvider with ChangeNotifier {
     
     try {
       // Fetch notes from API
-      final response = await ApiService.fetchNotes(page: page);
-      final List<Note> fetchedNotes = response;
+      final fetchedNotes = await _noteService.fetchNotes(page: page);
       
       // Keep track of existing IDs if not starting fresh
       final existingIds = page > 1 ? _notesMap.keys.toSet() : <String>{};
@@ -234,7 +242,7 @@ class NotesProvider with ChangeNotifier {
       if (!_notesMap.containsKey(noteId)) {
         _logger.info('Fetching note $noteId from event');
         
-        final note = await ApiService.getNote(noteId);
+        final note = await _noteService.getNote(noteId);
         
         // Only add if the note is not deleted
         if (note.deletedAt == null) {

@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
-import '../services/api_service.dart';
+import '../services/trash_service.dart';
+import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/logger.dart';
 
@@ -14,6 +15,13 @@ class TrashProvider with ChangeNotifier {
   bool _isLoading = false;
   WebSocketProvider? _webSocketProvider;
   bool _isActive = false;
+  
+  // Services
+  final TrashService _trashService;
+  
+  // Constructor with dependency injection
+  TrashProvider({TrashService? trashService})
+    : _trashService = trashService ?? ServiceLocator.get<TrashService>();
   
   // Getters
   List<Note> get trashedNotes => _trashedNotes;
@@ -68,7 +76,7 @@ class TrashProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      final trashedItems = await ApiService.fetchTrashedItems();
+      final trashedItems = await _trashService.fetchTrashedItems();
       
       // Convert List<dynamic> to List<Note> and List<Notebook>
       _trashedNotes = (trashedItems['notes'] as List).cast<Note>();
@@ -88,7 +96,7 @@ class TrashProvider with ChangeNotifier {
   // Restore an item from trash
   Future<void> restoreItem(String type, String id) async {
     try {
-      await ApiService.restoreItem(type, id);
+      await _trashService.restoreItem(type, id);
       
       _logger.info('Restored $type with ID: $id');
       
@@ -109,7 +117,7 @@ class TrashProvider with ChangeNotifier {
   // Permanently delete an item from trash
   Future<void> permanentlyDeleteItem(String type, String id) async {
     try {
-      await ApiService.permanentlyDeleteItem(type, id);
+      await _trashService.permanentlyDeleteItem(type, id);
       
       _logger.info('Permanently deleted $type with ID: $id');
       
@@ -130,7 +138,7 @@ class TrashProvider with ChangeNotifier {
   // Empty the entire trash
   Future<void> emptyTrash() async {
     try {
-      await ApiService.emptyTrash();
+      await _trashService.emptyTrash();
       
       _logger.info('Emptied trash');
       

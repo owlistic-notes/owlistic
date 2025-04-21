@@ -156,10 +156,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showProfileMenu(BuildContext context) {
-    showMenu<dynamic>(
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
-      items: <PopupMenuEntry<dynamic>>[
+      items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           value: 'profile_header',
           child: ListTile(
@@ -167,8 +169,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.person),
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
             ),
-            title: const Text('John Doe'),
-            subtitle: const Text('john.doe@example.com'),
+            title: Text(authProvider.currentUser?.email?.split('@')[0] ?? 'User'),
+            subtitle: Text(authProvider.currentUser?.email ?? 'No email'),
           ),
         ),
         const PopupMenuItem<String>(
@@ -193,12 +195,20 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'logout',
-          child: ListTile(
+          child: const ListTile(
             leading: Icon(Icons.logout),
             title: Text('Logout'),
           ),
+          onTap: () async {
+            // Wait a moment for the menu to close
+            await Future.delayed(Duration.zero);
+            if (context.mounted) {
+              await authProvider.logout();
+              // Navigation will be handled by GoRouter
+            }
+          },
         ),
       ],
     );

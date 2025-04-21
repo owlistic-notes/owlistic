@@ -5,9 +5,11 @@ import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
+import '../providers/websocket_provider.dart'; // Added WebSocket provider import
 import '../models/task.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
+import '../utils/logger.dart'; // Added logger import
 
 class TasksScreen extends StatefulWidget {
   @override
@@ -16,16 +18,68 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isInitialized = false;
+  final Logger _logger = Logger('TasksScreen');
   
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     
-    // Use post-frame callback instead of microtask
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<TasksProvider>(context, listen: false).fetchTasks();
-      Provider.of<NotesProvider>(context, listen: false).fetchNotes();
-    });
+    if (!_isInitialized) {
+      _isInitialized = true;
+      _initializeData();
+    }
+  }
+  
+  Future<void> _initializeData() async {
+    try {
+      // Get providers
+      final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
+      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
+      
+      // Ensure WebSocket is connected
+      await wsProvider.ensureConnected();
+      
+      // Register for task-related events
+      wsProvider.addEventListener('event', 'task.created', (data) {
+        _logger.info('Task created event received');
+        _refreshTasks();
+      });
+      
+      wsProvider.addEventListener('event', 'task.updated', (data) {
+        _logger.info('Task updated event received');
+        _refreshTasks();
+      });
+      
+      wsProvider.addEventListener('event', 'task.deleted', (data) {
+        _logger.info('Task deleted event received');
+        _refreshTasks();
+      });
+      
+      // Subscribe to WebSocket events
+      wsProvider.subscribe('task');
+      wsProvider.subscribe('task.created');
+      wsProvider.subscribe('task.updated');
+      wsProvider.subscribe('task.deleted');
+      
+      // Activate provider - add this explicitly
+      tasksProvider.activate();
+      
+      // Fetch tasks data
+      await tasksProvider.fetchTasks();
+    } catch (e) {
+      _logger.error('Error initializing tasks screen', e);
+    }
+  }
+  
+  Future<void> _refreshTasks() async {
+    if (!mounted) return;
+    
+    try {
+      await Provider.of<TasksProvider>(context, listen: false).fetchTasks();
+    } catch (e) {
+      _logger.error('Error refreshing tasks', e);
+    }
   }
 
   void _showAddTaskDialog() {
@@ -268,5 +322,28 @@ class _TasksScreenState extends State<TasksScreen> {
         tooltip: 'Add Task',
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    if (_isInitialized) {
+      // Clean up event listeners
+      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
+      wsProvider.removeEventListener('event', 'task.created');
+      wsProvider.removeEventListener('event', 'task.updated');
+      wsProvider.removeEventListener('event', 'task.deleted');
+      
+      // Unsubscribe
+      wsProvider.unsubscribe('task');
+      wsProvider.unsubscribe('task.created');
+      wsProvider.unsubscribe('task.updated');
+      wsProvider.unsubscribe('task.deleted');
+      
+      // Add deactivate call for proper cleanup
+      final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
+      tasksProvider.deactivate();
+    }
+    
+    super.dispose();
   }
 }

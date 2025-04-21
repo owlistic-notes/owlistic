@@ -1,102 +1,74 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../models/user.dart';
-import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import '../services/base_service.dart';
 import '../utils/logger.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final Logger _logger = Logger('AuthProvider');
-  
+  String? _token;
   bool _isLoggedIn = false;
   bool _isLoading = false;
-  String? _error;
   User? _currentUser;
-  String? _token;
-  static const String TOKEN_KEY = 'auth_token';
+  String? _error;
+  
+  final Logger _logger = Logger('AuthProvider');
+  final AuthService _authService;
+  
+  // Add a stream controller for auth state changes
+  final _authStateController = StreamController<bool>.broadcast();
+  Stream<bool>? get authStateStream => _authStateController.stream;
+  
+  // Constructor with dependency injection
+  AuthProvider({AuthService? authService}) 
+    : _authService = authService ?? ServiceLocator.get<AuthService>() {
+    try {
+      _initializeAuthState();
+    } catch (e) {
+      _logger.error('Error initializing auth state', e);
+      // Don't throw from constructor
+    }
+  }
   
   // Getters
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
-  String? get error => _error;
-  String? get errorMessage => _error;
   User? get currentUser => _currentUser;
-  String? get token => _token;
-  
-  // Initialize provider state on startup
-  AuthProvider() {
-    _initializeAuthState();
-  }
+  String? get error => _error;
   
   Future<void> _initializeAuthState() async {
     _isLoading = true;
     notifyListeners();
     
     try {
-      // Check for existing token
-      _token = await loadToken();
+      // Load token from storage
+      _token = await _authService.getStoredToken();
       
       if (_token != null && isTokenValid(_token!)) {
-        _logger.info('Found valid token on startup');
-        
-        // Get user info from token
-        final userInfo = getUserInfoFromToken();
-        if (userInfo != null) {
-          _isLoggedIn = true;
-          _currentUser = User(
-            id: userInfo['sub'] ?? userInfo['UserID'] ?? userInfo['userId'] ?? '',
-            email: userInfo['email'] ?? '',
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          );
-          _logger.info('Successfully restored user session for: ${_currentUser?.email}');
-        }
+        // If token exists and is valid, set logged in state
+        _isLoggedIn = true;
+        _currentUser = await _authService.getUserProfile();
+        _logger.info('Auth initialized with valid token');
+      } else if (_token != null) {
+        // If token exists but is invalid (expired), clean up
+        await _authService.clearToken();
+        _token = null;
+        _isLoggedIn = false;
+        _currentUser = null;
+        _logger.info('Auth initialized with expired token - cleared');
       } else {
-        _logger.info('No valid token found on startup');
+        // No token found
+        _isLoggedIn = false;
+        _logger.info('Auth initialized with no token');
       }
     } catch (e) {
       _logger.error('Error initializing auth state', e);
-      _error = "Session expired or invalid. Please login again.";
-      await clearToken();
+      _isLoggedIn = false;
     } finally {
       _isLoading = false;
       notifyListeners();
-    }
-  }
-
-  // Load token from persistent storage
-  Future<String?> loadToken() async {
-    if (_token != null) return _token;
-    
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _token = prefs.getString(TOKEN_KEY);
-      return _token;
-    } catch (e) {
-      _logger.error('Failed to load token from storage', e);
-      return null;
-    }
-  }
-
-  // Save token to persistent storage
-  Future<void> saveToken(String token) async {
-    _token = token;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(TOKEN_KEY, token);
-    } catch (e) {
-      _logger.error('Failed to save token to storage', e);
-    }
-  }
-
-  // Clear token from persistent storage
-  Future<void> clearToken() async {
-    _token = null;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(TOKEN_KEY);
-    } catch (e) {
-      _logger.error('Failed to clear token from storage', e);
     }
   }
 
@@ -124,36 +96,28 @@ class AuthProvider extends ChangeNotifier {
     }
   }
   
+  // Use AuthService for all authentication operations
   Future<bool> login(String email, String password, bool rememberMe) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     
     try {
-      _logger.info('Attempting to login: $email');
-      final response = await ApiService.login(email, password, rememberMe);
+      final response = await _authService.login(email, password);
       
-      if (response) {
-        // API Service has already saved the token, get it for our provider
-        _token = await ApiService.getStoredToken();
-        
-        // Parse user data from token
+      if (response['success'] ?? true) {
+        _token = await _authService.getStoredToken();
         _isLoggedIn = true;
-        final userInfo = getUserInfoFromToken();
-        if (userInfo != null) {
-          _currentUser = User(
-            id: userInfo['sub'] ?? userInfo['UserID'] ?? userInfo['userId'] ?? '',
-            email: userInfo['email'] ?? '',
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          );
-        }
-        
+        _currentUser = await _authService.getUserProfile();
         _isLoading = false;
         notifyListeners();
+        
+        // Broadcast auth state change
+        _authStateController.add(_isLoggedIn);
+        
         return true;
       } else {
-        _error = "Login failed";
+        _error = "Invalid email or password";
         _isLoading = false;
         notifyListeners();
         return false;
@@ -174,12 +138,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     
     try {
-      _logger.info('Attempting to register: $email');
-      final response = await ApiService.register(email, password);
-      
+      final success = await _authService.register(email, password);
       _isLoading = false;
       notifyListeners();
-      return true;
+      return success;
     } catch (e) {
       _logger.error('Registration error', e);
       _error = e.toString();
@@ -194,27 +156,34 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     
     try {
-      // Call logout API endpoint
-      await ApiService.logout();
-      
-      // Clear token from storage
-      await clearToken();
-      
-      // Reset auth state
+      await _authService.logout();
+      _token = null;
       _isLoggedIn = false;
       _currentUser = null;
     } catch (e) {
       _logger.error('Logout error', e);
-      // Even if there's an error, we'll clear the local state
-      await clearToken();
+      // Even if there's an error, clear the local state
+      _token = null;
+      _isLoggedIn = false;
+      _currentUser = null;
     } finally {
       _isLoading = false;
       notifyListeners();
+      
+      // Broadcast auth state change
+      _authStateController.add(false);
     }
   }
   
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+  
+  // Make sure dispose method properly cleans up
+  @override
+  void dispose() {
+    _authStateController.close();
+    super.dispose();
   }
 }

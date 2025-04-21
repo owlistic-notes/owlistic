@@ -96,7 +96,7 @@ class AppRouter {
           path: '/register',
           builder: (context, state) => RegisterScreen(),
         ),
-      ],
+              ],
       refreshListenable: authProvider,
     );
   }

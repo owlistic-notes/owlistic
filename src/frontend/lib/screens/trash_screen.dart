@@ -10,6 +10,7 @@ import '../widgets/app_bar_common.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../core/theme.dart';
+import '../utils/logger.dart'; // Added logger import
 import 'package:intl/intl.dart'; // For date formatting
 
 class TrashScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TabController _tabController;
   bool _isInitialized = false;
+  final Logger _logger = Logger('TrashScreen'); // Added logger instance
   
   // Presenters
   late TrashProvider _presenter;
@@ -52,9 +54,32 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     // Ensure WebSocket is connected
     await _wsProvider.ensureConnected();
     
+    // Register event handlers for trash updates
+    _wsProvider.addEventListener('event', 'trash.restored', (message) {
+      _refreshTrash();
+    });
+    
+    _wsProvider.addEventListener('event', 'trash.deleted', (message) {
+      _refreshTrash();
+    });
+    
     // Set WebSocket provider and activate
     _presenter.setWebSocketProvider(_wsProvider);
     _presenter.activate();
+    
+    // Initial fetch
+    await _presenter.fetchTrashedItems();
+  }
+  
+  Future<void> _refreshTrash() async {
+    if (!mounted) return;
+    
+    try {
+      await _presenter.fetchTrashedItems();
+      setState(() {});
+    } catch (e) {
+      _logger.error('Error refreshing trash items', e);
+    }
   }
   
   void _showEmptyTrashConfirmation() {
@@ -414,6 +439,10 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     _tabController.dispose();
     
     if (_isInitialized) {
+      // Remove event listeners
+      _wsProvider.removeEventListener('event', 'trash.restored');
+      _wsProvider.removeEventListener('event', 'trash.deleted');
+      
       _presenter.deactivate();
     }
     

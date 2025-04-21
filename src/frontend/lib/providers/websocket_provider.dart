@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../services/websocket_service.dart';
 import '../models/subscription.dart';
+import '../services/websocket_service.dart';
+import '../services/auth_service.dart';
 import '../utils/logger.dart';
 
 class WebSocketProvider with ChangeNotifier {
   // Singleton WebSocket service
-  final WebSocketService _webSocketService = WebSocketService();
   final Logger _logger = Logger('WebSocketProvider');
+  final WebSocketService _webSocketService;
+  final AuthService? _authProvider;
   StreamSubscription? _subscription;
+  StreamSubscription? _authSubscription;
   
   // Map of event handlers by type:event
   final Map<String, List<Function(Map<String, dynamic>)>> _eventHandlers = {};
@@ -28,10 +31,20 @@ class WebSocketProvider with ChangeNotifier {
   // Map to store event listeners
   final Map<String, List<Function(dynamic)>> _eventListeners = {};
 
-  // Constructor - initialize and connect immediately
-  WebSocketProvider() {
+  final StreamController<Map<String, dynamic>> _messageController = 
+      StreamController<Map<String, dynamic>>.broadcast();
+  
+  // Get the stream of messages
+  Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
+
+  // Standard constructor with required dependencies
+  WebSocketProvider({
+    required WebSocketService webSocketService,
+    AuthService? authProvider
+  }) : _webSocketService = webSocketService,
+       _authProvider = authProvider {
     _initializeWebSocketListener();
-    ensureConnected();
+    _setupAuthListeners();
   }
 
   // Getters for connection state and debug info
@@ -40,6 +53,43 @@ class WebSocketProvider with ChangeNotifier {
   String get lastEventAction => _lastEventAction;
   DateTime? get lastEventTime => _lastEventTime;
   int get messageCount => _messageCount;
+
+  // Setup auth listeners if auth provider is available
+  void _setupAuthListeners() {
+    try {
+      // If auth provider is available, listen for auth state changes
+      if (_authProvider != null) {
+        _logger.debug('Setting up auth listeners');
+        
+        // Listen to auth changes to connect/disconnect WebSocket
+        final authStream = _authProvider!.authStateStream;
+        if (authStream != null) {
+          _authSubscription = authStream.listen((isLoggedIn) {
+            if (isLoggedIn) {
+              _logger.info('User logged in, ensuring WebSocket connection');
+              ensureConnected();
+            } else {
+              _logger.info('User logged out, disconnecting WebSocket');
+              disconnect();
+            }
+          });
+        }
+        
+        // If user is already logged in, connect immediately
+        if (_authProvider!.isLoggedIn) {
+          _logger.info("User already logged in, connecting WebSocket");
+          ensureConnected();
+        }
+      } else {
+        // If no auth provider, just connect
+        _logger.info('No auth provider, connecting WebSocket without auth');
+        ensureConnected();
+      }
+    } catch (e) {
+      _logger.error("Error initializing WebSocketProvider", e);
+      // Don't re-throw, just log, to prevent provider errors
+    }
+  }
 
   // Initialize the listener
   void _initializeWebSocketListener() {
@@ -170,28 +220,19 @@ class WebSocketProvider with ChangeNotifier {
     }
     
     if (!isDuplicate) {
+      _logger.debug('Adding event handler for $key');
       _eventHandlers[key]!.add(handler);
-      _logger.debug('Registered handler for $key (now ${_eventHandlers[key]!.length} handlers)');
     } else {
-      _logger.debug('Handler already registered for $key');
+      _logger.debug('Handler for $key already registered, skipping');
     }
   }
 
-  // Remove an event handler
-  void removeEventListener(String type, String event, [Function(Map<String, dynamic>)? handler]) {
+  // Remove event listener with improved consistency
+  void removeEventListener(String type, String event) {
     final String key = '$type:$event';
-    
-    if (handler == null) {
-      // Remove all handlers for this event type
+    if (_eventHandlers.containsKey(key)) {
+      _logger.debug('Removing all handlers for $key');
       _eventHandlers.remove(key);
-    } else if (_eventHandlers.containsKey(key)) {
-      // Remove specific handler
-      _eventHandlers[key]!.remove(handler);
-      
-      // Clean up if no handlers remain
-      if (_eventHandlers[key]!.isEmpty) {
-        _eventHandlers.remove(key);
-      }
     }
   }
 
@@ -221,7 +262,8 @@ class WebSocketProvider with ChangeNotifier {
 
   // Process incoming WebSocket message
   void _processMessage(dynamic message) {
-    // The existing message processing code...
+    // Pass the message to the messageController
+    _messageController.add(message);
     
     // After processing, trigger appropriate events
     if (message is Map && message.containsKey('event')) {
@@ -236,24 +278,11 @@ class WebSocketProvider with ChangeNotifier {
   // Subscribe to a resource
   Future<void> subscribe(String resource, {String? id}) async {
     await ensureConnected();
+    _webSocketService.subscribe(resource, id: id);
     
-    // Create a subscription key for tracking
     final subscriptionKey = id != null ? '$resource:$id' : resource;
-    
-    // Only subscribe if we haven't already subscribed to this resource
-    if (!_confirmedSubscriptions.contains(subscriptionKey) && 
-        !_pendingSubscriptions.contains(subscriptionKey)) {
-      _pendingSubscriptions.add(subscriptionKey);
-      
-      _webSocketService.subscribe(resource, id: id);
-      
-      // Set up a retry with a longer delay (4 seconds)
-      Future.delayed(Duration(seconds: 4), () {
-        if (_pendingSubscriptions.contains(subscriptionKey) && _isConnected) {
-          _webSocketService.subscribe(resource, id: id);
-        }
-      });
-    }
+    _pendingSubscriptions.add(subscriptionKey);
+    notifyListeners();
   }
 
   // Batch subscribe to multiple resources simultaneously
@@ -327,6 +356,7 @@ class WebSocketProvider with ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    _authSubscription?.cancel();
     _webSocketService.dispose();
     _eventHandlers.clear();
     super.dispose();

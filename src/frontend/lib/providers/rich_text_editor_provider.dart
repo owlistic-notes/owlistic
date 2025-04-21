@@ -53,6 +53,9 @@ class RichTextEditorProvider with ChangeNotifier {
   // Keep track of original blocks at initialization for reconciliation
   final List<Block> _originalBlocks = [];
   
+  // Add active state tracking
+  bool _isActive = false;
+  
   RichTextEditorProvider({
     required List<Block> blocks,
     this.onBlockContentChanged,
@@ -73,6 +76,17 @@ class RichTextEditorProvider with ChangeNotifier {
   Editor get editor => _editor;
   FocusNode get focusNode => _focusNode;
   List<Block> get blocks => List.unmodifiable(_blocks);
+  
+  // Add activation/deactivation pattern
+  void activate() {
+    _isActive = true;
+    _logger.info('RichTextEditorProvider activated');
+  }
+
+  void deactivate() {
+    _isActive = false;
+    _logger.info('RichTextEditorProvider deactivated');
+  }
   
   void _initialize() {
     // Create an empty document first

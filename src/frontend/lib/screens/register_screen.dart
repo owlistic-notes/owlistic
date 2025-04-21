@@ -45,7 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(authProvider.errorMessage ?? 'Registration failed. Please try again.'),
+                content: Text(authProvider.error ?? 'Registration failed. Please try again.'),
                 backgroundColor: Colors.red,
               ),
             );

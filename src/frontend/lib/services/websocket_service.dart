@@ -14,7 +14,8 @@ class WebSocketService {
   static final WebSocketService _instance = WebSocketService._internal();
   WebSocketChannel? _channel;
   String _userId = '5719498e-aaba-4dbd-8385-5b1b8cd49a17'; // Default user ID
-  final String _baseUrl;
+  String _baseUrl;
+  String? _customUrl;
   final Logger _logger = Logger('WebSocketService');
   
   bool _isConnected = false;
@@ -31,25 +32,43 @@ class WebSocketService {
   // Check if connected
   bool get isConnected => _isConnected;
   
+  // Connection state for WebSocketProvider
+  WebSocketConnectionState _connectionState = WebSocketConnectionState.disconnected;
+  WebSocketConnectionState get connectionState => _connectionState;
+  
   // Private constructor
   WebSocketService._internal() 
       : _baseUrl = dotenv.env['WS_URL'] ?? 'ws://localhost:8082/ws';
   
   // Factory constructor to get instance
   factory WebSocketService() => _instance;
+
+  // Set custom URL
+  void setCustomUrl(String url) {
+    _customUrl = url;
+    _logger.info('Set custom WebSocket URL: $url');
+    
+    // Reconnect if we're already connected
+    if (_isConnected) {
+      disconnect();
+      connect();
+    }
+  }
+  
+  // Get current URL
+  String getCurrentUrl() {
+    return _customUrl ?? _baseUrl;
+  }
   
   // Initialize the connection with better error handling and platform awareness
-  void connect({String? userId}) {
-    if (userId != null) {
-      _userId = userId;
-    }
-    
+  Future<void> connect() async {
     if (_isConnected || _isReconnecting) return;
     
     _isReconnecting = true;
+    _connectionState = WebSocketConnectionState.connecting;
     
     try {
-      final wsUrl = '$_baseUrl?user_id=$_userId';
+      final wsUrl = '${_customUrl ?? _baseUrl}?user_id=$_userId';
       _logger.debug('Connecting to $wsUrl');
       
       // Create WebSocketChannel using platform-specific implementation
@@ -69,6 +88,7 @@ class WebSocketService {
       
       _isConnected = true;
       _isReconnecting = false;
+      _connectionState = WebSocketConnectionState.connected;
       
       _logger.info('Connection established successfully');
       
@@ -78,6 +98,7 @@ class WebSocketService {
         onDone: _handleDisconnect,
         onError: (error) {
           _logger.error('WebSocket error', error);
+          _connectionState = WebSocketConnectionState.error;
           _handleDisconnect();
         },
         cancelOnError: true,
@@ -89,6 +110,7 @@ class WebSocketService {
       _logger.error('Connection error', e);
       _isConnected = false;
       _isReconnecting = false;
+      _connectionState = WebSocketConnectionState.error;
       _scheduleReconnect();
     }
   }
@@ -100,6 +122,7 @@ class WebSocketService {
     _isConnected = false;
     _channel?.sink.close();
     _pingTimer?.cancel();
+    _connectionState = WebSocketConnectionState.disconnected;
     
     _logger.info('Disconnected, scheduling reconnect');
     _scheduleReconnect();
@@ -248,6 +271,7 @@ class WebSocketService {
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
     _channel?.sink.close();
+    _connectionState = WebSocketConnectionState.disconnected;
     _logger.info('WebSocket disconnected');
   }
   
@@ -280,7 +304,7 @@ class WebSocketService {
   }
 
   void _handleWebSocketMessage(dynamic message) {
-    _logger.debug('Raw message: $message');
+    _logger.debug('Raw message received');
     try {
       // Parse the JSON message
       Map<String, dynamic> jsonMessage;
@@ -313,6 +337,11 @@ class WebSocketService {
         
         _logger.debug('EVENT: Type=${parsedMessage.type}, Event=${parsedMessage.event}, ' + 
               'ResourceType=$resourceType, ResourceId=${resourceId ?? "none"}');
+      } else if (parsedMessage.type == 'subscription' && parsedMessage.event == 'confirmed') {
+        _logger.info('Subscription confirmed: ${jsonMessage['payload']}');
+      } else if (parsedMessage.type == 'ping') {
+        // Send pong response to keep connection alive
+        sendMessage(json.encode({'type': 'pong'}));
       }
       
       // Pass the original message to existing listeners for compatibility
@@ -329,5 +358,7 @@ class WebSocketService {
       } catch (_) {}
     }
   }
-
 }
+
+// Connection state enum for WebSocketProvider
+enum WebSocketConnectionState { disconnected, connecting, connected, error }
