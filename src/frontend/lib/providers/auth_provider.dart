@@ -5,7 +5,6 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:thinkstack/services/websocket_service.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
-import '../services/base_service.dart';
 import '../utils/logger.dart';
 import 'websocket_provider.dart';
 import 'notes_provider.dart';
@@ -37,8 +36,8 @@ class AuthProvider with ChangeNotifier {
   TrashProvider? _trashProvider;
   
   // Constructor with dependency injection
-  AuthProvider({AuthService? authService}) 
-    : _authService = authService ?? ServiceLocator.get<AuthService>() {
+  AuthProvider({required AuthService authService}) 
+    : _authService = authService {
     try {
       _initializeAuthState();
     } catch (e) {

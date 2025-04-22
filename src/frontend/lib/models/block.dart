@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../utils/data_converter.dart';
 
 class Block {
@@ -15,13 +17,33 @@ class Block {
     required this.content,
     required this.type,
     required this.order,
-    required this.createdAt,
-    required this.updatedAt,
-  });
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) : this.createdAt = createdAt ?? DateTime.now(),
+       this.updatedAt = updatedAt ?? DateTime.now();
 
   factory Block.fromJson(Map<String, dynamic> json) {
     // Use DataConverter for parsing numeric values
     final int orderValue = DataConverter.parseIntSafely(json['order']);
+    
+    // Parse datetime fields with appropriate fallback
+    DateTime? createdAt;
+    if (json['created_at'] != null) {
+      try {
+        createdAt = DateTime.parse(json['created_at']);
+      } catch (e) {
+        createdAt = DateTime.now();
+      }
+    }
+    
+    DateTime? updatedAt;
+    if (json['updated_at'] != null) {
+      try {
+        updatedAt = DateTime.parse(json['updated_at']);
+      } catch (e) {
+        updatedAt = DateTime.now();
+      }
+    }
     
     return Block(
       id: json['id'] ?? '',
@@ -29,6 +51,8 @@ class Block {
       type: json['type'] ?? 'text',
       noteId: json['note_id'] ?? '',
       order: orderValue,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 

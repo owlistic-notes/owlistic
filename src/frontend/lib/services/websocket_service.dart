@@ -384,11 +384,11 @@ class WebSocketService {
         // For event subscriptions, remove the 'event:' prefix
         final eventType = resource.substring(6);
         subscriptionKey = 'event:$eventType';
-        _unsubscribeFromEvent(eventType);
+        _sendUnubscribeFromEvent(eventType);
       } else {
         // For resource subscriptions
         subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
-        _unsubscribeFromResource(resource, id: id);
+        _sendUnsubscribeFromResource(resource, id: id);
       }
       
       // Remove from active subscriptions
@@ -396,6 +396,113 @@ class WebSocketService {
     } catch (e) {
       _logger.error('Error unsubscribing', e);
     }
+  }
+  
+  // Helper method to send subscribe message for resources with duplicate prevention
+  void _sendUnsubscribeFromResource(String resource, {String? id}) {
+    try {
+      // Validate resource
+      if (resource.isEmpty) {
+        _logger.error('Cannot unsubscribe with empty resource');
+        return;
+      }
+      
+      // Create subscription key for tracking
+      final String subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
+      
+      // Check if already unsubscribed
+      if (!_activeSubscriptions.contains(subscriptionKey)) {
+        _logger.debug('Already unsubscribed from $subscriptionKey, skipping');
+        return;
+      }
+      
+      // Create unsubscribe message
+      final message = {
+        'type': 'unsubscribe',
+        'payload': {
+          'resource': resource,
+          if (id != null && id.isNotEmpty) 'id': id,
+        },
+      };
+      
+      // Send the message
+      if (_channel != null) {
+        _channel!.sink.add(json.encode(message));
+        
+        // Remove from active subscriptions
+        _activeSubscriptions.remove(subscriptionKey);
+        
+        _logger.info('Unsubscribed from resource $resource ${id != null ? "ID: $id" : "(global)"}');
+      } else {
+        _logger.error('Cannot send unsubscribe: WebSocket channel is null');
+      }
+    } catch (e) {
+      _logger.error('Error unsubscribing from resource $resource', e);
+    }
+  }
+
+  // Helper method to send unsubscribe message for events
+  void _sendUnubscribeFromEvent(String eventType) {
+    try {
+      // Validate event type
+      if (eventType.isEmpty) {
+        _logger.error('Cannot unsubscribe with empty event type');
+        return;
+      }
+      
+      // Create subscription key for tracking
+      final String subscriptionKey = 'event:$eventType';
+      
+      // Check if already unsubscribed
+      if (!_activeSubscriptions.contains(subscriptionKey)) {
+        _logger.debug('Already unsubscribed from event $eventType, skipping');
+        return;
+      }
+      
+      // Create payload specifically for event unsubscription
+      final Map<String, dynamic> payload = {
+        'event_type': eventType,
+      };
+      
+      // Always include user ID for proper authorization filtering
+      if (_userId != null) {
+        payload['user_id'] = _userId;
+      }
+      
+      // Construct the message - use the format expected by the server
+      final message = {
+        'type': 'unsubscribe',
+        'action': 'unsubscribe',
+        'payload': payload,
+      };
+      
+      _logger.debug('Sending event unsubscription: ${json.encode(message)}');
+      
+      // Make sure channel exists
+      if (_channel == null) {
+        _logger.error('Cannot send unsubscribe: WebSocket channel is null');
+        return;
+      }
+      
+      _channel!.sink.add(json.encode(message));
+      
+      // Remove from active subscriptions
+      _activeSubscriptions.remove(subscriptionKey);
+      
+      _logger.info('Unsubscribed from event $eventType');
+    } catch (e) {
+      _logger.error('Error unsubscribing from event $eventType', e);
+    }
+  }
+
+  // Unsubscribe from an event
+  void unsubscribeFromEvent(String eventType) {
+    if (!_isConnected) {
+      _logger.warning('Cannot unsubscribe: WebSocket not connected');
+      return;
+    }
+    
+    _sendUnubscribeFromEvent(eventType);
   }
   
   // General method to send a raw message

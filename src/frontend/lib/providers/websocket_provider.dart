@@ -457,11 +457,14 @@ class WebSocketProvider with ChangeNotifier {
   void unsubscribeFromEvent(String eventType) {
     final subscriptionKey = 'event:$eventType';
     
+    _logger.info('Unsubscribing from event: $eventType');
     _webSocketService.unsubscribeFromEvent(eventType);
     
     _pendingSubscriptions.remove(subscriptionKey);
     _confirmedSubscriptions.remove(subscriptionKey);
     _lastSubscriptionAttempt.remove(subscriptionKey);
+    
+    notifyListeners();
   }
 
   // Batch subscribe to multiple resources simultaneously, with duplicate prevention
@@ -565,6 +568,14 @@ class WebSocketProvider with ChangeNotifier {
     
     notifyListeners();
     return _isConnected;
+  }
+
+  // Disconnect the WebSocket connection
+  void disconnect() {
+    _logger.info('Disconnecting WebSocket');
+    _webSocketService.disconnect();
+    _isConnected = false;
+    notifyListeners();
   }
 
   // Clean up WebSocket state on logout

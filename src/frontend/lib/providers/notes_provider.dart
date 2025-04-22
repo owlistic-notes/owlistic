@@ -7,6 +7,7 @@ import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
+import '../services/block_service.dart';
 
 class NotesProvider with ChangeNotifier {
   final Logger _logger = Logger('NotesProvider');
@@ -17,11 +18,13 @@ class NotesProvider with ChangeNotifier {
   final Set<String> _activeNoteIds = {};
   final NoteService _noteService;
   final AuthService _authService;
+  final BlockService _blockService;
 
   // Constructor with dependency injection
-  NotesProvider({NoteService? noteService, AuthService? authService}) 
+  NotesProvider({NoteService? noteService, AuthService? authService, required BlockService blockService}) 
     : _noteService = noteService ?? ServiceLocator.get<NoteService>(),
-      _authService = authService ?? ServiceLocator.get<AuthService>();
+      _authService = authService ?? ServiceLocator.get<AuthService>(),
+      _blockService = blockService;
 
   // Getters
   List<Note> get notes => _notesMap.values.toList();
@@ -316,7 +319,7 @@ class NotesProvider with ChangeNotifier {
       final userId = currentUser.id;
       
       // Create note on server via REST API
-      final note = await ApiService.createNote(notebookId, title);
+      final note = await _noteService.createNote(notebookId, title, userId);
       
       // Add to local state
       _notesMap[note.id] = note;
@@ -341,7 +344,7 @@ class NotesProvider with ChangeNotifier {
       _logger.info('Deleting note $id via API');
       
       // Delete note on server via REST API
-      await ApiService.deleteNote(id);
+      await _noteService.deleteNote(id);
       
       // Update local state
       _notesMap.remove(id);
@@ -365,7 +368,7 @@ class NotesProvider with ChangeNotifier {
       _logger.info('Updating note $id title to: $title via API');
       
       // Update note via REST API call
-      final updatedNote = await ApiService.updateNote(id, title);
+      final updatedNote = await _noteService.updateNote(id, title);
       
       // Update local state if we have this note
       if (_notesMap.containsKey(id)) {

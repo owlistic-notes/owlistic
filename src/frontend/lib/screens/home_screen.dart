@@ -15,6 +15,9 @@ import '../providers/auth_provider.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
+import '../services/note_service.dart';
+import '../services/notebook_service.dart';
+import '../services/task_service.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
