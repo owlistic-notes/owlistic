@@ -12,17 +12,24 @@ class NoteService extends BaseService {
     int page = 1, 
     int pageSize = 20, 
     String? userId,
+    String? notebookId,
     Map<String, dynamic>? queryParams,
   }) async {
     try {
-      // Build query parameters with user filtering
+      // Build query parameters for pagination
       final Map<String, dynamic> params = {
-        'page': page,
-        'page_size': pageSize,
+        'page': page.toString(),
+        'page_size': pageSize.toString(),
       };
       
-      // Add user ID filter if provided
-      if (userId != null) {
+      // Add notebookId filter if provided
+      if (notebookId != null && notebookId.isNotEmpty) {
+        params['notebook_id'] = notebookId;
+      }
+      
+      // User ID is typically handled by server auth middleware
+      // But we include it if explicitly provided
+      if (userId != null && userId.isNotEmpty) {
         params['user_id'] = userId;
       }
       
@@ -30,6 +37,8 @@ class NoteService extends BaseService {
       if (queryParams != null) {
         params.addAll(queryParams);
       }
+      
+      _logger.debug('Fetching notes with params: $params');
       
       // Use the authenticated GET helper method
       final response = await authenticatedGet(
@@ -55,7 +64,7 @@ class NoteService extends BaseService {
         
         return notesJson.map((json) => Note.fromJson(json)).toList();
       } else {
-        _logger.error('Failed to fetch notes: ${response.statusCode}');
+        _logger.error('Failed to fetch notes: ${response.statusCode} - ${response.body}');
         throw Exception('Failed to fetch notes');
       }
     } catch (e) {
@@ -95,11 +104,18 @@ class NoteService extends BaseService {
 
   Future<void> deleteNote(String id) async {
     _logger.info('Deleting note with ID: $id');
-    final response = await authenticatedDelete('/api/v1/notes/$id');
+    
+    try {
+      final response = await authenticatedDelete('/api/v1/notes/$id');
 
-    if (response.statusCode != 204) {
-      _logger.error('Delete note failed: ${response.statusCode}\nBody: ${response.body}');
-      throw Exception('Failed to delete note: ${response.statusCode}');
+      // Server returns 204 No Content on successful deletion
+      if (response.statusCode != 204) {
+        _logger.error('Delete note failed: ${response.statusCode}\nBody: ${response.body}');
+        throw Exception('Failed to delete note: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error deleting note', e);
+      rethrow;
     }
   }
 

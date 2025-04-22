@@ -73,8 +73,8 @@ abstract class BaseService {
     }
   }
 
-  Future<http.Response> authenticatedPost(String path, dynamic body) async {
-    final uri = createUri(path);
+  Future<http.Response> authenticatedPost(String path, dynamic body, {Map<String, dynamic>? queryParameters}) async {
+    final uri = createUri(path, queryParameters: queryParameters);
     _logger.debug('POST: $uri');
     
     try {
@@ -93,8 +93,8 @@ abstract class BaseService {
     }
   }
 
-  Future<http.Response> authenticatedPut(String path, dynamic body) async {
-    final uri = createUri(path);
+  Future<http.Response> authenticatedPut(String path, dynamic body, {Map<String, dynamic>? queryParameters}) async {
+    final uri = createUri(path, queryParameters: queryParameters);
     _logger.debug('PUT: $uri');
     
     try {
@@ -112,8 +112,8 @@ abstract class BaseService {
     }
   }
 
-  Future<http.Response> authenticatedDelete(String path) async {
-    final uri = createUri(path);
+  Future<http.Response> authenticatedDelete(String path, {Map<String, dynamic>? queryParameters}) async {
+    final uri = createUri(path, queryParameters: queryParameters);
     _logger.debug('DELETE: $uri');
     
     try {

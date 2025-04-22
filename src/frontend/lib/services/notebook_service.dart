@@ -2,9 +2,16 @@ import 'dart:convert';
 import '../models/notebook.dart';
 import '../utils/logger.dart';
 import 'base_service.dart';
+import 'auth_service.dart';
 
 class NotebookService extends BaseService {
   final Logger _logger = Logger('NotebookService');
+
+  // Get current user ID helper method
+  Future<String?> _getCurrentUserId() async {
+    final authService = AuthService();
+    return authService.getCurrentUserId();
+  }
 
   Future<List<Notebook>> fetchNotebooks({
     String? name,
@@ -16,25 +23,24 @@ class NotebookService extends BaseService {
     try {
       // Build query parameters
       final Map<String, dynamic> params = {
-        'page': page,
-        'page_size': pageSize,
+        'page': page.toString(),
+        'page_size': pageSize.toString(),
       };
       
       // Add name filter if provided
-      if (name != null) {
+      if (name != null && name.isNotEmpty) {
         params['name'] = name;
       }
       
-      // Add user ID filter if provided
-      if (userId != null) {
-        params['user_id'] = userId;
-      }
+      // User ID is included from the AuthMiddleware on server side
+      // so we don't need to explicitly include it in most cases
       
       // Add any additional query parameters
       if (queryParams != null) {
         params.addAll(queryParams);
       }
       
+      _logger.debug('Fetching notebooks with params: $params');
       final response = await authenticatedGet(
         '/api/v1/notebooks',
         queryParameters: params
@@ -44,6 +50,7 @@ class NotebookService extends BaseService {
         final List<dynamic> data = json.decode(response.body);
         return data.map((json) => Notebook.fromJson(json)).toList();
       } else {
+        _logger.error('Failed to load notebooks: ${response.statusCode} - ${response.body}');
         throw Exception('Failed to load notebooks');
       }
     } catch (e) {

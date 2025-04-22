@@ -651,7 +651,17 @@ class WebSocketService {
       else if (payload.containsKey('resource')) {
         String resource = payload['resource'];
         String? id = payload['id'];
-        _logger.info('Resource subscription confirmed: $resource ${id != null ? "ID: $id" : "(global)"}');
+        
+        // Fix: Properly handle empty string IDs
+        if (id == null || id.isEmpty) {
+          _logger.info('Resource subscription confirmed: $resource (global)');
+        } else {
+          _logger.info('Resource subscription confirmed: $resource ID: $id');
+        }
+        
+        // Update tracking with proper key - empty ID means global subscription
+        final String subscriptionKey = (id == null || id.isEmpty) ? resource : '$resource:$id';
+        _activeSubscriptions.add(subscriptionKey);
       }
     } catch (e) {
       _logger.error('Error handling subscription confirmation', e);

@@ -217,7 +217,16 @@ class AuthService extends BaseService {
       
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);
-        return User.fromJson(userData);
+        final user = User.fromJson(userData);
+        
+        // Store user ID in shared preferences for offline access
+        if (user.id.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_id', user.id);
+          _logger.debug('Stored user ID in preferences: ${user.id}');
+        }
+        
+        return user;
       } else if (response.statusCode == 401) {
         // Token is invalid, clear it
         await clearToken();
@@ -228,6 +237,26 @@ class AuthService extends BaseService {
       }
     } catch (e) {
       _logger.error('Error getting current user', e);
+      return null;
+    }
+  }
+
+  // Helper method to get current user ID
+  Future<String?> getCurrentUserId() async {
+    try {
+      // First try to get from shared preferences for better performance
+      final prefs = await SharedPreferences.getInstance();
+      String? storedUserId = prefs.getString('user_id');
+      
+      if (storedUserId != null && storedUserId.isNotEmpty) {
+        return storedUserId;
+      }
+      
+      // Fall back to getting user profile if needed
+      final user = await getCurrentUser();
+      return user?.id;
+    } catch (e) {
+      _logger.error('Error getting current user ID', e);
       return null;
     }
   }
