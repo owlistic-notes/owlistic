@@ -1,3 +1,5 @@
+import '../utils/data_converter.dart';
+
 class Block {
   final String id;
   final dynamic content; // Changed from String to dynamic to support both String and Map
@@ -14,20 +16,12 @@ class Block {
   });
 
   factory Block.fromJson(Map<String, dynamic> json) {
-    // Handle numeric order value (could be int or String)
-    final dynamic rawOrder = json['order'];
-    final int orderValue = rawOrder is String
-        ? int.tryParse(rawOrder) ?? 0
-        : rawOrder is int
-            ? rawOrder
-            : 0;
+    // Use DataConverter for parsing numeric values
+    final int orderValue = DataConverter.parseIntSafely(json['order']);
     
-    // Handle content which could be a string (legacy) or a map (new format)
-    final dynamic contentValue = json['content'];
-            
     return Block(
       id: json['id'] ?? '',
-      content: contentValue, // Store as-is, will handle conversion when accessing
+      content: json['content'], // Store as-is, will handle conversion when accessing
       type: json['type'] ?? 'text',
       noteId: json['note_id'] ?? '',
       order: orderValue,
@@ -63,58 +57,50 @@ class Block {
   
   /// Gets the text content of this block, handling both string and map formats
   String getTextContent() {
-    if (content is String) {
-      return content as String;
-    } else if (content is Map) {
-      return (content as Map)['text']?.toString() ?? '';
-    }
-    return '';
+    return DataConverter.extractTextContent(content);
   }
   
   /// Gets the raw content as a Map, handling both formats
   Map<String, dynamic> getContentMap() {
-    if (content is Map) {
-      return Map<String, dynamic>.from(content as Map);
-    } else if (content is String) {
-      // Convert legacy string content to the new format
-      return {'text': content};
-    }
-    return {'text': ''};
+    return DataConverter.normalizeContent(content);
   }
   
   /// Creates a content map for updating the block
   Map<String, dynamic> createContentMap(String text) {
-    if (content is Map) {
-      // Preserve other fields from the map
-      final Map<String, dynamic> newMap = Map<String, dynamic>.from(content as Map);
-      newMap['text'] = text;
-      return newMap;
-    }
-    // Otherwise create a new map
-    return {'text': text};
+    final Map<String, dynamic> contentMap = DataConverter.normalizeContent(content);
+    contentMap['text'] = text;
+    return contentMap;
   }
-}
-
-extension BlockContentHelpers on Block {
-  // Helper method to extract text content safely for display
-  String getTextContent() {
-    if (content == null) return '';
-    
-    try {
-      // Handle different content structures
-      if (content is Map) {
-        final contentMap = content as Map;
-        if (contentMap.containsKey('text')) {
-          return contentMap['text']?.toString() ?? '';
-        } else if (contentMap.containsKey('content')) {
-          return contentMap['content']?.toString() ?? '';
-        }
-      }
-      
-      // If we can't extract structured content, convert the whole thing to string
-      return content.toString();
-    } catch (e) {
-      return '';
+  
+  /// Gets the heading level if this is a heading block
+  int getHeadingLevel() {
+    if (type == 'heading') {
+      final contentMap = getContentMap();
+      return DataConverter.parseIntSafely(contentMap['level'], defaultValue: 1);
     }
+    return 0;
+  }
+  
+  /// Check if this is a checklist item and whether it's checked
+  bool isChecklistChecked() {
+    if (type == 'checklist') {
+      final contentMap = getContentMap();
+      return contentMap['checked'] == true;
+    }
+    return false;
+  }
+  
+  /// Get code block language if this is a code block
+  String getCodeLanguage() {
+    if (type == 'code') {
+      final contentMap = getContentMap();
+      return contentMap['language']?.toString() ?? 'plain';
+    }
+    return 'plain';
+  }
+  
+  /// Extract span/formatting information from content
+  List<Map<String, dynamic>>? getSpans() {
+    return DataConverter.extractSpans(content);
   }
 }
