@@ -9,36 +9,19 @@ import (
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 	"github.com/thinkstack/services"
+	"github.com/thinkstack/utils/token"
 )
 
-// ExtractAndValidateToken extracts token from query or header and validates it
-// Returns claims and an error if validation fails
-func ExtractAndValidateToken(c *gin.Context, authService services.AuthServiceInterface) (*services.JWTClaims, error) {
-	// First try to get token from query parameter (common for WebSocket connections)
-	token := c.Query("token")
-
-	// If not in query, try header (like regular API auth)
-	if token == "" {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			return nil, services.ErrAuthHeaderMissing
-		}
-
-		// Extract token from Bearer schema
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			return nil, services.ErrInvalidAuthFormat
-		}
-		token = parts[1]
-	}
-
-	// Validate the token
-	claims, err := authService.ValidateToken(token)
+// ExtractAndValidateToken uses the token utility instead
+func ExtractAndValidateToken(c *gin.Context, authService services.AuthServiceInterface) (*token.JWTClaims, error) {
+	// Extract token from query or header
+	tokenString, err := token.ExtractToken(c)
 	if err != nil {
 		return nil, err
 	}
 
-	return claims, nil
+	// Validate the token using the auth service (which now uses the token utility)
+	return authService.ValidateToken(tokenString)
 }
 
 func AuthMiddleware(authService services.AuthServiceInterface) gin.HandlerFunc {

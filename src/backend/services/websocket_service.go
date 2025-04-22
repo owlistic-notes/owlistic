@@ -13,6 +13,7 @@ import (
 	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
+	"github.com/thinkstack/utils/token"
 )
 
 type WebSocketServiceInterface interface {
@@ -20,6 +21,7 @@ type WebSocketServiceInterface interface {
 	Stop()
 	HandleConnection(c *gin.Context)
 	BroadcastEvent(event *models.StandardMessage)
+	SetJWTSecret(secret []byte)
 }
 
 type WebSocketService struct {
@@ -28,7 +30,7 @@ type WebSocketService struct {
 	connMutex   sync.RWMutex
 	isRunning   bool
 	messageChan chan broker.KafkaMessage
-	authService AuthServiceInterface
+	jwtSecret   []byte // Replace authService with just the JWT secret
 	kafkaTopics []string
 }
 
@@ -56,9 +58,9 @@ func NewWebSocketService(db *database.Database, kafkaTopics []string) WebSocketS
 	}
 }
 
-// SetAuthService sets the authentication service to be used for validating tokens
-func (s *WebSocketService) SetAuthService(authService AuthServiceInterface) {
-	s.authService = authService
+// SetJWTSecret sets the JWT secret for token validation
+func (s *WebSocketService) SetJWTSecret(secret []byte) {
+	s.jwtSecret = secret
 }
 
 func (s *WebSocketService) Start() {
@@ -91,20 +93,33 @@ func (s *WebSocketService) Stop() {
 	s.connMutex.Unlock()
 }
 
-// HandleConnection handles a new WebSocket connection with JWT authentication
+// HandleConnection handles a new WebSocket connection with token authentication from query parameters
 func (s *WebSocketService) HandleConnection(c *gin.Context) {
-	// Get authenticated user from context (set by WebSocketAuthMiddleware)
-	userIDInterface, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+	// Extract token from query parameter
+	tokenString := c.Query("token")
+	if tokenString == "" {
+		log.Printf("WebSocket connection attempt with missing token")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication token required"})
 		return
 	}
 
-	userID, ok := userIDInterface.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+	// Validate token using token utility
+	if s.jwtSecret == nil {
+		log.Printf("JWT secret not set in WebSocketService")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication service unavailable"})
 		return
 	}
+
+	// Validate the token and get the associated user ID
+	claims, err := token.ValidateToken(tokenString, s.jwtSecret)
+	if err != nil {
+		log.Printf("Invalid WebSocket auth token: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authentication token"})
+		return
+	}
+
+	userID := claims.UserID
+	log.Printf("WebSocket authenticated for user: %s", userID)
 
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)

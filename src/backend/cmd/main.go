@@ -67,6 +67,7 @@ func main() {
 		broker.BlockEventsTopic,
 	}
 	webSocketService := services.NewWebSocketService(db, kafkaTopics)
+	webSocketService.SetJWTSecret([]byte(cfg.JWTSecret))
 	services.WebSocketServiceInstance = webSocketService
 
 	// Only start Kafka-dependent services if Kafka is available
