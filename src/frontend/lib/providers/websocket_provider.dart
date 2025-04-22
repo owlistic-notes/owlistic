@@ -82,8 +82,15 @@ class WebSocketProvider with ChangeNotifier {
             _authService.getUserProfile().then((user) {
               _currentUser = user;
               if (user != null) {
-                _logger.info('Setting WebSocket user ID from auth: ${user.id}');
+                _logger.info('Setting WebSocket auth data after login');
+                
+                // First set the auth token - primary authentication method 
+                _webSocketService.setAuthToken(AuthService.token);
+                
+                // Then set the user ID as additional identification
                 _webSocketService.setUserId(user.id);
+                
+                // Ensure connection is established
                 ensureConnected();
               }
             });
@@ -93,7 +100,8 @@ class WebSocketProvider with ChangeNotifier {
             _currentUser = null;
             clearAllSubscriptions();
             disconnect();
-            _webSocketService.setUserId(null);
+            _webSocketService.setAuthToken(null); // Clear token first
+            _webSocketService.setUserId(null);    // Then clear user ID
           }
         });
       }
@@ -103,7 +111,14 @@ class WebSocketProvider with ChangeNotifier {
         _currentUser = user;
         if (user != null) {
           _logger.info('User already logged in with ID: ${user.id}, connecting WebSocket');
+          
+          // First set the auth token - primary authentication method 
+          _webSocketService.setAuthToken(AuthService.token);
+          
+          // Then set the user ID as additional identification
           _webSocketService.setUserId(user.id);
+          
+          // Ensure connection is established
           ensureConnected();
         } else {
           _logger.info('No logged in user found');
@@ -140,9 +155,9 @@ class WebSocketProvider with ChangeNotifier {
 
   // Ensure connection is established
   Future<bool> ensureConnected() async {
-    // Check if we have a user before allowing connection
-    if (_currentUser == null) {
-      _logger.warning('Cannot connect WebSocket: No authenticated user');
+    // Check if we have authentication before allowing connection
+    if (AuthService.token == null) {
+      _logger.warning('Cannot connect WebSocket: No authentication token');
       return false;
     }
     
@@ -152,8 +167,7 @@ class WebSocketProvider with ChangeNotifier {
       return true;
     }
     
-    // Make sure WebSocket service has the current user ID
-    _webSocketService.setUserId(_currentUser!.id);
+    // WebSocketService will use the token for authentication
     _webSocketService.connect();
     
     // Wait a short time for connection to establish

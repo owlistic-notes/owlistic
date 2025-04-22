@@ -9,11 +9,12 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
+import 'auth_service.dart';
 
 class WebSocketService {
   static final WebSocketService _instance = WebSocketService._internal();
   WebSocketChannel? _channel;
-  String? _userId; // Remove default user ID - will be set dynamically
+  String? _userId; // Keep for backward compatibility but don't use for auth
   String _baseUrl;
   String? _customUrl;
   String? _authToken;
@@ -102,9 +103,9 @@ class WebSocketService {
   Future<void> connect() async {
     if (_isConnected || _isReconnecting) return;
     
-    // Don't connect if no user ID or auth token is provided
-    if (_userId == null && _authToken == null) {
-      _logger.warning('Cannot connect WebSocket: No user ID or auth token provided');
+    // Don't connect if no auth token is provided
+    if (_authToken == null) {
+      _logger.warning('Cannot connect WebSocket: No auth token provided');
       return;
     }
     
@@ -112,15 +113,9 @@ class WebSocketService {
     _connectionState = WebSocketConnectionState.connecting;
     
     try {
-      // Use auth token if available, otherwise fall back to user ID
-      String wsUrl;
-      if (_authToken != null) {
-        wsUrl = '${_customUrl ?? _baseUrl}?token=$_authToken';
-        _logger.debug('Connecting to WebSocket with auth token');
-      } else {
-        wsUrl = '${_customUrl ?? _baseUrl}?user_id=$_userId';
-        _logger.debug('Connecting to WebSocket with user ID (legacy mode)');
-      }
+      // Always use auth token for connection
+      String wsUrl = '${_customUrl ?? _baseUrl}?token=$_authToken';
+      _logger.debug('Connecting to WebSocket with auth token');
       
       // Create WebSocketChannel using platform-specific implementation
       if (kIsWeb) {
@@ -176,8 +171,9 @@ class WebSocketService {
     _connectionState = WebSocketConnectionState.disconnected;
     
     _logger.info('Disconnected, scheduling reconnect');
-    // Only reconnect if we have a user ID
-    if (_userId != null) {
+    
+    // Only reconnect if we have an auth token
+    if (_authToken != null) {
       _scheduleReconnect();
     }
   }
@@ -187,7 +183,7 @@ class WebSocketService {
     // Attempt to reconnect with exponential backoff
     _reconnectTimer?.cancel();
     
-    if (!_isReconnecting && _userId != null) {
+    if (!_isReconnecting && _authToken != null) {
       _reconnectTimer = Timer(const Duration(seconds: 5), () {
         _logger.info('Attempting to reconnect...');
         connect();
@@ -337,11 +333,6 @@ class WebSocketService {
       final Map<String, dynamic> payload = {
         'event_type': eventType,
       };
-      
-      // Always include user ID for proper authorization filtering
-      if (_userId != null) {
-        payload['user_id'] = _userId;
-      }
       
       // Construct the message - use the format expected by the server
       // Note: The server expects 'type': 'subscribe' and checks the payload for event_type

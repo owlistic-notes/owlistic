@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../utils/logger.dart';
+import 'auth_service.dart';
 
 // Base service class with minimal responsibilities
 abstract class BaseService {
@@ -43,9 +44,17 @@ abstract class BaseService {
     };
   }
   
-  // Get auth headers - to be overridden by AuthService
+  // Get auth headers - centralized implementation that gets token from AuthService
   Map<String, String> getAuthHeaders() {
-    return getBaseHeaders();
+    final headers = getBaseHeaders();
+    
+    // Get token from AuthService singleton
+    final token = AuthService.token;
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    
+    return headers;
   }
 
   // Helper methods for API calls with better error handling

@@ -175,21 +175,9 @@ class AuthService extends BaseService {
     }
   }
   
-  // Override auth headers to use the token
-  @override
-  Map<String, String> getAuthHeaders() {
-    final headers = getBaseHeaders();
-    if (_token != null) {
-      headers['Authorization'] = 'Bearer $_token';
-    }
-    return headers;
-  }
-  
   // Get user information from token or API
   Future<User?> getUserProfile() async {
-    if (_token == null) {
-      _token = await getStoredToken();
-    }
+    _token ??= await getStoredToken();
     
     if (_token == null) return null;
     
@@ -254,31 +242,6 @@ class AuthService extends BaseService {
       await clearToken();  // Ensure we clean up on error
       return false;
     }
-  }
-  
-  // Make sure all authenticated requests use the token
-  @override
-  Future<http.Response> authenticatedGet(String path, {Map<String, dynamic>? queryParameters}) async {
-    // Make sure we use the auth headers with the token
-    return super.authenticatedGet(path, queryParameters: queryParameters);
-  }
-  
-  @override
-  Future<http.Response> authenticatedPost(String path, dynamic body) async {
-    // Make sure we use the auth headers with the token
-    return super.authenticatedPost(path, body);
-  }
-  
-  @override
-  Future<http.Response> authenticatedPut(String path, dynamic body) async {
-    // Make sure we use the auth headers with the token
-    return super.authenticatedPut(path, body);
-  }
-  
-  @override
-  Future<http.Response> authenticatedDelete(String path) async {
-    // Make sure we use the auth headers with the token
-    return super.authenticatedDelete(path);
   }
   
   // Clean up resources

@@ -151,8 +151,12 @@ class AuthProvider with ChangeNotifier {
         
         // Set auth token for WebSocket service after successful login
         final webSocketService = WebSocketService();
-        webSocketService.setAuthToken(_token);
-        webSocketService.setUserId(_currentUser?.id);
+        webSocketService.setAuthToken(_token); // Set token first - primary authentication method
+        
+        // Also set user ID for any remaining legacy server-side features
+        if (_currentUser != null) {
+          webSocketService.setUserId(_currentUser!.id);
+        }
         
         return true;
       } else {
