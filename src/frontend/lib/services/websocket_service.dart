@@ -52,7 +52,7 @@ class WebSocketService {
   
   // Private constructor - use the correct API path for WebSocket
   WebSocketService._internal() 
-      : _baseUrl = dotenv.env['WS_URL'] ?? 'ws://localhost:8082/ws';
+      : _baseUrl = dotenv.env['WS_URL'] ?? 'ws://localhost:8080/ws';
   
   // Factory constructor to get instance
   factory WebSocketService() => _instance;
@@ -131,8 +131,7 @@ class WebSocketService {
       if (kIsWeb) {
         // Use WebSocketChannel for web
         _channel = WebSocketChannel.connect(
-          Uri.parse(wsUrl),
-          protocols: ['wss'], // Use secure WebSocket protocol if available
+          Uri.parse(wsUrl)
         );
       } else {
         // Use IOWebSocketChannel for native platforms
@@ -140,12 +139,6 @@ class WebSocketService {
           _channel = IOWebSocketChannel.connect(
             Uri.parse(wsUrl),
             pingInterval: const Duration(seconds: 20),
-            headers: {
-              // In case query param doesn't work, also include auth in header as fallback
-              'Authorization': 'Bearer $_authToken',
-              'Connection': 'Upgrade',
-              'Upgrade': 'websocket',
-            }
           );
         } catch (e) {
           _logger.error('Error creating IOWebSocketChannel', e);
@@ -315,7 +308,7 @@ class WebSocketService {
   // Helper method to send subscribe message for resources with duplicate prevention
   void _sendSubscribeToResource(String resource, {String? id}) {
     try {
-      // Validate resource and ID
+      // Validate resource
       if (resource.isEmpty) {
         _logger.error('Cannot subscribe with empty resource');
         return;
@@ -324,28 +317,29 @@ class WebSocketService {
       // Create subscription key for tracking
       final String subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
       
-      // Check if already subscribed
+      // Check if already subscribed to avoid duplicates
       if (_activeSubscriptions.contains(subscriptionKey)) {
         _logger.debug('Already subscribed to $subscriptionKey, skipping duplicate request');
         return;
       }
       
-      // Create simplified subscribe message
+      // Simple format that matches exactly what the server expects
       final message = {
         'type': 'subscribe',
+        'event': 'subscribe',
         'payload': {
           'resource': resource,
           if (id != null && id.isNotEmpty) 'id': id,
-        },
+        }
       };
+      
+      _logger.debug('Sending subscription message: ${json.encode(message)}');
       
       // Send the message
       if (_channel != null) {
         _channel!.sink.add(json.encode(message));
-        
         // Track this subscription
         _activeSubscriptions.add(subscriptionKey);
-        
         _logger.info('Subscribed to resource $resource ${id != null ? "ID: $id" : "(global)"}');
       } else {
         _logger.error('Cannot send subscribe: WebSocket channel is null');
@@ -355,7 +349,7 @@ class WebSocketService {
     }
   }
 
-  // Helper method to send subscribe message for events (different format than resources)
+  // Helper method to send subscribe message for events
   void _sendSubscribeToEvent(String eventType) {
     try {
       // Validate event type
@@ -367,39 +361,31 @@ class WebSocketService {
       // Create subscription key for tracking
       final String subscriptionKey = 'event:$eventType';
       
-      // Check if already subscribed
+      // Check if already subscribed to avoid duplicates
       if (_activeSubscriptions.contains(subscriptionKey)) {
         _logger.debug('Already subscribed to event $eventType, skipping duplicate request');
         return;
       }
       
-      // Create payload specifically for event subscription
-      final Map<String, dynamic> payload = {
-        'event_type': eventType,
-      };
-      
-      // Construct the message - use the format expected by the server
-      // Note: The server expects 'type': 'subscribe' and checks the payload for event_type
+      // Simple format that matches exactly what the server expects
       final message = {
         'type': 'subscribe',
-        'action': 'subscribe',
-        'payload': payload,
+        'event': 'subscribe',
+        'payload': {
+          'event_type': eventType,
+        }
       };
       
       _logger.debug('Sending event subscription: ${json.encode(message)}');
       
-      // Make sure channel exists
-      if (_channel == null) {
+      if (_channel != null) {
+        _channel!.sink.add(json.encode(message));
+        // Track this subscription
+        _activeSubscriptions.add(subscriptionKey);
+        _logger.info('Subscribed to event $eventType');
+      } else {
         _logger.error('Cannot send subscribe: WebSocket channel is null');
-        return;
       }
-      
-      _channel!.sink.add(json.encode(message));
-      
-      // Track this subscription
-      _activeSubscriptions.add(subscriptionKey);
-      
-      _logger.info('Subscribed to event $eventType');
     } catch (e) {
       _logger.error('Error subscribing to event $eventType', e);
     }
@@ -594,6 +580,7 @@ class WebSocketService {
     }
   }
 
+  // Handle incoming WebSocket messages with better error handling
   void _handleWebSocketMessage(dynamic message) {
     try {
       // Parse the JSON message
@@ -637,11 +624,15 @@ class WebSocketService {
       _messageController.add(jsonMessage);
     } catch (e) {
       _logger.error('Error parsing message', e);
+      // Log the raw message for debugging
+      if (message is String) {
+        _logger.debug('Raw message that caused error: $message');
+      }
       
       // Try to broadcast raw message as fallback
       try {
         if (message is String) {
-          Map<String, dynamic> fallbackJson = {"raw": message};
+          Map<String, dynamic> fallbackJson = {"raw": message, "error": e.toString()};
           _messageController.add(fallbackJson);
         }
       } catch (_) {}

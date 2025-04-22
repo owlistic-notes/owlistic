@@ -186,42 +186,138 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 		log.Printf("WebSocket connection closed: %s", connID)
 	}()
 
-	wsConn.conn.SetReadLimit(512) // Limit message size
-	wsConn.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	wsConn.conn.SetReadLimit(1024)                                 // Increase read limit to handle larger messages
+	wsConn.conn.SetReadDeadline(time.Now().Add(120 * time.Second)) // Increase timeout
 	wsConn.conn.SetPongHandler(func(string) error {
-		wsConn.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		wsConn.conn.SetReadDeadline(time.Now().Add(120 * time.Second))
 		return nil
 	})
 
 	for {
 		_, message, err := wsConn.conn.ReadMessage()
 		if err != nil {
+			log.Printf("Connection %s closing with error: %v", connID, err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("Error reading message: %v", err)
 			}
 			break
 		}
 
+		// Log raw message for debugging - convert bytes to string safely
+		log.Printf("Received raw message from %s: %s", connID, string(message))
+
+		// Try to parse the message, but handle errors gracefully
 		var clientMsg models.StandardMessage
 		if err := json.Unmarshal(message, &clientMsg); err != nil {
-			log.Printf("Error unmarshalling client message: %v", err)
+			log.Printf("Error unmarshalling client message: %v, raw: %s", err, string(message))
+
+			// Instead of just continuing, send an error message back
+			errorMsg := models.NewStandardMessage(models.ErrorMessage, "parse_error", map[string]interface{}{
+				"message": "Failed to parse message",
+				"error":   err.Error(),
+			})
+			errorBytes, _ := json.Marshal(errorMsg)
+			wsConn.send <- errorBytes
 			continue
+		}
+
+		// Additional debugging for subscription messages
+		if clientMsg.Type == models.SubscribeMessage {
+			log.Printf("Subscription message details - Type: %s, Event: %s, Payload: %+v",
+				clientMsg.Type, clientMsg.Event, clientMsg.Payload)
 		}
 
 		// Handle message based on type
 		switch clientMsg.Type {
+		case models.EventMessage:
+			// Handle event messages
+			log.Printf("Event message from user %s: Event=%s", wsConn.userID, clientMsg.Event)
+
+			// Get the event name from the message
+			eventName := clientMsg.Event
+
+			// Process based on specific event type
+			switch eventName {
+			case "presence":
+				// Handle presence notifications
+				log.Printf("User %s sent presence event", wsConn.userID)
+
+			case "typing":
+				// Handle typing indicators
+				log.Printf("User %s sent typing event", wsConn.userID)
+
+				// Forward typing indicators to relevant users
+				if clientMsg.ResourceType != "" && clientMsg.ResourceID != "" {
+					s.BroadcastEvent(&clientMsg)
+				}
+
+			default:
+				// For resource-specific events, check resource info and forward
+				if clientMsg.ResourceType != "" && clientMsg.ResourceID != "" {
+					log.Printf("User %s sent resource event: %s for %s:%s",
+						wsConn.userID, eventName, clientMsg.ResourceType, clientMsg.ResourceID)
+
+					// Forward to other clients with access to this resource
+					s.BroadcastEvent(&clientMsg)
+				} else {
+					log.Printf("Unhandled event type '%s' from user %s", eventName, wsConn.userID)
+				}
+			}
+
+			// Send confirmation receipt
+			confirm := models.NewStandardMessage("receipt", "confirmed", map[string]interface{}{
+				"event_id": clientMsg.ID,
+				"status":   "processed",
+			})
+			confirmBytes, _ := json.Marshal(confirm)
+			wsConn.send <- confirmBytes
+
 		case models.SubscribeMessage:
 			// Handle subscription requests
-			log.Printf("Subscription request from user %s: %v", wsConn.userID, clientMsg)
-			// Future implementation for topic-specific subscriptions
+			log.Printf("Subscription request from user %s", wsConn.userID)
+
+			// Extract subscription details
+			if clientMsg.Payload != nil {
+				// Check for event_type subscription
+				if et, ok := clientMsg.Payload["event_type"].(string); ok {
+					log.Printf("User %s subscribed to event: %s", wsConn.userID, et)
+
+					// Send confirmation
+					confirm := models.NewStandardMessage("subscription", "confirmed", map[string]interface{}{
+						"event_type": et,
+					})
+					confirmBytes, _ := json.Marshal(confirm)
+					wsConn.send <- confirmBytes
+				}
+
+				// Check for resource subscription
+				if resource, ok := clientMsg.Payload["resource"].(string); ok {
+					resourceID := ""
+					if id, ok := clientMsg.Payload["id"].(string); ok {
+						resourceID = id
+					}
+
+					log.Printf("User %s subscribed to resource: %s ID: %s",
+						wsConn.userID, resource, resourceID)
+
+					// Send confirmation
+					confirm := models.NewStandardMessage("subscription", "confirmed", map[string]interface{}{
+						"resource": resource,
+						"id":       resourceID,
+					})
+					confirmBytes, _ := json.Marshal(confirm)
+					wsConn.send <- confirmBytes
+				}
+			}
+
 		default:
-			log.Printf("Received message from user %s: %v", wsConn.userID, clientMsg)
+			log.Printf("Received unknown message type '%s' from user %s", clientMsg.Type, wsConn.userID)
 		}
 	}
 }
 
 func (s *WebSocketService) writePump(connID string, wsConn *websocketConnection) {
-	ticker := time.NewTicker(54 * time.Second)
+	ticker := time.NewTicker(30 * time.Second) // More frequent pings (30s instead of 54s)
 	defer func() {
 		ticker.Stop()
 		wsConn.conn.Close()
@@ -230,7 +326,7 @@ func (s *WebSocketService) writePump(connID string, wsConn *websocketConnection)
 	for {
 		select {
 		case message, ok := <-wsConn.send:
-			wsConn.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			wsConn.conn.SetWriteDeadline(time.Now().Add(15 * time.Second)) // Longer deadline
 			if !ok {
 				// Channel was closed
 				wsConn.conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -239,25 +335,37 @@ func (s *WebSocketService) writePump(connID string, wsConn *websocketConnection)
 
 			w, err := wsConn.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
+				log.Printf("Error getting next writer for conn %s: %v", connID, err)
 				return
 			}
-			w.Write(message)
+
+			if _, err := w.Write(message); err != nil {
+				log.Printf("Error writing message to conn %s: %v", connID, err)
+				return
+			}
 
 			// Add queued messages to the current websocket message
 			n := len(wsConn.send)
 			for i := 0; i < n; i++ {
 				w.Write([]byte("\n"))
-				w.Write(<-wsConn.send)
+				if _, err := w.Write(<-wsConn.send); err != nil {
+					log.Printf("Error writing queued message to conn %s: %v", connID, err)
+					return
+				}
 			}
 
 			if err := w.Close(); err != nil {
+				log.Printf("Error closing writer for conn %s: %v", connID, err)
 				return
 			}
+
 		case <-ticker.C:
-			wsConn.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := wsConn.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			wsConn.conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+			if err := wsConn.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+				log.Printf("Error sending ping to conn %s: %v", connID, err)
 				return
 			}
+			log.Printf("Sent ping to %s", connID)
 		}
 	}
 }
