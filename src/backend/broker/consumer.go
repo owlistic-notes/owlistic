@@ -180,7 +180,7 @@ func (c *KafkaConsumer) retryConnection(broker string) {
 			"bootstrap.servers":         broker,
 			"group.id":                  c.groupID,
 			"auto.offset.reset":         "earliest",
-			"broker.address.family":     "v4", 
+			"security.protocol":        "plaintext",
 		})
 
 		if retryErr == nil {

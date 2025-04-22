@@ -50,7 +50,7 @@ func NewKafkaProducer(brokerAddress string) (Producer, error) {
 		"message.timeout.ms":       30000,
 		"retries":                  5,
 		"retry.backoff.ms":         1000,
-		"broker.address.family":    "v4",
+		"security.protocol":        "plaintext",
 	})
 
 	if err != nil {
