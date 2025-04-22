@@ -1,9 +1,261 @@
 {
     "info": {
         "name": "ThinkStack API",
-        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "description": "API collection for the ThinkStack application"
     },
     "item": [
+        {
+            "name": "Authentication",
+            "item": [
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "pm.environment.set('accessToken', jsonData.access_token);",
+                                    "pm.environment.set('refreshToken', jsonData.refresh_token);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/auth/login",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "auth", "login"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"securepassword\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Register",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "if (jsonData.access_token) {",
+                                    "    pm.environment.set('accessToken', jsonData.access_token);",
+                                    "    pm.environment.set('refreshToken', jsonData.refresh_token);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/auth/register",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "auth", "register"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"newuser@example.com\",\n    \"password\": \"securepassword\",\n    \"name\": \"New User\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Refresh Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "pm.environment.set('accessToken', jsonData.access_token);",
+                                    "if (jsonData.refresh_token) {",
+                                        "pm.environment.set('refreshToken', jsonData.refresh_token);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/auth/refresh",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "auth", "refresh"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refresh_token\": \"{{refreshToken}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Logout",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.environment.unset('accessToken');",
+                                    "pm.environment.unset('refreshToken');"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{accessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/auth/logout",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "auth", "logout"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get My Profile",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{accessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/auth/profile",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "auth", "profile"]
+                        }
+                    }
+                },
+                {
+                    "name": "WebSocket Connection",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/ws",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["ws"]
+                        },
+                        "description": "Establish a WebSocket connection with token authentication"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "WebSocket",
+            "item": [
+                {
+                    "name": "Connect to WebSocket",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/ws?token={{accessToken}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "ws"],
+                            "query": [
+                                {
+                                    "key": "token",
+                                    "value": "{{accessToken}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Real-time Note Updates",
+                    "request": {
+                        "method": "WEBSOCKET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{wsBaseUrl}}/api/v1/ws/notes/{{noteId}}?token={{accessToken}}",
+                            "host": ["{{wsBaseUrl}}"],
+                            "path": ["api", "v1", "ws", "notes", "{{noteId}}"],
+                            "query": [
+                                {
+                                    "key": "token",
+                                    "value": "{{accessToken}}"
+                                }
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"type\": \"update\",\n  \"data\": {\n    \"blocks\": [\n      {\n        \"id\": \"{{blockId}}\",\n        \"content\": \"Real-time updated content\"\n      }\n    ]\n  }\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Collaboration Session",
+                    "request": {
+                        "method": "WEBSOCKET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{wsBaseUrl}}/api/v1/ws/collaboration/{{noteId}}?token={{accessToken}}",
+                            "host": ["{{wsBaseUrl}}"],
+                            "path": ["api", "v1", "ws", "collaboration", "{{noteId}}"],
+                            "query": [
+                                {
+                                    "key": "token",
+                                    "value": "{{accessToken}}"
+                                }
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"type\": \"cursor_position\",\n  \"data\": {\n    \"position\": {\n      \"blockId\": \"{{blockId}}\",\n      \"offset\": 10\n    }\n  }\n}"
+                        }
+                    }
+                }
+            ]
+        },
         {
             "name": "Notes",
             "item": [
@@ -15,6 +267,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -32,6 +288,12 @@
                     "name": "Get Notes",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/notes",
                             "host": ["{{baseUrl}}"],
@@ -43,6 +305,12 @@
                     "name": "Get Note by ID",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/notes/{{noteId}}",
                             "host": ["{{baseUrl}}"],
@@ -58,6 +326,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -75,6 +347,12 @@
                     "name": "Delete Note",
                     "request": {
                         "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/notes/{{noteId}}",
                             "host": ["{{baseUrl}}"],
@@ -95,6 +373,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -112,6 +394,12 @@
                     "name": "Get All Notebooks",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/notebooks",
                             "host": ["{{baseUrl}}"],
@@ -123,6 +411,12 @@
                     "name": "Get Notebook by ID",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/notebooks/{{notebookId}}",
                             "host": ["{{baseUrl}}"],
@@ -138,6 +432,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -155,6 +453,12 @@
                     "name": "Delete Notebook",
                     "request": {
                         "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/notebooks/{{notebookId}}",
                             "host": ["{{baseUrl}}"],
@@ -166,6 +470,12 @@
                     "name": "Get User's Notebooks",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/notebooks/user/{{userId}}",
                             "host": ["{{baseUrl}}"],
@@ -186,6 +496,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -203,6 +517,12 @@
                     "name": "Get Block by ID",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/blocks/{{blockId}}",
                             "host": ["{{baseUrl}}"],
@@ -218,6 +538,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -235,6 +559,12 @@
                     "name": "Delete Block",
                     "request": {
                         "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/blocks/{{blockId}}",
                             "host": ["{{baseUrl}}"],
@@ -246,6 +576,12 @@
                     "name": "Get Note's Blocks",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/blocks/note/{{noteId}}",
                             "host": ["{{baseUrl}}"],
@@ -266,6 +602,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -283,6 +623,12 @@
                     "name": "Get Tasks",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/tasks",
                             "host": ["{{baseUrl}}"],
@@ -294,6 +640,12 @@
                     "name": "Get Task by ID",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/tasks/{{taskId}}",
                             "host": ["{{baseUrl}}"],
@@ -309,6 +661,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -326,6 +682,12 @@
                     "name": "Delete Task",
                     "request": {
                         "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/tasks/{{taskId}}",
                             "host": ["{{baseUrl}}"],
@@ -346,6 +708,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -363,6 +729,12 @@
                     "name": "Get Users",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/users",
                             "host": ["{{baseUrl}}"],
@@ -374,6 +746,12 @@
                     "name": "Get User by ID",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/users/{{userId}}",
                             "host": ["{{baseUrl}}"],
@@ -389,6 +767,10 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "url": {
@@ -406,6 +788,12 @@
                     "name": "Delete User",
                     "request": {
                         "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/users/{{userId}}",
                             "host": ["{{baseUrl}}"],
@@ -417,6 +805,12 @@
                     "name": "Filter Users by Email",
                     "request": {
                         "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/users?email=user@example.com",
                             "host": ["{{baseUrl}}"],
@@ -432,5 +826,15 @@
                 }
             ]
         }
-    ]
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{accessToken}}",
+                "type": "string"
+            }
+        ]
+    }
 }

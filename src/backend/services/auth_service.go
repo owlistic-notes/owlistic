@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,12 @@ import (
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 	"golang.org/x/crypto/bcrypt"
+)
+
+// Common auth errors
+var (
+	ErrAuthHeaderMissing = errors.New("Authentication required")
+	ErrInvalidAuthFormat = errors.New("Authorization header format must be Bearer {token}")
 )
 
 // JWTClaims holds the standard JWT claims plus our custom claims

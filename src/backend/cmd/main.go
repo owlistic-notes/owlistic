@@ -109,15 +109,16 @@ func main() {
 	routes.RegisterAuthRoutes(authGroup, db, authService)
 	routes.RegisterUserRoutes(userPublicGroup, db, userService, authService)
 
-	// Register WebSocket routes with authentication
-	routes.RegisterWebSocketRoutes(router, authService, webSocketService)
-
 	// Create protected API group with auth middleware
 	apiGroup := router.Group("/api/v1")
 	apiGroup.Use(middleware.AuthMiddleware(authService))
-
 	// Enable access control middleware for RBAC
 	apiGroup.Use(middleware.AccessControlMiddleware(db))
+
+	// Register WebSocket routes with consistent auth middleware
+	wsGroup := router.Group("/ws")
+	wsGroup.Use(middleware.AuthMiddleware(authService))
+	routes.RegisterWebSocketRoutes(wsGroup, webSocketService)
 
 	// Register protected API routes using the API group
 	routes.RegisterNoteRoutes(apiGroup, db, services.NoteServiceInstance)

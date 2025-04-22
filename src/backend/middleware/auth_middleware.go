@@ -11,6 +11,36 @@ import (
 	"github.com/thinkstack/services"
 )
 
+// ExtractAndValidateToken extracts token from query or header and validates it
+// Returns claims and an error if validation fails
+func ExtractAndValidateToken(c *gin.Context, authService services.AuthServiceInterface) (*services.JWTClaims, error) {
+	// First try to get token from query parameter (common for WebSocket connections)
+	token := c.Query("token")
+
+	// If not in query, try header (like regular API auth)
+	if token == "" {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			return nil, services.ErrAuthHeaderMissing
+		}
+
+		// Extract token from Bearer schema
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			return nil, services.ErrInvalidAuthFormat
+		}
+		token = parts[1]
+	}
+
+	// Validate the token
+	claims, err := authService.ValidateToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	return claims, nil
+}
+
 func AuthMiddleware(authService services.AuthServiceInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip authentication for OPTIONS requests (CORS preflight)
@@ -19,22 +49,10 @@ func AuthMiddleware(authService services.AuthServiceInterface) gin.HandlerFunc {
 			return
 		}
 
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			return
-		}
-
-		// Extract token from Bearer schema
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer {token}"})
-			return
-		}
-
-		claims, err := authService.ValidateToken(parts[1])
+		// Extract and validate token
+		claims, err := ExtractAndValidateToken(c, authService)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
