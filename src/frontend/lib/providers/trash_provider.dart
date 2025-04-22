@@ -124,7 +124,7 @@ class TrashProvider with ChangeNotifier {
     
     try {
       // Pass user ID for proper filtering
-      final trashedItems = await _trashService.fetchTrashedItems(userId: currentUser.id);
+      final trashedItems = await _trashService.fetchTrashedItems();
       
       // Convert List<dynamic> to List<Note> and List<Notebook>
       _trashedNotes = (trashedItems['notes'] as List).cast<Note>();
@@ -151,7 +151,7 @@ class TrashProvider with ChangeNotifier {
         throw Exception('User is not authenticated');
       }
       
-      await _trashService.restoreItem(type, id, userId: currentUser.id);
+      await _trashService.restoreItem(type, id);
       
       _logger.info('Restored $type with ID: $id');
       
@@ -179,7 +179,7 @@ class TrashProvider with ChangeNotifier {
         throw Exception('User is not authenticated');
       }
       
-      await _trashService.permanentlyDeleteItem(type, id, userId: currentUser.id);
+      await _trashService.permanentlyDeleteItem(type, id);
       
       _logger.info('Permanently deleted $type with ID: $id');
       
@@ -207,7 +207,7 @@ class TrashProvider with ChangeNotifier {
         throw Exception('User is not authenticated');
       }
       
-      await _trashService.emptyTrash(userId: currentUser.id);
+      await _trashService.emptyTrash();
       
       _logger.info('Emptied trash');
       

@@ -10,12 +10,11 @@ class TrashService extends BaseService {
   final Logger _logger = Logger('TrashService');
 
   Future<Map<String, dynamic>> fetchTrashedItems({
-    required String userId,
     Map<String, dynamic>? queryParams
   }) async {
     try {
-      // Build base query parameters with required userId
-      Map<String, dynamic> params = {'user_id': userId};
+      // Build base query parameters
+      Map<String, dynamic> params = {};
       
       // Add any additional query parameters
       if (queryParams != null) {
@@ -50,16 +49,13 @@ class TrashService extends BaseService {
     }
   }
   
-  Future<void> restoreItem(String type, String id, {required String userId}) async {
+  Future<void> restoreItem(String type, String id) async {
     try {
-      // Build query parameters with required user_id
-      Map<String, dynamic> params = {'user_id': userId};
-      
       // Use authenticatedPost from BaseService with auth headers
       final response = await authenticatedPost(
         '/api/v1/trash/restore/$type/$id',
         {},
-        queryParameters: params
+        queryParameters: {}
       );
       
       if (response.statusCode != 200) {
@@ -71,15 +67,12 @@ class TrashService extends BaseService {
     }
   }
   
-  Future<void> permanentlyDeleteItem(String type, String id, {required String userId}) async {
+  Future<void> permanentlyDeleteItem(String type, String id) async {
     try {
-      // Build query parameters with required user_id
-      Map<String, dynamic> params = {'user_id': userId};
-      
       // Use authenticatedDelete from BaseService with auth headers
       final response = await authenticatedDelete(
         '/api/v1/trash/$type/$id',
-        queryParameters: params
+        queryParameters: {}
       );
       
       // Server returns 200 for success, not 204
@@ -92,15 +85,12 @@ class TrashService extends BaseService {
     }
   }
   
-  Future<void> emptyTrash({required String userId}) async {
+  Future<void> emptyTrash() async {
     try {
-      // Build query parameters with required user_id
-      Map<String, dynamic> params = {'user_id': userId};
-      
       // Use authenticatedDelete from BaseService with auth headers
       final response = await authenticatedDelete(
         '/api/v1/trash',
-        queryParameters: params
+        queryParameters: {}
       );
       
       if (response.statusCode != 200) {

@@ -50,23 +50,23 @@ Future<void> initializeServices() async {
     ServiceLocator.register<WebSocketService>(websocketService);
     
     // Load token from storage
-    final token = await authService.getStoredToken();
+    // final token = await authService.getStoredToken();
     
-    if (token != null && token.isNotEmpty) {
-      logger.info('Found existing auth token, initializing services with it');
+    // if (token != null && token.isNotEmpty) {
+    //   logger.info('Found existing auth token, initializing services with it');
       
-      try {
-        await authService.onTokenChanged(token);
-        logger.info('Authentication token successfully initialized');
-      } catch (e) {
-        logger.error('Failed to initialize with stored token, clearing it', e);
-        await authService.clearToken();
-      }
-    } else {
-      logger.info('No auth token found, app will start unauthenticated');
-    }
+    //   try {
+    //     await authService.onTokenChanged(token);
+    //     logger.info('Authentication token successfully initialized');
+    //   } catch (e) {
+    //     logger.error('Failed to initialize with stored token, clearing it', e);
+    //     await authService.clearToken();
+    //   }
+    // } else {
+    //   logger.info('No auth token found, app will start unauthenticated');
+    // }
     
-    logger.info('Services initialized successfully');
+    // logger.info('Services initialized successfully');
   } catch (e) {
     logger.error('Error initializing services', e);
   }

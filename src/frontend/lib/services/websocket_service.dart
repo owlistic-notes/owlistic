@@ -127,28 +127,41 @@ class WebSocketService {
       String wsUrl = '${_customUrl ?? _baseUrl}?token=$_authToken';
       _logger.debug('Connecting to WebSocket URL: $wsUrl');
       
+      // Add connection timeout
+      Future<void> connectionFuture;
+      
       // Create WebSocketChannel using platform-specific implementation
       if (kIsWeb) {
         // Use WebSocketChannel for web
         _channel = WebSocketChannel.connect(
           Uri.parse(wsUrl)
         );
+        connectionFuture = Future.value();
       } else {
-        // Use IOWebSocketChannel for native platforms
+        // Use IOWebSocketChannel for native platforms with timeout
         try {
           _channel = IOWebSocketChannel.connect(
             Uri.parse(wsUrl),
             pingInterval: const Duration(seconds: 20),
           );
+          connectionFuture = Future.value();
         } catch (e) {
           _logger.error('Error creating IOWebSocketChannel', e);
           // Fallback to basic implementation
           _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+          connectionFuture = Future.value();
         }
       }
       
+      // Add a timeout to prevent hanging indefinitely
+      await connectionFuture.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('WebSocket connection timed out');
+        }
+      );
+      
       _isConnected = true;
-      _isReconnecting = false;
       _connectionState = WebSocketConnectionState.connected;
       _connectionStateController.add(true); // Now connected
       _reconnectAttempt = 0; // Reset reconnect counter on successful connection
@@ -172,10 +185,12 @@ class WebSocketService {
     } catch (e) {
       _logger.error('WebSocket connection error', e);
       _isConnected = false;
-      _isReconnecting = false;
       _connectionState = WebSocketConnectionState.error;
       _connectionStateController.add(false);
       _scheduleReconnect();
+    } finally {
+      // Make sure we reset the reconnecting flag regardless of success or failure
+      _isReconnecting = false;
     }
   }
   
@@ -583,47 +598,31 @@ class WebSocketService {
   // Handle incoming WebSocket messages with better error handling
   void _handleWebSocketMessage(dynamic message) {
     try {
-      // Parse the JSON message
-      Map<String, dynamic> jsonMessage;
       if (message is String) {
-        jsonMessage = json.decode(message);
-        _logger.debug('Received string message: $message');
+        _logger.debug('Received string message');
+        
+        // Split the message if it contains multiple JSON objects
+        List<String> jsonMessages = _splitJsonMessages(message);
+        
+        for (String jsonStr in jsonMessages) {
+          // Parse and process each JSON object individually
+          try {
+            Map<String, dynamic> jsonMessage = json.decode(jsonStr);
+            _processJsonMessage(jsonMessage);
+          } catch (e) {
+            _logger.error('Error parsing JSON object: $e');
+            _logger.debug('Problematic JSON: $jsonStr');
+          }
+        }
       } else {
-        // If it's already a Map, just cast it
-        jsonMessage = message as Map<String, dynamic>;
+        // If it's already a Map, just process it directly
+        Map<String, dynamic> jsonMessage = message as Map<String, dynamic>;
         _logger.debug('Received message object');
+        _processJsonMessage(jsonMessage);
       }
-      
-      // Handle ping messages with immediate response
-      if (jsonMessage['type'] == 'ping') {
-        _logger.debug('Received ping message from server, responding with pong');
-        sendMessage(json.encode({'type': 'pong'}));
-        return;
-      }
-      
-      // Handle pong messages (response to our pings)
-      if (jsonMessage['type'] == 'pong') {
-        _logger.debug('Received pong response from server');
-        return;
-      }
-      
-      // Use our parser to get a structured message object for other messages
-      final parsedMessage = WebSocketParser.parse(jsonMessage);
-      if (parsedMessage != null) {
-        // Handle subscription confirmations
-        if (parsedMessage.type == 'subscription' && parsedMessage.event == 'confirmed') {
-          _handleSubscriptionConfirmation(parsedMessage.payload);
-        }
-        // Handle events
-        else if (parsedMessage.type == 'event') {
-          _logEventMessage(parsedMessage);
-        }
-      }
-      
-      // Pass the original message to existing listeners
-      _messageController.add(jsonMessage);
     } catch (e) {
-      _logger.error('Error parsing message', e);
+      _logger.error('Error processing message', e);
+      
       // Log the raw message for debugging
       if (message is String) {
         _logger.debug('Raw message that caused error: $message');
@@ -637,6 +636,86 @@ class WebSocketService {
         }
       } catch (_) {}
     }
+  }
+
+  // Process a single JSON message object
+  void _processJsonMessage(Map<String, dynamic> jsonMessage) {
+    // Handle ping messages with immediate response
+    if (jsonMessage['type'] == 'ping') {
+      _logger.debug('Received ping message from server, responding with pong');
+      sendMessage(json.encode({'type': 'pong'}));
+      return;
+    }
+    
+    // Handle pong messages (response to our pings)
+    if (jsonMessage['type'] == 'pong') {
+      _logger.debug('Received pong response from server');
+      return;
+    }
+    
+    // Use our parser to get a structured message object for other messages
+    final parsedMessage = WebSocketParser.parse(jsonMessage);
+    if (parsedMessage != null) {
+      // Handle subscription confirmations
+      if (parsedMessage.type == 'subscription' && parsedMessage.event == 'confirmed') {
+        _handleSubscriptionConfirmation(parsedMessage.payload);
+      }
+      // Handle events
+      else if (parsedMessage.type == 'event') {
+        _logEventMessage(parsedMessage);
+      }
+    }
+    
+    // Pass the message to existing listeners
+    _messageController.add(jsonMessage);
+  }
+
+  // Helper method to split a string that might contain multiple JSON objects
+  List<String> _splitJsonMessages(String message) {
+    List<String> result = [];
+    int depth = 0;
+    int startPos = 0;
+    bool inString = false;
+    bool escaped = false;
+    
+    for (int i = 0; i < message.length; i++) {
+      var char = message[i];
+      
+      if (inString) {
+        if (escaped) {
+          // Skip this character as it's escaped
+          escaped = false;
+        } else if (char == '\\') {
+          escaped = true;
+        } else if (char == '"') {
+          inString = false;
+        }
+      } else {
+        if (char == '"') {
+          inString = true;
+        } else if (char == '{') {
+          if (depth == 0) {
+            startPos = i;
+          }
+          depth++;
+        } else if (char == '}') {
+          depth--;
+          if (depth == 0) {
+            // We found a complete JSON object
+            String jsonObj = message.substring(startPos, i + 1);
+            result.add(jsonObj);
+          }
+        }
+      }
+    }
+    
+    // If no valid JSON objects were found, return the original message
+    if (result.isEmpty) {
+      result.add(message);
+    }
+    
+    _logger.debug('Split message into ${result.length} JSON objects');
+    return result;
   }
 
   // Helper to handle subscription confirmations

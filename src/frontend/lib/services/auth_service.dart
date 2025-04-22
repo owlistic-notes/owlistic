@@ -9,7 +9,7 @@ import 'base_service.dart';
 
 class AuthService extends BaseService {
   final Logger _logger = Logger('AuthService');
-  static const String TOKEN_KEY = 'auth_token';
+  static const String tokenKey = 'auth_token';
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   
   // Stream controller for auth state changes
@@ -111,7 +111,7 @@ class AuthService extends BaseService {
   // Token management
   Future<String?> getStoredToken() async {
     try {
-      _token = await _secureStorage.read(key: TOKEN_KEY);
+      _token = await _secureStorage.read(key: tokenKey);
       if (_token != null && _token!.isNotEmpty) {
         _logger.debug('Retrieved token from storage');
         _authStateController.add(true);
@@ -133,7 +133,7 @@ class AuthService extends BaseService {
     _logger.debug('Storing auth token');
     
     try {
-      await _secureStorage.write(key: TOKEN_KEY, value: token);
+      await _secureStorage.write(key: tokenKey, value: token);
       _authStateController.add(true);
     } catch (e) {
       _logger.error('Error storing token in secure storage', e);
@@ -146,7 +146,7 @@ class AuthService extends BaseService {
     _logger.debug('Clearing auth token');
     
     try {
-      await _secureStorage.delete(key: TOKEN_KEY);
+      await _secureStorage.delete(key: tokenKey);
       _authStateController.add(false);
     } catch (e) {
       _logger.error('Error clearing token from secure storage', e);
@@ -213,7 +213,8 @@ class AuthService extends BaseService {
     }
     
     try {
-      final response = await authenticatedGet('/api/v1/auth/me');
+      final userId = await getCurrentUserId();
+      final response = await authenticatedGet('/api/v1/user/$userId');
       
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);
@@ -241,8 +242,8 @@ class AuthService extends BaseService {
     }
   }
 
-  // Helper method to get current user ID - enhanced for reliability
-  Future<String?> getCurrentUserId() async {
+  // Helper method to get current user ID
+Future<String?> getCurrentUserId() async {
     try {
       // First try to get from shared preferences for better performance
       final prefs = await SharedPreferences.getInstance();
@@ -252,40 +253,9 @@ class AuthService extends BaseService {
         return storedUserId;
       }
       
-      // If we're logged in but don't have the user ID in prefs, try to parse it from token
-      if (_token != null && _token!.isNotEmpty) {
-        // Try to extract from token first
-        final tokenParts = _token!.split('.');
-        if (tokenParts.length == 3) {
-          try {
-            final normalized = base64Url.normalize(tokenParts[1]);
-            final payloadJson = utf8.decode(base64Url.decode(normalized));
-            final payload = jsonDecode(payloadJson);
-            
-            // Try various field names where user ID might be stored
-            final userId = payload['UserID'] ?? payload['user_id'] ?? payload['sub'] ?? '';
-            
-            if (userId != null && userId.isNotEmpty) {
-              // Cache it for future use
-              await prefs.setString('user_id', userId.toString());
-              return userId.toString();
-            }
-          } catch (e) {
-            _logger.error('Error extracting user ID from token', e);
-          }
-        }
-      }
-      
       // Fall back to getting user profile if needed
       final user = await getCurrentUser();
-      final userId = user?.id;
-      
-      if (userId != null && userId.isNotEmpty) {
-        // Cache it for future use
-        await prefs.setString('user_id', userId);
-      }
-      
-      return userId;
+      return user?.id;
     } catch (e) {
       _logger.error('Error getting current user ID', e);
       return null;

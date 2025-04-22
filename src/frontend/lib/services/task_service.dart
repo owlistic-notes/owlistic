@@ -2,34 +2,18 @@ import 'dart:convert';
 import '../models/task.dart';
 import '../utils/logger.dart';
 import 'base_service.dart';
-import 'auth_service.dart';
 
 class TaskService extends BaseService {
   final Logger _logger = Logger('TaskService');
 
-  // Helper method to get current user ID
-  Future<String?> _getCurrentUserId() async {
-    final authService = AuthService();
-    return authService.getCurrentUserId();
-  }
-
   Future<List<Task>> fetchTasks({
     String? completed, 
-    String? noteId, 
-    String? userId,
+    String? noteId,
     Map<String, dynamic>? queryParams,
   }) async {
     try {
-      // Get current user ID if not provided
-      userId ??= await _getCurrentUserId();
-      if (userId == null) {
-        throw Exception('User ID is required for security reasons');
-      }
-      
       // Build query parameters
-      final Map<String, dynamic> params = {
-        'user_id': userId, // Always include user ID
-      };
+      final Map<String, dynamic> params = {};
       
       if (completed != null) params['completed'] = completed;
       if (noteId != null) params['note_id'] = noteId;
@@ -58,12 +42,11 @@ class TaskService extends BaseService {
     }
   }
 
-  Future<Task> createTask(String title, String noteId, String userId, {String? blockId}) async {
+  Future<Task> createTask(String title, String noteId, {String? blockId}) async {
     try {
       final taskData = {
         'title': title,
         'is_completed': false,
-        'user_id': userId,
         'note_id': noteId,
       };
       
@@ -88,15 +71,8 @@ class TaskService extends BaseService {
   }
 
   Future<void> deleteTask(String id) async {
-    // Get current user ID
-    String? userId = await _getCurrentUserId();
-    if (userId == null) {
-      throw Exception('User ID is required for security reasons');
-    }
-    
     final response = await authenticatedDelete(
-      '/api/v1/tasks/$id',
-      queryParameters: {'user_id': userId}
+      '/api/v1/tasks/$id'
     );
 
     if (response.statusCode != 204) {
@@ -105,15 +81,7 @@ class TaskService extends BaseService {
   }
 
   Future<Task> updateTask(String id, {String? title, bool? isCompleted}) async {
-    // Get current user ID
-    String? userId = await _getCurrentUserId();
-    if (userId == null) {
-      throw Exception('User ID is required for security reasons');
-    }
-    
-    final Map<String, dynamic> updates = {
-      'user_id': userId, // Include user ID in request body
-    };
+    final Map<String, dynamic> updates = {};
     
     if (title != null) updates['title'] = title;
     if (isCompleted != null) updates['is_completed'] = isCompleted;
@@ -132,15 +100,8 @@ class TaskService extends BaseService {
 
   Future<Task> getTask(String id) async {
     try {
-      // Get current user ID
-      String? userId = await _getCurrentUserId();
-      if (userId == null) {
-        throw Exception('User ID is required for security reasons');
-      }
-      
       final response = await authenticatedGet(
-        '/api/v1/tasks/$id',
-        queryParameters: {'user_id': userId}
+        '/api/v1/tasks/$id'
       );
       
       if (response.statusCode == 200) {

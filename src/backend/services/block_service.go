@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"strconv"
@@ -309,16 +311,48 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	var blocks []models.Block
 	query := db.DB
 
-	// Always filter by user_id if provided - this is critical for RBAC
-	if userID, ok := params["user_id"].(string); ok && userID != "" {
-		query = query.Where("user_id = ?", userID)
-	} else {
-		return nil, errors.New("user_id is required for security reasons")
+	// Debug received params with more details
+	log.Printf("GetBlocks received params: %+v with types:", params)
+	for k, v := range params {
+		log.Printf("  param %s: %v (type: %T)", k, v, v)
 	}
+
+	// Check if user_id is in query string parameters
+	userIDStr := ""
+	userIDValue, userIDExists := params["user_id"]
+
+	if !userIDExists {
+		log.Printf("WARNING: user_id not found in params map. This might be an API handler issue.")
+		return nil, errors.New("user_id parameter is required but missing")
+	}
+
+	// Handle various types of user_id
+	switch v := userIDValue.(type) {
+	case string:
+		userIDStr = v
+	case int:
+		userIDStr = fmt.Sprintf("%d", v)
+	case float64:
+		userIDStr = fmt.Sprintf("%d", int(v))
+	case uuid.UUID:
+		userIDStr = v.String()
+	default:
+		return nil, fmt.Errorf("user_id has invalid type: %T", userIDValue)
+	}
+
+	if userIDStr == "" {
+		return nil, errors.New("user_id cannot be empty")
+	}
+
+	log.Printf("Using user_id: %s", userIDStr)
+
+	// Apply user filter
+	query = query.Where("user_id = ?", userIDStr)
 
 	// Apply additional filters
 	if noteID, ok := params["note_id"].(string); ok && noteID != "" {
 		query = query.Where("note_id = ?", noteID)
+		log.Printf("Filtering by note_id: %s", noteID)
 	}
 
 	if blockType, ok := params["type"].(string); ok && blockType != "" {
@@ -326,9 +360,11 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	}
 
 	if err := query.Order("\"order\" asc").Find(&blocks).Error; err != nil {
+		log.Printf("Database error in GetBlocks: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Found %d blocks", len(blocks))
 	return blocks, nil
 }
 

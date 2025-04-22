@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/services"
 )
@@ -25,11 +26,13 @@ func RegisterTrashRoutes(group *gin.RouterGroup, db *database.Database, trashSer
 
 // GetTrashedItems retrieves all soft-deleted notes and notebooks
 func GetTrashedItems(c *gin.Context, db *database.Database, trashService services.TrashServiceInterface) {
-	userID := c.Query("user_id")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id parameter is required"})
+	// Get user ID from context instead of query parameter
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
+	userID := userIDInterface.(uuid.UUID).String()
 
 	result, err := trashService.GetTrashedItems(db, userID)
 	if err != nil {
@@ -44,12 +47,14 @@ func GetTrashedItems(c *gin.Context, db *database.Database, trashService service
 func RestoreItem(c *gin.Context, db *database.Database, trashService services.TrashServiceInterface) {
 	itemType := c.Param("type")
 	itemID := c.Param("id")
-	userID := c.Query("user_id")
 
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id parameter is required"})
+	// Get user ID from context instead of query parameter
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
+	userID := userIDInterface.(uuid.UUID).String()
 
 	if err := trashService.RestoreItem(db, itemType, itemID, userID); err != nil {
 		if err == services.ErrInvalidInput {
@@ -71,12 +76,14 @@ func RestoreItem(c *gin.Context, db *database.Database, trashService services.Tr
 func PermanentlyDeleteItem(c *gin.Context, db *database.Database, trashService services.TrashServiceInterface) {
 	itemType := c.Param("type")
 	itemID := c.Param("id")
-	userID := c.Query("user_id")
 
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id parameter is required"})
+	// Get user ID from context instead of query parameter
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
+	userID := userIDInterface.(uuid.UUID).String()
 
 	if err := trashService.PermanentlyDeleteItem(db, itemType, itemID, userID); err != nil {
 		if err == services.ErrInvalidInput {
@@ -92,12 +99,13 @@ func PermanentlyDeleteItem(c *gin.Context, db *database.Database, trashService s
 
 // EmptyTrash permanently deletes all trashed items for a user
 func EmptyTrash(c *gin.Context, db *database.Database, trashService services.TrashServiceInterface) {
-	userID := c.Query("user_id")
-
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id parameter is required"})
+	// Get user ID from context instead of query parameter
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
+	userID := userIDInterface.(uuid.UUID).String()
 
 	if err := trashService.EmptyTrash(db, userID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to empty trash: " + err.Error()})

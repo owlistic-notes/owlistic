@@ -104,23 +104,16 @@ func main() {
 
 	// Create public API groups
 	authGroup := router.Group("/api/v1/auth")
-	userPublicGroup := router.Group("/api/v1")
+	apiGroup := router.Group("/api/v1")
 
 	// Register public routes (no auth required)
 	routes.RegisterAuthRoutes(authGroup, db, authService)
-	routes.RegisterUserRoutes(userPublicGroup, db, userService, authService)
+	routes.RegisterUserRoutes(apiGroup, db, userService, authService)
 
 	// Create protected API group with auth middleware
-	apiGroup := router.Group("/api/v1")
 	apiGroup.Use(middleware.AuthMiddleware(authService))
 	// Enable access control middleware for RBAC
 	// apiGroup.Use(middleware.AccessControlMiddleware(db))
-
-	// Register WebSocket routes with consistent auth middleware
-	wsGroup := router.Group("/ws")
-	wsGroup.Use(middleware.AuthMiddleware(authService))
-	routes.RegisterWebSocketRoutes(wsGroup, webSocketService)
-
 	// Register protected API routes using the API group
 	routes.RegisterNoteRoutes(apiGroup, db, services.NoteServiceInstance)
 	routes.RegisterTaskRoutes(apiGroup, db, services.TaskServiceInstance)
@@ -128,6 +121,11 @@ func main() {
 	routes.RegisterBlockRoutes(apiGroup, db, services.BlockServiceInstance)
 	routes.RegisterTrashRoutes(apiGroup, db, services.TrashServiceInstance)
 	routes.RegisterRoleRoutes(apiGroup, db, services.RoleServiceInstance)
+
+	// Register WebSocket routes with consistent auth middleware
+	wsGroup := router.Group("/ws")
+	wsGroup.Use(middleware.AuthMiddleware(authService))
+	routes.RegisterWebSocketRoutes(wsGroup, webSocketService)
 
 	// Register debug routes for monitoring events
 	routes.SetupDebugRoutes(router, db)

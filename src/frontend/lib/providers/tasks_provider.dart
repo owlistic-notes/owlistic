@@ -185,7 +185,6 @@ class TasksProvider with ChangeNotifier {
       final tasksList = await _taskService.fetchTasks(
         completed: completed,
         noteId: noteId,
-        userId: currentUser.id, // Only fetch tasks for this user
       );
 
       // Convert list to map
@@ -212,12 +211,8 @@ class TasksProvider with ChangeNotifier {
   // Create task - no optimistic updates
   Future<void> createTask(String title, String noteId, {String? blockId}) async {
     try {
-      // Get user ID from auth service directly
-      final currentUser = await _authService.getUserProfile();
-      final userId = currentUser?.id ?? '';
-      
       // Create task on server
-      final task = await _taskService.createTask(title, noteId, userId, blockId: blockId);
+      final task = await _taskService.createTask(title, noteId, blockId: blockId);
       
       // Subscribe to this task
       _webSocketProvider?.subscribe('task', id: task.id);

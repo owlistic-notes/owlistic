@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -358,14 +357,6 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 	// Log for debugging
 	log.Printf("Fetching notes for user: %s", userID)
 
-	// Check if we need to look up by user roles instead of direct ownership
-	var userUUID uuid.UUID
-	var err error
-	userUUID, err = uuid.Parse(userID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user ID format: %v", err)
-	}
-
 	// Get all notes owned by the user
 	query = query.Where("user_id = ?", userID)
 
@@ -395,10 +386,10 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 
 	// Also find notes where the user has been given a role but is not the owner
 	var roleBasedNotes []models.Note
-	err = db.DB.Model(&models.Note{}).
+	err := db.DB.Model(&models.Note{}).
 		Joins("JOIN roles ON roles.resource_id = notes.id").
 		Where("roles.user_id = ? AND roles.resource_type = ? AND notes.user_id != ? AND notes.deleted_at IS NULL",
-			userUUID, models.NoteResource, userID).
+			userID, models.NoteResource, userID).
 		Find(&roleBasedNotes).Error
 
 	if err != nil {

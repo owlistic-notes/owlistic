@@ -132,11 +132,10 @@ func GetNotes(c *gin.Context, db *database.Database, noteService services.NoteSe
 
 	// Get user ID from context (set by AuthMiddleware)
 	userIDInterface, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
-		return
+	if exists {
+		// Convert user ID to string and add to params
+		params["user_id"] = userIDInterface.(uuid.UUID).String()
 	}
-	params["user_id"] = userIDInterface.(uuid.UUID).String()
 
 	// Add other query parameters
 	if notebookID := c.Query("notebook_id"); notebookID != "" {

@@ -389,7 +389,7 @@ class BlockProvider with ChangeNotifier {
       final userId = currentUser?.id ?? '';
       
       // Create block on server
-      final block = await _blockService.createBlock(noteId, content, type, order, userId);
+      final block = await _blockService.createBlock(noteId, content, type, order);
       
       // Subscribe to this block
       _webSocketProvider?.subscribe('block', id: block.id);

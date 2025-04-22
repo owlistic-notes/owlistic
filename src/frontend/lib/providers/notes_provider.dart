@@ -239,7 +239,6 @@ class NotesProvider with ChangeNotifier {
       // Fetch notes from API with user filter (API must filter by owner role)
       final fetchedNotes = await _noteService.fetchNotes(
         page: page,
-        userId: currentUser.id,  // Only get notes where current user is owner
       );
       
       // Keep track of existing IDs if not starting fresh
@@ -310,16 +309,8 @@ class NotesProvider with ChangeNotifier {
   // Create a new note - get user ID from auth service
   Future<Note?> createNote(String notebookId, String title) async {
     try {
-      // Get current user ID from AuthService directly
-      final currentUser = await _authService.getUserProfile();
-      if (currentUser == null) {
-        throw Exception('Cannot create note: No authenticated user');
-      }
-      
-      final userId = currentUser.id;
-      
       // Create note on server via REST API
-      final note = await _noteService.createNote(notebookId, title, userId);
+      final note = await _noteService.createNote(notebookId, title);
       
       // Add to local state
       _notesMap[note.id] = note;

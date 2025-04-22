@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -247,12 +249,35 @@ func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]
 	var notebooks []models.Notebook
 	query := db.DB
 
-	// Always filter by user_id if provided - this is critical for RBAC
-	if userID, ok := params["user_id"].(string); ok && userID != "" {
-		query = query.Where("user_id = ?", userID)
-	} else {
-		return nil, errors.New("user_id is required for security reasons")
+	// Debug received params
+	log.Printf("GetNotebooks received params: %+v", params)
+
+	// More robust handling of user_id parameter
+	userIDValue, userIDExists := params["user_id"]
+	if !userIDExists {
+		return nil, errors.New("user_id parameter is missing")
 	}
+
+	var userIDStr string
+	switch v := userIDValue.(type) {
+	case string:
+		userIDStr = v
+	case int:
+		userIDStr = fmt.Sprintf("%d", v)
+	case float64:
+		userIDStr = fmt.Sprintf("%d", int(v))
+	case uuid.UUID:
+		userIDStr = v.String()
+	default:
+		return nil, fmt.Errorf("user_id has invalid type: %T", userIDValue)
+	}
+
+	if userIDStr == "" {
+		return nil, errors.New("user_id cannot be empty")
+	}
+
+	// Apply user filter - only do this once
+	query = query.Where("user_id = ?", userIDStr)
 
 	// Apply other filters
 	if name, ok := params["name"].(string); ok && name != "" {

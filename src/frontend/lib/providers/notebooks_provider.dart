@@ -75,7 +75,6 @@ class NotebooksProvider with ChangeNotifier {
         name: name,
         page: page,
         pageSize: pageSize,
-        userId: currentUser.id,  // Only fetch notebooks where user is owner
       );
       
       // Clear existing notebooks if this is the first page
@@ -131,13 +130,10 @@ class NotebooksProvider with ChangeNotifier {
         throw Exception('Cannot create notebook: No authenticated user');
       }
       
-      final userId = currentUser.id;
-      
       // Create the notebook
       final notebook = await _notebookService.createNotebook(
         name, 
         description, 
-        userId
       );
       
       // Subscribe to the new notebook
@@ -155,12 +151,8 @@ class NotebooksProvider with ChangeNotifier {
   // Add a note to a notebook
   Future<Note?> addNoteToNotebook(String notebookId, String title) async {
     try {
-      // Get user ID from the auth service directly
-      final currentUser = await _authService.getUserProfile();
-      final userId = currentUser?.id ?? '';
-      
       // Create the note
-      final note = await _noteService.createNote(notebookId, title, userId);
+      final note = await _noteService.createNote(notebookId, title);
       
       // Subscribe to the new note
       _webSocketProvider?.subscribe('note', id: note.id);

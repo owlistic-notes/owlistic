@@ -2,35 +2,18 @@ import 'dart:convert';
 import '../models/block.dart';
 import '../utils/logger.dart';
 import 'base_service.dart';
-import 'auth_service.dart';
 
 class BlockService extends BaseService {
   final Logger _logger = Logger('BlockService');
 
-  // Helper method to get current user ID
-  Future<String?> _getCurrentUserId() async {
-    final authService = AuthService();
-    return authService.getCurrentUserId();
-  }
-
   Future<List<Block>> fetchBlocksForNote(
     String noteId, 
-    {Map<String, dynamic>? queryParams, String? userId}
+    {Map<String, dynamic>? queryParams}
   ) async {
     try {
-      // Use provided userId or get current user ID
-      userId ??= await _getCurrentUserId();
-      
-      // Check if userId is available
-      if (userId == null || userId.isEmpty) {
-        _logger.error('Cannot fetch blocks: No user ID available');
-        throw Exception('User ID is required for security reasons');
-      }
-      
       // Build base query parameters
       Map<String, dynamic> params = {
         'note_id': noteId,
-        'user_id': userId // Always include user ID
       };
       
       // Add any additional query parameters
@@ -38,7 +21,7 @@ class BlockService extends BaseService {
         params.addAll(queryParams);
       }
       
-      _logger.debug('Fetching blocks for note: $noteId with user: $userId');
+      _logger.debug('Fetching blocks for note: $noteId');
       
       final response = await authenticatedGet(
         '/api/v1/blocks',
@@ -58,14 +41,7 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> createBlock(String noteId, dynamic content, String type, int order, String userId) async {
-    if (userId.isEmpty) {
-      userId = (await _getCurrentUserId()) ?? '';
-      if (userId.isEmpty) {
-        throw Exception('User ID is required for security reasons');
-      }
-    }
-    
+  Future<Block> createBlock(String noteId, dynamic content, String type, int order) async {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
     
@@ -81,7 +57,7 @@ class BlockService extends BaseService {
       throw ArgumentError('Content must be a String or Map');
     }
     
-    _logger.debug('Creating block for note: $noteId with user: $userId');
+    _logger.debug('Creating block for note: $noteId');
     
     final response = await authenticatedPost(
       '/api/v1/blocks',
@@ -90,7 +66,6 @@ class BlockService extends BaseService {
         'content': contentMap,
         'type': type,
         'order': order,
-        'user_id': userId,
       }
     );
     
@@ -103,15 +78,8 @@ class BlockService extends BaseService {
 
   Future<void> deleteBlock(String id) async {
     try {
-      // Get current user ID
-      String? userId = await _getCurrentUserId();
-      if (userId == null) {
-        throw Exception('User ID is required for security reasons');
-      }
-      
       final response = await authenticatedDelete(
-        '/api/v1/blocks/$id',
-        queryParameters: {'user_id': userId}
+        '/api/v1/blocks/$id'
       );
 
       if (response.statusCode != 204) {
@@ -124,12 +92,6 @@ class BlockService extends BaseService {
   }
 
   Future<Block> updateBlock(String blockId, dynamic content, {String? type}) async {
-    // Get current user ID
-    String? userId = await _getCurrentUserId();
-    if (userId == null) {
-      throw Exception('User ID is required for security reasons');
-    }
-    
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
     
@@ -147,7 +109,6 @@ class BlockService extends BaseService {
     
     final Map<String, dynamic> body = {
       'content': contentMap,
-      'user_id': userId, // Include user ID in request body
     };
     
     if (type != null) {
@@ -168,15 +129,8 @@ class BlockService extends BaseService {
 
   Future<Block> getBlock(String id) async {
     try {
-      // Get current user ID
-      String? userId = await _getCurrentUserId();
-      if (userId == null) {
-        throw Exception('User ID is required for security reasons');
-      }
-      
       final response = await authenticatedGet(
-        '/api/v1/blocks/$id',
-        queryParameters: {'user_id': userId}
+        '/api/v1/blocks/$id'
       );
       
       if (response.statusCode == 200) {
