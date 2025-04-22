@@ -144,7 +144,14 @@ class TrashProvider with ChangeNotifier {
   // Restore an item from trash
   Future<void> restoreItem(String type, String id) async {
     try {
-      await _trashService.restoreItem(type, id);
+      // Get current user ID for the API request
+      final currentUser = await _authService.getUserProfile();
+      if (currentUser == null) {
+        _logger.warning('Cannot restore item: No authenticated user');
+        throw Exception('User is not authenticated');
+      }
+      
+      await _trashService.restoreItem(type, id, userId: currentUser.id);
       
       _logger.info('Restored $type with ID: $id');
       
@@ -165,7 +172,14 @@ class TrashProvider with ChangeNotifier {
   // Permanently delete an item from trash
   Future<void> permanentlyDeleteItem(String type, String id) async {
     try {
-      await _trashService.permanentlyDeleteItem(type, id);
+      // Get current user ID for the API request
+      final currentUser = await _authService.getUserProfile();
+      if (currentUser == null) {
+        _logger.warning('Cannot delete item: No authenticated user');
+        throw Exception('User is not authenticated');
+      }
+      
+      await _trashService.permanentlyDeleteItem(type, id, userId: currentUser.id);
       
       _logger.info('Permanently deleted $type with ID: $id');
       
@@ -186,7 +200,14 @@ class TrashProvider with ChangeNotifier {
   // Empty the entire trash
   Future<void> emptyTrash() async {
     try {
-      await _trashService.emptyTrash();
+      // Get current user ID for the API request
+      final currentUser = await _authService.getUserProfile();
+      if (currentUser == null) {
+        _logger.warning('Cannot empty trash: No authenticated user');
+        throw Exception('User is not authenticated');
+      }
+      
+      await _trashService.emptyTrash(userId: currentUser.id);
       
       _logger.info('Emptied trash');
       

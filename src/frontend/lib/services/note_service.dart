@@ -3,9 +3,22 @@ import 'package:http/http.dart' as http;
 import '../models/note.dart';
 import 'base_service.dart';
 import '../utils/logger.dart';
+import 'auth_service.dart';
 
 class NoteService extends BaseService {
   final Logger _logger = Logger('NoteService');
+
+  // Helper method to get current user ID
+  Future<String?> _getCurrentUserId() async {
+    final authService = AuthService();
+    String? userId = await authService.getCurrentUserId();
+    
+    if (userId == null || userId.isEmpty) {
+      _logger.warning('Could not get current user ID');
+    }
+    
+    return userId;
+  }
   
   // Fetch all notes with pagination and user filtering
   Future<List<Note>> fetchNotes({
@@ -16,10 +29,17 @@ class NoteService extends BaseService {
     Map<String, dynamic>? queryParams,
   }) async {
     try {
+      // Get current user ID if not provided
+      userId ??= await _getCurrentUserId();
+      if (userId == null) {
+        throw Exception('User ID is required for security reasons');
+      }
+      
       // Build query parameters for pagination
       final Map<String, dynamic> params = {
         'page': page.toString(),
         'page_size': pageSize.toString(),
+        'user_id': userId, // Always include user_id
       };
       
       // Add notebookId filter if provided
@@ -106,7 +126,16 @@ class NoteService extends BaseService {
     _logger.info('Deleting note with ID: $id');
     
     try {
-      final response = await authenticatedDelete('/api/v1/notes/$id');
+      // Get current user ID
+      String? userId = await _getCurrentUserId();
+      if (userId == null) {
+        throw Exception('User ID is required for security reasons');
+      }
+      
+      final response = await authenticatedDelete(
+        '/api/v1/notes/$id',
+        queryParameters: {'user_id': userId}
+      );
 
       // Server returns 204 No Content on successful deletion
       if (response.statusCode != 204) {
@@ -120,9 +149,18 @@ class NoteService extends BaseService {
   }
 
   Future<Note> updateNote(String id, String title) async {
+    // Get current user ID
+    String? userId = await _getCurrentUserId();
+    if (userId == null) {
+      throw Exception('User ID is required for security reasons');
+    }
+    
     final response = await authenticatedPut(
       '/api/v1/notes/$id',
-      {'title': title}
+      {
+        'title': title,
+        'user_id': userId
+      }
     );
 
     if (response.statusCode == 200) {
@@ -135,12 +173,25 @@ class NoteService extends BaseService {
 
   Future<Note> getNote(String id) async {
     try {
-      final response = await authenticatedGet('/api/v1/notes/$id');
+      // Get current user ID
+      String? userId = await _getCurrentUserId();
+      if (userId == null) {
+        _logger.error('Cannot get note $id: No user ID available');
+        throw Exception('User ID is required for security reasons');
+      }
+      
+      _logger.debug('Getting note: $id with user: $userId');
+      
+      final response = await authenticatedGet(
+        '/api/v1/notes/$id',
+        queryParameters: {'user_id': userId}
+      );
       
       if (response.statusCode == 200) {
         return Note.fromJson(json.decode(response.body));
       } else {
-        throw Exception('Failed to load note');
+        _logger.error('Failed to load note: Status ${response.statusCode}');
+        throw Exception('Failed to load note: ${response.statusCode}');
       }
     } catch (e) {
       _logger.error('Error in getNote', e);

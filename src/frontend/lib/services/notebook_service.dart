@@ -21,19 +21,23 @@ class NotebookService extends BaseService {
     Map<String, dynamic>? queryParams,
   }) async {
     try {
+      // Get current user ID if not provided
+      userId ??= await _getCurrentUserId();
+      if (userId == null) {
+        throw Exception('User ID is required for security reasons');
+      }
+
       // Build query parameters
       final Map<String, dynamic> params = {
         'page': page.toString(),
         'page_size': pageSize.toString(),
+        'user_id': userId, // Ensure user_id is always included
       };
       
       // Add name filter if provided
       if (name != null && name.isNotEmpty) {
         params['name'] = name;
       }
-      
-      // User ID is included from the AuthMiddleware on server side
-      // so we don't need to explicitly include it in most cases
       
       // Add any additional query parameters
       if (queryParams != null) {
@@ -83,7 +87,16 @@ class NotebookService extends BaseService {
 
   Future<void> deleteNotebook(String id) async {
     try {
-      final response = await authenticatedDelete('/api/v1/notebooks/$id');
+      // Get current user ID
+      String? userId = await _getCurrentUserId();
+      if (userId == null) {
+        throw Exception('User ID is required for security reasons');
+      }
+
+      final response = await authenticatedDelete(
+        '/api/v1/notebooks/$id',
+        queryParameters: {'user_id': userId}
+      );
 
       if (response.statusCode != 204) {
         throw Exception('Failed to delete notebook');
@@ -96,11 +109,18 @@ class NotebookService extends BaseService {
 
   Future<Notebook> updateNotebook(String id, String name, String description) async {
     try {
+      // Get current user ID
+      String? userId = await _getCurrentUserId();
+      if (userId == null) {
+        throw Exception('User ID is required for security reasons');
+      }
+      
       final response = await authenticatedPut(
         '/api/v1/notebooks/$id',
         {
           'name': name,
           'description': description,
+          'user_id': userId, // Include user ID in request body
         }
       );
 
@@ -117,7 +137,16 @@ class NotebookService extends BaseService {
 
   Future<Notebook> getNotebook(String id) async {
     try {
-      final response = await authenticatedGet('/api/v1/notebooks/$id');
+      // Get current user ID
+      String? userId = await _getCurrentUserId();
+      if (userId == null) {
+        throw Exception('User ID is required for security reasons');
+      }
+      
+      final response = await authenticatedGet(
+        '/api/v1/notebooks/$id',
+        queryParameters: {'user_id': userId}
+      );
       
       if (response.statusCode == 200) {
         return Notebook.fromJson(json.decode(response.body));

@@ -241,7 +241,7 @@ class AuthService extends BaseService {
     }
   }
 
-  // Helper method to get current user ID
+  // Helper method to get current user ID - enhanced for reliability
   Future<String?> getCurrentUserId() async {
     try {
       // First try to get from shared preferences for better performance
@@ -252,9 +252,40 @@ class AuthService extends BaseService {
         return storedUserId;
       }
       
+      // If we're logged in but don't have the user ID in prefs, try to parse it from token
+      if (_token != null && _token!.isNotEmpty) {
+        // Try to extract from token first
+        final tokenParts = _token!.split('.');
+        if (tokenParts.length == 3) {
+          try {
+            final normalized = base64Url.normalize(tokenParts[1]);
+            final payloadJson = utf8.decode(base64Url.decode(normalized));
+            final payload = jsonDecode(payloadJson);
+            
+            // Try various field names where user ID might be stored
+            final userId = payload['UserID'] ?? payload['user_id'] ?? payload['sub'] ?? '';
+            
+            if (userId != null && userId.isNotEmpty) {
+              // Cache it for future use
+              await prefs.setString('user_id', userId.toString());
+              return userId.toString();
+            }
+          } catch (e) {
+            _logger.error('Error extracting user ID from token', e);
+          }
+        }
+      }
+      
       // Fall back to getting user profile if needed
       final user = await getCurrentUser();
-      return user?.id;
+      final userId = user?.id;
+      
+      if (userId != null && userId.isNotEmpty) {
+        // Cache it for future use
+        await prefs.setString('user_id', userId);
+      }
+      
+      return userId;
     } catch (e) {
       _logger.error('Error getting current user ID', e);
       return null;

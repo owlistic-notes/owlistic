@@ -10,16 +10,12 @@ class TrashService extends BaseService {
   final Logger _logger = Logger('TrashService');
 
   Future<Map<String, dynamic>> fetchTrashedItems({
-    String? userId,
+    required String userId,
     Map<String, dynamic>? queryParams
   }) async {
     try {
-      // Build base query parameters if userId is provided
-      Map<String, dynamic> params = {};
-      
-      if (userId != null) {
-        params['user_id'] = userId;
-      }
+      // Build base query parameters with required userId
+      Map<String, dynamic> params = {'user_id': userId};
       
       // Add any additional query parameters
       if (queryParams != null) {
@@ -54,13 +50,10 @@ class TrashService extends BaseService {
     }
   }
   
-  Future<void> restoreItem(String type, String id, {String? userId}) async {
+  Future<void> restoreItem(String type, String id, {required String userId}) async {
     try {
-      // Build query parameters - server requires user_id
-      Map<String, dynamic> params = {};
-      if (userId != null) {
-        params['user_id'] = userId;
-      }
+      // Build query parameters with required user_id
+      Map<String, dynamic> params = {'user_id': userId};
       
       // Use authenticatedPost from BaseService with auth headers
       final response = await authenticatedPost(
@@ -78,13 +71,10 @@ class TrashService extends BaseService {
     }
   }
   
-  Future<void> permanentlyDeleteItem(String type, String id, {String? userId}) async {
+  Future<void> permanentlyDeleteItem(String type, String id, {required String userId}) async {
     try {
-      // Build query parameters - server requires user_id
-      Map<String, dynamic> params = {};
-      if (userId != null) {
-        params['user_id'] = userId;
-      }
+      // Build query parameters with required user_id
+      Map<String, dynamic> params = {'user_id': userId};
       
       // Use authenticatedDelete from BaseService with auth headers
       final response = await authenticatedDelete(
@@ -102,13 +92,10 @@ class TrashService extends BaseService {
     }
   }
   
-  Future<void> emptyTrash({String? userId}) async {
+  Future<void> emptyTrash({required String userId}) async {
     try {
-      // Build query parameters - server requires user_id
-      Map<String, dynamic> params = {};
-      if (userId != null) {
-        params['user_id'] = userId;
-      }
+      // Build query parameters with required user_id
+      Map<String, dynamic> params = {'user_id': userId};
       
       // Use authenticatedDelete from BaseService with auth headers
       final response = await authenticatedDelete(
