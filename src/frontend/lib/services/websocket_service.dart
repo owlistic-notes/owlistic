@@ -230,84 +230,6 @@ class WebSocketService {
     }
   }
   
-  // Send block update
-  void updateBlock(String id, String content, {String? type}) {
-    if (!_isConnected) {
-      connect();
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_isConnected) {
-          _sendBlockUpdate(id, content, type: type);
-        }
-      });
-      return;
-    }
-    
-    _sendBlockUpdate(id, content, type: type);
-  }
-  
-  // Helper to send block update
-  void _sendBlockUpdate(String id, String content, {String? type}) {
-    try {
-      final Map<String, dynamic> payload = {
-        'id': id,
-        'content': content,
-      };
-      
-      if (type != null) {
-        payload['type'] = type;
-      }
-      
-      final message = {
-        'type': 'block_update',
-        'action': 'update',
-        'payload': payload,
-      };
-      
-      _logger.debug('Sending block update: ${json.encode(message)}');
-      _channel!.sink.add(json.encode(message));
-      
-      _logger.info('Sent block update for $id');
-    } catch (e) {
-      _logger.error('Error updating block', e);
-    }
-  }
-  
-  // Send note update
-  void updateNote(String id, String title) {
-    if (!_isConnected) {
-      connect();
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_isConnected) {
-          _sendNoteUpdate(id, title);
-        }
-      });
-      return;
-    }
-    
-    _sendNoteUpdate(id, title);
-  }
-  
-  // Helper to send note update
-  void _sendNoteUpdate(String id, String title) {
-    try {
-      final message = {
-        'type': 'note_update',
-        'action': 'update',
-        'payload': {
-          'id': id,
-          'title': title,
-        },
-      };
-      
-      _logger.debug('Sending note update: ${json.encode(message)}');
-      _channel!.sink.add(json.encode(message));
-      
-      _logger.info('Sent note update for $id');
-    } catch (e) {
-      _logger.error('Error updating note', e);
-    }
-  }
-
   // General method to send a raw message
   void sendMessage(String message) {
     if (!_isConnected) connect();
@@ -354,45 +276,6 @@ class WebSocketService {
       _logger.info('Sent $action event for $resourceType: ${data['id'] ?? ''}');
     } catch (e) {
       _logger.error('Error sending $action event', e);
-    }
-  }
-
-  // Send a block delta update (for real-time collaboration)
-  void sendBlockDelta(String id, String delta, int version, String noteId) {
-    if (!_isConnected) {
-      connect();
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_isConnected) {
-          _sendBlockDelta(id, delta, version, noteId);
-        }
-      });
-      return;
-    }
-    
-    _sendBlockDelta(id, delta, version, noteId);
-  }
-  
-  // Helper to send block delta
-  void _sendBlockDelta(String id, String delta, int version, String noteId) {
-    try {
-      final message = {
-        'type': 'block_delta',
-        'action': 'update',
-        'payload': {
-          'id': id,
-          'delta': delta,
-          'version': version,
-          'note_id': noteId
-        },
-      };
-      
-      final encodedMessage = json.encode(message);
-      _logger.debug('Sending block delta: (message size: ${encodedMessage.length})');
-      _channel!.sink.add(encodedMessage);
-      
-      _logger.info('Sent block delta for $id (version: $version)');
-    } catch (e) {
-      _logger.error('Error sending block delta', e);
     }
   }
 

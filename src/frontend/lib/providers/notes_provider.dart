@@ -256,16 +256,24 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Create a new note - no optimistic updates
+  // Create a new note - ensure API call and notification
   Future<Note?> createNote(String notebookId, String title) async {
     try {
-      // Create note on server
+      _logger.info('Creating new note in notebook $notebookId with title: $title');
+      
+      // Create note on server via REST API
       final note = await ApiService.createNote(notebookId, title);
       
-      // Subscribe to this note
+      // Add to local state
+      _notesMap[note.id] = note;
+      
+      // Only subscribe to WebSocket events for this note
       _webSocketProvider?.subscribe('note', id: note.id);
       
-      _logger.info('Created note: $title, waiting for event');
+      // Notify listeners about the new note
+      notifyListeners();
+      
+      _logger.info('Created note: $title with ID: ${note.id}');
       return note;
     } catch (error) {
       _logger.error('Error creating note: $error');
@@ -273,28 +281,52 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Delete a note - no optimistic updates
+  // Delete a note - ensure API call and notification
   Future<void> deleteNote(String id) async {
     try {
-      // Perform the delete operation on server
+      _logger.info('Deleting note $id via API');
+      
+      // Delete note on server via REST API
       await ApiService.deleteNote(id);
       
-      // Unsubscribe from this note
+      // Update local state
+      _notesMap.remove(id);
+      
+      // Unsubscribe from WebSocket events for this note
       _webSocketProvider?.unsubscribe('note', id: id);
       
-      _logger.info('Deleted note: $id, waiting for event');
+      // Notify listeners about the deletion
       notifyListeners();
+      
+      _logger.info('Deleted note: $id');
     } catch (error) {
       _logger.error('Error deleting note: $error');
       rethrow;
     }
   }
 
-  // Update a note via WebSocket - no optimistic updates
-  void updateNote(String id, String title) {
-    // Simply send update via WebSocket and wait for event to come back
-    _webSocketProvider?.sendNoteUpdate(id, title);
-    _logger.info('Sent note title update to server: $title');
+  // Update a note using API call
+  Future<Note?> updateNote(String id, String title) async {
+    try {
+      _logger.info('Updating note $id title to: $title via API');
+      
+      // Update note via REST API call
+      final updatedNote = await ApiService.updateNote(id, title);
+      
+      // Update local state if we have this note
+      if (_notesMap.containsKey(id)) {
+        _notesMap[id] = updatedNote;
+        _logger.info('Updated note $id title to: $title');
+        
+        // Always notify listeners to update UI
+        notifyListeners();
+      }
+      
+      return updatedNote;
+    } catch (error) {
+      _logger.error('Error updating note: $error');
+      return null;
+    }
   }
 
   // Activate/deactivate provider state management
