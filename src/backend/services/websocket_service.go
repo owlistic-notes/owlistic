@@ -229,6 +229,14 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 
 		// Handle message based on type
 		switch clientMsg.Type {
+		case "ping":
+			// Handle ping messages
+			log.Printf("Ping message from user %s", wsConn.userID)
+			// Send a pong response	
+			pong := models.NewStandardMessage("pong", "pong", nil)
+			pongBytes, _ := json.Marshal(pong)
+			wsConn.send <- pongBytes
+			log.Printf("Pong sent to user %s", wsConn.userID)
 		case models.EventMessage:
 			// Handle event messages
 			log.Printf("Event message from user %s: Event=%s", wsConn.userID, clientMsg.Event)
