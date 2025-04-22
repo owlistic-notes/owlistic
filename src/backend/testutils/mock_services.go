@@ -82,3 +82,28 @@ func (m *MockUserService) GetUsers(db *database.Database, params map[string]inte
 		{ID: uuid.New(), Email: "test2@example.com"},
 	}, nil
 }
+
+// MockRoleService provides a mock implementation of the RoleServiceInterface
+type MockRoleService struct {
+	HasAccessFunc func(db *database.Database, userID uuid.UUID, resourceID uuid.UUID, resourceType models.ResourceType, role models.RoleType) (bool, error)
+}
+
+// HasAccess implements the RoleServiceInterface
+func (m *MockRoleService) HasAccess(db *database.Database, userID uuid.UUID, resourceID uuid.UUID, resourceType models.ResourceType, role models.RoleType) (bool, error) {
+	if m.HasAccessFunc != nil {
+		return m.HasAccessFunc(db, userID, resourceID, resourceType, role)
+	}
+	return true, nil // Default to allowing access
+}
+
+func (m *MockRoleService) AssignRole(db *database.Database, userID uuid.UUID, resourceID uuid.UUID, resourceType models.ResourceType, role models.RoleType) error {
+	return nil
+}
+
+func (m *MockRoleService) RemoveRole(db *database.Database, roleID uuid.UUID) error {
+	return nil
+}
+
+func (m *MockRoleService) GetRoles(db *database.Database, params map[string]interface{}) ([]models.Role, error) {
+	return []models.Role{}, nil
+}

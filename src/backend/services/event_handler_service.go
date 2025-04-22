@@ -52,16 +52,16 @@ func (s *EventHandlerService) Start() {
 	if s.isRunning {
 		return
 	}
-	
+
 	// Check if Kafka is available before starting
 	s.kafkaEnabled = broker.IsKafkaEnabled()
-	
+
 	if !s.kafkaEnabled {
 		log.Println("Warning: EventHandlerService started with Kafka disabled - events will not be dispatched")
 	} else {
 		log.Println("EventHandlerService started successfully with Kafka enabled")
 	}
-	
+
 	s.isRunning = true
 	go s.ProcessPendingEvents()
 }
@@ -115,7 +115,7 @@ func (s *EventHandlerService) ProcessPendingEvents() {
 
 func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 	// Check if Kafka is enabled before trying to dispatch
-	if (!s.kafkaEnabled) {
+	if !s.kafkaEnabled {
 		return fmt.Errorf("cannot dispatch event: Kafka is not available")
 	}
 

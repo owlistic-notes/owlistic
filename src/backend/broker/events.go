@@ -33,7 +33,7 @@ type Event struct {
 	Payload   map[string]any `json:"payload"`
 }
 
-var kafkaEnabled = false  // Start with Kafka disabled by default until we confirm it's working
+var kafkaEnabled = false // Start with Kafka disabled by default until we confirm it's working
 
 // SetKafkaEnabled allows toggling Kafka feature
 func SetKafkaEnabled(enabled bool) {

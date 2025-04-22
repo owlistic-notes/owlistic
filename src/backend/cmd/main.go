@@ -109,6 +109,9 @@ func main() {
 	routes.RegisterAuthRoutes(authGroup, db, authService)
 	routes.RegisterUserRoutes(userPublicGroup, db, userService, authService)
 
+	// Register WebSocket routes with authentication
+	routes.RegisterWebSocketRoutes(router, authService, webSocketService)
+
 	// Create protected API group with auth middleware
 	apiGroup := router.Group("/api/v1")
 	apiGroup.Use(middleware.AuthMiddleware(authService))
