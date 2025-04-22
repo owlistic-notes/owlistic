@@ -293,37 +293,6 @@ class WebSocketProvider with ChangeNotifier {
     _confirmedSubscriptions.remove(subscriptionKey);
   }
 
-  // Send a block update
-  void sendBlockUpdate(String id, String content, {String? type}) {
-    _webSocketService.updateBlock(id, content, type: type);
-  }
-
-  // Send a note update
-  void sendNoteUpdate(String id, String title) {
-    _webSocketService.updateNote(id, title);
-  }
-
-  // Send a create request
-  void sendCreate(String resourceType, Map<String, dynamic> data) {
-    _webSocketService.sendEvent('create', resourceType, data);
-  }
-
-  // Send an update request
-  void sendUpdate(String resourceType, String id, Map<String, dynamic> data) {
-    data['id'] = id; // Ensure ID is included
-    _webSocketService.sendEvent('update', resourceType, data);
-  }
-
-  // Send a delete request
-  void sendDelete(String resourceType, String id) {
-    _webSocketService.sendEvent('delete', resourceType, {'id': id});
-  }
-
-  // Send a block delta update
-  void sendBlockDelta(String id, String delta, int version, String noteId) {
-    _webSocketService.sendBlockDelta(id, delta, version, noteId);
-  }
-
   // Force reconnection with resubscription
   Future<bool> reconnect() async {
     // Save current subscriptions before disconnecting
