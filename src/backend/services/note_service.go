@@ -350,4 +350,10 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 	return notes, nil
 }
 
-var NoteServiceInstance NoteServiceInterface = &NoteService{}
+// NewNoteService creates a new instance of NoteService
+func NewNoteService() NoteServiceInterface {
+	return &NoteService{}
+}
+
+// Don't initialize here, will be set properly in main.go
+var NoteServiceInstance NoteServiceInterface

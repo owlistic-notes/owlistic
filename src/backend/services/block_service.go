@@ -22,8 +22,6 @@ type BlockServiceInterface interface {
 
 type BlockService struct{}
 
-var BlockServiceInstance BlockServiceInterface = &BlockService{}
-
 func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]interface{}) (models.Block, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
@@ -183,7 +181,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 	// Handle content updates
 	if contentInterface, exists := blockData["content"]; exists {
 		var updatedContent models.BlockContent
-		
+
 		switch content := contentInterface.(type) {
 		case map[string]interface{}:
 			// If we get a structured content object, use it directly
@@ -195,7 +193,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 			tx.Rollback()
 			return models.Block{}, ErrInvalidInput
 		}
-		
+
 		// Set the processed content to both blockData and eventData
 		eventData["content"] = updatedContent
 		blockData["content"] = updatedContent
@@ -320,3 +318,11 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 
 	return blocks, nil
 }
+
+// NewBlockService creates a new instance of BlockService
+func NewBlockService() BlockServiceInterface {
+	return &BlockService{}
+}
+
+// Don't initialize here, will be set properly in main.go
+var BlockServiceInstance BlockServiceInterface

@@ -310,4 +310,10 @@ func (s *TaskService) GetTasks(db *database.Database, params map[string]interfac
 	return tasks, nil
 }
 
-var TaskServiceInstance TaskServiceInterface = &TaskService{}
+// NewTaskService creates a new instance of TaskService
+func NewTaskService() TaskServiceInterface {
+	return &TaskService{}
+}
+
+// Don't initialize here, will be set properly in main.go
+var TaskServiceInstance TaskServiceInterface

@@ -169,4 +169,5 @@ func getTopicForEvent(entity string) string {
 	}
 }
 
-var EventHandlerServiceInstance EventHandlerServiceInterface = NewEventHandlerService(nil)
+// Don't initialize with database here, will be set properly in main.go
+var EventHandlerServiceInstance EventHandlerServiceInterface

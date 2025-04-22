@@ -259,4 +259,10 @@ func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]
 	return notebooks, nil
 }
 
-var NotebookServiceInstance NotebookServiceInterface = &NotebookService{}
+// NewNotebookService creates a new instance of NotebookService
+func NewNotebookService() NotebookServiceInterface {
+	return &NotebookService{}
+}
+
+// Don't initialize here, will be set properly in main.go
+var NotebookServiceInstance NotebookServiceInterface
