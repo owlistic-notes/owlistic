@@ -36,31 +36,7 @@ func main() {
 		defer broker.CloseProducer()
 	}
 
-	// Initialize WebSocket service
-	kafkaTopics := []string{
-		broker.NoteEventsTopic,
-		broker.NotebookEventsTopic,
-		broker.SyncEventsTopic,
-		broker.BlockEventsTopic,
-	}
-
-	// Create and initialize the WebSocket service
-	webSocketService := services.NewWebSocketService(db, kafkaTopics)
-	services.WebSocketServiceInstance = webSocketService
-	webSocketService.Start() // This runs in a goroutine
-	defer webSocketService.Stop()
-
-	// Only initialize Kafka-dependent services if Kafka is available
-	if kafkaAvailable {
-		// Initialize eventHandler service
-		eventHandlerService := services.NewEventHandlerService(db)
-		services.EventHandlerServiceInstance = eventHandlerService
-		eventHandlerService.Start()
-		defer eventHandlerService.Stop()
-	} else {
-		log.Println("EventHandler service is disabled due to Kafka unavailability")
-	}
-
+	// Initialize all service instances properly with database
 	// Initialize authentication service
 	authService := services.NewAuthService(cfg.JWTSecret, cfg.JWTExpirationHours)
 	services.AuthServiceInstance = authService
@@ -68,6 +44,40 @@ func main() {
 	// Initialize user service with auth service dependency
 	userService := services.NewUserService(authService)
 	services.UserServiceInstance = userService
+
+	// Properly initialize other service instances with the database
+	services.NoteServiceInstance = services.NewNoteService()
+	services.NotebookServiceInstance = services.NewNotebookService()
+	services.BlockServiceInstance = services.NewBlockService()
+	services.TaskServiceInstance = services.NewTaskService()
+	services.TrashServiceInstance = services.NewTrashService()
+
+	// Initialize eventHandler service with the database
+	eventHandlerService := services.NewEventHandlerService(db)
+	services.EventHandlerServiceInstance = eventHandlerService
+
+	// Initialize WebSocket service with the database
+	kafkaTopics := []string{
+		broker.NoteEventsTopic,
+		broker.NotebookEventsTopic,
+		broker.SyncEventsTopic,
+		broker.BlockEventsTopic,
+	}
+	webSocketService := services.NewWebSocketService(db, kafkaTopics)
+	services.WebSocketServiceInstance = webSocketService
+
+	// Only start Kafka-dependent services if Kafka is available
+	if kafkaAvailable {
+		log.Println("Starting event handler service...")
+		eventHandlerService.Start()
+		defer eventHandlerService.Stop()
+
+		log.Println("Starting WebSocket service...")
+		webSocketService.Start()
+		defer webSocketService.Stop()
+	} else {
+		log.Println("Kafka-dependent services are disabled due to Kafka unavailability")
+	}
 
 	router := gin.Default()
 
@@ -83,6 +93,9 @@ func main() {
 	routes.RegisterNotebookRoutes(router, db, services.NotebookServiceInstance)
 	routes.RegisterBlockRoutes(router, db, services.BlockServiceInstance)
 	routes.RegisterTrashRoutes(router, db, services.TrashServiceInstance)
+
+	// Register debug routes for monitoring events
+	routes.SetupDebugRoutes(router, db)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

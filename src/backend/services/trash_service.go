@@ -262,5 +262,10 @@ func (s *TrashService) EmptyTrash(db *database.Database, userID string) error {
 	return tx.Commit().Error
 }
 
-// Create a singleton instance that can be injected
-var TrashServiceInstance TrashServiceInterface = &TrashService{}
+// NewTrashService creates a new instance of TrashService
+func NewTrashService() TrashServiceInterface {
+	return &TrashService{}
+}
+
+// Don't initialize here, will be set properly in main.go
+var TrashServiceInstance TrashServiceInterface

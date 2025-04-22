@@ -22,8 +22,6 @@ type BlockServiceInterface interface {
 
 type BlockService struct{}
 
-var BlockServiceInstance BlockServiceInterface = &BlockService{}
-
 func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]interface{}) (models.Block, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
@@ -106,13 +104,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, err
 	}
 
-	// Create an event entry instead of directly publishing
 	actorID, _ := blockData["user_id"].(string)
-	if actorID == "" {
-		// Fallback to a system user ID if none provided
-		actorID = "system"
-	}
-
 	event, err := models.NewEvent(
 		"block.created", // Standardized event type
 		"block",
@@ -166,39 +158,46 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 		return models.Block{}, ErrBlockNotFound
 	}
 
-	actorID, ok := blockData["actor_id"].(string)
+	actorID, ok := blockData["user_id"].(string)
 	if !ok {
 		tx.Rollback()
 		return models.Block{}, ErrInvalidInput
 	}
 
+	// Create a copy of the original block for event tracking
 	eventData := map[string]interface{}{
 		"id":         block.ID,
 		"note_id":    block.NoteID,
+		"user_id":    block.UserID,
 		"updated_at": time.Now().UTC(),
 	}
 
 	// Handle content updates
-	if content, exists := blockData["content"]; exists {
-		if contentMap, ok := content.(map[string]interface{}); ok {
+	if contentInterface, exists := blockData["content"]; exists {
+		var updatedContent models.BlockContent
+
+		switch content := contentInterface.(type) {
+		case map[string]interface{}:
 			// If we get a structured content object, use it directly
-			eventData["content"] = contentMap
-		} else if contentStr, ok := content.(string); ok {
-			// If content is provided as a string, maintain backward compatibility
-			contentObj := models.BlockContent{"text": contentStr}
-			eventData["content"] = contentObj
-			// Update the content in blockData to use the proper format
-			blockData["content"] = contentObj
-		} else {
+			updatedContent = models.BlockContent(content)
+		case string:
+			// If content is provided as a string, convert to proper format
+			updatedContent = models.BlockContent{"text": content}
+		default:
 			tx.Rollback()
 			return models.Block{}, ErrInvalidInput
 		}
+
+		// Set the processed content to both blockData and eventData
+		eventData["content"] = updatedContent
+		blockData["content"] = updatedContent
 	}
 
 	if blockType, ok := blockData["type"].(string); ok {
 		eventData["type"] = blockType
 	}
 
+	// Create the event
 	event, err := models.NewEvent(
 		"block.updated",
 		"block",
@@ -217,7 +216,14 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 		return models.Block{}, err
 	}
 
+	// Update the block with the modified data
 	if err := tx.Model(&block).Updates(blockData).Error; err != nil {
+		tx.Rollback()
+		return models.Block{}, err
+	}
+
+	// Fetch the updated block to return
+	if err := tx.First(&block, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return models.Block{}, err
 	}
@@ -306,3 +312,11 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 
 	return blocks, nil
 }
+
+// NewBlockService creates a new instance of BlockService
+func NewBlockService() BlockServiceInterface {
+	return &BlockService{}
+}
+
+// Don't initialize here, will be set properly in main.go
+var BlockServiceInstance BlockServiceInterface
