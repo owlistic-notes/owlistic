@@ -14,7 +14,33 @@ import (
 	"github.com/thinkstack/broker"
 	"github.com/thinkstack/config"
 	"github.com/thinkstack/database"
+	"github.com/thinkstack/models"
 )
+
+// WebSocket Message Models
+// ------------------------
+
+// ClientMessage represents a message from the client
+type ClientMessage struct {
+	Type    string          `json:"type"`
+	Action  string          `json:"action"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// ServerMessage represents a message to the client
+type ServerMessage struct {
+	Type         string      `json:"type"`
+	Event        string      `json:"event"`
+	Payload      interface{} `json:"payload"`
+	ResourceID   string      `json:"resource_id,omitempty"`
+	ResourceType string      `json:"resource_type,omitempty"`
+}
+
+// Subscription models
+type SubscriptionPayload struct {
+	Resource string `json:"resource"`
+	ID       string `json:"id,omitempty"`
+}
 
 // WebSocketServiceInterface defines the operations provided by the WebSocket service
 type WebSocketServiceInterface interface {
@@ -34,20 +60,6 @@ type Client struct {
 	Conn          *websocket.Conn
 	Send          chan []byte
 	Subscriptions map[string]bool // Resources this client is subscribed to
-}
-
-// ClientMessage represents a message from the client
-type ClientMessage struct {
-	Type    string          `json:"type"`
-	Action  string          `json:"action"`
-	Payload json.RawMessage `json:"payload"`
-}
-
-// ServerMessage represents a message to the client
-type ServerMessage struct {
-	Type    string      `json:"type"`
-	Event   string      `json:"event"`
-	Payload interface{} `json:"payload"`
 }
 
 // WebSocketService manages WebSocket connections
@@ -285,20 +297,43 @@ func (ws *WebSocketService) run() {
 
 // handleWebSocket upgrades HTTP connection to WebSocket
 func (ws *WebSocketService) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Extract token from query parameters or Authorization header
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+
+	// Validate token
+	var userID string
+	if token != "" {
+		claims, err := AuthServiceInstance.ValidateToken(token)
+		if err != nil {
+			log.Printf("Invalid token: %v", err)
+			http.Error(w, "Invalid authentication token", http.StatusUnauthorized)
+			return
+		}
+		userID = claims.UserID.String()
+		log.Printf("Authenticated user: %s", userID)
+	} else {
+		// Fallback to query param user_id for backward compatibility
+		userID = r.URL.Query().Get("user_id")
+		if userID == "" {
+			userID = r.Header.Get("X-User-ID")
+		}
+		if userID == "" {
+			userID = "anonymous"
+			log.Printf("Warning: No authentication provided, using anonymous access")
+		}
+	}
+
 	// Upgrade the HTTP connection to WebSocket
 	conn, err := ws.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Error upgrading to WebSocket: %v", err)
 		return
-	}
-
-	// Get user ID from query param, header, or cookie - in production use proper auth
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		userID = r.Header.Get("X-User-ID")
-	}
-	if userID == "" {
-		userID = "anonymous"
 	}
 
 	// Create new client
@@ -328,24 +363,19 @@ func (ws *WebSocketService) handleKafkaMessage(msg broker.KafkaMessage) {
 		return
 	}
 
-	// Log full message for debugging
-	log.Printf("WebSocket service: Received Kafka message: Key=%s, Type=%T", msg.Key, eventData)
-
-	// Extract event type from the event data (for more reliable event type handling)
-	eventType := msg.Key // Default to Kafka message key
-	if typeVal, ok := eventData["type"].(string); ok {
-		eventType = typeVal
-	}
-
-	// Extract resource information
+	// Extract the core information we need for routing
+	eventType := ws.getEventType(eventData, msg.Key)
 	resourceID, resourceType := ws.extractResourceInfo(eventData)
-	log.Printf("Extracted resource info: type=%s, id=%s", resourceType, resourceID)
 
-	// Create server message
+	log.Printf("Processing message: event=%s, resource=%s:%s", eventType, resourceType, resourceID)
+
+	// Create server message with resource information directly included
 	serverMsg := ServerMessage{
-		Type:    "event",
-		Event:   eventType,
-		Payload: eventData,
+		Type:         "event",
+		Event:        eventType,
+		Payload:      eventData,
+		ResourceID:   resourceID,
+		ResourceType: resourceType,
 	}
 
 	// Serialize the message
@@ -355,108 +385,150 @@ func (ws *WebSocketService) handleKafkaMessage(msg broker.KafkaMessage) {
 		return
 	}
 
-	// Count number of clients that received this message
+	// Determine which clients should receive this message
+	recipientClients := ws.determineRecipients(resourceID, resourceType, eventType)
+
+	// Send the message to all recipients
 	clientCount := 0
-	connectedCount := 0
-
-	ws.clientsMutex.RLock()
-	for clientID, client := range ws.clients {
-		connectedCount++
-
-		// IMPORTANT: More flexible matching for subscriptions using various formats
-		shouldSend := false
-
-		log.Printf("Checking client %s subscriptions for event %s (resource: %s, id: %s)",
-			clientID, eventType, resourceType, resourceID)
-
-		// Check if client is subscribed to:
-		// 1. All events
-		if client.Subscriptions["all"] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to 'all'", clientID)
-		}
-
-		// 2. This entity type (e.g., "note")
-		if !shouldSend && client.Subscriptions[resourceType] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to resource type '%s'", clientID, resourceType)
-		}
-
-		// 3. This specific entity (e.g., "note:123")
-		if !shouldSend && resourceID != "" && client.Subscriptions[resourceType+":"+resourceID] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to specific resource '%s:%s'",
-				clientID, resourceType, resourceID)
-		}
-
-		// 4. Notebook-specific notes subscription
-		if !shouldSend && resourceType == "note" {
-			// Try to extract notebook ID from the payload
-			notebookID := ""
-
-			if payload, ok := eventData["payload"].(map[string]interface{}); ok {
-				if nbID, ok := payload["notebook_id"].(string); ok {
-					notebookID = nbID
-				} else if data, ok := payload["data"].(map[string]interface{}); ok {
-					if nbID, ok := data["notebook_id"].(string); ok {
-						notebookID = nbID
-					}
-				}
-			}
-
-			if notebookID != "" {
-				// Check if client is subscribed to this notebook's notes
-				if client.Subscriptions["notebook:notes:"+notebookID] ||
-					client.Subscriptions["notebook:"+notebookID] {
-					shouldSend = true
-					log.Printf("Client %s is subscribed to notebook %s notes", clientID, notebookID)
-				}
-			}
-		}
-
-		// 5. Plural form for collection subscriptions
-		if !shouldSend && client.Subscriptions[resourceType+"s"] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to plural form '%ss'", clientID, resourceType)
-		}
-
-		log.Printf("Final decision - send to client %s: %v", clientID, shouldSend)
-
-		if shouldSend {
-			select {
-			case client.Send <- jsonData:
-				clientCount++
-				log.Printf("Sent %s event to client %s", eventType, clientID)
-			default:
-				log.Printf("Client %s send buffer full, removing client", clientID)
-				close(client.Send)
-				delete(ws.clients, clientID)
-			}
+	for clientID, client := range recipientClients {
+		select {
+		case client.Send <- jsonData:
+			clientCount++
+			log.Printf("Sent %s event to client %s", eventType, clientID)
+		default:
+			log.Printf("Client %s send buffer full, removing client", clientID)
+			ws.unregister <- client
 		}
 	}
-	ws.clientsMutex.RUnlock()
 
-	log.Printf("Sent %s event to %d clients (out of %d connected)", eventType, clientCount, connectedCount)
-
-	// If no clients received this message, log all subscriptions for debugging
-	if clientCount == 0 && connectedCount > 0 {
-		ws.logAllSubscriptions()
-	}
+	log.Printf("Sent %s event to %d clients", eventType, clientCount)
 }
 
-// logAllSubscriptions logs all current subscriptions for debugging
-func (ws *WebSocketService) logAllSubscriptions() {
+// determineRecipients returns a map of clients that should receive a message based on subscriptions and RBAC
+func (ws *WebSocketService) determineRecipients(resourceID string, resourceType string, eventType string) map[string]*Client {
 	ws.clientsMutex.RLock()
 	defer ws.clientsMutex.RUnlock()
 
-	log.Printf("--- Current Subscriptions (Clients: %d) ---", len(ws.clients))
+	recipients := make(map[string]*Client)
+
+	// If we don't have a resource ID or type, we can't do RBAC checks effectively
+	if resourceID == "" || resourceType == "unknown" {
+		// For system-wide events (like system.status), just check subscriptions
+		for clientID, client := range ws.clients {
+			if client.Subscriptions["all"] ||
+				client.Subscriptions[eventType] ||
+				client.Subscriptions[resourceType] {
+				recipients[clientID] = client
+			}
+		}
+		return recipients
+	}
+
+	// Parse resource ID for RBAC checks
+	resourceUUID, err := uuid.Parse(resourceID)
+	if err != nil {
+		log.Printf("Invalid resource ID, cannot perform RBAC checks: %v", err)
+		return recipients
+	}
+
+	// Convert resource type for RBAC checks
+	var modelResourceType models.ResourceType
+	switch resourceType {
+	case "note":
+		modelResourceType = models.NoteResource
+	case "notebook":
+		modelResourceType = models.NotebookResource
+	case "block":
+		modelResourceType = models.BlockResource
+	case "task":
+		modelResourceType = models.TaskResource
+	default:
+		log.Printf("Unknown resource type %s, cannot perform RBAC checks", resourceType)
+		return recipients
+	}
+
+	// For each client, check:
+	// 1. If they're subscribed to this event/resource
+	// 2. If they have permission through RBAC
 	for clientID, client := range ws.clients {
-		log.Printf("Client %s has %d subscriptions:", clientID, len(client.Subscriptions))
-		for sub := range client.Subscriptions {
-			log.Printf("  - %s", sub)
+		// Skip checking if the client isn't subscribed
+		if !ws.isSubscribed(client, resourceType, eventType, resourceID) {
+			continue
+		}
+
+		// For anonymous clients, we only send public events
+		if client.UserID == "anonymous" {
+			if strings.HasPrefix(eventType, "public.") {
+				recipients[clientID] = client
+			}
+			continue
+		}
+
+		// Parse client's user ID for RBAC check
+		userUUID, err := uuid.Parse(client.UserID)
+		if err != nil {
+			log.Printf("Invalid user ID for client %s, skipping RBAC check", clientID)
+			continue
+		}
+
+		// Check if user has access through RBAC
+		hasAccess, err := RoleServiceInstance.HasAccess(
+			ws.db, userUUID, resourceUUID, modelResourceType, models.ViewerRole)
+		if err != nil {
+			log.Printf("Error checking RBAC for client %s: %v", clientID, err)
+			continue
+		}
+
+		// If user has access, add them to recipients
+		if hasAccess {
+			recipients[clientID] = client
 		}
 	}
-	log.Printf("------------------------------------------")
+
+	return recipients
+}
+
+// isSubscribed checks if a client is subscribed to a resource or event
+func (ws *WebSocketService) isSubscribed(client *Client, resourceType string, eventType string, resourceID string) bool {
+	// Check for direct subscriptions
+	if client.Subscriptions["all"] {
+		return true
+	}
+
+	// Check for resource type subscription
+	if client.Subscriptions[resourceType] {
+		return true
+	}
+
+	// Check for event type subscription
+	if client.Subscriptions[eventType] {
+		return true
+	}
+
+	// Check for specific resource subscription
+	if resourceID != "" && client.Subscriptions[resourceType+":"+resourceID] {
+		return true
+	}
+
+	// Check for plural form subscription
+	if client.Subscriptions[resourceType+"s"] {
+		return true
+	}
+
+	return false
+}
+
+// getEventType extracts the event type from event data
+func (ws *WebSocketService) getEventType(eventData map[string]interface{}, defaultKey string) string {
+	if typeVal, ok := eventData["type"].(string); ok && typeVal != "" {
+		return typeVal
+	}
+
+	if eventVal, ok := eventData["event"].(string); ok && eventVal != "" {
+		return eventVal
+	}
+
+	return defaultKey
 }
 
 // extractResourceInfo gets resource info from event data
@@ -646,41 +718,36 @@ func (c *Client) writePump() {
 }
 
 // processMessage handles messages received from the client
-func (c *Client) processMessage(msg []byte) {
-	var clientMsg ClientMessage
-	if err := json.Unmarshal(msg, &clientMsg); err != nil {
+func (c *Client) processMessage(message []byte) {
+	var msg ClientMessage
+	if err := json.Unmarshal(message, &msg); err != nil {
 		log.Printf("Error parsing client message: %v", err)
 		return
 	}
 
-	switch clientMsg.Type {
+	switch msg.Action {
 	case "subscribe":
-		c.handleSubscribe(clientMsg)
+		c.handleSubscribe(msg)
 	case "unsubscribe":
-		c.handleUnsubscribe(clientMsg)
-	case "block_update":
-		c.handleBlockUpdate(clientMsg)
-	case "note_update":
-		c.handleNoteUpdate(clientMsg)
-	case "ping":
-		// Just a keepalive, no response needed
+		c.handleUnsubscribe(msg)
+	case "block.update":
+		c.handleBlockUpdate(msg)
+	case "note.update":
+		c.handleNoteUpdate(msg)
 	default:
-		log.Printf("Unknown message type: %s", clientMsg.Type)
+		log.Printf("Unknown client action: %s", msg.Action)
 	}
 }
 
 // handleSubscribe processes subscription requests
 func (c *Client) handleSubscribe(msg ClientMessage) {
-	var payload struct {
-		Resource string `json:"resource"`
-		ID       string `json:"id,omitempty"`
-	}
-
+	var payload SubscriptionPayload
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 		log.Printf("Error parsing subscription payload: %v", err)
 		return
 	}
 
+	// Determine the subscription key
 	subscriptionKey := payload.Resource
 	if payload.ID != "" {
 		subscriptionKey = payload.Resource + ":" + payload.ID

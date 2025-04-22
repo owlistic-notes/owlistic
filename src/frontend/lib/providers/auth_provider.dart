@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:thinkstack/services/websocket_service.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/base_service.dart';
@@ -73,7 +74,7 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      // Load token from storage
+      // Load token from secure storage
       _token = await _authService.getStoredToken();
       
       if (_token != null && isTokenValid(_token!)) {
@@ -148,6 +149,11 @@ class AuthProvider with ChangeNotifier {
         
         // Broadcast auth state change
         _authStateController.add(_isLoggedIn);
+        
+        // Set auth token for WebSocket service after successful login
+        final webSocketService = WebSocketService();
+        webSocketService.setAuthToken(_token);
+        webSocketService.setUserId(_currentUser?.id);
         
         return true;
       } else {
@@ -231,6 +237,10 @@ class AuthProvider with ChangeNotifier {
       _token = null;
       _isLoggedIn = false;
       _currentUser = null;
+      
+      // Clear WebSocket state
+      final webSocketService = WebSocketService();
+      webSocketService.clearState();
       
       _logger.info('User logged out successfully');
     } catch (e) {

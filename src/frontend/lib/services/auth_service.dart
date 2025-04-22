@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
@@ -9,6 +10,7 @@ import 'base_service.dart';
 class AuthService extends BaseService {
   final Logger _logger = Logger('AuthService');
   static const String TOKEN_KEY = 'auth_token';
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   
   // Stream controller for auth state changes
   final StreamController<bool> _authStateController = StreamController<bool>.broadcast();
@@ -101,8 +103,7 @@ class AuthService extends BaseService {
   
   // Token management
   Future<String?> getStoredToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString(TOKEN_KEY);
+    _token = await _secureStorage.read(key: TOKEN_KEY);
     if (_token != null && _token!.isNotEmpty) {
       _logger.debug('Retrieved token from storage');
       // Also update the BaseService token
@@ -116,16 +117,14 @@ class AuthService extends BaseService {
   Future<void> _storeToken(String token) async {
     _token = token;
     _logger.debug('Storing new auth token');
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(TOKEN_KEY, token);
+    await _secureStorage.write(key: TOKEN_KEY, value: token);
     await onTokenChanged(token);
   }
   
   Future<void> clearToken() async {
     _token = null;
     _logger.debug('Clearing auth token');
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(TOKEN_KEY);
+    await _secureStorage.delete(key: TOKEN_KEY);
     await onTokenChanged(null);
   }
   

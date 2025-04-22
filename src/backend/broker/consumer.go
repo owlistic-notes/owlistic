@@ -89,7 +89,6 @@ func NewKafkaConsumer(broker string, topics []string, groupID string) (Consumer,
 		"enable.partition.eof":      false,
 		"client.id":                 "thinkstack-consumer-" + groupID,
 		"broker.address.family":     "v4",
-		"broker.address.resolution": "standard",
 	})
 
 	if err != nil {
@@ -182,7 +181,6 @@ func (c *KafkaConsumer) retryConnection(broker string) {
 			"group.id":                  c.groupID,
 			"auto.offset.reset":         "earliest",
 			"broker.address.family":     "v4", 
-			"broker.address.resolution": "standard",
 		})
 
 		if retryErr == nil {

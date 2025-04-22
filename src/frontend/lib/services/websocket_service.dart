@@ -16,6 +16,7 @@ class WebSocketService {
   String? _userId; // Remove default user ID - will be set dynamically
   String _baseUrl;
   String? _customUrl;
+  String? _authToken;
   final Logger _logger = Logger('WebSocketService');
   
   bool _isConnected = false;
@@ -63,6 +64,23 @@ class WebSocketService {
     }
   }
 
+  // Set auth token for WebSocket connection
+  void setAuthToken(String? token) {
+    _authToken = token;
+    _logger.info('WebSocket auth token set: ${token != null ? '******' : 'null'}');
+    
+    // Reconnect if we're already connected with new token
+    if (_isConnected && token != null) {
+      _logger.info('Reconnecting WebSocket with new auth token');
+      disconnect();
+      connect();
+    } else if (_isConnected && token == null) {
+      // If token is null, disconnect
+      _logger.info('Auth token is null, disconnecting WebSocket');
+      disconnect();
+    }
+  }
+
   // Set custom URL
   void setCustomUrl(String url) {
     _customUrl = url;
@@ -84,9 +102,9 @@ class WebSocketService {
   Future<void> connect() async {
     if (_isConnected || _isReconnecting) return;
     
-    // Don't connect if no user ID is provided
-    if (_userId == null) {
-      _logger.warning('Cannot connect WebSocket: No user ID provided');
+    // Don't connect if no user ID or auth token is provided
+    if (_userId == null && _authToken == null) {
+      _logger.warning('Cannot connect WebSocket: No user ID or auth token provided');
       return;
     }
     
@@ -94,12 +112,19 @@ class WebSocketService {
     _connectionState = WebSocketConnectionState.connecting;
     
     try {
-      final wsUrl = '${_customUrl ?? _baseUrl}?user_id=$_userId';
-      _logger.debug('Connecting to $wsUrl');
+      // Use auth token if available, otherwise fall back to user ID
+      String wsUrl;
+      if (_authToken != null) {
+        wsUrl = '${_customUrl ?? _baseUrl}?token=$_authToken';
+        _logger.debug('Connecting to WebSocket with auth token');
+      } else {
+        wsUrl = '${_customUrl ?? _baseUrl}?user_id=$_userId';
+        _logger.debug('Connecting to WebSocket with user ID (legacy mode)');
+      }
       
       // Create WebSocketChannel using platform-specific implementation
       if (kIsWeb) {
-        // Use HtmlWebSocketChannel for web
+        // Use WebSocketChannel for web
         _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       } else {
         // Use IOWebSocketChannel for native platforms
@@ -183,8 +208,9 @@ class WebSocketService {
     _logger.info('Clearing WebSocket state');
     // Close existing connection
     disconnect();
-    // Clear user ID
+    // Clear auth data
     _userId = null;
+    _authToken = null;
     // Clear subscription tracking
     _activeSubscriptions.clear();
   }
@@ -264,75 +290,26 @@ class WebSocketService {
         return;
       }
       
-      // Create well-formatted payload
-      final Map<String, dynamic> payload = {
-        'resource': resource,
-      };
-      
-      // Only add ID if it's not null and not empty
-      if (id != null && id.isNotEmpty) {
-        payload['id'] = id;
-        _logger.debug('Adding ID to subscription payload: $id');
-      } else {
-        // If no ID is provided, we need to explicitly say this is a global subscription
-        payload['global_resource'] = true;  // Boolean flag for global subscription
-        _logger.debug('Adding global_resource flag for subscription without ID');
-      }
-      
-      // For special resource types, add extra identifiers to help server routing
-      if (resource == 'note') {
-        payload['resource_type'] = 'note';
-        // Ensure ID is included for note resources if provided
-        if (id != null && id.isNotEmpty) {
-          payload['note_id'] = id; // Add additional note_id field for compatibility
-        }
-      } else if (resource == 'notebook') {
-        payload['resource_type'] = 'notebook';
-        // Ensure ID is included for notebook resources if provided
-        if (id != null && id.isNotEmpty) {
-          payload['notebook_id'] = id; // Add additional notebook_id field for compatibility
-        }
-      } else if (resource == 'block') {
-        payload['resource_type'] = 'block';
-        // Ensure ID is included for block resources if provided
-        if (id != null && id.isNotEmpty) {
-          payload['block_id'] = id; // Add additional block_id field for compatibility
-        }
-      } else if (resource == 'task') {
-        payload['resource_type'] = 'task';
-        // Ensure ID is included for task resources if provided
-        if (id != null && id.isNotEmpty) {
-          payload['task_id'] = id; // Add additional task_id field for compatibility
-        }
-      }
-      
-      // Always include user ID for proper authorization filtering
-      if (_userId != null) {
-        payload['user_id'] = _userId;
-      }
-      
-      // Construct the final message
+      // Create simplified subscribe message
       final message = {
         'type': 'subscribe',
-        'action': 'subscribe',
-        'payload': payload,
+        'payload': {
+          'resource': resource,
+          if (id != null && id.isNotEmpty) 'id': id,
+        },
       };
       
-      // Log the full message for debugging
-      _logger.debug('Sending resource subscription: ${json.encode(message)}');
-      
-      // Make sure channel exists
-      if (_channel == null) {
+      // Send the message
+      if (_channel != null) {
+        _channel!.sink.add(json.encode(message));
+        
+        // Track this subscription
+        _activeSubscriptions.add(subscriptionKey);
+        
+        _logger.info('Subscribed to resource $resource ${id != null ? "ID: $id" : "(global)"}');
+      } else {
         _logger.error('Cannot send subscribe: WebSocket channel is null');
-        return;
       }
-      
-      _channel!.sink.add(json.encode(message));
-      
-      // Track this subscription
-      _activeSubscriptions.add(subscriptionKey);
-      
-      _logger.info('Subscribed to resource $resource ${id != null ? "ID: $id" : "(global)"}');
     } catch (e) {
       _logger.error('Error subscribing to resource $resource', e);
     }
@@ -347,7 +324,7 @@ class WebSocketService {
         return;
       }
       
-      // Create subscription key for tracking - use consistent format
+      // Create subscription key for tracking
       final String subscriptionKey = 'event:$eventType';
       
       // Check if already subscribed
@@ -356,7 +333,7 @@ class WebSocketService {
         return;
       }
       
-      // Create well-formatted payload for event subscription
+      // Create payload specifically for event subscription
       final Map<String, dynamic> payload = {
         'event_type': eventType,
       };
@@ -366,10 +343,11 @@ class WebSocketService {
         payload['user_id'] = _userId;
       }
       
-      // Construct the final message - different format for event subscriptions
+      // Construct the message - use the format expected by the server
+      // Note: The server expects 'type': 'subscribe' and checks the payload for event_type
       final message = {
         'type': 'subscribe',
-        'action': 'subscribe_event',
+        'action': 'subscribe',
         'payload': payload,
       };
       
@@ -486,52 +464,20 @@ class WebSocketService {
       }
       
       // Use our parser to get a structured message object
-      final parsedMessage = WebSocketMessage.fromJson(jsonMessage);
-      
-      // Handle subscription confirmations correctly
-      if (parsedMessage.type == 'subscription' && parsedMessage.event == 'confirmed') {
-        try {
-          if (jsonMessage.containsKey('payload')) {
-            final payload = jsonMessage['payload'];
-            
-            // Check if this is an event subscription confirmation
-            if (payload.containsKey('event_type')) {
-              String eventType = payload['event_type'];
-              _logger.info('Event subscription confirmed: $eventType');
-            } 
-            // Check if this is a resource subscription confirmation
-            else if (payload.containsKey('resource')) {
-              String resource = payload['resource'];
-              String? id = payload['id'];
-              _logger.info('Resource subscription confirmed: $resource ${id != null ? "ID: $id" : "(global)"}');
-            }
-          }
-        } catch (e) {
-          _logger.error('Error handling subscription confirmation', e);
+      final parsedMessage = WebSocketParser.parse(jsonMessage);
+      if (parsedMessage != null) {
+        // Handle subscription confirmations
+        if (parsedMessage.type == 'subscription' && parsedMessage.event == 'confirmed') {
+          _handleSubscriptionConfirmation(parsedMessage.payload);
+        } 
+        // Handle ping messages
+        else if (parsedMessage.type == 'ping') {
+          sendMessage(json.encode({'type': 'pong'}));
         }
-      } else if (parsedMessage.type == 'ping') {
-        // Send pong response to keep connection alive
-        sendMessage(json.encode({'type': 'pong'}));
-      }
-      // Basic logging for event messages
-      else if (parsedMessage.type == 'event') {
-        String resourceType = 'unknown';
-        String? resourceId;
-        
-        // Try to determine resource type from event name or payload
-        if (parsedMessage.event.contains('note') && !parsedMessage.event.contains('notebook')) {
-          resourceType = 'note';
-          resourceId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-        } else if (parsedMessage.event.contains('notebook')) {
-          resourceType = 'notebook';
-          resourceId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
-        } else if (parsedMessage.event.contains('block')) {
-          resourceType = 'block';
-          resourceId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+        // Handle events
+        else if (parsedMessage.type == 'event') {
+          _logEventMessage(parsedMessage);
         }
-        
-        _logger.debug('EVENT: Type=${parsedMessage.type}, Event=${parsedMessage.event}, ' + 
-              'ResourceType=$resourceType, ResourceId=${resourceId ?? "none"}');
       }
       
       // Pass the original message to existing listeners for compatibility
@@ -548,7 +494,44 @@ class WebSocketService {
       } catch (_) {}
     }
   }
-  
+
+  // Helper to handle subscription confirmations
+  void _handleSubscriptionConfirmation(Map<String, dynamic> payload) {
+    try {
+      // Check if this is an event subscription confirmation
+      if (payload.containsKey('event_type')) {
+        String eventType = payload['event_type'];
+        _logger.info('Event subscription confirmed: $eventType');
+      } 
+      // Check if this is a resource subscription confirmation
+      else if (payload.containsKey('resource')) {
+        String resource = payload['resource'];
+        String? id = payload['id'];
+        _logger.info('Resource subscription confirmed: $resource ${id != null ? "ID: $id" : "(global)"}');
+      }
+    } catch (e) {
+      _logger.error('Error handling subscription confirmation', e);
+    }
+  }
+
+  // Helper to log event messages
+  void _logEventMessage(WebSocketMessage message) {
+    String resourceType = message.resourceType ?? 'unknown';
+    String? resourceId;
+    
+    // Extract IDs based on resource type
+    if (resourceType == 'note') {
+      resourceId = WebSocketModelExtractor.extractNoteId(message);
+    } else if (resourceType == 'notebook') {
+      resourceId = WebSocketModelExtractor.extractNotebookId(message);
+    } else if (resourceType == 'block') {
+      resourceId = WebSocketModelExtractor.extractBlockId(message);
+    }
+    
+    _logger.info('EVENT RECEIVED: Type=${message.type}, Event=${message.event}, ' + 
+          'ResourceType=$resourceType, ResourceId=${resourceId ?? "none"}');
+  }
+
   // Get active subscriptions count for debugging
   int get activeSubscriptionsCount => _activeSubscriptions.length;
   
