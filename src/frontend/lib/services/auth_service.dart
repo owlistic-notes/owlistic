@@ -16,14 +16,24 @@ class AuthService extends BaseService {
   final StreamController<bool> _authStateController = StreamController<bool>.broadcast();
   Stream<bool> get authStateChanges => _authStateController.stream;
   
-  // Use instance variable for token
+  // Token management centralized in AuthService
+  // Using instance property for local reference and a static for global access
   String? _token;
+  static String? get token => _instance?._token;
+  
+  // Singleton pattern for global token access
+  static AuthService? _instance;
+  
+  // Constructor sets the instance for static access
+  AuthService() {
+    _instance = this;
+  }
+  
   bool get isLoggedIn => _token != null;
   
   // Authentication methods
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      // Not using authenticatedPost here since we don't have a token yet
       final response = await createPostRequest(
         '/api/v1/auth/login',
         {
@@ -34,7 +44,7 @@ class AuthService extends BaseService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        await _storeToken(data['token']); // Store the token
+        await _storeToken(data['token']);
         return data;
       } else {
         _logger.error('Login failed with status: ${response.statusCode}');
@@ -46,12 +56,12 @@ class AuthService extends BaseService {
     }
   }
   
-  // Helper method for unauthenticated POST (used for login/register)
+  // Helper method for unauthenticated POST
   Future<http.Response> createPostRequest(String path, dynamic body) async {
     final uri = createUri(path);
     return http.post(
       uri,
-      headers: getBaseHeaders(),
+      headers: getBaseHeaders(), // Use base headers for unauthenticated requests
       body: jsonEncode(body),
     );
   }
@@ -83,62 +93,99 @@ class AuthService extends BaseService {
   Future<bool> logout() async {
     try {
       // Call logout endpoint if it exists
-      final response = await authenticatedPost(
-        '/api/v1/auth/logout',
-        {}
-      );
+      if (isLoggedIn) {
+        await authenticatedPost('/api/v1/auth/logout', {});
+      }
       
-      // Clear token regardless of response status
+      // Clear token regardless of response
       await clearToken();
-      
       _logger.info('Logged out successfully');
       return true;
     } catch (e) {
       _logger.error('Error during logout', e);
-      // Still clear token on error
-      await clearToken();
+      await clearToken(); // Still clear token on error
       return false;
     }
   }
   
   // Token management
   Future<String?> getStoredToken() async {
-    _token = await _secureStorage.read(key: TOKEN_KEY);
-    if (_token != null && _token!.isNotEmpty) {
-      _logger.debug('Retrieved token from storage');
-      // Also update the BaseService token
-      await onTokenChanged(_token);
-    } else {
-      _logger.debug('No token found in storage');
+    try {
+      _token = await _secureStorage.read(key: TOKEN_KEY);
+      if (_token != null && _token!.isNotEmpty) {
+        _logger.debug('Retrieved token from storage');
+        _authStateController.add(true);
+      } else {
+        _token = null;
+        _logger.debug('No token found in storage');
+      }
+      return _token;
+    } catch (e) {
+      _logger.error('Error reading token from secure storage', e);
+      return null;
     }
-    return _token;
   }
   
   Future<void> _storeToken(String token) async {
+    if (token.isEmpty) return;
+    
     _token = token;
-    _logger.debug('Storing new auth token');
-    await _secureStorage.write(key: TOKEN_KEY, value: token);
-    await onTokenChanged(token);
+    _logger.debug('Storing auth token');
+    
+    try {
+      await _secureStorage.write(key: TOKEN_KEY, value: token);
+      _authStateController.add(true);
+    } catch (e) {
+      _logger.error('Error storing token in secure storage', e);
+      rethrow;
+    }
   }
   
   Future<void> clearToken() async {
     _token = null;
     _logger.debug('Clearing auth token');
-    await _secureStorage.delete(key: TOKEN_KEY);
-    await onTokenChanged(null);
+    
+    try {
+      await _secureStorage.delete(key: TOKEN_KEY);
+      _authStateController.add(false);
+    } catch (e) {
+      _logger.error('Error clearing token from secure storage', e);
+    }
   }
   
-  // This will be called when token changes
+  // Update token and notify systems
   Future<void> onTokenChanged(String? token) async {
-    _logger.debug('Notifying token change: ${token != null ? 'Token present' : 'Token cleared'}');
-    // Update the token in this instance
-    _token = token;
-    // Update in base_service to update global token
-    BaseService.notifyTokenChange(token);
-    // Update auth state
-    _authStateController.add(token != null);
+    try {
+      if (token == null || token.isEmpty) {
+        await clearToken();
+        _logger.info('Auth token cleared');
+        return;
+      }
+      
+      // Store token
+      await _storeToken(token);
+      _logger.info('Auth token updated successfully');
+      
+      // Attempt to fetch user info with new token
+      await getCurrentUser();
+    } catch (e) {
+      _logger.error('Error in onTokenChanged', e);
+      await clearToken();
+      rethrow;
+    }
   }
   
+  // Override auth headers to use the token
+  @override
+  Map<String, String> getAuthHeaders() {
+    final headers = getBaseHeaders();
+    if (_token != null) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
+    return headers;
+  }
+  
+  // Get user information from token or API
   Future<User?> getUserProfile() async {
     if (_token == null) {
       _token = await getStoredToken();
@@ -147,7 +194,7 @@ class AuthService extends BaseService {
     if (_token == null) return null;
     
     try {
-      // Extract user information from token
+      // Extract user info from JWT payload
       final tokenParts = _token!.split('.');
       if (tokenParts.length != 3) {
         _logger.error("Invalid JWT token format");
@@ -170,21 +217,74 @@ class AuthService extends BaseService {
     }
   }
   
-  Future<bool> changePassword(String currentPassword, String newPassword) async {
+  // Get user info from API endpoint
+  Future<User?> getCurrentUser() async {
+    if (!isLoggedIn) {
+      _logger.debug('Cannot get user profile: not logged in');
+      return null;
+    }
+    
     try {
-      final response = await http.put(
-        createUri('/api/v1/auth/password'),
-        headers: getAuthHeaders(),
-        body: jsonEncode({
-          'current_password': currentPassword,
-          'new_password': newPassword,
-        }),
-      );
-
-      return response.statusCode == 200;
+      final response = await authenticatedGet('/api/v1/auth/me');
+      
+      if (response.statusCode == 200) {
+        final userData = jsonDecode(response.body);
+        return User.fromJson(userData);
+      } else if (response.statusCode == 401) {
+        // Token is invalid, clear it
+        await clearToken();
+        return null;
+      } else {
+        _logger.error('Failed to get user profile: ${response.statusCode}');
+        return null;
+      }
     } catch (e) {
-      _logger.error('Error changing password', e);
+      _logger.error('Error getting current user', e);
+      return null;
+    }
+  }
+  
+  // Safe login with better error handling
+  Future<bool> loginSafe(String email, String password) async {
+    try {
+      final response = await login(email, password);
+      return response.isNotEmpty;
+    } catch (e) {
+      _logger.error('Login error occurred', e);
+      await clearToken();  // Ensure we clean up on error
       return false;
+    }
+  }
+  
+  // Make sure all authenticated requests use the token
+  @override
+  Future<http.Response> authenticatedGet(String path, {Map<String, dynamic>? queryParameters}) async {
+    // Make sure we use the auth headers with the token
+    return super.authenticatedGet(path, queryParameters: queryParameters);
+  }
+  
+  @override
+  Future<http.Response> authenticatedPost(String path, dynamic body) async {
+    // Make sure we use the auth headers with the token
+    return super.authenticatedPost(path, body);
+  }
+  
+  @override
+  Future<http.Response> authenticatedPut(String path, dynamic body) async {
+    // Make sure we use the auth headers with the token
+    return super.authenticatedPut(path, body);
+  }
+  
+  @override
+  Future<http.Response> authenticatedDelete(String path) async {
+    // Make sure we use the auth headers with the token
+    return super.authenticatedDelete(path);
+  }
+  
+  // Clean up resources
+  void dispose() {
+    if (!_authStateController.isClosed) {
+      _authStateController.close();
     }
   }
 }

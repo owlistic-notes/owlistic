@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -48,14 +50,18 @@ Future<void> initializeServices() async {
     ServiceLocator.register<WebSocketService>(websocketService);
     
     // Load token from storage
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(AuthService.TOKEN_KEY);
+    final token = await authService.getStoredToken();
     
     if (token != null && token.isNotEmpty) {
       logger.info('Found existing auth token, initializing services with it');
       
-      // This will update BaseService's token
-      await authService.onTokenChanged(token);
+      try {
+        await authService.onTokenChanged(token);
+        logger.info('Authentication token successfully initialized');
+      } catch (e) {
+        logger.error('Failed to initialize with stored token, clearing it', e);
+        await authService.clearToken();
+      }
     } else {
       logger.info('No auth token found, app will start unauthenticated');
     }
@@ -74,6 +80,13 @@ void main() async {
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
     Logger('FlutterError').error('Uncaught Flutter error', details.exception, details.stack);
+  };
+  
+  // Error handling for asynchronous errors
+  // This catches errors that occur outside the Flutter framework
+  PlatformDispatcher.instance.onError = (error, stack) {
+    Logger('PlatformError').error('Uncaught platform error', error, stack);
+    return true;
   };
   
   // Load environment variables

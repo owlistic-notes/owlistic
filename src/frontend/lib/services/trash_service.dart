@@ -25,11 +25,10 @@ class TrashService extends BaseService {
         params.addAll(queryParams);
       }
       
-      final uri = createUri('/api/v1/trash', queryParameters: params);
-      
-      final response = await http.get(
-        uri,
-        headers: getAuthHeaders(),
+      // Use authenticatedGet from BaseService with auth headers
+      final response = await authenticatedGet(
+        '/api/v1/trash',
+        queryParameters: params
       );
       
       if (response.statusCode == 200) {
@@ -56,9 +55,10 @@ class TrashService extends BaseService {
   
   Future<void> restoreItem(String type, String id) async {
     try {
-      final response = await http.post(
-        createUri('/api/v1/trash/restore/$type/$id'),
-        headers: getAuthHeaders(),
+      // Use authenticatedPost from BaseService with auth headers
+      final response = await authenticatedPost(
+        '/api/v1/trash/restore/$type/$id',
+        {}
       );
       
       if (response.statusCode != 200) {
@@ -72,9 +72,9 @@ class TrashService extends BaseService {
   
   Future<void> permanentlyDeleteItem(String type, String id) async {
     try {
-      final response = await http.delete(
-        createUri('/api/v1/trash/$type/$id'),
-        headers: getAuthHeaders(),
+      // Use authenticatedDelete from BaseService with auth headers
+      final response = await authenticatedDelete(
+        '/api/v1/trash/$type/$id'
       );
       
       if (response.statusCode != 200) {
@@ -88,9 +88,9 @@ class TrashService extends BaseService {
   
   Future<void> emptyTrash() async {
     try {
-      final response = await http.delete(
-        createUri('/api/v1/trash'),
-        headers: getAuthHeaders(),
+      // Use authenticatedDelete from BaseService with auth headers
+      final response = await authenticatedDelete(
+        '/api/v1/trash'
       );
       
       if (response.statusCode != 200) {

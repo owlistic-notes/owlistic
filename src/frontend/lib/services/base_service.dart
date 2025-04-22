@@ -1,61 +1,25 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
-// Enhanced version of BaseService with better error handling and validation
+// Base service class with minimal responsibilities
 abstract class BaseService {
-  static String? _token;
-  static String _baseUrl = '';
   static final Logger _logger = Logger('BaseService');
-  static const String TOKEN_KEY = 'auth_token';
   
-  // Stream controllers for auth state changes
-  static final _authStateController = StreamController<bool>.broadcast();
-  Stream<bool> get authStateChanges => _authStateController.stream;
+  // Base URL from environment variables
+  static String get _baseUrl => dotenv.env['API_URL'] ?? 'http://localhost:8080';
   
-  // Initialize with environment configuration
-  BaseService() {
-    _baseUrl = dotenv.env['API_URL'] ?? '';
-    if (_baseUrl.isEmpty) {
-      _logger.warning('API_URL environment variable not set. Using default empty base URL.');
-    }
-    // Try to load token on initialization
-    _loadTokenFromStorage();
-  }
-  
-  // Load token from storage when service is initialized
-  Future<void> _loadTokenFromStorage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _token = prefs.getString(TOKEN_KEY);
-      _logger.debug('Loaded auth token from storage: ${_token != null ? 'Present' : 'Not found'}');
-    } catch (e) {
-      _logger.error('Error loading token from storage', e);
-    }
-  }
-  
-  // Update token when it changes
-  static void notifyTokenChange(String? token) {
-    _token = token;
-    _logger.debug('Auth token updated: ${_token != null ? 'Present' : 'Cleared'}');
-    _authStateController.add(_token != null);
-  }
-
-  // Create URIs with proper encoding of parameters
+  // Create URI helper
   Uri createUri(String path, {Map<String, dynamic>? queryParameters}) {
     // Validate path
     if (!path.startsWith('/')) {
       path = '/' + path;
     }
     
-    // Handle empty base URL
-    String fullUrl = _baseUrl.isEmpty 
-        ? 'http://localhost:8080$path'  // Default fallback
-        : _baseUrl + path;
+    // Build full URL
+    String fullUrl = _baseUrl + path;
     
     // Convert all query parameter values to strings
     Map<String, String>? stringParams;
@@ -71,7 +35,7 @@ abstract class BaseService {
     return Uri.parse(fullUrl).replace(queryParameters: stringParams);
   }
 
-  // Get authorization headers
+  // Get base headers without auth
   Map<String, String> getBaseHeaders() {
     return {
       'Content-Type': 'application/json',
@@ -79,12 +43,9 @@ abstract class BaseService {
     };
   }
   
+  // Get auth headers - to be overridden by AuthService
   Map<String, String> getAuthHeaders() {
-    final headers = getBaseHeaders();
-    if (_token != null) {
-      headers['Authorization'] = 'Bearer $_token';
-    }
-    return headers;
+    return getBaseHeaders();
   }
 
   // Helper methods for API calls with better error handling
@@ -93,6 +54,7 @@ abstract class BaseService {
     _logger.debug('GET: $uri');
     
     try {
+      // Always use getAuthHeaders to get the current token
       final response = await http.get(uri, headers: getAuthHeaders());
       _validateResponse(response, 'GET', uri.toString());
       return response;
@@ -108,6 +70,7 @@ abstract class BaseService {
     
     try {
       final bodyJson = jsonEncode(body);
+      // Always use getAuthHeaders to get the current token
       final response = await http.post(
         uri,
         headers: getAuthHeaders(),
@@ -126,6 +89,7 @@ abstract class BaseService {
     _logger.debug('PUT: $uri');
     
     try {
+      // Always use getAuthHeaders to get the current token
       final response = await http.put(
         uri,
         headers: getAuthHeaders(),
@@ -144,6 +108,7 @@ abstract class BaseService {
     _logger.debug('DELETE: $uri');
     
     try {
+      // Always use getAuthHeaders to get the current token
       final response = await http.delete(uri, headers: getAuthHeaders());
       _validateResponse(response, 'DELETE', uri.toString());
       return response;
