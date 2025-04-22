@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -14,6 +15,7 @@ type EventHandlerServiceInterface interface {
 	Start()
 	Stop()
 	ProcessPendingEvents()
+	IsKafkaAvailable() bool
 }
 
 type EventHandlerService struct {
@@ -21,13 +23,15 @@ type EventHandlerService struct {
 	isRunning     bool
 	ticker        *time.Ticker
 	kafkaProducer broker.Producer
+	kafkaEnabled  bool
 }
 
 func NewEventHandlerService(db *database.Database) EventHandlerServiceInterface {
 	return &EventHandlerService{
-		db:        db,
-		isRunning: false,
-		ticker:    time.NewTicker(1 * time.Second),
+		db:           db,
+		isRunning:    false,
+		ticker:       time.NewTicker(1 * time.Second),
+		kafkaEnabled: broker.IsKafkaEnabled(),
 		// By default, use the global producer. This can be overridden for testing
 		kafkaProducer: nil, // Will use the global producer via broker.PublishMessage
 	}
@@ -40,6 +44,7 @@ func NewEventHandlerServiceWithProducer(db *database.Database, producer broker.P
 		isRunning:     false,
 		ticker:        time.NewTicker(1 * time.Second),
 		kafkaProducer: producer,
+		kafkaEnabled:  producer != nil && producer.IsAvailable(),
 	}
 }
 
@@ -47,6 +52,16 @@ func (s *EventHandlerService) Start() {
 	if s.isRunning {
 		return
 	}
+	
+	// Check if Kafka is available before starting
+	s.kafkaEnabled = broker.IsKafkaEnabled()
+	
+	if !s.kafkaEnabled {
+		log.Println("Warning: EventHandlerService started with Kafka disabled - events will not be dispatched")
+	} else {
+		log.Println("EventHandlerService started successfully with Kafka enabled")
+	}
+	
 	s.isRunning = true
 	go s.ProcessPendingEvents()
 }
@@ -59,10 +74,22 @@ func (s *EventHandlerService) Stop() {
 	s.ticker.Stop()
 }
 
+// IsKafkaAvailable reports whether events can be dispatched
+func (s *EventHandlerService) IsKafkaAvailable() bool {
+	return s.kafkaEnabled
+}
+
 func (s *EventHandlerService) ProcessPendingEvents() {
 	for range s.ticker.C {
 		if !s.isRunning {
 			return
+		}
+
+		// Check if Kafka is available
+		s.kafkaEnabled = broker.IsKafkaEnabled()
+		if !s.kafkaEnabled {
+			// Don't attempt to process events if Kafka is unavailable
+			continue
 		}
 
 		var events []models.Event
@@ -87,7 +114,10 @@ func (s *EventHandlerService) ProcessPendingEvents() {
 }
 
 func (s *EventHandlerService) dispatchEvent(event models.Event) error {
-	topic := getTopicForEvent(event.Entity)
+	// Check if Kafka is enabled before trying to dispatch
+	if (!s.kafkaEnabled) {
+		return fmt.Errorf("cannot dispatch event: Kafka is not available")
+	}
 
 	// Parse event data into a proper object
 	var dataMap map[string]interface{}
@@ -106,6 +136,9 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 	eventPayload["timestamp"] = event.Timestamp
 	eventPayload["entity"] = event.Entity
 	eventPayload["type"] = event.Event
+
+	// Get topic based on entity type
+	topic := getTopicForEvent(event.Entity)
 
 	// Extract and add resource IDs to the top level for easier access
 	if noteId, exists := dataMap["note_id"]; exists {

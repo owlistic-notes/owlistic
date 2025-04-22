@@ -33,15 +33,21 @@ type Event struct {
 	Payload   map[string]any `json:"payload"`
 }
 
-var kafkaEnabled = true
+var kafkaEnabled = false  // Start with Kafka disabled by default until we confirm it's working
 
 // SetKafkaEnabled allows toggling Kafka feature
 func SetKafkaEnabled(enabled bool) {
 	kafkaEnabled = enabled
+	log.Printf("Kafka enabled status set to: %v", enabled)
 }
 
 // IsKafkaEnabled returns whether Kafka is currently enabled
 func IsKafkaEnabled() bool {
+	// Also check if producer is available
+	if kafkaEnabled && !IsProducerAvailable() {
+		log.Println("Kafka producer is unavailable despite being enabled")
+		return false
+	}
 	return kafkaEnabled
 }
 

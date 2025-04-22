@@ -31,9 +31,11 @@ func main() {
 	err = broker.InitProducer()
 	if err != nil {
 		log.Printf("Warning: Failed to initialize Kafka producer: %v", err)
-		log.Println("The application will continue, but some Kafka-dependent features will be disabled")
+		log.Println("The application will continue, but event publishing will be disabled")
 		kafkaAvailable = false
+		broker.SetKafkaEnabled(false)
 	} else {
+		broker.SetKafkaEnabled(true)
 		defer broker.CloseProducer()
 	}
 

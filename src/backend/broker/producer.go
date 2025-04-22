@@ -51,7 +51,6 @@ func NewKafkaProducer(brokerAddress string) (Producer, error) {
 		"retries":                  5,
 		"retry.backoff.ms":         1000,
 		"broker.address.family":    "v4",
-		"broker.address.resolution": "standard",
 	})
 
 	if err != nil {
@@ -105,7 +104,6 @@ func (kp *KafkaProducer) retryProducerConnection(broker string) {
 			"socket.timeout.ms":        10000,
 			"client.id":                "thinkstack-producer-retry",
 			"broker.address.family":    "v4",
-			"broker.address.resolution": "standard",
 		})
 
 		if err == nil {
