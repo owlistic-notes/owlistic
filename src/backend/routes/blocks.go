@@ -86,6 +86,9 @@ func UpdateBlock(c *gin.Context, db *database.Database, blockService services.Bl
 		if errors.Is(err, services.ErrBlockNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Block not found"})
 			return
+		} else if errors.Is(err, services.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data"})
+			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
