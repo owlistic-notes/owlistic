@@ -15,6 +15,8 @@ class WebSocketEventCoordinator {
   
   // Track active subscriptions
   final Set<Subscription> _activeSubscriptions = {};
+  // Track event handlers for cleanup
+  final Map<String, Function(dynamic)> _eventHandlers = {};
   
   WebSocketEventCoordinator(this._webSocketProvider);
   
@@ -68,15 +70,25 @@ class WebSocketEventCoordinator {
     
     _logger.debug('Unsubscribed from all ${_activeSubscriptions.length} resources');
     _activeSubscriptions.clear();
+    
+    // Remove all event listeners too
+    for (final entry in _eventHandlers.entries) {
+      _webSocketProvider.off(entry.key, entry.value);
+    }
+    _eventHandlers.clear();
   }
   
   // Add event listener for a specific event
   void on(String eventName, Function(dynamic) handler) {
     _webSocketProvider.on(eventName, handler);
+    _eventHandlers[eventName] = handler; // Store for cleanup
   }
   
   // Remove event listener
   void off(String eventName, [Function(dynamic)? handler]) {
     _webSocketProvider.off(eventName, handler);
+    if (handler == null) {
+      _eventHandlers.remove(eventName);
+    }
   }
 }

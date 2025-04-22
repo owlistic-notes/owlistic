@@ -24,15 +24,24 @@ class WebSocketService {
   Timer? _reconnectTimer;
   Timer? _pingTimer;
   bool _isReconnecting = false;
+  int _reconnectAttempt = 0;
+  static const int _maxReconnectAttempts = 5;
   
   // Add local subscription tracking to prevent duplicates at service level
   final Set<String> _activeSubscriptions = {};
   
   final StreamController<Map<String, dynamic>> _messageController = 
       StreamController<Map<String, dynamic>>.broadcast();
+      
+  // Add connection state stream for better event propagation
+  final StreamController<bool> _connectionStateController = 
+      StreamController<bool>.broadcast();
   
   // Get the stream of messages
   Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
+  
+  // Get the connection state stream
+  Stream<bool> get connectionStateStream => _connectionStateController.stream;
   
   // Check if connected
   bool get isConnected => _isConnected;
@@ -41,7 +50,7 @@ class WebSocketService {
   WebSocketConnectionState _connectionState = WebSocketConnectionState.disconnected;
   WebSocketConnectionState get connectionState => _connectionState;
   
-  // Private constructor
+  // Private constructor - use the correct API path for WebSocket
   WebSocketService._internal() 
       : _baseUrl = dotenv.env['WS_URL'] ?? 'ws://localhost:8082/ws';
   
@@ -111,20 +120,33 @@ class WebSocketService {
     
     _isReconnecting = true;
     _connectionState = WebSocketConnectionState.connecting;
+    _connectionStateController.add(false); // Still connecting
     
     try {
-      // Always use auth token for connection
+      // Include auth token in URL as a query parameter - the websocket_auth_middleware expects this
       String wsUrl = '${_customUrl ?? _baseUrl}?token=$_authToken';
-      _logger.debug('Connecting to WebSocket with auth token');
+      _logger.debug('Connecting to WebSocket URL: $wsUrl');
       
       // Create WebSocketChannel using platform-specific implementation
       if (kIsWeb) {
         // Use WebSocketChannel for web
-        _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+        _channel = WebSocketChannel.connect(
+          Uri.parse(wsUrl),
+          protocols: ['wss'], // Use secure WebSocket protocol if available
+        );
       } else {
         // Use IOWebSocketChannel for native platforms
         try {
-          _channel = IOWebSocketChannel.connect(Uri.parse(wsUrl));
+          _channel = IOWebSocketChannel.connect(
+            Uri.parse(wsUrl),
+            pingInterval: const Duration(seconds: 20),
+            headers: {
+              // In case query param doesn't work, also include auth in header as fallback
+              'Authorization': 'Bearer $_authToken',
+              'Connection': 'Upgrade',
+              'Upgrade': 'websocket',
+            }
+          );
         } catch (e) {
           _logger.error('Error creating IOWebSocketChannel', e);
           // Fallback to basic implementation
@@ -135,8 +157,10 @@ class WebSocketService {
       _isConnected = true;
       _isReconnecting = false;
       _connectionState = WebSocketConnectionState.connected;
+      _connectionStateController.add(true); // Now connected
+      _reconnectAttempt = 0; // Reset reconnect counter on successful connection
       
-      _logger.info('Connection established successfully');
+      _logger.info('WebSocket connection established successfully');
       
       // Listen for incoming messages
       _channel!.stream.listen(
@@ -147,30 +171,41 @@ class WebSocketService {
           _connectionState = WebSocketConnectionState.error;
           _handleDisconnect();
         },
-        cancelOnError: true,
+        cancelOnError: false,
       );
       
       // Start ping timer
       _startPingTimer();
     } catch (e) {
-      _logger.error('Connection error', e);
+      _logger.error('WebSocket connection error', e);
       _isConnected = false;
       _isReconnecting = false;
       _connectionState = WebSocketConnectionState.error;
+      _connectionStateController.add(false);
       _scheduleReconnect();
     }
   }
   
-  // Handle disconnection
+  // Handle disconnection with improved state management
   void _handleDisconnect() {
     if (!_isConnected) return;
     
     _isConnected = false;
-    _channel?.sink.close();
-    _pingTimer?.cancel();
     _connectionState = WebSocketConnectionState.disconnected;
+    _connectionStateController.add(false);
     
-    _logger.info('Disconnected, scheduling reconnect');
+    _pingTimer?.cancel();
+    _pingTimer = null;
+    
+    try {
+      _channel?.sink.close();
+    } catch (e) {
+      _logger.error('Error closing WebSocket channel', e);
+    }
+    
+    _channel = null;
+    
+    _logger.info('WebSocket disconnected, scheduling reconnect');
     
     // Only reconnect if we have an auth token
     if (_authToken != null) {
@@ -178,17 +213,26 @@ class WebSocketService {
     }
   }
   
-  // Schedule reconnection
+  // Schedule reconnection with exponential backoff
   void _scheduleReconnect() {
-    // Attempt to reconnect with exponential backoff
-    _reconnectTimer?.cancel();
-    
-    if (!_isReconnecting && _authToken != null) {
-      _reconnectTimer = Timer(const Duration(seconds: 5), () {
-        _logger.info('Attempting to reconnect...');
-        connect();
-      });
+    if (_reconnectAttempt >= _maxReconnectAttempts) {
+      _logger.warning('Maximum reconnection attempts reached');
+      return;
     }
+    
+    _reconnectAttempt++;
+    
+    // Calculate delay with exponential backoff (1s, 2s, 4s, 8s, 16s)
+    int delayMs = 1000 * (1 << (_reconnectAttempt - 1));
+    if (delayMs > 30000) delayMs = 30000; // Cap at 30 seconds
+    
+    _logger.info('Scheduling reconnect attempt $_reconnectAttempt/$_maxReconnectAttempts in ${delayMs}ms');
+    
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(Duration(milliseconds: delayMs), () {
+      _logger.info('Attempting to reconnect...');
+      connect();
+    });
   }
   
   // Start ping timer to keep connection alive
@@ -525,6 +569,7 @@ class WebSocketService {
   void dispose() {
     disconnect();
     _messageController.close();
+    _connectionStateController.close();
   }
 
   // Send a generic event
@@ -550,27 +595,37 @@ class WebSocketService {
   }
 
   void _handleWebSocketMessage(dynamic message) {
-    _logger.debug('Raw message received');
     try {
       // Parse the JSON message
       Map<String, dynamic> jsonMessage;
       if (message is String) {
         jsonMessage = json.decode(message);
+        _logger.debug('Received string message: $message');
       } else {
         // If it's already a Map, just cast it
         jsonMessage = message as Map<String, dynamic>;
+        _logger.debug('Received message object');
       }
       
-      // Use our parser to get a structured message object
+      // Handle ping messages with immediate response
+      if (jsonMessage['type'] == 'ping') {
+        _logger.debug('Received ping message from server, responding with pong');
+        sendMessage(json.encode({'type': 'pong'}));
+        return;
+      }
+      
+      // Handle pong messages (response to our pings)
+      if (jsonMessage['type'] == 'pong') {
+        _logger.debug('Received pong response from server');
+        return;
+      }
+      
+      // Use our parser to get a structured message object for other messages
       final parsedMessage = WebSocketParser.parse(jsonMessage);
       if (parsedMessage != null) {
         // Handle subscription confirmations
         if (parsedMessage.type == 'subscription' && parsedMessage.event == 'confirmed') {
           _handleSubscriptionConfirmation(parsedMessage.payload);
-        } 
-        // Handle ping messages
-        else if (parsedMessage.type == 'ping') {
-          sendMessage(json.encode({'type': 'pong'}));
         }
         // Handle events
         else if (parsedMessage.type == 'event') {
@@ -578,7 +633,7 @@ class WebSocketService {
         }
       }
       
-      // Pass the original message to existing listeners for compatibility
+      // Pass the original message to existing listeners
       _messageController.add(jsonMessage);
     } catch (e) {
       _logger.error('Error parsing message', e);

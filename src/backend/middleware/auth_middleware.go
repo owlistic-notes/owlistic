@@ -148,7 +148,7 @@ func isExemptFromAccessControl(path, method string) bool {
 	}
 
 	// Websocket endpoint
-	if strings.Contains(path, "/api/v1/ws") {
+	if strings.Contains(path, "/ws") {
 		return true
 	}
 

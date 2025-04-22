@@ -14,7 +14,7 @@ func RegisterWebSocketRoutes(router *gin.Engine, authService services.AuthServic
 	}
 
 	// Create a WebSocket group with authentication middleware
-	wsGroup := router.Group("/api/v1/ws")
+	wsGroup := router.Group("/ws")
 	wsGroup.Use(middleware.WebSocketAuthMiddleware(authService))
 	{
 		// WebSocket connection endpoint

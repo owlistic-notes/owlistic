@@ -149,14 +149,68 @@ class WebSocketProvider with ChangeNotifier {
       }
     );
     
+    // Listen to connection state changes
+    _webSocketService.connectionStateStream.listen((connected) {
+      _logger.info('WebSocket connection state changed: connected=$connected');
+      _isConnected = connected;
+      
+      // If connection was restored, restore subscriptions
+      if (connected && (_pendingSubscriptions.isNotEmpty || _confirmedSubscriptions.isNotEmpty)) {
+        _restoreSubscriptions();
+      }
+      
+      notifyListeners();
+    });
+    
     _initialized = true;
     _isConnected = _webSocketService.isConnected;
+  }
+  
+  // Restore subscriptions after reconnection
+  Future<void> _restoreSubscriptions() async {
+    _logger.info('Restoring subscriptions after reconnection');
+    
+    // Get all subscriptions to restore
+    final subscriptionsToRestore = Set<String>.from(_confirmedSubscriptions);
+    subscriptionsToRestore.addAll(_pendingSubscriptions);
+    
+    // Clear current tracking since we're going to resubscribe
+    _confirmedSubscriptions.clear();
+    _pendingSubscriptions.clear();
+    
+    // Batch resubscribe in small groups to avoid overwhelming the connection
+    int count = 0;
+    for (final subscription in subscriptionsToRestore) {
+      if (subscription.startsWith('event:')) {
+        // Handle event subscriptions
+        final eventType = subscription.substring(6); // Remove 'event:' prefix
+        await subscribeToEvent(eventType);
+      } else if (subscription.contains(':')) {
+        // Handle resource:id subscriptions
+        final parts = subscription.split(':');
+        await subscribe(parts[0], id: parts[1]);
+      } else {
+        // Handle global resource subscriptions
+        await subscribe(subscription);
+      }
+      
+      // Small delay between subscriptions
+      count++;
+      if (count % 5 == 0) {
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+    }
+    
+    _logger.info('Restored ${subscriptionsToRestore.length} subscriptions');
   }
 
   // Ensure connection is established
   Future<bool> ensureConnected() async {
+    // Get the token directly from AuthService to ensure it's current
+    final token = AuthService.token;
+    
     // Check if we have authentication before allowing connection
-    if (AuthService.token == null) {
+    if (token == null) {
       _logger.warning('Cannot connect WebSocket: No authentication token');
       return false;
     }
@@ -167,15 +221,28 @@ class WebSocketProvider with ChangeNotifier {
       return true;
     }
     
-    // WebSocketService will use the token for authentication
-    _webSocketService.connect();
+    // Always set the current token before connecting to ensure it's fresh
+    _webSocketService.setAuthToken(token);
+    
+    if (_currentUser != null) {
+      _webSocketService.setUserId(_currentUser!.id);
+    }
+    
+    _logger.info('Connecting WebSocket...');
+    await _webSocketService.connect();
     
     // Wait a short time for connection to establish
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 300));
     
     _isConnected = _webSocketService.isConnected;
-    notifyListeners();
     
+    if (_isConnected) {
+      _logger.info('WebSocket connection established');
+    } else {
+      _logger.warning('WebSocket connection failed');
+    }
+    
+    notifyListeners();
     return _isConnected;
   }
 
@@ -554,28 +621,59 @@ class WebSocketProvider with ChangeNotifier {
     _lastSubscriptionAttempt.remove(subscriptionKey);
   }
 
-  // Force reconnection with resubscription
+  // Force reconnection with better subscription handling
   Future<bool> reconnect() async {
+    _logger.info('Forcing WebSocket reconnection');
+    
+    // Get a fresh token before reconnecting
+    final token = AuthService.token;
+    if (token == null) {
+      _logger.warning('Cannot reconnect: No authentication token');
+      return false;
+    }
+    
     // Save current subscriptions before disconnecting
     final subscriptionsToRestore = Set<String>.from(_confirmedSubscriptions);
     _confirmedSubscriptions.clear();
     _pendingSubscriptions.clear();
     
+    // Disconnect
     _webSocketService.disconnect();
-    await Future.delayed(Duration(milliseconds: 500));
-    _webSocketService.connect();
     
+    // Wait for disconnection to complete
+    await Future.delayed(Duration(milliseconds: 300));
+    
+    // Set fresh auth data
+    _webSocketService.setAuthToken(token);
+    if (_currentUser != null) {
+      _webSocketService.setUserId(_currentUser!.id);
+    }
+    
+    // Connect with fresh auth data
+    await _webSocketService.connect();
+    
+    // Wait for connection
     await Future.delayed(Duration(milliseconds: 500));
+    
     _isConnected = _webSocketService.isConnected;
     
     // Resubscribe to all previous subscriptions
     if (_isConnected && subscriptionsToRestore.isNotEmpty) {
+      int count = 0;
       for (final subscription in subscriptionsToRestore) {
-        if (subscription.contains(':')) {
+        if (subscription.startsWith('event:')) {
+          await subscribeToEvent(subscription.substring(6)); // Remove 'event:' prefix
+        } else if (subscription.contains(':')) {
           final parts = subscription.split(':');
           await subscribe(parts[0], id: parts[1]);
         } else {
           await subscribe(subscription);
+        }
+        
+        // Add delay every 5 subscriptions
+        count++;
+        if (count % 5 == 0) {
+          await Future.delayed(Duration(milliseconds: 100));
         }
       }
     }
