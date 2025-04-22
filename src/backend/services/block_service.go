@@ -104,13 +104,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, err
 	}
 
-	// Create an event entry instead of directly publishing
 	actorID, _ := blockData["user_id"].(string)
-	if actorID == "" {
-		// Fallback to a system user ID if none provided
-		actorID = "system"
-	}
-
 	event, err := models.NewEvent(
 		"block.created", // Standardized event type
 		"block",

@@ -283,6 +283,7 @@ class NotesProvider with ChangeNotifier {
       _webSocketProvider?.unsubscribe('note', id: id);
       
       _logger.info('Deleted note: $id, waiting for event');
+      notifyListeners();
     } catch (error) {
       _logger.error('Error deleting note: $error');
       rethrow;
