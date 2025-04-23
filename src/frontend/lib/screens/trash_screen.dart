@@ -64,7 +64,6 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     });
     
     // Set WebSocket provider and activate
-    _presenter.setWebSocketProvider(_wsProvider);
     _presenter.activate();
     
     // Initial fetch

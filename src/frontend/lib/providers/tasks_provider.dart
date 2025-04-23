@@ -4,21 +4,27 @@ import '../models/task.dart';
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
 import '../services/base_service.dart';
-import 'websocket_provider.dart';
+import '../services/websocket_service.dart';
 import '../utils/logger.dart';
 import '../utils/websocket_message_parser.dart';
+import '../services/app_state_service.dart';
 
 class TasksProvider with ChangeNotifier {
   // Change to Map to prevent duplicates and enable O(1) lookups
   final Map<String, Task> _tasksMap = {};
   bool _isLoading = false;
-  WebSocketProvider? _webSocketProvider;
-  bool _initialized = false;
   bool _isActive = false; // Add flag for active state
+  bool _initialized = false;
   
   // Services
   final TaskService _taskService;
   final AuthService _authService;
+  final WebSocketService _webSocketService = WebSocketService();
+
+  // Add subscription for app state changes
+  StreamSubscription? _resetSubscription;
+  StreamSubscription? _connectionSubscription;
+  final AppStateService _appStateService = AppStateService();
 
   // Logger for debugging and tracking events
   final _logger = Logger('TaskProvider');
@@ -26,7 +32,47 @@ class TasksProvider with ChangeNotifier {
   // Constructor with dependency injection
   TasksProvider({TaskService? taskService, AuthService? authService})
     : _taskService = taskService ?? ServiceLocator.get<TaskService>(),
-      _authService = authService ?? ServiceLocator.get<AuthService>();
+      _authService = authService ?? ServiceLocator.get<AuthService>() {
+    // Listen for app reset events
+    _resetSubscription = _appStateService.onResetState.listen((_) {
+      resetState();
+    });
+    
+    // Initialize event handlers if not already initialized
+    if (!_initialized) {
+      _initializeEventListeners();
+      _initialized = true;
+    }
+    
+    // Listen for connection state changes
+    _connectionSubscription = _webSocketService.connectionStateStream.listen((connected) {
+      if (connected && _isActive) {
+        // Resubscribe to events when connection is established
+        _subscribeToEvents();
+      }
+    });
+  }
+
+  // Initialize WebSocket event listeners
+  void _initializeEventListeners() {
+    _webSocketService.addEventListener('event', 'task.updated', _handleTaskUpdate);
+    _webSocketService.addEventListener('event', 'task.created', _handleTaskCreate);
+    _webSocketService.addEventListener('event', 'task.deleted', _handleTaskDelete);
+    
+    _logger.info('TasksProvider registered event handlers');
+  }
+  
+  // Subscribe to events
+  void _subscribeToEvents() {
+    _webSocketService.subscribeToEvent('task.updated');
+    _webSocketService.subscribeToEvent('task.created');
+    _webSocketService.subscribeToEvent('task.deleted');
+    
+    // Also subscribe to tasks for any active tasks
+    for (final task in _tasksMap.values) {
+      _webSocketService.subscribe('task', id: task.id);
+    }
+  }
 
   // Update getters to use the map
   List<Task> get tasks => _tasksMap.values.toList();
@@ -45,51 +91,18 @@ class TasksProvider with ChangeNotifier {
   void activate() {
     _isActive = true;
     _logger.info('TasksProvider activated');
+    
+    // Subscribe to events when activated
+    if (_webSocketService.isConnected) {
+      _subscribeToEvents();
+    }
+    
     fetchTasks(); // Load tasks on activation
   }
 
   void deactivate() {
     _isActive = false;
     _logger.info('TasksProvider deactivated');
-  }
-
-  // Called by ProxyProvider in main.dart
-  void initialize(WebSocketProvider webSocketProvider) {
-    if (_initialized) return;
-    _initialized = true;
-
-    _webSocketProvider = webSocketProvider;
-    _registerEventHandlers();
-
-    _logger.info('TasksProvider registered event handlers');
-  }
-
-  void setWebSocketProvider(WebSocketProvider provider) {
-    if (_webSocketProvider == provider) return;
-
-    _webSocketProvider = provider;
-
-    // Register for relevant events
-    _registerEventHandlers();
-
-    _logger.info('TasksProvider: WebSocket event listeners registered');
-  }
-
-  void _registerEventHandlers() {
-    // Register handlers for all standardized resource.action events
-    _webSocketProvider?.addEventListener(
-        'event', 'task.updated', _handleTaskUpdate);
-    _webSocketProvider?.addEventListener(
-        'event', 'task.created', _handleTaskCreate);
-    _webSocketProvider?.addEventListener(
-        'event', 'task.deleted', _handleTaskDelete);
-        
-    // Subscribe to these events using the correct pattern
-    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
-      _webSocketProvider?.subscribeToEvent('task.updated');
-      _webSocketProvider?.subscribeToEvent('task.created');
-      _webSocketProvider?.subscribeToEvent('task.deleted');
-    }
   }
 
   void _handleTaskUpdate(Map<String, dynamic> message) {
@@ -183,7 +196,7 @@ class TasksProvider with ChangeNotifier {
   }
 
   Future<void> _fetchSingleTask(String taskId) async {
-    print('Fetching single task: $taskId');
+    _logger.debug('Fetching single task: $taskId');
     try {
       // Fetch the task from the service
       final task = await _taskService.getTask(taskId);
@@ -192,12 +205,12 @@ class TasksProvider with ChangeNotifier {
       _tasksMap[taskId] = task;
 
       // Subscribe to this task
-      _webSocketProvider?.subscribe('task', id: task.id);
+      _webSocketService.subscribe('task', id: task.id);
 
       notifyListeners();
-      print('Updated/added task: $taskId');
+      _logger.debug('Updated/added task: $taskId');
     } catch (error) {
-      print('Error fetching task: $error');
+      _logger.error('Error fetching task: $error');
     }
   }
 
@@ -229,7 +242,7 @@ class TasksProvider with ChangeNotifier {
 
       // Subscribe to all tasks
       for (var task in tasksList) {
-        _webSocketProvider?.subscribe('task', id: task.id);
+        _webSocketService.subscribe('task', id: task.id);
       }
 
       _logger.debug('Fetched ${_tasksMap.length} tasks');
@@ -249,7 +262,7 @@ class TasksProvider with ChangeNotifier {
       final task = await _taskService.createTask(title, noteId, blockId: blockId);
       
       // Subscribe to this task
-      _webSocketProvider?.subscribe('task', id: task.id);
+      _webSocketService.subscribe('task', id: task.id);
       
       _logger.info('Created task: $title, waiting for event');
     } catch (error) {
@@ -330,19 +343,14 @@ class TasksProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    // Unregister event handlers
-    if (_webSocketProvider != null) {
-      _webSocketProvider?.removeEventListener('event', 'task.updated');
-      _webSocketProvider?.removeEventListener('event', 'task.created');
-      _webSocketProvider?.removeEventListener('event', 'task.deleted');
-      
-      // Unsubscribe from events
-      if (_webSocketProvider!.isConnected) {
-        _webSocketProvider?.unsubscribeFromEvent('task.updated');
-        _webSocketProvider?.unsubscribeFromEvent('task.created');
-        _webSocketProvider?.unsubscribeFromEvent('task.deleted');
-      }
-    }
+    _resetSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    
+    // Remove event listeners
+    _webSocketService.removeEventListener('event', 'task.updated');
+    _webSocketService.removeEventListener('event', 'task.created');
+    _webSocketService.removeEventListener('event', 'task.deleted');
+    
     super.dispose();
   }
 }

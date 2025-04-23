@@ -6,12 +6,7 @@ import 'package:thinkstack/services/websocket_service.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../utils/logger.dart';
-import 'websocket_provider.dart';
-import 'notes_provider.dart';
-import 'notebooks_provider.dart';
-import 'tasks_provider.dart';
-import 'block_provider.dart';
-import 'trash_provider.dart';
+import '../services/app_state_service.dart';
 
 class AuthProvider with ChangeNotifier {
   String? _token;
@@ -22,18 +17,7 @@ class AuthProvider with ChangeNotifier {
   
   final Logger _logger = Logger('AuthProvider');
   final AuthService _authService;
-  
-  // Add a stream controller for auth state changes
-  final StreamController<bool> _authStateController = StreamController<bool>.broadcast();
-  Stream<bool> get authStateStream => _authStateController.stream;
-  
-  // References to providers that need cleanup on logout
-  WebSocketProvider? _webSocketProvider;
-  NotesProvider? _notesProvider;
-  NotebooksProvider? _notebooksProvider;
-  TasksProvider? _tasksProvider;
-  BlockProvider? _blockProvider;
-  TrashProvider? _trashProvider;
+  final AppStateService _appStateService = AppStateService();
   
   // Constructor with dependency injection
   AuthProvider({required AuthService authService}) 
@@ -50,23 +34,6 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   User? get currentUser => _currentUser;
   String? get error => _error;
-  
-  // Set references to providers for cleanup
-  void setProviders({
-    WebSocketProvider? webSocketProvider,
-    NotesProvider? notesProvider,
-    NotebooksProvider? notebooksProvider,
-    TasksProvider? tasksProvider,
-    BlockProvider? blockProvider,
-    TrashProvider? trashProvider,
-  }) {
-    _webSocketProvider = webSocketProvider;
-    _notesProvider = notesProvider;
-    _notebooksProvider = notebooksProvider;
-    _tasksProvider = tasksProvider;
-    _blockProvider = blockProvider;
-    _trashProvider = trashProvider;
-  }
   
   Future<void> _initializeAuthState() async {
     _isLoading = true;
@@ -100,8 +67,8 @@ class AuthProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       
-      // Notify auth state stream about current state
-      _authStateController.add(_isLoggedIn);
+      // Notify auth state via service
+      _appStateService.setAuthState(_isLoggedIn);
     }
   }
 
@@ -129,25 +96,13 @@ class AuthProvider with ChangeNotifier {
         _token = await _authService.getStoredToken();
         _isLoggedIn = true;
         _currentUser = await _authService.getUserProfile();
-        
-        // Activate required providers immediately after login
-        if (_notebooksProvider != null) {
-          _logger.info('Activating NotebooksProvider after login');
-          _notebooksProvider!.activate();
-        }
-        
-        if (_notesProvider != null) {
-          _logger.info('Activating NotesProvider after login');
-          _notesProvider!.activate();
-        }
-        
         _isLoading = false;
         
         _logger.info('Login successful for user: ${_currentUser?.email}');
         notifyListeners();
         
-        // Broadcast auth state change
-        _authStateController.add(_isLoggedIn);
+        // Broadcast auth state change via service
+        _appStateService.setAuthState(_isLoggedIn);
         
         // Set auth token for WebSocket service after successful login
         final webSocketService = WebSocketService();
@@ -194,44 +149,13 @@ class AuthProvider with ChangeNotifier {
     }
   }
   
-  // Clear all provider data on logout
-  void _clearProviderData() {
-    _logger.info('Clearing all provider data on logout');
-    
-    // Clear WebSocket provider state and disconnect
-    if (_webSocketProvider != null) {
-      _webSocketProvider!.clearOnLogout();
-    }
-    
-    // Reset all providers' data
-    if (_notesProvider != null) {
-      _notesProvider!.resetState();
-    }
-    
-    if (_notebooksProvider != null) {
-      _notebooksProvider!.resetState();
-    }
-    
-    if (_tasksProvider != null) {
-      _tasksProvider!.resetState();
-    }
-    
-    if (_blockProvider != null) {
-      _blockProvider!.resetState();
-    }
-    
-    if (_trashProvider != null) {
-      _trashProvider!.resetState();
-    }
-  }
-  
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
     
     try {
-      // Clear all provider data before logging out
-      _clearProviderData();
+      // Broadcast app-wide reset event BEFORE clearing auth state
+      _appStateService.resetAppState();
       
       // Perform logout with auth service
       await _authService.logout();
@@ -256,8 +180,8 @@ class AuthProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       
-      // Broadcast auth state change
-      _authStateController.add(false);
+      // Broadcast auth state change via service
+      _appStateService.setAuthState(false);
     }
   }
   
@@ -266,10 +190,8 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
   
-  // Make sure dispose method properly cleans up
   @override
   void dispose() {
-    _authStateController.close();
     super.dispose();
   }
 }

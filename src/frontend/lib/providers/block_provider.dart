@@ -4,9 +4,10 @@ import '../models/block.dart';
 import '../services/block_service.dart';
 import '../services/auth_service.dart';
 import '../services/base_service.dart';
-import 'websocket_provider.dart';
+import '../services/websocket_service.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
+import '../services/app_state_service.dart';
 
 class BlockProvider with ChangeNotifier {
   final Logger _logger = Logger('BlockProvider');
@@ -18,7 +19,7 @@ class BlockProvider with ChangeNotifier {
   // Services
   final BlockService _blockService;
   final AuthService _authService;
-  WebSocketProvider? _webSocketProvider;
+  final WebSocketService _webSocketService = WebSocketService();
   
   // Active notes and debouncing
   final Set<String> _activeNoteIds = {};
@@ -27,16 +28,59 @@ class BlockProvider with ChangeNotifier {
   bool _hasPendingNotification = false;
   bool _isActive = false;
 
+  // Add subscription for app state changes
+  StreamSubscription? _resetSubscription;
+  StreamSubscription? _connectionSubscription;
+  final AppStateService _appStateService = AppStateService();
+
   // Constructor with dependency injection
   BlockProvider({BlockService? blockService, AuthService? authService})
     : _blockService = blockService ?? ServiceLocator.get<BlockService>(),
-      _authService = authService ?? ServiceLocator.get<AuthService>();
+      _authService = authService ?? ServiceLocator.get<AuthService>() {
+    // Listen for app reset events
+    _resetSubscription = _appStateService.onResetState.listen((_) {
+      resetState();
+    });
+    
+    // Initialize event listeners
+    _initializeEventListeners();
+    
+    // Listen for connection state changes
+    _connectionSubscription = _webSocketService.connectionStateStream.listen((connected) {
+      if (connected && _isActive) {
+        // Resubscribe to events when connection is established
+        _subscribeToEvents();
+      }
+    });
+  }
       
   // Getters
   bool get isLoading => _isLoading;
   List<Block> get allBlocks => _blocks.values.toList();
   int get updateCount => _updateCount;
   Block? getBlock(String id) => _blocks[id];
+  
+  // Initialize WebSocket event listeners
+  void _initializeEventListeners() {
+    _logger.info('Registering event listeners for resource.action events');
+    _webSocketService.addEventListener('event', 'block.updated', _handleBlockUpdate);
+    _webSocketService.addEventListener('event', 'block.created', _handleBlockCreate);
+    _webSocketService.addEventListener('event', 'block.deleted', _handleBlockDelete);
+    _webSocketService.addEventListener('event', 'note.updated', _handleNoteUpdate);
+  }
+  
+  // Subscribe to events
+  void _subscribeToEvents() {
+    _webSocketService.subscribeToEvent('block.updated');
+    _webSocketService.subscribeToEvent('block.created');
+    _webSocketService.subscribeToEvent('block.deleted');
+    _webSocketService.subscribeToEvent('note.updated');
+    
+    // Also subscribe to blocks for active notes
+    for (final noteId in _activeNoteIds) {
+      _webSocketService.subscribe('note:blocks', id: noteId);
+    }
+  }
   
   List<Block> getBlocksForNote(String noteId) {
     // Get block IDs for this note
@@ -57,6 +101,11 @@ class BlockProvider with ChangeNotifier {
   void activate() {
     _isActive = true;
     _logger.info('BlockProvider activated');
+    
+    // Subscribe to events when activated
+    if (_webSocketService.isConnected) {
+      _subscribeToEvents();
+    }
   }
 
   void deactivate() {
@@ -71,59 +120,13 @@ class BlockProvider with ChangeNotifier {
     _notificationDebouncer?.cancel();
   }
 
-  // Set the WebSocketProvider and register event listeners
-  void setWebSocketProvider(WebSocketProvider provider) {
-    // Skip if the provider is the same
-    if (_webSocketProvider == provider) return;
-    
-    // Unregister from old provider if exists
-    if (_webSocketProvider != null) {
-      _unregisterEventHandlers();
-    }
-    
-    _webSocketProvider = provider;
-    _registerEventHandlers();
-  }
-
-  void _registerEventHandlers() {
-    // Register for standardized resource.action events
-    _logger.info('Registering event listeners for resource.action events');
-    _webSocketProvider?.addEventListener('event', 'block.updated', _handleBlockUpdate);
-    _webSocketProvider?.addEventListener('event', 'block.created', _handleBlockCreate);
-    _webSocketProvider?.addEventListener('event', 'block.deleted', _handleBlockDelete);
-    _webSocketProvider?.addEventListener('event', 'note.updated', _handleNoteUpdate);
-    
-    // Subscribe to these events using the correct pattern for events
-    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
-      // Use subscribeToEvent instead of subscribe for events
-      _webSocketProvider?.subscribeToEvent('block.updated');
-      _webSocketProvider?.subscribeToEvent('block.created');
-      _webSocketProvider?.subscribeToEvent('block.deleted');
-      _webSocketProvider?.subscribeToEvent('note.updated');
-    }
-    
-    // Debug to confirm handlers are registered
-    _logger.debug('Registered event handlers successfully');
-  }
-  
-  void _unregisterEventHandlers() {
-    _webSocketProvider?.removeEventListener('event', 'block.updated');
-    _webSocketProvider?.removeEventListener('event', 'block.created');
-    _webSocketProvider?.removeEventListener('event', 'block.deleted');
-    _webSocketProvider?.removeEventListener('event', 'note.updated');
-    
-    // Unsubscribe from events
-    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
-      _webSocketProvider?.unsubscribeFromEvent('block.updated');
-      _webSocketProvider?.unsubscribeFromEvent('block.created');
-      _webSocketProvider?.unsubscribeFromEvent('block.deleted');
-      _webSocketProvider?.unsubscribeFromEvent('note.updated');
-    }
-  }
-
   // Mark a note as active/inactive
   void activateNote(String noteId) {
     _activeNoteIds.add(noteId);
+    // Subscribe to blocks for this note
+    if (_webSocketService.isConnected) {
+      _webSocketService.subscribe('note:blocks', id: noteId);
+    }
     _logger.debug('Note $noteId activated');
   }
   
@@ -253,7 +256,7 @@ class BlockProvider with ChangeNotifier {
           }
           
           // Unsubscribe from this block
-          _webSocketProvider?.unsubscribe('block', id: blockId);
+          _webSocketService.unsubscribe('block', id: blockId);
           
           // Use debounced notification
           _enqueueNotification();
@@ -311,17 +314,13 @@ class BlockProvider with ChangeNotifier {
         _noteBlocksMap[noteId]!.add(block.id);
         
         // Subscribe to this block - only if not already subscribed
-        if (_webSocketProvider != null && 
-            !_webSocketProvider!.isSubscribed('block', id: block.id)) {
-          _webSocketProvider?.subscribe('block', id: block.id);
+        if (!_webSocketService.isSubscribed('block', id: block.id)) {
+          _webSocketService.subscribe('block', id: block.id);
         }
       }
       
-      // Also subscribe to note's blocks as a collection - only if not already subscribed
-      if (_webSocketProvider != null && 
-          !_webSocketProvider!.isSubscribed('note:blocks', id: noteId)) {
-        _webSocketProvider?.subscribe('note:blocks', id: noteId);
-      }
+      // Also subscribe to note's blocks as a collection
+      _webSocketService.subscribe('note:blocks', id: noteId);
       
       _isLoading = false;
       _updateCount++;
@@ -369,7 +368,7 @@ class BlockProvider with ChangeNotifier {
       }
       
       // Subscribe to this block
-      _webSocketProvider?.subscribe('block', id: blockId);
+      _webSocketService.subscribe('block', id: blockId);
       
       // Use debounced notification
       _enqueueNotification();
@@ -392,7 +391,7 @@ class BlockProvider with ChangeNotifier {
       final block = await _blockService.createBlock(noteId, content, type, order);
       
       // Subscribe to this block
-      _webSocketProvider?.subscribe('block', id: block.id);
+      _webSocketService.subscribe('block', id: block.id);
       
       _logger.debug('Created new block of type $type in note $noteId, waiting for event');
       return block;
@@ -415,7 +414,7 @@ class BlockProvider with ChangeNotifier {
       await _blockService.deleteBlock(id);
       
       // Unsubscribe from this block
-      _webSocketProvider?.unsubscribe('block', id: id);
+      _webSocketService.unsubscribe('block', id: id);
       
       _logger.debug('Deleted block, waiting for event');
     } catch (error) {
@@ -506,7 +505,7 @@ class BlockProvider with ChangeNotifier {
         }
         
         // Subscribe to this block
-        _webSocketProvider?.subscribe('block', id: blockId);
+        _webSocketService.subscribe('block', id: blockId);
         
         // Use debounced notification
         _enqueueNotification();
@@ -554,7 +553,7 @@ class BlockProvider with ChangeNotifier {
       }
       
       // Unsubscribe from this block
-      _webSocketProvider?.unsubscribe('block', id: blockId);
+      _webSocketService.unsubscribe('block', id: blockId);
       
       // Use debounced notification
       _enqueueNotification();
@@ -587,6 +586,9 @@ class BlockProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _resetSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    
     // Cancel all debounce timers
     for (final timer in _saveTimers.values) {
       timer.cancel();
@@ -596,8 +598,11 @@ class BlockProvider with ChangeNotifier {
     // Cancel notification debouncer
     _notificationDebouncer?.cancel();
     
-    // Unregister event handlers
-    _unregisterEventHandlers();
+    // Remove event listeners
+    _webSocketService.removeEventListener('event', 'block.updated');
+    _webSocketService.removeEventListener('event', 'block.created');
+    _webSocketService.removeEventListener('event', 'block.deleted');
+    _webSocketService.removeEventListener('event', 'note.updated');
     
     super.dispose();
   }

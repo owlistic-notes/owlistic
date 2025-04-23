@@ -3,28 +3,52 @@ import 'package:flutter/material.dart';
 import '../models/note.dart';
 import '../services/note_service.dart';
 import '../services/auth_service.dart';
+import '../services/websocket_service.dart';
 import '../services/base_service.dart';
-import 'websocket_provider.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
 import '../services/block_service.dart';
+import '../services/app_state_service.dart';
 
 class NotesProvider with ChangeNotifier {
   final Logger _logger = Logger('NotesProvider');
   // Use a Map instead of a List to prevent duplicates
   final Map<String, Note> _notesMap = {};
   bool _isLoading = false;
-  WebSocketProvider? _webSocketProvider;
   final Set<String> _activeNoteIds = {};
+  
+  // Services
   final NoteService _noteService;
   final AuthService _authService;
   final BlockService _blockService;
+  final WebSocketService _webSocketService = WebSocketService();
+  final AppStateService _appStateService = AppStateService();
+  
+  // Subscriptions
+  StreamSubscription? _resetSubscription;
+  StreamSubscription? _connectionSubscription;
 
   // Constructor with dependency injection
   NotesProvider({NoteService? noteService, AuthService? authService, required BlockService blockService}) 
     : _noteService = noteService ?? ServiceLocator.get<NoteService>(),
       _authService = authService ?? ServiceLocator.get<AuthService>(),
-      _blockService = blockService;
+      _blockService = blockService {
+    // Listen for app reset events
+    _resetSubscription = _appStateService.onResetState.listen((_) {
+      resetState();
+    });
+    
+    // Initialize event listeners
+    _initializeEventListeners();
+    
+    // Listen for connection state changes
+    _connectionSubscription = _webSocketService.connectionStateStream.listen((connected) {
+      if (connected && _isActive) {
+        // Resubscribe to events when connection is established
+        _subscribeToEvents();
+      }
+    });
+  }
 
   // Getters
   List<Note> get notes => _notesMap.values.toList();
@@ -33,7 +57,6 @@ class NotesProvider with ChangeNotifier {
   List<Note> get recentNotes {
     final notesList = _notesMap.values.toList();
     // Sort by ID for now, or any other field available in your Note model
-    // Assuming newer notes have higher IDs or you can modify this to suit your model
     notesList.sort((a, b) => b.id.compareTo(a.id));
     return notesList.take(5).toList();
   }
@@ -53,47 +76,35 @@ class NotesProvider with ChangeNotifier {
     _logger.info('Resetting NotesProvider state');
     _notesMap.clear();
     _activeNoteIds.clear();
+    _isActive = false;
     notifyListeners();
   }
 
-  // Set the WebSocketProvider and register event listeners
-  void setWebSocketProvider(WebSocketProvider provider) {
-    // Skip if the provider is the same
-    if (_webSocketProvider == provider) return;
-    
-    // Unregister from old provider if exists
-    if (_webSocketProvider != null) {
-      _webSocketProvider?.removeEventListener('event', 'note.updated');
-      _webSocketProvider?.removeEventListener('event', 'note.created');
-      _webSocketProvider?.removeEventListener('event', 'note.deleted');
-      
-      // Unsubscribe from events
-      if (_webSocketProvider!.isConnected) {
-        _webSocketProvider?.unsubscribeFromEvent('note.updated');
-        _webSocketProvider?.unsubscribeFromEvent('note.created');
-        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
-      }
-    }
-    
-    _webSocketProvider = provider;
-    
-    // Register for standardized resource.action events
-    provider.addEventListener('event', 'note.updated', _handleNoteUpdate);
-    provider.addEventListener('event', 'note.created', _handleNoteCreate);
-    provider.addEventListener('event', 'note.deleted', _handleNoteDelete);
-    
-    // Subscribe to these events using the correct pattern for events
-    if (provider.isConnected) {
-      // Use subscribeToEvent instead of subscribe for event types
-      provider.subscribeToEvent('note.updated');
-      provider.subscribeToEvent('note.created');
-      provider.subscribeToEvent('note.deleted');
-    }
+  // Initialize WebSocket event listeners
+  void _initializeEventListeners() {
+    _webSocketService.addEventListener('event', 'note.updated', _handleNoteUpdate);
+    _webSocketService.addEventListener('event', 'note.created', _handleNoteCreate);
+    _webSocketService.addEventListener('event', 'note.deleted', _handleNoteDelete);
+  }
+  
+  // Subscribe to events
+  void _subscribeToEvents() {
+    _webSocketService.subscribeToEvent('note.updated');
+    _webSocketService.subscribeToEvent('note.created');
+    _webSocketService.subscribeToEvent('note.deleted');
   }
 
   // Mark a note as active/inactive
-  void activateNote(String noteId) => _activeNoteIds.add(noteId);
-  void deactivateNote(String noteId) => _activeNoteIds.remove(noteId);
+  void activateNote(String noteId) {
+    _activeNoteIds.add(noteId);
+    _webSocketService.subscribe('note', id: noteId);
+    _logger.debug('Note $noteId activated');
+  }
+  
+  void deactivateNote(String noteId) {
+    _activeNoteIds.remove(noteId);
+    _logger.debug('Note $noteId deactivated');
+  }
 
   // Handle note update events
   void _handleNoteUpdate(Map<String, dynamic> message) {
@@ -149,7 +160,7 @@ class NotesProvider with ChangeNotifier {
               _logger.info('Added new note $noteId to list');
               
               // Subscribe to this note
-              _webSocketProvider?.subscribe('note', id: newNote.id);
+              _webSocketService.subscribe('note', id: newNote.id);
               
               notifyListeners();
             } else {
@@ -202,7 +213,7 @@ class NotesProvider with ChangeNotifier {
       }
       
       // Subscribe to this note
-      _webSocketProvider?.subscribe('note', id: noteId);
+      _webSocketService.subscribe('note', id: noteId);
       
       notifyListeners();
       return note;
@@ -260,9 +271,8 @@ class NotesProvider with ChangeNotifier {
         _notesMap[note.id] = note;
         
         // Subscribe to this note for real-time updates - only if not already subscribed
-        if (_webSocketProvider != null && 
-            !_webSocketProvider!.isSubscribed('note', id: note.id)) {
-          _webSocketProvider?.subscribe('note', id: note.id);
+        if (!_webSocketService.isSubscribed('note', id: note.id)) {
+          _webSocketService.subscribe('note', id: note.id);
         }
       }
       
@@ -291,7 +301,7 @@ class NotesProvider with ChangeNotifier {
           _notesMap[noteId] = note;
           
           // Subscribe to this note
-          _webSocketProvider?.subscribe('note', id: note.id);
+          _webSocketService.subscribe('note', id: note.id);
           
           _logger.info('Added note $noteId from WebSocket event');
           notifyListeners();
@@ -316,7 +326,7 @@ class NotesProvider with ChangeNotifier {
       _notesMap[note.id] = note;
       
       // Only subscribe to WebSocket events for this note
-      _webSocketProvider?.subscribe('note', id: note.id);
+      _webSocketService.subscribe('note', id: note.id);
       
       // Notify listeners about the new note
       notifyListeners();
@@ -341,7 +351,7 @@ class NotesProvider with ChangeNotifier {
       _notesMap.remove(id);
       
       // Unsubscribe from WebSocket events for this note
-      _webSocketProvider?.unsubscribe('note', id: id);
+      _webSocketService.unsubscribe('note', id: id);
       
       // Notify listeners about the deletion
       notifyListeners();
@@ -383,6 +393,11 @@ class NotesProvider with ChangeNotifier {
   void activate() {
     _isActive = true;
     _logger.info('NotesProvider activated');
+    
+    // Subscribe to events when activated
+    if (_webSocketService.isConnected) {
+      _subscribeToEvents();
+    }
   }
 
   void deactivate() {
@@ -400,7 +415,7 @@ class NotesProvider with ChangeNotifier {
       _logger.info('Removed note $noteId from local state');
       
       // Also unsubscribe from this note's events
-      _webSocketProvider?.unsubscribe('note', id: noteId);
+      _webSocketService.unsubscribe('note', id: noteId);
       
       notifyListeners();
     } else {
@@ -410,19 +425,14 @@ class NotesProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    // Unregister event handlers
-    if (_webSocketProvider != null) {
-      _webSocketProvider?.removeEventListener('event', 'note.updated');
-      _webSocketProvider?.removeEventListener('event', 'note.created');
-      _webSocketProvider?.removeEventListener('event', 'note.deleted');
-      
-      // Unsubscribe from events
-      if (_webSocketProvider!.isConnected) {
-        _webSocketProvider?.unsubscribeFromEvent('note.updated');
-        _webSocketProvider?.unsubscribeFromEvent('note.created');
-        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
-      }
-    }
+    _resetSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    
+    // Remove event listeners
+    _webSocketService.removeEventListener('event', 'note.updated');
+    _webSocketService.removeEventListener('event', 'note.created');
+    _webSocketService.removeEventListener('event', 'note.deleted');
+    
     super.dispose();
   }
 }

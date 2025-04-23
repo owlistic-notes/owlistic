@@ -5,9 +5,10 @@ import '../models/notebook.dart';
 import '../services/trash_service.dart';
 import '../services/auth_service.dart';
 import '../services/base_service.dart';
-import 'websocket_provider.dart';
+import '../services/websocket_service.dart';
 import '../utils/logger.dart';
 import '../utils/websocket_message_parser.dart';
+import '../services/app_state_service.dart';
 
 class TrashProvider with ChangeNotifier {
   final Logger _logger = Logger('TrashProvider');
@@ -15,19 +16,56 @@ class TrashProvider with ChangeNotifier {
   List<Note> _trashedNotes = [];
   List<Notebook> _trashedNotebooks = [];
   bool _isLoading = false;
-  WebSocketProvider? _webSocketProvider;
   bool _isActive = false;
   
   // Services
   final TrashService _trashService;
   final AuthService _authService;
+  final WebSocketService _webSocketService = WebSocketService();
+  
+  // Add subscription for app state changes
+  StreamSubscription? _resetSubscription;
+  StreamSubscription? _connectionSubscription;
+  final AppStateService _appStateService = AppStateService();
   
   // Constructor with dependency injection
   TrashProvider({
     TrashService? trashService,
     AuthService? authService
   }) : _trashService = trashService ?? ServiceLocator.get<TrashService>(),
-       _authService = authService ?? ServiceLocator.get<AuthService>();
+       _authService = authService ?? ServiceLocator.get<AuthService>() {
+    // Listen for app reset events
+    _resetSubscription = _appStateService.onResetState.listen((_) {
+      resetState();
+    });
+    
+    // Initialize event listeners
+    _initializeEventListeners();
+    
+    // Listen for connection state changes
+    _connectionSubscription = _webSocketService.connectionStateStream.listen((connected) {
+      if (connected && _isActive) {
+        // Resubscribe to events when connection is established
+        _subscribeToEvents();
+      }
+    });
+  }
+  
+  // Initialize WebSocket event listeners
+  void _initializeEventListeners() {
+    _webSocketService.addEventListener('event', 'note.deleted', _handleItemDeleted);
+    _webSocketService.addEventListener('event', 'notebook.deleted', _handleItemDeleted);
+    _webSocketService.addEventListener('event', 'note.restored', _handleItemRestored);
+    _webSocketService.addEventListener('event', 'notebook.restored', _handleItemRestored);
+  }
+  
+  // Subscribe to events
+  void _subscribeToEvents() {
+    _webSocketService.subscribeToEvent('note.deleted');
+    _webSocketService.subscribeToEvent('notebook.deleted');
+    _webSocketService.subscribeToEvent('note.restored');
+    _webSocketService.subscribeToEvent('notebook.restored');
+  }
   
   // Getters
   List<Note> get trashedNotes => _trashedNotes;
@@ -47,51 +85,18 @@ class TrashProvider with ChangeNotifier {
   void activate() {
     _isActive = true;
     _logger.info('TrashProvider activated');
+    
+    // Subscribe to events when activated
+    if (_webSocketService.isConnected) {
+      _subscribeToEvents();
+    }
+    
     fetchTrashedItems(); // Load data when activated
   }
   
   void deactivate() {
     _isActive = false;
     _logger.info('TrashProvider deactivated');
-  }
-  
-  // Set the WebSocketProvider
-  void setWebSocketProvider(WebSocketProvider provider) {
-    if (_webSocketProvider == provider) return;
-    
-    // Unregister from previous provider if exists
-    if (_webSocketProvider != null) {
-      _webSocketProvider!.removeEventListener('event', 'note.deleted');
-      _webSocketProvider!.removeEventListener('event', 'notebook.deleted');
-      _webSocketProvider!.removeEventListener('event', 'note.restored');
-      _webSocketProvider!.removeEventListener('event', 'notebook.restored');
-      
-      // Unsubscribe from events
-      if (_webSocketProvider!.isConnected) {
-        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
-        _webSocketProvider?.unsubscribeFromEvent('notebook.deleted');
-        _webSocketProvider?.unsubscribeFromEvent('note.restored');
-        _webSocketProvider?.unsubscribeFromEvent('notebook.restored');
-      }
-    }
-    
-    _webSocketProvider = provider;
-    
-    // Register for events that would affect the trash
-    provider.addEventListener('event', 'note.deleted', _handleItemDeleted);
-    provider.addEventListener('event', 'notebook.deleted', _handleItemDeleted);
-    provider.addEventListener('event', 'note.restored', _handleItemRestored);
-    provider.addEventListener('event', 'notebook.restored', _handleItemRestored);
-    
-    // Subscribe to these events using the correct pattern
-    if (provider.isConnected) {
-      provider.subscribeToEvent('note.deleted');
-      provider.subscribeToEvent('notebook.deleted');
-      provider.subscribeToEvent('note.restored');
-      provider.subscribeToEvent('notebook.restored');
-    }
-    
-    _logger.info('WebSocketProvider set for TrashProvider');
   }
   
   // WebSocket event handlers
@@ -259,20 +264,15 @@ class TrashProvider with ChangeNotifier {
   
   @override
   void dispose() {
-    if (_webSocketProvider != null) {
-      _webSocketProvider!.removeEventListener('event', 'note.deleted');
-      _webSocketProvider!.removeEventListener('event', 'notebook.deleted');
-      _webSocketProvider!.removeEventListener('event', 'note.restored');
-      _webSocketProvider!.removeEventListener('event', 'notebook.restored');
-      
-      // Unsubscribe from events
-      if (_webSocketProvider!.isConnected) {
-        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
-        _webSocketProvider?.unsubscribeFromEvent('notebook.deleted');
-        _webSocketProvider?.unsubscribeFromEvent('note.restored');
-        _webSocketProvider?.unsubscribeFromEvent('notebook.restored');
-      }
-    }
+    _resetSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    
+    // Remove event listeners
+    _webSocketService.removeEventListener('event', 'note.deleted');
+    _webSocketService.removeEventListener('event', 'notebook.deleted');
+    _webSocketService.removeEventListener('event', 'note.restored');
+    _webSocketService.removeEventListener('event', 'notebook.restored');
+    
     super.dispose();
   }
 }
