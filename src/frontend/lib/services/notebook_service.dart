@@ -37,7 +37,16 @@ class NotebookService extends BaseService {
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => Notebook.fromJson(json)).toList();
+        _logger.debug('Notebook response data: ${data.length} notebooks received');
+        
+        // Log the raw response for the first notebook to debug notes issue
+        if (data.isNotEmpty) {
+          _logger.debug('First notebook raw data: ${json.encode(data[0])}');
+        }
+        
+        final notebooks = data.map((json) => Notebook.fromJson(json)).toList();
+                
+        return notebooks;
       } else {
         _logger.error('Failed to load notebooks: ${response.statusCode} - ${response.body}');
         throw Exception('Failed to load notebooks');

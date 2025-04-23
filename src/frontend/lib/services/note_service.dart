@@ -66,6 +66,33 @@ class NoteService extends BaseService {
     }
   }
 
+  // Add this method to fetch notes for a specific notebook
+  Future<List<Note>> fetchNotesForNotebook(String notebookId) async {
+    _logger.debug('Fetching notes for notebook: $notebookId');
+    try {
+      final Map<String, dynamic> params = {
+        'notebook_id': notebookId,
+      };
+      
+      final response = await authenticatedGet(
+        '/api/v1/notes',
+        queryParameters: params,
+      );
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        _logger.debug('Fetched ${data.length} notes for notebook $notebookId');
+        return data.map((json) => Note.fromJson(json)).toList();
+      } else {
+        _logger.error('Failed to fetch notes for notebook: ${response.statusCode}');
+        throw Exception('Failed to fetch notes for notebook');
+      }
+    } catch (e) {
+      _logger.error('Error fetching notes for notebook $notebookId', e);
+      rethrow;
+    }
+  }
+
   Future<Note> createNote(String notebookId, String title) async {
     try {
       final response = await authenticatedPost(

@@ -86,8 +86,9 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     // Subscribe to events
     wsProvider.subscribe('notebook');
     wsProvider.subscribe('note');
+    wsProvider.subscribeToEvent('note.deleted'); // Subscribe to note deletion events
   }
-  
+
   // Refresh notebooks data after events
   Future<void> _refreshNotebooks() async {
     if (!mounted) return;
@@ -106,7 +107,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       _loadedNotebookIds = _presenter.notebooks.map((nb) => nb.id).toSet();
     });
   }
-  
+
   // Process a single new notebook from WebSocket without full refresh
   void _handleNewNotebook(String notebookId) {
     // Check if this notebook is already loaded

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:thinkstack/providers/notes_provider.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
 import '../providers/notebooks_provider.dart';
@@ -63,17 +64,20 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       // Activate the presenter
       _presenter.activate();
       
-      // Subscribe to the notebook and notes events
+      // Subscribe to the notebook and note events
       _webSocketProvider.subscribe('notebook', id: widget.notebookId);
       
-      // Also subscribe to general note events to catch updates
-      _webSocketProvider.subscribe('note.created');
-      _webSocketProvider.subscribe('note.deleted');
+      // Also subscribe to note events for real-time updates
+      _webSocketProvider.subscribeToEvent('note.created');
+      _webSocketProvider.subscribeToEvent('note.updated');
+      _webSocketProvider.subscribeToEvent('note.deleted');
+      _webSocketProvider.subscribeToEvent('notebook.updated');
+      _webSocketProvider.subscribeToEvent('notebook.deleted');
       
       // Set up event handlers for automatic updates
       _setupEventHandlers();
       
-      // Fetch notebook data
+      // Fetch notebook data with its notes
       await _presenter.fetchNotebookById(widget.notebookId);
       
       _logger.info('Initialized with notebook ID ${widget.notebookId}');
@@ -113,6 +117,38 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     _webSocketProvider.addEventListener('event', 'notebook.updated', (message) {
       _logger.info('Notebook updated event received');
       _refreshNotebook();
+    });
+    
+    // Handle notebook deletion specially to navigate away if current notebook is deleted
+    _webSocketProvider.addEventListener('event', 'notebook.deleted', (message) {
+      _logger.info('Notebook deleted event received');
+      
+      try {
+        final payload = message['payload'];
+        if (payload != null && payload['data'] != null) {
+          final data = payload['data'];
+          String? deletedNotebookId;
+          
+          if (data['id'] != null) {
+            deletedNotebookId = data['id'].toString();
+          }
+          
+          // If the current notebook was deleted, navigate back to notebooks list
+          if (deletedNotebookId == widget.notebookId) {
+            _logger.info('Current notebook was deleted, navigating away');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('This notebook has been deleted'))
+              );
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) context.go('/notebooks');
+              });
+            }
+          }
+        }
+      } catch (e) {
+        _logger.error('Error handling notebook deleted event', e);
+      }
     });
   }
   
@@ -413,10 +449,14 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       _webSocketProvider.removeEventListener('event', 'note.updated');
       _webSocketProvider.removeEventListener('event', 'note.deleted');
       _webSocketProvider.removeEventListener('event', 'notebook.updated');
+      _webSocketProvider.removeEventListener('event', 'notebook.deleted');
       
       _webSocketProvider.unsubscribe('notebook', id: widget.notebookId);
-      _webSocketProvider.unsubscribe('note.created');
-      _webSocketProvider.unsubscribe('note.deleted');
+      _webSocketProvider.unsubscribeFromEvent('note.created');
+      _webSocketProvider.unsubscribeFromEvent('note.updated');
+      _webSocketProvider.unsubscribeFromEvent('note.deleted');
+      _webSocketProvider.unsubscribeFromEvent('notebook.updated');
+      _webSocketProvider.unsubscribeFromEvent('notebook.deleted');
       
       // Deactivate the presenter
       _presenter.deactivate();
