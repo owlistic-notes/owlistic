@@ -171,11 +171,13 @@ class WebSocketService {
       }
     }
     
-    // Create subscription message
+    // Create subscription message matching server-expected format
     final message = {
       'type': 'subscribe',
-      'resource': resource,
-      if (id != null) 'id': id
+      'payload': {
+        'resource': resource,
+        if (id != null) 'id': id
+      }
     };
     
     _sendMessage(message);
@@ -208,10 +210,12 @@ class WebSocketService {
       }
     }
     
-    // Create event subscription message
+    // Create event subscription message matching server-expected format
     final message = {
-      'type': 'subscribe_event',
-      'event_type': eventType
+      'type': 'subscribe',
+      'payload': {
+        'event_type': eventType
+      }
     };
     
     _sendMessage(message);
@@ -241,8 +245,10 @@ class WebSocketService {
     if (_isConnected) {
       final message = {
         'type': 'unsubscribe',
-        'resource': resource,
-        if (id != null) 'id': id
+        'payload': {
+          'resource': resource,
+          if (id != null) 'id': id
+        }
       };
       
       _sendMessage(message);
@@ -261,8 +267,10 @@ class WebSocketService {
     // Send unsubscribe message if connected
     if (_isConnected) {
       final message = {
-        'type': 'unsubscribe_event',
-        'event_type': eventType
+        'type': 'unsubscribe',
+        'payload': {
+          'event_type': eventType
+        }
       };
       
       _sendMessage(message);
@@ -309,11 +317,13 @@ class WebSocketService {
     return _confirmedSubscriptions.contains('event:$eventType');
   }
   
-  // Handle incoming messages
+  // Handle incoming messages with improved logging
   void _handleMessage(Map<String, dynamic> message) {
     try {
       final String type = message['type'] ?? 'unknown';
       final String event = message['event'] ?? 'unknown';
+      
+      _logger.debug('Received message: type=$type, event=$event');
       
       // Handle subscription confirmations
       if (type == 'subscription' && event == 'confirmed') {
@@ -334,15 +344,20 @@ class WebSocketService {
         }
       }
     } catch (e) {
-      _logger.error('Error handling message', e);
+      _logger.error('Error handling message: $e, message: $message');
     }
   }
   
-  // Handle subscription confirmation
+  // Handle subscription confirmation with improved logging
   void _handleSubscriptionConfirmation(Map<String, dynamic> message) {
     try {
       final payload = message['payload'];
-      if (payload == null) return;
+      if (payload == null) {
+        _logger.warning('Received subscription confirmation with null payload');
+        return;
+      }
+      
+      _logger.debug('Processing subscription confirmation: $payload');
       
       String? subscriptionKey;
       
@@ -361,11 +376,14 @@ class WebSocketService {
       }
       
       if (subscriptionKey != null) {
+        _logger.info('Confirmed subscription: $subscriptionKey');
         _pendingSubscriptions.remove(subscriptionKey);
         _confirmedSubscriptions.add(subscriptionKey);
+      } else {
+        _logger.warning('Could not determine subscription key from payload: $payload');
       }
     } catch (e) {
-      _logger.error('Error handling subscription confirmation', e);
+      _logger.error('Error handling subscription confirmation: $e, message: $message');
     }
   }
   
@@ -375,7 +393,7 @@ class WebSocketService {
     return id != null ? '$resource:$id' : resource;
   }
   
-  // Send a message to the WebSocket
+  // Send a message to the WebSocket with improved debugging
   void _sendMessage(dynamic message) {
     if (!_isConnected || _channel == null) {
       _logger.warning('Cannot send message: Not connected');
@@ -384,6 +402,7 @@ class WebSocketService {
     
     try {
       final String jsonMessage = jsonEncode(message);
+      _logger.debug('Sending WebSocket message: $jsonMessage');
       _channel!.sink.add(jsonMessage);
     } catch (e) {
       _logger.error('Error sending WebSocket message: $e');
