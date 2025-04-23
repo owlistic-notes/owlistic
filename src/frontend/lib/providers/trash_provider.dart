@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/logger.dart';
+import '../utils/websocket_message_parser.dart';
 
 class TrashProvider with ChangeNotifier {
   final Logger _logger = Logger('TrashProvider');
@@ -95,16 +96,50 @@ class TrashProvider with ChangeNotifier {
   
   // WebSocket event handlers
   void _handleItemDeleted(Map<String, dynamic> message) {
-    _logger.info('Item deletion detected, refreshing trash');
-    if (_isActive) {
-      fetchTrashedItems();
+    _logger.info('Item deletion detected');
+    
+    try {
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      
+      // Extract noteId or notebookId - the event could be for either
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (noteId != null || notebookId != null) {
+        _logger.info('Refreshing trash after item deletion');
+        if (_isActive) {
+          fetchTrashedItems();
+        }
+      } else {
+        _logger.warning('Could not extract note_id or notebook_id from message');
+      }
+    } catch (e) {
+      _logger.error('Error handling item deletion event', e);
     }
   }
   
   void _handleItemRestored(Map<String, dynamic> message) {
-    _logger.info('Item restoration detected, refreshing trash');
-    if (_isActive) {
-      fetchTrashedItems();
+    _logger.info('Item restoration detected');
+    
+    try {
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      
+      // Extract noteId or notebookId - the event could be for either
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (noteId != null || notebookId != null) {
+        _logger.info('Refreshing trash after item restoration');
+        if (_isActive) {
+          fetchTrashedItems();
+        }
+      } else {
+        _logger.warning('Could not extract note_id or notebook_id from message');
+      }
+    } catch (e) {
+      _logger.error('Error handling item restoration event', e);
     }
   }
   

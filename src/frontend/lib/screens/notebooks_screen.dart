@@ -86,7 +86,6 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     // Subscribe to events
     wsProvider.subscribe('notebook');
     wsProvider.subscribe('note');
-    wsProvider.subscribeToEvent('note.deleted'); // Subscribe to note deletion events
   }
 
   // Refresh notebooks data after events
@@ -281,8 +280,8 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       body: _buildBody(notebooksPresenter),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddNotebookDialog,
-        child: const Icon(Icons.add),
         tooltip: 'Add Notebook',
+        child: const Icon(Icons.add),
       ),
     );
   }

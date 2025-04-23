@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/logger.dart';
+import '../utils/websocket_message_parser.dart';
 
 class NotebooksProvider with ChangeNotifier {
   final Logger _logger = Logger('NotebooksProvider');
@@ -407,22 +408,15 @@ class NotebooksProvider with ChangeNotifier {
     }
     
     try {
-      final payload = message['payload'];
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-        String notebookId = '';
-        
-        // Extract notebook ID
-        if (data['id'] != null) {
-          notebookId = data['id'].toString();
-        } else if (data['notebook_id'] != null) {
-          notebookId = data['notebook_id'].toString();
-        }
-        
-        if (notebookId.isNotEmpty) {
-          _logger.info('Fetching updated notebook: $notebookId');
-          fetchNotebookById(notebookId);
-        }
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null && notebookId.isNotEmpty) {
+        _logger.info('Fetching updated notebook: $notebookId');
+        fetchNotebookById(notebookId);
+      } else {
+        _logger.warning('Could not extract notebook_id from message');
       }
     } catch (e) {
       _logger.error('Error handling notebook update event', e);
@@ -439,22 +433,15 @@ class NotebooksProvider with ChangeNotifier {
     }
     
     try {
-      final payload = message['payload'];
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-        String notebookId = '';
-        
-        // Extract notebook ID
-        if (data['id'] != null) {
-          notebookId = data['id'].toString();
-        } else if (data['notebook_id'] != null) {
-          notebookId = data['notebook_id'].toString();
-        }
-        
-        if (notebookId.isNotEmpty) {
-          _logger.info('Fetching new notebook: $notebookId');
-          fetchNotebookById(notebookId);
-        }
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null && notebookId.isNotEmpty) {
+        _logger.info('Fetching new notebook: $notebookId');
+        fetchNotebookById(notebookId);
+      } else {
+        _logger.warning('Could not extract notebook_id from message');
       }
     } catch (e) {
       _logger.error('Error handling notebook create event', e);
@@ -471,24 +458,17 @@ class NotebooksProvider with ChangeNotifier {
     }
     
     try {
-      final payload = message['payload'];
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-        String notebookId = '';
-        
-        // Extract notebook ID
-        if (data['id'] != null) {
-          notebookId = data['id'].toString();
-        } else if (data['notebook_id'] != null) {
-          notebookId = data['notebook_id'].toString();
-        }
-        
-        if (notebookId.isNotEmpty && _notebooksMap.containsKey(notebookId)) {
-          _logger.info('Removing deleted notebook: $notebookId');
-          _notebooksMap.remove(notebookId);
-          _webSocketProvider?.unsubscribe('notebook', id: notebookId);
-          notifyListeners();
-        }
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null && notebookId.isNotEmpty && _notebooksMap.containsKey(notebookId)) {
+        _logger.info('Removing deleted notebook: $notebookId');
+        _notebooksMap.remove(notebookId);
+        _webSocketProvider?.unsubscribe('notebook', id: notebookId);
+        notifyListeners();
+      } else {
+        _logger.warning('Could not extract notebook_id from message or notebook not found');
       }
     } catch (e) {
       _logger.error('Error handling notebook delete event', e);
@@ -505,20 +485,15 @@ class NotebooksProvider with ChangeNotifier {
     _logger.info('Note created event received');
     
     try {
-      final payload = message['payload'];
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-        String? notebookId;
-        
-        // Extract notebook ID
-        if (data['notebook_id'] != null) {
-          notebookId = data['notebook_id'].toString();
-        }
-        
-        if (notebookId != null && notebookId.isNotEmpty) {
-          _logger.info('Refreshing notebook after note creation: $notebookId');
-          fetchNotebookById(notebookId);
-        }
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null && notebookId.isNotEmpty) {
+        _logger.info('Refreshing notebook after note creation: $notebookId');
+        fetchNotebookById(notebookId);
+      } else {
+        _logger.warning('Could not extract notebook_id from message');
       }
     } catch (e) {
       _logger.error('Error handling note create event', e);
@@ -535,20 +510,15 @@ class NotebooksProvider with ChangeNotifier {
     _logger.info('Note updated event received');
     
     try {
-      final payload = message['payload'];
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-        String? notebookId;
-        
-        // Extract notebook ID
-        if (data['notebook_id'] != null) {
-          notebookId = data['notebook_id'].toString();
-        }
-        
-        if (notebookId != null && notebookId.isNotEmpty) {
-          _logger.info('Refreshing notebook after note update: $notebookId');
-          fetchNotebookById(notebookId);
-        }
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      
+      if (notebookId != null && notebookId.isNotEmpty) {
+        _logger.info('Refreshing notebook after note update: $notebookId');
+        fetchNotebookById(notebookId);
+      } else {
+        _logger.warning('Could not extract notebook_id from message');
       }
     } catch (e) {
       _logger.error('Error handling note update event', e);
@@ -565,40 +535,31 @@ class NotebooksProvider with ChangeNotifier {
     _logger.info('Note deleted event received');
     
     try {
-      final payload = message['payload'];
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-        String? notebookId;
-        String? noteId;
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      
+      // If we have both IDs, we can update the notebook locally without a fetch
+      if (notebookId != null && noteId != null && 
+          notebookId.isNotEmpty && noteId.isNotEmpty && 
+          _notebooksMap.containsKey(notebookId)) {
         
-        // Extract notebook ID and note ID
-        if (data['notebook_id'] != null) {
-          notebookId = data['notebook_id'].toString();
+        _logger.info('Updating notebook in memory after note deletion');
+        final notebook = _notebooksMap[notebookId];
+        if (notebook != null) {
+          final updatedNotes = notebook.notes.where((note) => note.id != noteId).toList();
+          final updatedNotebook = notebook.copyWith(notes: updatedNotes);
+          _notebooksMap[notebookId] = updatedNotebook;
+          notifyListeners();
         }
-        
-        if (data['id'] != null) {
-          noteId = data['id'].toString();
-        }
-        
-        // If we have both IDs, we can update the notebook locally without a fetch
-        if (notebookId != null && noteId != null && 
-            notebookId.isNotEmpty && noteId.isNotEmpty && 
-            _notebooksMap.containsKey(notebookId)) {
-          
-          _logger.info('Updating notebook in memory after note deletion');
-          final notebook = _notebooksMap[notebookId];
-          if (notebook != null) {
-            final updatedNotes = notebook.notes.where((note) => note.id != noteId).toList();
-            final updatedNotebook = notebook.copyWith(notes: updatedNotes);
-            _notebooksMap[notebookId] = updatedNotebook;
-            notifyListeners();
-          }
-        } 
-        // Otherwise fetch the notebook if we at least have its ID
-        else if (notebookId != null && notebookId.isNotEmpty) {
-          _logger.info('Refreshing notebook after note deletion: $notebookId');
-          fetchNotebookById(notebookId);
-        }
+      } 
+      // Otherwise fetch the notebook if we at least have its ID
+      else if (notebookId != null && notebookId.isNotEmpty) {
+        _logger.info('Refreshing notebook after note deletion: $notebookId');
+        fetchNotebookById(notebookId);
+      } else {
+        _logger.warning('Could not extract notebook_id from message');
       }
     } catch (e) {
       _logger.error('Error handling note delete event', e);

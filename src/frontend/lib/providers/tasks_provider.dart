@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/logger.dart';
+import '../utils/websocket_message_parser.dart';
 
 class TasksProvider with ChangeNotifier {
   // Change to Map to prevent duplicates and enable O(1) lookups
@@ -94,44 +95,77 @@ class TasksProvider with ChangeNotifier {
   void _handleTaskUpdate(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
-    final payload = message['payload'];
-    if (payload == null || payload['data'] == null) return;
-
-    final data = payload['data'];
-    final String taskId = _extractTaskId(data);
-
-    if (taskId.isNotEmpty) {
-      _fetchSingleTask(taskId);
-    }
-  }
-
-  void _handleTaskCreate(Map<String, dynamic> payload) {
-    if (!_isActive) return; // Only process events when active
-    
-    final data = payload['data'];
-    final String taskId = _extractTaskId(data);
-    final String noteId =
-        data['note_id'] != null ? data['note_id'].toString() : '';
-
-    if (taskId.isNotEmpty) {
-      // Only fetch if we have tasks for this note already or if we're showing all tasks
-      if (noteId.isEmpty ||
-          _tasksMap.values.any((task) => task.noteId == noteId)) {
+    try {
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final String? taskId = WebSocketModelExtractor.extractBlockId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
+      
+      if (taskId != null && taskId.isNotEmpty) {
         _fetchSingleTask(taskId);
+      } else {
+        _logger.warning('Could not extract task_id from message');
       }
+    } catch (e) {
+      _logger.error('Error handling task update: $e');
     }
   }
 
-  void _handleTaskDelete(Map<String, dynamic> payload) {
+  void _handleTaskCreate(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
-    final data = payload['data'];
-    final String taskId = _extractTaskId(data);
+    try {
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final payload = parsedMessage.payload;
+      final data = payload['data'];
+      
+      String taskId = '';
+      String noteId = '';
+      
+      // Extract IDs - tasks don't have a specific extractor yet
+      if (data != null && data is Map) {
+        taskId = data['id']?.toString() ?? data['task_id']?.toString() ?? '';
+        noteId = data['note_id']?.toString() ?? '';
+      }
+      
+      if (taskId.isNotEmpty) {
+        // Only fetch if we have tasks for this note already or if we're showing all tasks
+        if (noteId.isEmpty || _tasksMap.values.any((task) => task.noteId == noteId)) {
+          _fetchSingleTask(taskId);
+        }
+      } else {
+        _logger.warning('Could not extract task_id from message');
+      }
+    } catch (e) {
+      _logger.error('Error handling task create: $e');
+    }
+  }
 
-    if (taskId.isNotEmpty) {
-      // Remove task from local state if it exists
-      _tasksMap.remove(taskId);
-      notifyListeners();
+  void _handleTaskDelete(Map<String, dynamic> message) {
+    if (!_isActive) return; // Only process events when active
+    
+    try {
+      // Use the standardized parser
+      final parsedMessage = WebSocketMessage.fromJson(message);
+      final payload = parsedMessage.payload;
+      final data = payload['data'];
+      
+      String taskId = '';
+      
+      // Extract task ID - tasks don't have a specific extractor yet
+      if (data != null && data is Map) {
+        taskId = data['id']?.toString() ?? data['task_id']?.toString() ?? '';
+      }
+      
+      if (taskId.isNotEmpty) {
+        // Remove task from local state if it exists
+        _tasksMap.remove(taskId);
+        notifyListeners();
+      } else {
+        _logger.warning('Could not extract task_id from message');
+      }
+    } catch (e) {
+      _logger.error('Error handling task delete: $e');
     }
   }
 
