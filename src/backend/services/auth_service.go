@@ -1,22 +1,16 @@
 package services
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
+	"github.com/thinkstack/utils/token"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// JWTClaims holds the standard JWT claims plus our custom claims
-type JWTClaims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Email  string    `json:"email"`
-	jwt.RegisteredClaims
-}
+// Use the JWTClaims from token package
+type JWTClaims = token.JWTClaims
 
 type AuthServiceInterface interface {
 	Login(db *database.Database, email, password string) (string, error)
@@ -47,46 +41,24 @@ func (s *AuthService) Login(db *database.Database, email, password string) (stri
 		return "", ErrInvalidCredentials
 	}
 
-	return s.generateToken(user)
-}
-
-func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return s.jwtSecret, nil
-	})
-
-	if err != nil {
-		return nil, err
+	// Check if the user has any notebooks
+	var notebookCount int64
+	if err := db.DB.Model(&models.Notebook{}).Where("user_id = ?", user.ID).Count(&notebookCount).Error; err != nil {
+		return "", err
 	}
 
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, ErrInvalidToken
-}
-
-func (s *AuthService) generateToken(user models.User) (string, error) {
-	claims := JWTClaims{
-		UserID: user.ID,
-		Email:  user.Email,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.jwtExpiration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString(s.jwtSecret)
+	// Use the utility function instead
+	tokenString, err := token.GenerateToken(user.ID, user.Email, s.jwtSecret, s.jwtExpiration)
 	if err != nil {
 		return "", err
 	}
 
-	return signedToken, nil
+	return tokenString, nil
+}
+
+// ValidateToken uses the token utility to validate tokens
+func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
+	return token.ValidateToken(tokenString, s.jwtSecret)
 }
 
 func (s *AuthService) HashPassword(password string) (string, error) {

@@ -1,23 +1,49 @@
+import 'dart:convert';
+
 import '../utils/data_converter.dart';
 
 class Block {
   final String id;
-  final dynamic content; // Changed from String to dynamic to support both String and Map
-  final String type;
   final String noteId;
+  final dynamic content;
+  final String type;
   final int order;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
-  const Block({
+  Block({
     required this.id,
+    required this.noteId,
     required this.content,
     required this.type,
-    required this.noteId,
     required this.order,
-  });
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) : this.createdAt = createdAt ?? DateTime.now(),
+       this.updatedAt = updatedAt ?? DateTime.now();
 
   factory Block.fromJson(Map<String, dynamic> json) {
     // Use DataConverter for parsing numeric values
     final int orderValue = DataConverter.parseIntSafely(json['order']);
+    
+    // Parse datetime fields with appropriate fallback
+    DateTime? createdAt;
+    if (json['created_at'] != null) {
+      try {
+        createdAt = DateTime.parse(json['created_at']);
+      } catch (e) {
+        createdAt = DateTime.now();
+      }
+    }
+    
+    DateTime? updatedAt;
+    if (json['updated_at'] != null) {
+      try {
+        updatedAt = DateTime.parse(json['updated_at']);
+      } catch (e) {
+        updatedAt = DateTime.now();
+      }
+    }
     
     return Block(
       id: json['id'] ?? '',
@@ -25,37 +51,24 @@ class Block {
       type: json['type'] ?? 'text',
       noteId: json['note_id'] ?? '',
       order: orderValue,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'content': content,
-      'type': type,
       'note_id': noteId,
-      'order': order.toString(), // Serialize as string to avoid numeric type issues
+      'content': content is String ? content : jsonEncode(content),
+      'type': type,
+      'order': order,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
     };
   }
-  
-  /// Creates a copy of this block with the given fields replaced with the new values
-  Block copyWith({
-    String? id,
-    dynamic content,
-    String? type,
-    String? noteId,
-    int? order,
-  }) {
-    return Block(
-      id: id ?? this.id,
-      content: content ?? this.content,
-      type: type ?? this.type,
-      noteId: noteId ?? this.noteId,
-      order: order ?? this.order,
-    );
-  }
-  
-  /// Gets the text content of this block, handling both string and map formats
+
+  // Helper method to extract text content from various block types
   String getTextContent() {
     return DataConverter.extractTextContent(content);
   }

@@ -2,21 +2,20 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
-
-	"gorm.io/gorm"
 )
 
 type NotebookServiceInterface interface {
 	CreateNotebook(db *database.Database, notebookData map[string]interface{}) (models.Notebook, error)
-	GetNotebookById(db *database.Database, id string) (models.Notebook, error)
-	UpdateNotebook(db *database.Database, id string, updatedData map[string]interface{}) (models.Notebook, error)
-	DeleteNotebook(db *database.Database, id string) error
+	GetNotebookById(db *database.Database, id string, params map[string]interface{}) (models.Notebook, error)
+	UpdateNotebook(db *database.Database, id string, notebookData map[string]interface{}, params map[string]interface{}) (models.Notebook, error)
+	DeleteNotebook(db *database.Database, id string, params map[string]interface{}) error
 	ListNotebooksByUser(db *database.Database, userID string) ([]models.Notebook, error)
 	GetAllNotebooks(db *database.Database) ([]models.Notebook, error)
 	GetNotebooks(db *database.Database, params map[string]interface{}) ([]models.Notebook, error)
@@ -24,48 +23,48 @@ type NotebookServiceInterface interface {
 
 type NotebookService struct{}
 
+var NotebookServiceInstance NotebookServiceInterface = &NotebookService{}
+
 func (s *NotebookService) CreateNotebook(db *database.Database, notebookData map[string]interface{}) (models.Notebook, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return models.Notebook{}, tx.Error
 	}
 
-	name, ok := notebookData["name"].(string)
-	if !ok || name == "" {
-		tx.Rollback()
-		return models.Notebook{}, errors.New("name is required")
-	}
-
+	// Extract user_id and validate user exists
 	userIDStr, ok := notebookData["user_id"].(string)
 	if !ok {
 		tx.Rollback()
-		return models.Notebook{}, errors.New("user_id must be a string")
+		return models.Notebook{}, ErrInvalidInput
 	}
 
-	// Validate that the user exists before creating the notebook
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		tx.Rollback()
+		return models.Notebook{}, ErrInvalidInput
+	}
+
 	var userCount int64
-	if err := tx.Model(&models.User{}).Where("id = ?", userIDStr).Count(&userCount).Error; err != nil {
+	if err := tx.Model(&models.User{}).Where("id = ?", userID).Count(&userCount).Error; err != nil {
 		tx.Rollback()
 		return models.Notebook{}, err
 	}
 
 	if userCount == 0 {
 		tx.Rollback()
-		return models.Notebook{}, errors.New("user not found")
+		return models.Notebook{}, ErrUserNotFound
 	}
 
-	// Properly handle the description field with a default empty string
-	description := ""
-	if desc, ok := notebookData["description"].(string); ok {
-		description = desc
-	}
+	// Create notebook
+	name, _ := notebookData["name"].(string)
+	description, _ := notebookData["description"].(string)
+	notebookID := uuid.New()
 
 	notebook := models.Notebook{
-		ID:          uuid.New(),
-		UserID:      uuid.Must(uuid.Parse(userIDStr)),
+		ID:          notebookID,
+		UserID:      userID,
 		Name:        name,
 		Description: description,
-		IsDeleted:   false,
 	}
 
 	if err := tx.Create(&notebook).Error; err != nil {
@@ -73,16 +72,30 @@ func (s *NotebookService) CreateNotebook(db *database.Database, notebookData map
 		return models.Notebook{}, err
 	}
 
+	// Assign owner role to the creator
+	role := models.Role{
+		ID:           uuid.New(),
+		UserID:       userID,
+		ResourceID:   notebook.ID,
+		ResourceType: models.NotebookResource,
+		Role:         models.OwnerRole,
+	}
+
+	if err := tx.Create(&role).Error; err != nil {
+		tx.Rollback()
+		return models.Notebook{}, err
+	}
+
+	// Create event for notebook creation
 	event, err := models.NewEvent(
-		string(broker.NotebookCreated), // Use standard event type
+		"notebook.created",
 		"notebook",
 		"create",
 		userIDStr,
 		map[string]interface{}{
 			"notebook_id": notebook.ID.String(),
-			"user_id":     notebook.UserID.String(),
 			"name":        notebook.Name,
-			"created_at":  notebook.CreatedAt,
+			"description": notebook.Description,
 		},
 	)
 
@@ -97,53 +110,93 @@ func (s *NotebookService) CreateNotebook(db *database.Database, notebookData map
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
 		return models.Notebook{}, err
 	}
 
 	return notebook, nil
 }
 
-func (s *NotebookService) GetNotebookById(db *database.Database, id string) (models.Notebook, error) {
+func (s *NotebookService) GetNotebookById(db *database.Database, id string, params map[string]interface{}) (models.Notebook, error) {
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		return models.Notebook{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has viewer access
+	hasAccess, err := RoleServiceInstance.HasNotebookAccess(db, userIDStr, id, "viewer")
+	if err != nil {
+		return models.Notebook{}, err
+	}
+
+	if !hasAccess {
+		return models.Notebook{}, errors.New("not authorized to access this notebook")
+	}
+
 	var notebook models.Notebook
-	if err := db.DB.Preload("Notes").First(&notebook, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.Notebook{}, ErrNotebookNotFound
-		}
-		return models.Notebook{}, err
+	if err := db.DB.First(&notebook, "id = ?", id).Error; err != nil {
+		return models.Notebook{}, ErrNotebookNotFound
 	}
 	return notebook, nil
 }
 
-func (s *NotebookService) UpdateNotebook(db *database.Database, id string, updatedData map[string]interface{}) (models.Notebook, error) {
+func (s *NotebookService) UpdateNotebook(db *database.Database, id string, notebookData map[string]interface{}, params map[string]interface{}) (models.Notebook, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return models.Notebook{}, tx.Error
 	}
 
-	var notebook models.Notebook
-	if err := tx.First(&notebook, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.Notebook{}, ErrNotebookNotFound
-		}
-		return models.Notebook{}, err
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return models.Notebook{}, errors.New("user_id must be provided in parameters")
 	}
 
-	if err := tx.Model(&notebook).Updates(updatedData).Error; err != nil {
+	// Check if user has editor rights
+	hasAccess, err := RoleServiceInstance.HasNotebookAccess(db, userIDStr, id, "editor")
+	if err != nil {
 		tx.Rollback()
 		return models.Notebook{}, err
 	}
 
+	if !hasAccess {
+		tx.Rollback()
+		return models.Notebook{}, errors.New("not authorized to update this notebook")
+	}
+
+	var notebook models.Notebook
+	if err := tx.First(&notebook, "id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return models.Notebook{}, ErrNotebookNotFound
+	}
+
+	// Update notebook fields
+	if name, ok := notebookData["name"].(string); ok {
+		notebook.Name = name
+	}
+
+	if description, ok := notebookData["description"].(string); ok {
+		notebook.Description = description
+	}
+
+	notebook.UpdatedAt = time.Now()
+
+	if err := tx.Save(&notebook).Error; err != nil {
+		tx.Rollback()
+		return models.Notebook{}, err
+	}
+
+	// Create event for notebook update
 	event, err := models.NewEvent(
-		string(broker.NotebookUpdated), // Use standard event type
+		"notebook.updated",
 		"notebook",
 		"update",
-		notebook.UserID.String(),
+		userIDStr,
 		map[string]interface{}{
 			"notebook_id": notebook.ID.String(),
-			"user_id":     notebook.UserID.String(),
 			"name":        notebook.Name,
-			"updated_at":  notebook.UpdatedAt,
+			"description": notebook.Description,
 		},
 	)
 
@@ -158,50 +211,72 @@ func (s *NotebookService) UpdateNotebook(db *database.Database, id string, updat
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
 		return models.Notebook{}, err
 	}
 
 	return notebook, nil
 }
 
-func (s *NotebookService) DeleteNotebook(db *database.Database, id string) error {
+func (s *NotebookService) DeleteNotebook(db *database.Database, id string, params map[string]interface{}) error {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
+	// Extract user ID for permission check
+	userIDValue, exists := params["user_id"]
+	if !exists {
+		tx.Rollback()
+		return errors.New("user_id must be provided")
+	}
+
+	var userIDStr string
+	switch v := userIDValue.(type) {
+	case string:
+		userIDStr = v
+	case int:
+		userIDStr = fmt.Sprintf("%d", v)
+	case float64:
+		userIDStr = fmt.Sprintf("%d", int(v))
+	case uuid.UUID:
+		userIDStr = v.String()
+	default:
+		tx.Rollback()
+		return fmt.Errorf("user_id has invalid type: %T", userIDValue)
+	}
+
 	var notebook models.Notebook
 	if err := tx.First(&notebook, "id = ?", id).Error; err != nil {
 		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrNotebookNotFound
-		}
+		return ErrNotebookNotFound
+	}
+
+	// Check if user has owner rights using the new method
+	hasAccess, err := RoleServiceInstance.HasNotebookAccess(db, userIDStr, id, "owner")
+	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	// Mark notebook as soft deleted using GORM's delete
-	// This will set DeletedAt and trigger GORM's soft delete mechanism
+	if !hasAccess {
+		tx.Rollback()
+		return errors.New("not authorized to delete this notebook")
+	}
+
+	// Soft delete notebook (gorm will handle this)
 	if err := tx.Delete(&notebook).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Soft delete all notes belonging to this notebook
-	if err := tx.Model(&models.Note{}).Where("notebook_id = ?", id).Update("deleted_at", time.Now()).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-
+	// Create event for notebook deletion
 	event, err := models.NewEvent(
-		string(broker.NotebookDeleted), // Use standard event type
+		"notebook.deleted",
 		"notebook",
 		"delete",
-		notebook.UserID.String(),
+		userIDStr,
 		map[string]interface{}{
 			"notebook_id": notebook.ID.String(),
-			"user_id":     notebook.UserID.String(),
-			"deleted_at":  notebook.UpdatedAt,
 		},
 	)
 
@@ -215,12 +290,16 @@ func (s *NotebookService) DeleteNotebook(db *database.Database, id string) error
 		return err
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *NotebookService) ListNotebooksByUser(db *database.Database, userID string) ([]models.Notebook, error) {
 	var notebooks []models.Notebook
-	if err := db.DB.Preload("Notes").Where("user_id = ?", userID).Find(&notebooks).Error; err != nil {
+	if err := db.DB.Where("user_id = ?", userID).Find(&notebooks).Error; err != nil {
 		return nil, err
 	}
 	return notebooks, nil
@@ -228,7 +307,7 @@ func (s *NotebookService) ListNotebooksByUser(db *database.Database, userID stri
 
 func (s *NotebookService) GetAllNotebooks(db *database.Database) ([]models.Notebook, error) {
 	var notebooks []models.Notebook
-	if err := db.DB.Preload("Notes").Find(&notebooks).Error; err != nil {
+	if err := db.DB.Find(&notebooks).Error; err != nil {
 		return nil, err
 	}
 	return notebooks, nil
@@ -236,26 +315,88 @@ func (s *NotebookService) GetAllNotebooks(db *database.Database) ([]models.Noteb
 
 func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]interface{}) ([]models.Notebook, error) {
 	var notebooks []models.Notebook
-	query := db.DB.Preload("Notes", "deleted_at IS NULL") // Only load non-deleted notes
+	query := db.DB
 
-	// By default, filter out deleted notebooks
-	includeDeleted, hasIncludeDeleted := params["include_deleted"].(bool)
-	if !hasIncludeDeleted || !includeDeleted {
-		query = query.Where("deleted_at IS NULL")
+	// Debug received params
+	log.Printf("GetNotebooks received params: %+v", params)
+
+	// More robust handling of user_id parameter
+	userIDValue, userIDExists := params["user_id"]
+	if !userIDExists {
+		return nil, errors.New("user_id parameter is missing")
 	}
 
-	// Apply filters based on params
-	if userID, ok := params["user_id"].(string); ok && userID != "" {
-		query = query.Where("user_id = ?", userID)
+	var userIDStr string
+	switch v := userIDValue.(type) {
+	case string:
+		userIDStr = v
+	case int:
+		userIDStr = fmt.Sprintf("%d", v)
+	case float64:
+		userIDStr = fmt.Sprintf("%d", int(v))
+	case uuid.UUID:
+		userIDStr = v.String()
+	default:
+		return nil, fmt.Errorf("user_id has invalid type: %T", userIDValue)
 	}
 
+	if userIDStr == "" {
+		return nil, errors.New("user_id cannot be empty")
+	}
+
+	// Apply user filter - only do this once
+	query = query.Where("user_id = ?", userIDStr)
+
+	// Apply other filters
 	if name, ok := params["name"].(string); ok && name != "" {
 		query = query.Where("name LIKE ?", "%"+name+"%")
+	}
+
+	// Include or exclude deleted notebooks
+	if includeDeleted, ok := params["include_deleted"].(bool); ok && includeDeleted {
+		query = query.Unscoped().Where("deleted_at IS NOT NULL")
+	} else {
+		query = query.Where("deleted_at IS NULL")
 	}
 
 	if err := query.Find(&notebooks).Error; err != nil {
 		return nil, err
 	}
+
+	log.Printf("Found %d notebooks directly owned by user %s", len(notebooks), userIDStr)
+
+	// Also find notebooks where the user has been given an explicit role
+	roleParams := map[string]interface{}{
+		"user_id":       userIDStr,
+		"resource_type": string(models.NotebookResource),
+	}
+
+	sharedRoles, err := RoleServiceInstance.GetRoles(db, roleParams)
+	if err != nil {
+		log.Printf("Error finding role-based notebooks: %v", err)
+	} else {
+		for _, role := range sharedRoles {
+			// Skip notebooks the user already owns
+			var isOwned bool
+			for _, notebook := range notebooks {
+				if notebook.ID == role.ResourceID {
+					isOwned = true
+					break
+				}
+			}
+
+			if !isOwned {
+				var sharedNotebook models.Notebook
+				if err := db.DB.Where("id = ? AND deleted_at IS NULL", role.ResourceID).
+					First(&sharedNotebook).Error; err == nil {
+					notebooks = append(notebooks, sharedNotebook)
+				}
+			}
+		}
+		log.Printf("Found %d additional notebooks where user has an explicit role",
+			len(sharedRoles)-len(notebooks))
+	}
+
 	return notebooks, nil
 }
 
@@ -263,6 +404,3 @@ func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]
 func NewNotebookService() NotebookServiceInterface {
 	return &NotebookService{}
 }
-
-// Don't initialize here, will be set properly in main.go
-var NotebookServiceInstance NotebookServiceInterface

@@ -1,108 +1,65 @@
 import 'package:flutter/material.dart';
-import '../core/theme.dart';
 
 class CardContainer extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-  final double elevation;
-  final Color? color;
+  final Widget? child;
   final VoidCallback? onTap;
-  final BorderRadius? borderRadius;
-  final Widget? leading;
+  final VoidCallback? onLongPress;
   final Widget? trailing;
+  final Widget? leading;
   final String? title;
   final String? subtitle;
-  final bool compact;
-
+  final EdgeInsetsGeometry? padding;
+  
   const CardContainer({
     Key? key,
-    required this.child,
-    this.padding,
-    this.elevation = 2,
-    this.color,
+    this.child,
     this.onTap,
-    this.borderRadius,
-    this.leading,
+    this.onLongPress,
     this.trailing,
+    this.leading,
     this.title,
     this.subtitle,
-    this.compact = false,
+    this.padding,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark; // Changed from context.isDarkMode
-    final radius = borderRadius ?? BorderRadius.circular(12);
-    final cardColor = color ?? theme.cardColor;
-
-    final Widget cardContent = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (title != null || subtitle != null || leading != null || trailing != null)
-          Padding(
-            padding: EdgeInsets.only(
-              left: compact ? 12 : 16,
-              right: compact ? 12 : 16,
-              top: compact ? 12 : 16,
-              bottom: compact ? 4 : 8,
-            ),
-            child: Row(
-              children: [
-                if (leading != null) ...[
-                  leading!,
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (title != null)
-                        Text(
-                          title!,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      if (subtitle != null) ...[
-                        if (title != null) const SizedBox(height: 2),
-                        Text(
-                          subtitle!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            // Fixed: Use theme's text color instead of missing method
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (trailing != null) trailing!,
-              ],
-            ),
-          ),
-        Padding(
-          padding: padding ?? EdgeInsets.all(compact ? 12 : 16),
-          child: child,
-        ),
-      ],
-    );
-
     return Card(
-      color: cardColor,
-      elevation: elevation,
-      shape: RoundedRectangleBorder(borderRadius: radius),
-      clipBehavior: onTap != null ? Clip.antiAlias : Clip.none,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: onTap != null
-          ? InkWell(
-              onTap: onTap,
-              splashColor: theme.primaryColor.withOpacity(0.1),
-              highlightColor: theme.primaryColor.withOpacity(0.05),
-              child: cardContent,
-            )
-          : cardContent,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: padding ?? const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null || subtitle != null || leading != null || trailing != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: leading,
+                  title: title != null 
+                      ? Text(
+                          title!,
+                          style: Theme.of(context).textTheme.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ) 
+                      : null,
+                  subtitle: subtitle != null 
+                      ? Text(
+                          subtitle!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ) 
+                      : null,
+                  trailing: trailing,
+                ),
+              if (child != null) child!,
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

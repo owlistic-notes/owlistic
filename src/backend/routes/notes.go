@@ -5,23 +5,20 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/services"
 )
 
-func RegisterNoteRoutes(router *gin.Engine, db *database.Database, noteService services.NoteServiceInterface) {
-	group := router.Group("/api/v1/notes")
-	{
-		// Collection endpoints with query parameters
-		group.GET("/", func(c *gin.Context) { GetNotes(c, db, noteService) })
-		group.POST("/", func(c *gin.Context) { CreateNote(c, db, noteService) })
+func RegisterNoteRoutes(group *gin.RouterGroup, db *database.Database, noteService services.NoteServiceInterface) {
+	// Collection endpoints with query parameters
+	group.GET("/notes", func(c *gin.Context) { GetNotes(c, db, noteService) })
+	group.POST("/notes", func(c *gin.Context) { CreateNote(c, db, noteService) })
 
-		// Resource-specific endpoints
-		group.GET("/:id", func(c *gin.Context) { GetNoteById(c, db, noteService) })
-		group.PUT("/:id", func(c *gin.Context) { UpdateNote(c, db, noteService) })
-		group.DELETE("/:id", func(c *gin.Context) { DeleteNote(c, db, noteService) })
-		group.GET("/user/:user_id", func(c *gin.Context) { ListNotesByUser(c, db, noteService) })
-	}
+	// Resource-specific endpoints
+	group.GET("/notes/:id", func(c *gin.Context) { GetNoteById(c, db, noteService) })
+	group.PUT("/notes/:id", func(c *gin.Context) { UpdateNote(c, db, noteService) })
+	group.DELETE("/notes/:id", func(c *gin.Context) { DeleteNote(c, db, noteService) })
 }
 
 func CreateNote(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
@@ -30,6 +27,14 @@ func CreateNote(c *gin.Context, db *database.Database, noteService services.Note
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Get user ID from context and add to note data
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	noteData["user_id"] = userIDInterface.(uuid.UUID).String()
 
 	createdNote, err := noteService.CreateNote(db, noteData)
 	if err != nil {
@@ -45,7 +50,19 @@ func CreateNote(c *gin.Context, db *database.Database, noteService services.Note
 
 func GetNoteById(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
 	id := c.Param("id")
-	note, err := noteService.GetNoteById(db, id)
+
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
+
+	note, err := noteService.GetNoteById(db, id, params)
 	if err != nil {
 		if errors.Is(err, services.ErrNoteNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
@@ -54,6 +71,7 @@ func GetNoteById(c *gin.Context, db *database.Database, noteService services.Not
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, note)
 }
 
@@ -65,7 +83,18 @@ func UpdateNote(c *gin.Context, db *database.Database, noteService services.Note
 		return
 	}
 
-	updatedNote, err := noteService.UpdateNote(db, id, noteData)
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Get user ID from context and add to params
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
+
+	updatedNote, err := noteService.UpdateNote(db, id, noteData, params)
 	if err != nil {
 		if errors.Is(err, services.ErrNoteNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
@@ -79,7 +108,19 @@ func UpdateNote(c *gin.Context, db *database.Database, noteService services.Note
 
 func DeleteNote(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
 	id := c.Param("id")
-	if err := noteService.DeleteNote(db, id); err != nil {
+
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
+
+	if err := noteService.DeleteNote(db, id, params); err != nil {
 		if errors.Is(err, services.ErrNoteNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
 			return
@@ -90,37 +131,18 @@ func DeleteNote(c *gin.Context, db *database.Database, noteService services.Note
 	c.JSON(http.StatusNoContent, gin.H{})
 }
 
-func ListNotesByUser(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
-	userID := c.Param("user_id")
-	notes, err := noteService.ListNotesByUser(db, userID)
-	if err != nil {
-		if errors.Is(err, services.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "No notes found for the user"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, notes)
-}
-
-func GetAllNotes(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
-	notes, err := noteService.GetAllNotes(db)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, notes)
-}
-
 func GetNotes(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
 	// Extract query parameters
 	params := make(map[string]interface{})
 
-	if userID := c.Query("user_id"); userID != "" {
-		params["user_id"] = userID
+	// Get user ID from context (set by AuthMiddleware)
+	userIDInterface, exists := c.Get("userID")
+	if exists {
+		// Convert user ID to string and add to params
+		params["user_id"] = userIDInterface.(uuid.UUID).String()
 	}
 
+	// Add other query parameters
 	if notebookID := c.Query("notebook_id"); notebookID != "" {
 		params["notebook_id"] = notebookID
 	}
@@ -140,5 +162,7 @@ func GetNotes(c *gin.Context, db *database.Database, noteService services.NoteSe
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Log how many notes were found
 	c.JSON(http.StatusOK, notes)
 }

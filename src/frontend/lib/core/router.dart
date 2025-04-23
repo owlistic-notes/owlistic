@@ -26,21 +26,33 @@ class AppRouter {
       initialLocation: '/',
       debugLogDiagnostics: true,
       redirect: (context, state) {
-        final isLoggedIn = authProvider.isAuthenticated;
+        // Non-auth routes that don't require authentication
+        final publicRoutes = ['/login', '/register'];
         final isLoggingIn = state.matchedLocation == '/login';
         final isRegistering = state.matchedLocation == '/register';
+        final isPublicRoute = publicRoutes.contains(state.matchedLocation);
+        
+        // Auth state
+        final isLoggedIn = authProvider.isLoggedIn;
+        final isInitializing = authProvider.isLoading;
         
         _logger.info('Route check: ${state.matchedLocation} - Auth state: $isLoggedIn');
+        
+        // If we're still initializing auth, don't redirect
+        if (isInitializing && !isPublicRoute) {
+          _logger.info('Auth is initializing, holding at current route');
+          return null;
+        }
 
-        // If not logged in and not on login or register page, redirect to login
-        if (!isLoggedIn && !isLoggingIn && !isRegistering) {
-          _logger.info('Redirecting to login from ${state.matchedLocation}');
+        // If not logged in and trying to access a protected route, redirect to login
+        if (!isLoggedIn && !isPublicRoute) {
+          _logger.info('Not authenticated, redirecting to login from ${state.matchedLocation}');
           return '/login';
         }
         
-        // If logged in and on login or register page, redirect to home
-        if (isLoggedIn && (isLoggingIn || isRegistering)) {
-          _logger.info('Redirecting to home from ${state.matchedLocation}');
+        // If logged in and trying to access login or register, redirect to home
+        if (isLoggedIn && isPublicRoute) {
+          _logger.info('Already authenticated, redirecting to home from ${state.matchedLocation}');
           return '/';
         }
         
@@ -84,7 +96,7 @@ class AppRouter {
           path: '/register',
           builder: (context, state) => RegisterScreen(),
         ),
-      ],
+              ],
       refreshListenable: authProvider,
     );
   }

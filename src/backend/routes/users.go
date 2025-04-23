@@ -18,21 +18,21 @@ type registrationRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-func RegisterUserRoutes(router *gin.Engine, db *database.Database, userService services.UserServiceInterface, authService services.AuthServiceInterface) {
+func RegisterUserRoutes(group *gin.RouterGroup, db *database.Database, userService services.UserServiceInterface, authService services.AuthServiceInterface) {
 	// Public registration endpoint - no auth required
-	router.POST("/api/v1/register", func(c *gin.Context) { CreateUser(c, db, userService) })
+	group.POST("/register", func(c *gin.Context) { CreateUser(c, db, userService) })
 
 	// Protected user routes
-	group := router.Group("/api/v1/users")
-	group.Use(middleware.AuthMiddleware(authService))
+	userGroup := group.Group("/users")
+	userGroup.Use(middleware.AuthMiddleware(authService))
 	{
 		// Collection endpoints with query parameters
-		group.GET("/", func(c *gin.Context) { GetUsers(c, db, userService) })
+		userGroup.GET("/", func(c *gin.Context) { GetUsers(c, db, userService) })
 
 		// Resource-specific endpoints
-		group.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
-		group.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
-		group.DELETE("/:id", func(c *gin.Context) { DeleteUser(c, db, userService) })
+		userGroup.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
+		userGroup.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
+		userGroup.DELETE("/:id", func(c *gin.Context) { DeleteUser(c, db, userService) })
 	}
 }
 

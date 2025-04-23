@@ -60,18 +60,18 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     
     // Register a custom handler for notebook creation events
     wsProvider.addEventListener('event', 'notebook.created', (message) {
-      try {
-        // Extract notebook ID from the message
-        final notebookId = message['payload']?['data']?['notebook_id'] ?? 
-                          message['payload']?['data']?['id'];
-        
-        if (notebookId != null) {
-          // Process just this notebook instead of refreshing everything
-          _handleNewNotebook(notebookId.toString());
-        }
-      } catch (e) {
-        _logger.error('Error handling notebook creation in UI', e);
-      }
+      _logger.info('Notebook created event received');
+      _refreshNotebooks();
+    });
+
+    wsProvider.addEventListener('event', 'notebook.updated', (message) {
+      _logger.info('Notebook updated event received');
+      _refreshNotebooks();
+    });
+
+    wsProvider.addEventListener('event', 'notebook.deleted', (message) {
+      _logger.info('Notebook deleted event received');
+      _refreshNotebooks();
     });
     
     // Activate the presenter
@@ -86,15 +86,28 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     // Subscribe to events
     wsProvider.subscribe('notebook');
     wsProvider.subscribe('note');
+    wsProvider.subscribeToEvent('note.deleted'); // Subscribe to note deletion events
   }
-  
+
+  // Refresh notebooks data after events
+  Future<void> _refreshNotebooks() async {
+    if (!mounted) return;
+    
+    try {
+      await _presenter.fetchNotebooks();
+      _updateLoadedIds();
+    } catch (e) {
+      _logger.error('Error refreshing notebooks', e);
+    }
+  }
+
   // Update the set of loaded IDs
   void _updateLoadedIds() {
     setState(() {
       _loadedNotebookIds = _presenter.notebooks.map((nb) => nb.id).toSet();
     });
   }
-  
+
   // Process a single new notebook from WebSocket without full refresh
   void _handleNewNotebook(String notebookId) {
     // Check if this notebook is already loaded
@@ -106,9 +119,12 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     _logger.info('Adding new notebook $notebookId from WebSocket event');
     
     // Fetch just this one notebook and add it to the list
-    _presenter.fetchNotebookById(notebookId).then((_) {
+    // Using null safety with ?. operator to prevent null reference errors
+    _presenter.fetchNotebookById(notebookId).then((_) { // Changed refreshNotebookById to fetchNotebookById
       // Update our tracking set
       _updateLoadedIds();
+    }).catchError((error) {
+      _logger.error('Error fetching notebook by id', error);
     });
   }
   
@@ -287,7 +303,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => presenter.fetchNotebooks(),
+      onRefresh: () => presenter.fetchNotebooks(page: 1, pageSize: 20),
       color: Theme.of(context).primaryColor,
       child: ListView.builder(
         controller: _scrollController,

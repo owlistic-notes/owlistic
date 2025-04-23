@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/block.dart';
-import '../services/api_service.dart';
+import '../services/block_service.dart';
+import '../services/auth_service.dart';
+import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
@@ -13,17 +15,23 @@ class BlockProvider with ChangeNotifier {
   bool _isLoading = false;
   int _updateCount = 0;
   
-  // WebSocket provider reference
+  // Services
+  final BlockService _blockService;
+  final AuthService _authService;
   WebSocketProvider? _webSocketProvider;
+  
+  // Active notes and debouncing
   final Set<String> _activeNoteIds = {};
-  
-  // Map of timers for debounced saving
   final Map<String, Timer> _saveTimers = {};
-  
-  // Add debouncer for WebSocket notifications to prevent rapid UI refreshes
   Timer? _notificationDebouncer;
   bool _hasPendingNotification = false;
+  bool _isActive = false;
 
+  // Constructor with dependency injection
+  BlockProvider({BlockService? blockService, AuthService? authService})
+    : _blockService = blockService ?? ServiceLocator.get<BlockService>(),
+      _authService = authService ?? ServiceLocator.get<AuthService>();
+      
   // Getters
   bool get isLoading => _isLoading;
   List<Block> get allBlocks => _blocks.values.toList();
@@ -43,6 +51,24 @@ class BlockProvider with ChangeNotifier {
     // Sort by order
     blocks.sort((a, b) => a.order.compareTo(b.order));
     return blocks;
+  }
+
+  // Add activation/deactivation pattern
+  void activate() {
+    _isActive = true;
+    _logger.info('BlockProvider activated');
+  }
+
+  void deactivate() {
+    _isActive = false;
+    _logger.info('BlockProvider deactivated');
+    
+    // Cancel any pending timers when deactivated
+    for (final timer in _saveTimers.values) {
+      timer.cancel();
+    }
+    _saveTimers.clear();
+    _notificationDebouncer?.cancel();
   }
 
   // Set the WebSocketProvider and register event listeners
@@ -67,6 +93,15 @@ class BlockProvider with ChangeNotifier {
     _webSocketProvider?.addEventListener('event', 'block.deleted', _handleBlockDelete);
     _webSocketProvider?.addEventListener('event', 'note.updated', _handleNoteUpdate);
     
+    // Subscribe to these events using the correct pattern for events
+    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+      // Use subscribeToEvent instead of subscribe for events
+      _webSocketProvider?.subscribeToEvent('block.updated');
+      _webSocketProvider?.subscribeToEvent('block.created');
+      _webSocketProvider?.subscribeToEvent('block.deleted');
+      _webSocketProvider?.subscribeToEvent('note.updated');
+    }
+    
     // Debug to confirm handlers are registered
     _logger.debug('Registered event handlers successfully');
   }
@@ -76,6 +111,14 @@ class BlockProvider with ChangeNotifier {
     _webSocketProvider?.removeEventListener('event', 'block.created');
     _webSocketProvider?.removeEventListener('event', 'block.deleted');
     _webSocketProvider?.removeEventListener('event', 'note.updated');
+    
+    // Unsubscribe from events
+    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+      _webSocketProvider?.unsubscribeFromEvent('block.updated');
+      _webSocketProvider?.unsubscribeFromEvent('block.created');
+      _webSocketProvider?.unsubscribeFromEvent('block.deleted');
+      _webSocketProvider?.unsubscribeFromEvent('note.updated');
+    }
   }
 
   // Mark a note as active/inactive
@@ -243,7 +286,7 @@ class BlockProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final blocks = await ApiService.fetchBlocksForNote(noteId);
+      final blocks = await _blockService.fetchBlocksForNote(noteId);
       
       // Initialize note blocks list if it doesn't exist
       _noteBlocksMap[noteId] ??= [];
@@ -267,12 +310,18 @@ class BlockProvider with ChangeNotifier {
         // Also add to the noteBlocksMap
         _noteBlocksMap[noteId]!.add(block.id);
         
-        // Subscribe to this block
-        _webSocketProvider?.subscribe('block', id: block.id);
+        // Subscribe to this block - only if not already subscribed
+        if (_webSocketProvider != null && 
+            !_webSocketProvider!.isSubscribed('block', id: block.id)) {
+          _webSocketProvider?.subscribe('block', id: block.id);
+        }
       }
       
-      // Also subscribe to note's blocks as a collection
-      _webSocketProvider?.subscribe('note:blocks', id: noteId);
+      // Also subscribe to note's blocks as a collection - only if not already subscribed
+      if (_webSocketProvider != null && 
+          !_webSocketProvider!.isSubscribed('note:blocks', id: noteId)) {
+        _webSocketProvider?.subscribe('note:blocks', id: noteId);
+      }
       
       _isLoading = false;
       _updateCount++;
@@ -303,13 +352,8 @@ class BlockProvider with ChangeNotifier {
     try {
       _logger.debug('Fetching block with ID $blockId');
       
-      // Use ApiService to get the block
-      final block = await ApiService.getBlock(blockId);
-      
-      if (block == null) {
-        _logger.warning('ApiService.getBlock returned null for $blockId');
-        return null;
-      }
+      // Use BlockService to get the block
+      final block = await _blockService.getBlock(blockId);
       
       // Log the retrieved block details
       _logger.debug('Successfully retrieved block: ID=${block.id}, Type=${block.type}, NoteID=${block.noteId}');
@@ -337,11 +381,15 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Create a new block - no optimistic updates
+  // Create a new block
   Future<Block> createBlock(String noteId, dynamic content, String type, int order) async {
     try {
+      // Get user ID from auth service directly
+      final currentUser = await _authService.getUserProfile();
+      final userId = currentUser?.id ?? '';
+      
       // Create block on server
-      final block = await ApiService.createBlock(noteId, content, type, order);
+      final block = await _blockService.createBlock(noteId, content, type, order);
       
       // Subscribe to this block
       _webSocketProvider?.subscribe('block', id: block.id);
@@ -354,7 +402,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Delete a block - no optimistic updates
+  // Delete a block
   Future<void> deleteBlock(String id) async {
     try {
       final block = _blocks[id];
@@ -364,7 +412,7 @@ class BlockProvider with ChangeNotifier {
       }
       
       // Delete block on server
-      await ApiService.deleteBlock(id);
+      await _blockService.deleteBlock(id);
       
       // Unsubscribe from this block
       _webSocketProvider?.unsubscribe('block', id: id);
@@ -376,7 +424,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Update a block with debouncing but no optimistic updates
+  // Update a block with debouncing
   void updateBlockContent(String id, dynamic content, {String? type, bool immediate = false}) {
     // Cancel any existing timer for this block
     if (_saveTimers.containsKey(id)) {
@@ -416,13 +464,13 @@ class BlockProvider with ChangeNotifier {
     }
   }
   
-  // Method to persist block changes to backend via REST API
+  // Method to persist block changes to backend
   Future<void> _saveBlockToBackend(String id, dynamic content, {String? type}) async {
     if (!_blocks.containsKey(id)) return;
     
     try {
-      // Update API service method to handle JSON content
-      final updatedBlock = await ApiService.updateBlock(
+      // Update via BlockService
+      final updatedBlock = await _blockService.updateBlock(
         id, 
         content, 
         type: type
@@ -444,12 +492,12 @@ class BlockProvider with ChangeNotifier {
   Future<void> addBlockFromEvent(String blockId) async {
     try {
       _logger.debug('Adding block from event: $blockId');
-      final block = await ApiService.getBlock(blockId);
+      final block = await _blockService.getBlock(blockId);
       
-      // Check if this is a block for an active note
-      if (_activeNoteIds.contains(block.noteId)) {
+      // Check if block exists and if this is a block for an active note
+      if (block != null && _activeNoteIds.contains(block.noteId)) {
         // Add to blocks map
-        _blocks[blockId] = block;
+        _blocks[blockId] = block!;
         
         // Update note blocks map
         _noteBlocksMap[block.noteId] ??= [];
@@ -465,7 +513,7 @@ class BlockProvider with ChangeNotifier {
         
         _logger.info('Successfully added block $blockId from event');
       } else {
-        _logger.debug('Block $blockId belongs to inactive note ${block.noteId}, not adding');
+        _logger.debug('Block $blockId belongs to inactive note ${block?.noteId}, not adding');
       }
     } catch (error) {
       _logger.error('Error adding block from event', error);
@@ -515,6 +563,26 @@ class BlockProvider with ChangeNotifier {
     } else {
       _logger.debug('Block $blockId not found, nothing to remove');
     }
+  }
+
+  // Reset state on logout
+  void resetState() {
+    _logger.info('Resetting BlockProvider state');
+    
+    // Cancel any pending timers
+    for (final timer in _saveTimers.values) {
+      timer.cancel();
+    }
+    _saveTimers.clear();
+    _notificationDebouncer?.cancel();
+    
+    // Clear data
+    _blocks.clear();
+    _noteBlocksMap.clear();
+    _activeNoteIds.clear();
+    _isActive = false;
+    
+    notifyListeners();
   }
 
   @override

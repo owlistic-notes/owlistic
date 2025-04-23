@@ -84,7 +84,7 @@ func TestGetNotebookById_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 	notebookService := &NotebookService{}
-	notebook, err := notebookService.GetNotebookById(db, notebookID.String())
+	notebook, err := notebookService.GetNotebookById(db, notebookID.String(), map[string]interface{}{"user_id": userID.String()})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Test Notebook", notebook.Name)
@@ -150,7 +150,7 @@ func TestUpdateNotebook_Success(t *testing.T) {
 		"description": "Updated Description",
 	}
 
-	notebook, err := service.UpdateNotebook(db, notebookID.String(), updatedData)
+	notebook, err := service.UpdateNotebook(db, notebookID.String(), updatedData, map[string]interface{}{"user_id": userID.String()})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated Name", notebook.Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -194,7 +194,7 @@ func TestDeleteNotebook_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	notebookService := &NotebookService{}
-	err := notebookService.DeleteNotebook(db, notebookID.String())
+	err := notebookService.DeleteNotebook(db, notebookID.String(), map[string]interface{}{"user_id": userID.String()})
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

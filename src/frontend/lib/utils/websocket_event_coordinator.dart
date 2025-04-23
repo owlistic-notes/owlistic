@@ -1,89 +1,94 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../providers/notes_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/block_provider.dart';
+import '../utils/logger.dart';
+import '../models/subscription.dart';
+import '../providers/websocket_provider.dart';
 
-/// A utility class to coordinate WebSocket events between providers
-/// This avoids direct dependencies between providers
+/// Coordinates WebSocket events and manages subscriptions
 class WebSocketEventCoordinator {
-  // Singleton instance
-  static final WebSocketEventCoordinator _instance = WebSocketEventCoordinator._internal();
-  factory WebSocketEventCoordinator() => _instance;
-  WebSocketEventCoordinator._internal();
-
-  // Provider references
-  NotesProvider? _notesProvider;
-  NotebooksProvider? _notebooksProvider;
-  TasksProvider? _tasksProvider;
-  BlockProvider? _blockProvider;
-
-  // Register providers
-  void registerNotesProvider(NotesProvider provider) => _notesProvider = provider;
-  void registerNotebooksProvider(NotebooksProvider provider) => _notebooksProvider = provider;
-  void registerTasksProvider(TasksProvider provider) => _tasksProvider = provider;
-  void registerBlockProvider(BlockProvider provider) => _blockProvider = provider;
-
-  // Handle entity creation
-  void handleEntityCreated(String type, String id) {
-    debugPrint('WebSocketEventCoordinator: Entity created - $type:$id');
+  final WebSocketProvider _webSocketProvider;
+  final Logger _logger = Logger('WebSocketEventCoordinator');
+  
+  // Track active subscriptions
+  final Set<Subscription> _activeSubscriptions = {};
+  // Track event handlers for cleanup
+  final Map<String, Function(dynamic)> _eventHandlers = {};
+  
+  WebSocketEventCoordinator(this._webSocketProvider);
+  
+  // Subscribe to a resource
+  Future<void> subscribe(String resource, {String? id}) async {
+    final subscription = Subscription(resource: resource, id: id);
     
-    switch (type) {
-      case 'note':
-        _notesProvider?.addNoteFromEvent(id);
-        break;
-      case 'notebook':
-        _notebooksProvider?.addNotebookFromEvent(id);
-        break;
-      case 'task':
-        _tasksProvider?.addTaskFromEvent(id);
-        break;
-      case 'block':
-        _blockProvider?.addBlockFromEvent(id);
-        break;
+    if (!_activeSubscriptions.contains(subscription)) {
+      _activeSubscriptions.add(subscription);
+      await _webSocketProvider.subscribe(resource, id: id);
+      _logger.debug('Subscribed to $subscription');
     }
   }
   
-  // Handle entity updated
-  void handleEntityUpdated(String type, String id) {
-    debugPrint('WebSocketEventCoordinator: Entity updated - $type:$id');
+  // Subscribe to multiple resources at once
+  Future<void> batchSubscribe(List<Subscription> subscriptions) async {
+    final newSubscriptions = <Subscription>[];
     
-    switch (type) {
-      case 'note':
-        _notesProvider?.fetchNoteById(id);
-        break;
-      case 'notebook':
-        _notebooksProvider?.fetchNotebookById(id);
-        break;
-      case 'task':
-        _tasksProvider?.fetchTaskFromEvent(id);
-        break;
-      case 'block':
-        _blockProvider?.fetchBlockFromEvent(id);
-        break;
+    for (final subscription in subscriptions) {
+      if (!_activeSubscriptions.contains(subscription)) {
+        _activeSubscriptions.add(subscription);
+        newSubscriptions.add(subscription);
+      }
+    }
+    
+    if (newSubscriptions.isNotEmpty) {
+      await _webSocketProvider.batchSubscribe(newSubscriptions);
+      _logger.debug('Batch subscribed to ${newSubscriptions.length} resources');
     }
   }
   
-  // Handle entity deleted
-  void handleEntityDeleted(String type, String id) {
-    debugPrint('WebSocketEventCoordinator: Entity deleted - $type:$id');
+  // Unsubscribe from a resource
+  void unsubscribe(String resource, {String? id}) {
+    final subscription = Subscription(resource: resource, id: id);
     
-    switch (type) {
-      case 'note':
-        _notesProvider?.handleNoteDeleted(id);
-        break;
-      case 'notebook':
-        _notebooksProvider?.handleNotebookDeleted(id);
-        break;
-      case 'task':
-        _tasksProvider?.handleTaskDeleted(id);
-        break;
-      case 'block':
-        _blockProvider?.handleBlockDeleted(id);
-        break;
-      default:
-        debugPrint('WebSocketEventCoordinator: Unhandled entity type - $type');
-        break;
+    if (_activeSubscriptions.contains(subscription)) {
+      _activeSubscriptions.remove(subscription);
+      _webSocketProvider.unsubscribe(resource, id: id);
+      _logger.debug('Unsubscribed from $subscription');
+    }
+  }
+  
+  // Unsubscribe from all active subscriptions
+  void unsubscribeAll() {
+    for (final subscription in _activeSubscriptions) {
+      _webSocketProvider.unsubscribe(
+        subscription.resource,
+        id: subscription.id,
+      );
+    }
+    
+    _logger.debug('Unsubscribed from all ${_activeSubscriptions.length} resources');
+    _activeSubscriptions.clear();
+    
+    // Remove all event listeners too
+    for (final entry in _eventHandlers.entries) {
+      _webSocketProvider.off(entry.key, entry.value);
+    }
+    _eventHandlers.clear();
+  }
+  
+  // Add event listener for a specific event
+  void on(String eventName, Function(dynamic) handler) {
+    _webSocketProvider.on(eventName, handler);
+    _eventHandlers[eventName] = handler; // Store for cleanup
+  }
+  
+  // Remove event listener
+  void off(String eventName, [Function(dynamic)? handler]) {
+    _webSocketProvider.off(eventName, handler);
+    if (handler == null) {
+      _eventHandlers.remove(eventName);
     }
   }
 }

@@ -17,6 +17,8 @@ type UserServiceInterface interface {
 	GetAllUsers(db *database.Database) ([]models.User, error)
 	GetUsers(db *database.Database, params map[string]interface{}) ([]models.User, error)
 	GetUserByEmail(db *database.Database, email string) (models.User, error)
+	AssignRole(db *database.Database, userID uuid.UUID, role models.RoleType) error
+	GetUserRole(db *database.Database, userID uuid.UUID) (models.RoleType, error)
 }
 
 type UserService struct {
@@ -71,6 +73,20 @@ func (s *UserService) CreateUser(db *database.Database, userData map[string]inte
 	}
 
 	if err := tx.Create(&user).Error; err != nil {
+		tx.Rollback()
+		return models.User{}, err
+	}
+
+	// Assign owner role to the user for their own account
+	userRole := models.Role{
+		ID:           uuid.New(),
+		UserID:       user.ID,
+		ResourceID:   user.ID,
+		ResourceType: models.UserResource,
+		Role:         models.OwnerRole,
+	}
+
+	if err := tx.Create(&userRole).Error; err != nil {
 		tx.Rollback()
 		return models.User{}, err
 	}
@@ -281,6 +297,27 @@ func (s *UserService) GetUsers(db *database.Database, params map[string]interfac
 		return nil, err
 	}
 	return users, nil
+}
+
+// AssignRole assigns a role to a user
+func (s *UserService) AssignRole(db *database.Database, userID uuid.UUID, role models.RoleType) error {
+	// Check if user exists
+	var user models.User
+	if err := db.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+		return ErrUserNotFound
+	}
+
+	// Create a role for the user on their own user resource
+	return RoleServiceInstance.AssignRole(db, userID, userID, models.UserResource, role)
+}
+
+// GetUserRole retrieves a user's role
+func (s *UserService) GetUserRole(db *database.Database, userID uuid.UUID) (models.RoleType, error) {
+	role, err := RoleServiceInstance.GetRole(db, userID, userID, models.UserResource)
+	if err != nil {
+		return "", errors.New("role not found for user")
+	}
+	return role.Role, nil
 }
 
 // Global instance that will be initialized in main.go

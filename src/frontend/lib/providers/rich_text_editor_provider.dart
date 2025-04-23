@@ -53,6 +53,10 @@ class RichTextEditorProvider with ChangeNotifier {
   // Keep track of original blocks at initialization for reconciliation
   final List<Block> _originalBlocks = [];
   
+  // Add active state tracking
+  bool _isActive = false;
+  
+  // Standard constructor with callback parameters
   RichTextEditorProvider({
     required List<Block> blocks,
     this.onBlockContentChanged,
@@ -73,6 +77,32 @@ class RichTextEditorProvider with ChangeNotifier {
   Editor get editor => _editor;
   FocusNode get focusNode => _focusNode;
   List<Block> get blocks => List.unmodifiable(_blocks);
+  
+  // Standardized activate/deactivate methods
+  void activate() {
+    _isActive = true;
+    _logger.info('RichTextEditorProvider activated');
+  }
+
+  void deactivate() {
+    _isActive = false;
+    _logger.info('RichTextEditorProvider deactivated');
+    
+    // Commit all content before deactivating
+    commitAllContent();
+  }
+  
+  // Add resetState for consistency
+  void resetState() {
+    _logger.info('Resetting RichTextEditorProvider state');
+    // Clear document
+    _document.clear();
+    _nodeToBlockMap.clear();
+    _blocks.clear();
+    _originalBlocks.clear();
+    _isActive = false;
+    notifyListeners();
+  }
   
   void _initialize() {
     // Create an empty document first
@@ -712,10 +742,35 @@ class RichTextEditorProvider with ChangeNotifier {
       _focusNode.requestFocus();
     }
   }
+  
+  /// Sets focus to a specific block by ID
+  void setFocusToBlock(String blockId) {
+    // Find the block index
+    final int blockIndex = blocks.indexWhere((block) => block.id == blockId);
+    if (blockIndex >= 0) {
+      // Notify listeners that we want to focus on this specific block
+      _focusRequestedBlockId = blockId;
+      notifyListeners();
+    }
+  }
+
+  // Add this property to track which block should receive focus
+  String? _focusRequestedBlockId;
+
+  /// Gets the ID of the block that should receive focus, then clears it
+  String? consumeFocusRequest() {
+    final String? blockId = _focusRequestedBlockId;
+    _focusRequestedBlockId = null; // Clear after consumption
+    return blockId;
+  }
       
   @override
   void dispose() {
     _logger.debug('Disposing rich text editor provider');
+    // Make sure all content is saved before disposing
+    if (_isActive) {
+      commitAllContent();
+    }
     _document.removeListener(_documentChangeListener);
     _focusNode.removeListener(_handleFocusChange);
     _focusNode.dispose();

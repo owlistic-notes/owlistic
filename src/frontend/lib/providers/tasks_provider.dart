@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
-import '../services/api_service.dart';
-import '../services/websocket_service.dart';
+import '../services/task_service.dart';
+import '../services/auth_service.dart';
+import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/logger.dart';
 
@@ -10,22 +11,45 @@ class TasksProvider with ChangeNotifier {
   // Change to Map to prevent duplicates and enable O(1) lookups
   final Map<String, Task> _tasksMap = {};
   bool _isLoading = false;
-  final WebSocketService _webSocketService = WebSocketService();
   WebSocketProvider? _webSocketProvider;
   bool _initialized = false;
+  bool _isActive = false; // Add flag for active state
+  
+  // Services
+  final TaskService _taskService;
+  final AuthService _authService;
 
   // Logger for debugging and tracking events
   final _logger = Logger('TaskProvider');
+
+  // Constructor with dependency injection
+  TasksProvider({TaskService? taskService, AuthService? authService})
+    : _taskService = taskService ?? ServiceLocator.get<TaskService>(),
+      _authService = authService ?? ServiceLocator.get<AuthService>();
 
   // Update getters to use the map
   List<Task> get tasks => _tasksMap.values.toList();
   bool get isLoading => _isLoading;
   List<Task> get recentTasks => _tasksMap.values.take(3).toList();
+  
+  // Reset state on logout
+  void resetState() {
+    _logger.info('Resetting TasksProvider state');
+    _tasksMap.clear();
+    _isActive = false;
+    notifyListeners();
+  }
+  
+  // Add activation/deactivation pattern
+  void activate() {
+    _isActive = true;
+    _logger.info('TasksProvider activated');
+    fetchTasks(); // Load tasks on activation
+  }
 
-  TasksProvider() {
-    // Initialize WebSocket connection
-    _webSocketService.connect();
-    print('TasksProvider initialized');
+  void deactivate() {
+    _isActive = false;
+    _logger.info('TasksProvider deactivated');
   }
 
   // Called by ProxyProvider in main.dart
@@ -36,7 +60,7 @@ class TasksProvider with ChangeNotifier {
     _webSocketProvider = webSocketProvider;
     _registerEventHandlers();
 
-    print('TasksProvider registered event handlers');
+    _logger.info('TasksProvider registered event handlers');
   }
 
   void setWebSocketProvider(WebSocketProvider provider) {
@@ -47,7 +71,7 @@ class TasksProvider with ChangeNotifier {
     // Register for relevant events
     _registerEventHandlers();
 
-    print('TasksProvider: WebSocket event listeners registered');
+    _logger.info('TasksProvider: WebSocket event listeners registered');
   }
 
   void _registerEventHandlers() {
@@ -58,9 +82,18 @@ class TasksProvider with ChangeNotifier {
         'event', 'task.created', _handleTaskCreate);
     _webSocketProvider?.addEventListener(
         'event', 'task.deleted', _handleTaskDelete);
+        
+    // Subscribe to these events using the correct pattern
+    if (_webSocketProvider != null && _webSocketProvider!.isConnected) {
+      _webSocketProvider?.subscribeToEvent('task.updated');
+      _webSocketProvider?.subscribeToEvent('task.created');
+      _webSocketProvider?.subscribeToEvent('task.deleted');
+    }
   }
 
   void _handleTaskUpdate(Map<String, dynamic> message) {
+    if (!_isActive) return; // Only process events when active
+    
     final payload = message['payload'];
     if (payload == null || payload['data'] == null) return;
 
@@ -73,6 +106,8 @@ class TasksProvider with ChangeNotifier {
   }
 
   void _handleTaskCreate(Map<String, dynamic> payload) {
+    if (!_isActive) return; // Only process events when active
+    
     final data = payload['data'];
     final String taskId = _extractTaskId(data);
     final String noteId =
@@ -88,6 +123,8 @@ class TasksProvider with ChangeNotifier {
   }
 
   void _handleTaskDelete(Map<String, dynamic> payload) {
+    if (!_isActive) return; // Only process events when active
+    
     final data = payload['data'];
     final String taskId = _extractTaskId(data);
 
@@ -114,29 +151,41 @@ class TasksProvider with ChangeNotifier {
   Future<void> _fetchSingleTask(String taskId) async {
     print('Fetching single task: $taskId');
     try {
-      // Since there's no getTask method in ApiService, we'll fetch all tasks and filter
-      // In a real app, you would add a getTask method to ApiService
-      final task = await ApiService.getTask(taskId);
+      // Fetch the task from the service
+      final task = await _taskService.getTask(taskId);
 
       // Update the task in our map
       _tasksMap[taskId] = task;
 
       // Subscribe to this task
-      _webSocketService.subscribe('task', id: task.id);
+      _webSocketProvider?.subscribe('task', id: task.id);
 
-      print('Updated/added task: $taskId');
       notifyListeners();
+      print('Updated/added task: $taskId');
     } catch (error) {
       print('Error fetching task: $error');
     }
   }
 
-  Future<void> fetchTasks() async {
+  // Fetch tasks with proper user filtering
+  Future<void> fetchTasks({String? completed, String? noteId}) async {
+    if (!_isActive) return; // Don't fetch if not active
+    
+    // Get current user ID for filtering
+    final currentUser = await _authService.getUserProfile();
+    if (currentUser == null) {
+      _logger.warning('Cannot fetch tasks: No authenticated user');
+      return;
+    }
+    
     _isLoading = true;
     notifyListeners();
 
     try {
-      final tasksList = await ApiService.fetchTasks();
+      final tasksList = await _taskService.fetchTasks(
+        completed: completed,
+        noteId: noteId,
+      );
 
       // Convert list to map
       _tasksMap.clear();
@@ -146,12 +195,12 @@ class TasksProvider with ChangeNotifier {
 
       // Subscribe to all tasks
       for (var task in tasksList) {
-        _webSocketService.subscribe('task', id: task.id);
+        _webSocketProvider?.subscribe('task', id: task.id);
       }
 
-      print('Fetched ${_tasksMap.length} tasks');
+      _logger.debug('Fetched ${_tasksMap.length} tasks');
     } catch (error) {
-      print('Error fetching tasks: $error');
+      _logger.error('Error fetching tasks: $error');
       _tasksMap.clear(); // Reset tasks on error
     }
 
@@ -163,10 +212,10 @@ class TasksProvider with ChangeNotifier {
   Future<void> createTask(String title, String noteId, {String? blockId}) async {
     try {
       // Create task on server
-      final task = await ApiService.createTask(title, noteId, blockId: blockId);
+      final task = await _taskService.createTask(title, noteId, blockId: blockId);
       
       // Subscribe to this task
-      _webSocketService.subscribe('task', id: task.id);
+      _webSocketProvider?.subscribe('task', id: task.id);
       
       _logger.info('Created task: $title, waiting for event');
     } catch (error) {
@@ -178,7 +227,7 @@ class TasksProvider with ChangeNotifier {
   Future<void> deleteTask(String id) async {
     try {
       // Delete task on server
-      await ApiService.deleteTask(id);
+      await _taskService.deleteTask(id);
       
       _logger.info('Deleted task: $id, waiting for event');
     } catch (error) {
@@ -190,9 +239,7 @@ class TasksProvider with ChangeNotifier {
   Future<void> updateTaskTitle(String id, String title) async {
     try {
       // Update task on server
-      // await ApiService.updateTask(id, {
-      //   'Title': title,
-      // });
+      await _taskService.updateTask(id, title: title);
       
       _logger.info('Updated task title: $title, waiting for event');
     } catch (error) {
@@ -204,9 +251,7 @@ class TasksProvider with ChangeNotifier {
   Future<void> toggleTaskCompletion(String id, bool isCompleted) async {
     try {
       // Update task on server
-      // await ApiService.updateTask(id, {
-      //   'IsCompleted': isCompleted,
-      // });
+      await _taskService.updateTask(id, isCompleted: isCompleted);
       
       _logger.info('Toggled task completion: $isCompleted, waiting for event');
     } catch (error) {
@@ -219,7 +264,7 @@ class TasksProvider with ChangeNotifier {
   Future<void> fetchTaskFromEvent(String taskId) async {
     try {
       // Only fetch if we don't already have this task or if it's being updated
-      final task = await ApiService.getTask(taskId);
+      final task = await _taskService.getTask(taskId);
       _tasksMap[taskId] = task;
       notifyListeners();
     } catch (error) {
@@ -232,7 +277,7 @@ class TasksProvider with ChangeNotifier {
     try {
       // Only fetch if we don't already have this task
       if (!_tasksMap.containsKey(taskId)) {
-        final task = await ApiService.getTask(taskId);
+        final task = await _taskService.getTask(taskId);
         _tasksMap[taskId] = task;
         notifyListeners();
       }
@@ -253,9 +298,16 @@ class TasksProvider with ChangeNotifier {
   void dispose() {
     // Unregister event handlers
     if (_webSocketProvider != null) {
-      _webSocketProvider?.removeEventListener('event', 'task_updated');
-      _webSocketProvider?.removeEventListener('event', 'task_created');
-      _webSocketProvider?.removeEventListener('event', 'task_deleted');
+      _webSocketProvider?.removeEventListener('event', 'task.updated');
+      _webSocketProvider?.removeEventListener('event', 'task.created');
+      _webSocketProvider?.removeEventListener('event', 'task.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('task.updated');
+        _webSocketProvider?.unsubscribeFromEvent('task.created');
+        _webSocketProvider?.unsubscribeFromEvent('task.deleted');
+      }
     }
     super.dispose();
   }

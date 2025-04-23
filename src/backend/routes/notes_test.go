@@ -91,7 +91,7 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 	}
 
 	blocks, ok := noteData["blocks"].([]interface{})
-	if (!ok) {
+	if !ok {
 		return models.Note{}, errors.New("blocks must be an array")
 	}
 
@@ -99,11 +99,11 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 	if !ok {
 		return models.Note{}, errors.New("user_id must be a string")
 	}
-	
+
 	// Get content data from the first block
 	blockData := blocks[0].(map[string]interface{})
 	var blockContent models.BlockContent
-	
+
 	// Handle different content formats
 	switch c := blockData["content"].(type) {
 	case map[string]interface{}:
@@ -127,7 +127,14 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 	}, nil
 }
 
-func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.Note, error) {
+// Updated to match interface
+func (m *MockNoteService) GetNoteById(db *database.Database, id string, params map[string]interface{}) (models.Note, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Note{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return models.Note{
 			ID:    uuid.Must(uuid.Parse(id)),
@@ -144,11 +151,18 @@ func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.
 	return models.Note{}, services.ErrNoteNotFound
 }
 
-func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedData map[string]interface{}) (models.Note, error) {
+// Updated to match interface
+func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedData map[string]interface{}, params map[string]interface{}) (models.Note, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Note{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		blocks := updatedData["blocks"].([]interface{})
 		blockData := blocks[0].(map[string]interface{})
-		
+
 		// Handle different content formats
 		var blockContent models.BlockContent
 		switch c := blockData["content"].(type) {
@@ -159,7 +173,7 @@ func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedDa
 		default:
 			blockContent = models.BlockContent{"text": "Default content"}
 		}
-		
+
 		return models.Note{
 			ID:    uuid.Must(uuid.Parse(id)),
 			Title: updatedData["title"].(string),
@@ -175,7 +189,14 @@ func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedDa
 	return models.Note{}, services.ErrNoteNotFound
 }
 
-func (m *MockNoteService) DeleteNote(db *database.Database, id string) error {
+// Updated to match interface
+func (m *MockNoteService) DeleteNote(db *database.Database, id string, params map[string]interface{}) error {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return nil
 	}
@@ -232,11 +253,21 @@ func TestCreateNote(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNoteService{}
-	RegisterNoteRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNoteRoutes(apiGroup, db, mockService)
+
+	// Add mock middleware to set userID in context
+	router.Use(func(c *gin.Context) {
+		c.Set("userID", uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")))
+		c.Set("email", "test@example.com")
+		c.Next()
+	})
 
 	t.Run("Invalid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte("invalid json")))
+		req, _ := http.NewRequest("POST", "/api/v1/notes", bytes.NewBuffer([]byte("invalid json")))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -260,7 +291,7 @@ func TestCreateNote(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
 	})
-	
+
 	t.Run("Valid JSON with Structured Content", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/v1/notes/", bytes.NewBuffer([]byte(`{
@@ -282,7 +313,17 @@ func TestGetNoteById(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNoteService{}
-	RegisterNoteRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNoteRoutes(apiGroup, db, mockService)
+
+	// Add mock middleware to set userID in context if needed
+	router.Use(func(c *gin.Context) {
+		c.Set("userID", uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")))
+		c.Set("email", "test@example.com")
+		c.Next()
+	})
 
 	t.Run("Note Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -303,7 +344,17 @@ func TestUpdateNote(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNoteService{}
-	RegisterNoteRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNoteRoutes(apiGroup, db, mockService)
+
+	// Add mock middleware to set userID in context
+	router.Use(func(c *gin.Context) {
+		c.Set("userID", uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")))
+		c.Set("email", "test@example.com")
+		c.Next()
+	})
 
 	t.Run("Note Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -325,7 +376,10 @@ func TestDeleteNote(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNoteService{}
-	RegisterNoteRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNoteRoutes(apiGroup, db, mockService)
 
 	t.Run("Note Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -346,7 +400,10 @@ func TestListNotesByUser(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNoteService{}
-	RegisterNoteRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNoteRoutes(apiGroup, db, mockService)
 
 	t.Run("No Notes Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -369,7 +426,17 @@ func TestGetAllNotes(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNoteService{}
-	RegisterNoteRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNoteRoutes(apiGroup, db, mockService)
+
+	// Add mock middleware to set userID in context
+	router.Use(func(c *gin.Context) {
+		c.Set("userID", uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")))
+		c.Set("email", "test@example.com")
+		c.Next()
+	})
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/notes/", nil)
@@ -385,7 +452,17 @@ func TestGetNotes(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockNoteService{}
-	RegisterNoteRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterNoteRoutes(apiGroup, db, mockService)
+
+	// Add mock middleware to set userID in context
+	router.Use(func(c *gin.Context) {
+		c.Set("userID", uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000")))
+		c.Set("email", "test@example.com")
+		c.Next()
+	})
 
 	t.Run("Get Notes With No Filters", func(t *testing.T) {
 		w := httptest.NewRecorder()

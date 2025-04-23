@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:thinkstack/core/theme.dart';
 import '../providers/theme_provider.dart';
 import '../providers/auth_provider.dart';
 import 'search_bar_widget.dart';
@@ -50,52 +51,6 @@ class _AppBarCommonState extends State<AppBarCommon> {
   void _handleSearch(String query) {
     // Implement search functionality
     print('Searching for: $query');
-  }
-
-  void _showThemeMenu(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-
-    showMenu(
-      context: context,
-      position:
-          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
-      items: [
-        PopupMenuItem(
-          value: ThemeMode.light,
-          child: Row(
-            children: [
-              Icon(Icons.wb_sunny,
-                  color: themeProvider.themeMode == ThemeMode.light
-                      ? Theme.of(context).primaryColor
-                      : null),
-              const SizedBox(width: 8),
-              const Text('Light Mode'),
-              if (themeProvider.themeMode == ThemeMode.light)
-                Icon(Icons.check, color: Theme.of(context).primaryColor),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: ThemeMode.dark,
-          child: Row(
-            children: [
-              Icon(Icons.nightlight_round,
-                  color: themeProvider.themeMode == ThemeMode.dark
-                      ? Theme.of(context).primaryColor
-                      : null),
-              const SizedBox(width: 8),
-              const Text('Dark Mode'),
-              if (themeProvider.themeMode == ThemeMode.dark)
-                Icon(Icons.check, color: Theme.of(context).primaryColor),
-            ],
-          ),
-        ),
-      ],
-    ).then((value) {
-      if (value != null) {
-        themeProvider.setThemeMode(value);
-      }
-    });
   }
 
   void _showNotificationsMenu(BuildContext context) {
@@ -205,6 +160,7 @@ class _AppBarCommonState extends State<AppBarCommon> {
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
+                style: AppTheme.getDangerButtonStyle(),
                 child: const Text('Logout'),
               ),
             ],

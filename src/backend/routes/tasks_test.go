@@ -118,11 +118,14 @@ func TestCreateTask(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockTaskService{}
-	RegisterTaskRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterTaskRoutes(apiGroup, db, mockService)
 
 	t.Run("Valid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/tasks/", bytes.NewBuffer([]byte(`{"title":"Test Task"}`)))
+		req, _ := http.NewRequest("POST", "/api/v1/tasks", bytes.NewBuffer([]byte(`{"title":"Test Task"}`)))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusCreated, w.Code)
 	})
@@ -132,7 +135,10 @@ func TestGetTaskById(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockTaskService{}
-	RegisterTaskRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterTaskRoutes(apiGroup, db, mockService)
 
 	t.Run("Task Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -153,10 +159,13 @@ func TestGetAllTasks(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockTaskService{}
-	RegisterTaskRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterTaskRoutes(apiGroup, db, mockService)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/tasks/", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/tasks", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -168,7 +177,10 @@ func TestUpdateTask(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockTaskService{}
-	RegisterTaskRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterTaskRoutes(apiGroup, db, mockService)
 
 	t.Run("Task Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -189,7 +201,10 @@ func TestDeleteTask(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockTaskService{}
-	RegisterTaskRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterTaskRoutes(apiGroup, db, mockService)
 
 	t.Run("Task Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -211,7 +226,10 @@ func TestGetTasks(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockTaskService{}
-	RegisterTaskRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterTaskRoutes(apiGroup, db, mockService)
 
 	t.Run("Get Tasks With No Filters", func(t *testing.T) {
 		w := httptest.NewRecorder()

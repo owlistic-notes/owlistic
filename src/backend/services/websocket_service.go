@@ -4,821 +4,424 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/thinkstack/broker"
-	"github.com/thinkstack/config"
 	"github.com/thinkstack/database"
+	"github.com/thinkstack/models"
+	"github.com/thinkstack/utils/token"
 )
 
-// WebSocketServiceInterface defines the operations provided by the WebSocket service
 type WebSocketServiceInterface interface {
 	Start()
 	Stop()
-	StartWithPort(port string)
-	BroadcastMessage(message []byte)
-	GetKafkaChannel() chan broker.KafkaMessage
-	SetKafkaInputChannel(ch <-chan broker.KafkaMessage)
+	HandleConnection(c *gin.Context)
+	BroadcastEvent(event *models.StandardMessage)
+	SetJWTSecret(secret []byte)
 }
 
-// Client represents a connected WebSocket client
-type Client struct {
-	ID            string
-	UserID        string
-	Hub           *WebSocketService
-	Conn          *websocket.Conn
-	Send          chan []byte
-	Subscriptions map[string]bool // Resources this client is subscribed to
-}
-
-// ClientMessage represents a message from the client
-type ClientMessage struct {
-	Type    string          `json:"type"`
-	Action  string          `json:"action"`
-	Payload json.RawMessage `json:"payload"`
-}
-
-// ServerMessage represents a message to the client
-type ServerMessage struct {
-	Type    string      `json:"type"`
-	Event   string      `json:"event"`
-	Payload interface{} `json:"payload"`
-}
-
-// WebSocketService manages WebSocket connections
 type WebSocketService struct {
-	// Client management
-	clients      map[string]*Client
-	register     chan *Client
-	unregister   chan *Client
-	broadcast    chan []byte
-	clientsMutex sync.RWMutex
-
-	// Configuration
-	upgrader    websocket.Upgrader
 	db          *database.Database
+	connections map[string]*websocketConnection
+	connMutex   sync.RWMutex
+	isRunning   bool
+	messageChan chan broker.KafkaMessage
+	jwtSecret   []byte // Replace authService with just the JWT secret
 	kafkaTopics []string
-
-	// Message channels
-	kafkaMessages chan broker.KafkaMessage
-
-	// Control
-	isRunning bool
-	stopChan  chan struct{}
-
-	// Kafka consumer
-	kafkaConsumer broker.Consumer
-
-	// For testing
-	kafkaInputChannel <-chan broker.KafkaMessage
 }
 
-// NewWebSocketService creates a new WebSocket service
-func NewWebSocketService(db *database.Database, topics []string) WebSocketServiceInterface {
+type websocketConnection struct {
+	conn      *websocket.Conn
+	userID    uuid.UUID
+	send      chan []byte
+	createdAt time.Time
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all origins for development, restrict in production
+	},
+}
+
+func NewWebSocketService(db *database.Database, kafkaTopics []string) WebSocketServiceInterface {
 	return &WebSocketService{
-		// Client management
-		clients:    make(map[string]*Client),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		broadcast:  make(chan []byte),
-
-		// Configuration
-		upgrader: websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
-			},
-		},
 		db:          db,
-		kafkaTopics: topics,
-
-		// Message channels
-		kafkaMessages: make(chan broker.KafkaMessage, 256),
-
-		// Control
-		isRunning: false,
-		stopChan:  make(chan struct{}),
-
-		// Initialize kafka consumer as nil - will be set in StartWithPort
-		kafkaConsumer: nil,
-
-		// Initialize kafkaInputChannel as nil - will be set in StartWithPort
-		kafkaInputChannel: nil,
+		connections: make(map[string]*websocketConnection),
+		isRunning:   false,
+		kafkaTopics: kafkaTopics,
 	}
 }
 
-// Start begins the WebSocket service on a standard port
-func (ws *WebSocketService) Start() {
-	ws.StartWithPort(":8082") // Use a different port from main API
+// SetJWTSecret sets the JWT secret for token validation
+func (s *WebSocketService) SetJWTSecret(secret []byte) {
+	s.jwtSecret = secret
 }
 
-// BroadcastMessage sends a message to all connected clients
-func (ws *WebSocketService) BroadcastMessage(message []byte) {
-	ws.broadcast <- message
-}
-
-// GetKafkaChannel returns the internal kafka message channel - useful for testing
-func (ws *WebSocketService) GetKafkaChannel() chan broker.KafkaMessage {
-	return ws.kafkaMessages
-}
-
-// SetKafkaInputChannel allows setting a custom channel for Kafka messages - useful for testing
-func (ws *WebSocketService) SetKafkaInputChannel(ch <-chan broker.KafkaMessage) {
-	ws.kafkaInputChannel = ch
-}
-
-// StartWithPort begins the WebSocket service on a specific port
-func (ws *WebSocketService) StartWithPort(port string) {
-	if ws.isRunning {
+func (s *WebSocketService) Start() {
+	if s.isRunning {
 		return
 	}
-	ws.isRunning = true
+	s.isRunning = true
 
-	// Start the main hub routine
-	go ws.run()
-
-	// If a custom Kafka input channel was provided (for testing), use it
-	if ws.kafkaInputChannel != nil {
-		go ws.forwardKafkaMessages(ws.kafkaInputChannel)
-	} else {
-		// Otherwise initialize real Kafka consumer and connect it to our channel
-		cfg := config.Load()
-		brokerURL := cfg.KafkaBroker
-
-		// Allow override from environment
-		if envBroker := os.Getenv("KAFKA_BROKER"); envBroker != "" {
-			brokerURL = envBroker
-		}
-
-		consumer, err := broker.NewKafkaConsumer(brokerURL, ws.kafkaTopics, "websocket-group")
-		if err != nil {
-			log.Printf("Failed to initialize Kafka consumer: %v", err)
-			log.Println("WebSocket service will run with reduced functionality")
-		} else {
-			ws.kafkaConsumer = consumer
-			// Start forwarding Kafka messages from the consumer's message channel
-			go ws.forwardKafkaMessages(consumer.GetMessageChannel())
-		}
-	}
-
-	// Setup HTTP handler for WebSocket connections
-	http.HandleFunc("/ws", ws.handleWebSocket)
-
-	log.Printf("WebSocket service started on %s", port)
-
-	// Start HTTP server
-	go func() {
-		if err := http.ListenAndServe(port, nil); err != nil {
-			log.Printf("WebSocket server error: %v", err)
-		}
-	}()
-}
-
-// forwardKafkaMessages forwards messages from the Kafka channel to our internal channel
-func (ws *WebSocketService) forwardKafkaMessages(kafkaChan <-chan broker.KafkaMessage) {
-	// Recover from panics to prevent service disruption
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Recovered from panic in forwardKafkaMessages: %v", r)
-			// Try to restart after a short delay
-			go func() {
-				time.Sleep(5 * time.Second)
-				ws.forwardKafkaMessages(kafkaChan)
-			}()
-		}
-	}()
-
-	for msg := range kafkaChan {
-		if !ws.isRunning {
-			return
-		}
-
-		// Send message to our internal channel
-		select {
-		case ws.kafkaMessages <- msg:
-			// Message forwarded successfully
-		default:
-			// Channel is full, log warning
-			log.Printf("Warning: Kafka message channel is full, discarding message")
-		}
-	}
-
-	// If we get here, the Kafka channel was closed
-	log.Println("Kafka message channel closed, WebSocket service will no longer receive Kafka events")
-}
-
-// Stop gracefully shuts down the WebSocket service
-func (ws *WebSocketService) Stop() {
-	if !ws.isRunning {
-		return
-	}
-
-	ws.isRunning = false
-	close(ws.stopChan)
-
-	// Close Kafka consumer if it exists
-	if ws.kafkaConsumer != nil {
-		ws.kafkaConsumer.Close()
-		ws.kafkaConsumer = nil
-	}
-
-	// Close all client connections
-	ws.clientsMutex.Lock()
-	for _, client := range ws.clients {
-		// Add a nil check before closing the connection
-		if client != nil && client.Conn != nil {
-			client.Conn.Close()
-		}
-	}
-	ws.clientsMutex.Unlock()
-
-	log.Println("WebSocket service stopped")
-}
-
-// run handles the main client message hub
-func (ws *WebSocketService) run() {
-	for {
-		select {
-		case <-ws.stopChan:
-			return
-
-		case client := <-ws.register:
-			ws.clientsMutex.Lock()
-			ws.clients[client.ID] = client
-			ws.clientsMutex.Unlock()
-			log.Printf("Client connected: %s (user: %s)", client.ID, client.UserID)
-
-		case client := <-ws.unregister:
-			ws.clientsMutex.Lock()
-			if _, ok := ws.clients[client.ID]; ok {
-				delete(ws.clients, client.ID)
-				close(client.Send)
-				log.Printf("Client disconnected: %s", client.ID)
-			}
-			ws.clientsMutex.Unlock()
-
-		case message := <-ws.broadcast:
-			// Send to all clients
-			ws.clientsMutex.RLock()
-			for _, client := range ws.clients {
-				select {
-				case client.Send <- message:
-				default:
-					close(client.Send)
-					delete(ws.clients, client.ID)
-				}
-			}
-			ws.clientsMutex.RUnlock()
-
-		case kafkaMsg := <-ws.kafkaMessages:
-			// Process and route Kafka message
-			ws.handleKafkaMessage(kafkaMsg)
-		}
-	}
-}
-
-// handleWebSocket upgrades HTTP connection to WebSocket
-func (ws *WebSocketService) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Upgrade the HTTP connection to WebSocket
-	conn, err := ws.upgrader.Upgrade(w, r, nil)
+	// Initialize Kafka consumer for all relevant topics
+	var err error
+	messageChan, err := broker.InitConsumer(s.kafkaTopics, "websocket-service")
 	if err != nil {
-		log.Printf("Error upgrading to WebSocket: %v", err)
+		log.Printf("Failed to initialize Kafka consumer: %v", err)
 		return
 	}
+	s.messageChan = messageChan
 
-	// Get user ID from query param, header, or cookie - in production use proper auth
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		userID = r.Header.Get("X-User-ID")
-	}
-	if userID == "" {
-		userID = "anonymous"
-	}
-
-	// Create new client
-	client := &Client{
-		ID:            uuid.New().String(),
-		UserID:        userID,
-		Hub:           ws,
-		Conn:          conn,
-		Send:          make(chan []byte, 256),
-		Subscriptions: make(map[string]bool),
-	}
-
-	// Register this client
-	ws.register <- client
-
-	// Start goroutines for reading and writing
-	go client.readPump()
-	go client.writePump()
+	// Start listening for Kafka messages
+	go s.consumeMessages()
 }
 
-// handleKafkaMessage processes Kafka messages and routes to subscribed clients
-func (ws *WebSocketService) handleKafkaMessage(msg broker.KafkaMessage) {
-	// Parse the message
-	var eventData map[string]interface{}
-	if err := json.Unmarshal([]byte(msg.Value), &eventData); err != nil {
-		log.Printf("Error parsing Kafka message: %v", err)
+func (s *WebSocketService) Stop() {
+	s.isRunning = false
+	// Close all websocket connections
+	s.connMutex.Lock()
+	for connID, conn := range s.connections {
+		conn.conn.Close()
+		delete(s.connections, connID)
+	}
+	s.connMutex.Unlock()
+}
+
+// HandleConnection handles a new WebSocket connection with token authentication from query parameters
+func (s *WebSocketService) HandleConnection(c *gin.Context) {
+	// Extract token from query parameter
+	tokenString := c.Query("token")
+	if tokenString == "" {
+		log.Printf("WebSocket connection attempt with missing token")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication token required"})
 		return
 	}
 
-	// Log full message for debugging
-	log.Printf("WebSocket service: Received Kafka message: Key=%s, Type=%T", msg.Key, eventData)
-
-	// Extract event type from the event data (for more reliable event type handling)
-	eventType := msg.Key // Default to Kafka message key
-	if typeVal, ok := eventData["type"].(string); ok {
-		eventType = typeVal
+	// Validate token using token utility
+	if s.jwtSecret == nil {
+		log.Printf("JWT secret not set in WebSocketService")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication service unavailable"})
+		return
 	}
 
-	// Extract resource information
-	resourceID, resourceType := ws.extractResourceInfo(eventData)
-	log.Printf("Extracted resource info: type=%s, id=%s", resourceType, resourceID)
-
-	// Create server message
-	serverMsg := ServerMessage{
-		Type:    "event",
-		Event:   eventType,
-		Payload: eventData,
-	}
-
-	// Serialize the message
-	jsonData, err := json.Marshal(serverMsg)
+	// Validate the token and get the associated user ID
+	claims, err := token.ValidateToken(tokenString, s.jwtSecret)
 	if err != nil {
-		log.Printf("Error serializing server message: %v", err)
+		log.Printf("Invalid WebSocket auth token: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authentication token"})
 		return
 	}
 
-	// Count number of clients that received this message
-	clientCount := 0
-	connectedCount := 0
+	userID := claims.UserID
+	log.Printf("WebSocket authenticated for user: %s", userID)
 
-	ws.clientsMutex.RLock()
-	for clientID, client := range ws.clients {
-		connectedCount++
-
-		// IMPORTANT: More flexible matching for subscriptions using various formats
-		shouldSend := false
-
-		log.Printf("Checking client %s subscriptions for event %s (resource: %s, id: %s)",
-			clientID, eventType, resourceType, resourceID)
-
-		// Check if client is subscribed to:
-		// 1. All events
-		if client.Subscriptions["all"] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to 'all'", clientID)
-		}
-
-		// 2. This entity type (e.g., "note")
-		if !shouldSend && client.Subscriptions[resourceType] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to resource type '%s'", clientID, resourceType)
-		}
-
-		// 3. This specific entity (e.g., "note:123")
-		if !shouldSend && resourceID != "" && client.Subscriptions[resourceType+":"+resourceID] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to specific resource '%s:%s'",
-				clientID, resourceType, resourceID)
-		}
-
-		// 4. Notebook-specific notes subscription
-		if !shouldSend && resourceType == "note" {
-			// Try to extract notebook ID from the payload
-			notebookID := ""
-
-			if payload, ok := eventData["payload"].(map[string]interface{}); ok {
-				if nbID, ok := payload["notebook_id"].(string); ok {
-					notebookID = nbID
-				} else if data, ok := payload["data"].(map[string]interface{}); ok {
-					if nbID, ok := data["notebook_id"].(string); ok {
-						notebookID = nbID
-					}
-				}
-			}
-
-			if notebookID != "" {
-				// Check if client is subscribed to this notebook's notes
-				if client.Subscriptions["notebook:notes:"+notebookID] ||
-					client.Subscriptions["notebook:"+notebookID] {
-					shouldSend = true
-					log.Printf("Client %s is subscribed to notebook %s notes", clientID, notebookID)
-				}
-			}
-		}
-
-		// 5. Plural form for collection subscriptions
-		if !shouldSend && client.Subscriptions[resourceType+"s"] {
-			shouldSend = true
-			log.Printf("Client %s is subscribed to plural form '%ss'", clientID, resourceType)
-		}
-
-		log.Printf("Final decision - send to client %s: %v", clientID, shouldSend)
-
-		if shouldSend {
-			select {
-			case client.Send <- jsonData:
-				clientCount++
-				log.Printf("Sent %s event to client %s", eventType, clientID)
-			default:
-				log.Printf("Client %s send buffer full, removing client", clientID)
-				close(client.Send)
-				delete(ws.clients, clientID)
-			}
-		}
+	// Upgrade HTTP connection to WebSocket
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("Failed to upgrade connection: %v", err)
+		return
 	}
-	ws.clientsMutex.RUnlock()
 
-	log.Printf("Sent %s event to %d clients (out of %d connected)", eventType, clientCount, connectedCount)
+	// Create a unique connection ID
+	connID := uuid.New().String()
 
-	// If no clients received this message, log all subscriptions for debugging
-	if clientCount == 0 && connectedCount > 0 {
-		ws.logAllSubscriptions()
+	// Create websocket connection object
+	wsConn := &websocketConnection{
+		conn:      conn,
+		userID:    userID,
+		send:      make(chan []byte, 256),
+		createdAt: time.Now(),
+	}
+
+	// Register the connection
+	s.connMutex.Lock()
+	s.connections[connID] = wsConn
+	s.connMutex.Unlock()
+
+	log.Printf("New WebSocket connection established: %s for user: %s", connID, userID)
+
+	// Handle the connection (read/write routines)
+	go s.readPump(connID, wsConn)
+	go s.writePump(connID, wsConn)
+
+	// Send a welcome message
+	welcome := models.NewStandardMessage(models.EventMessage, "connected", map[string]interface{}{
+		"message": "Connected to ThinkStack WebSocket server",
+		"user_id": userID.String(),
+		"time":    time.Now(),
+	})
+
+	msgBytes, _ := json.Marshal(welcome)
+	wsConn.send <- msgBytes
+}
+
+// consumeMessages processes messages from Kafka and dispatches them to clients
+func (s *WebSocketService) consumeMessages() {
+	for message := range s.messageChan {
+		// Parse the Kafka message
+		var event models.StandardMessage
+		if err := json.Unmarshal([]byte(message.Value), &event); err != nil {
+			log.Printf("Error unmarshalling event: %v", err)
+			continue
+		}
+
+		// Broadcast the event to all connected clients
+		s.BroadcastEvent(&event)
 	}
 }
 
-// logAllSubscriptions logs all current subscriptions for debugging
-func (ws *WebSocketService) logAllSubscriptions() {
-	ws.clientsMutex.RLock()
-	defer ws.clientsMutex.RUnlock()
-
-	log.Printf("--- Current Subscriptions (Clients: %d) ---", len(ws.clients))
-	for clientID, client := range ws.clients {
-		log.Printf("Client %s has %d subscriptions:", clientID, len(client.Subscriptions))
-		for sub := range client.Subscriptions {
-			log.Printf("  - %s", sub)
-		}
-	}
-	log.Printf("------------------------------------------")
-}
-
-// extractResourceInfo gets resource info from event data
-func (ws *WebSocketService) extractResourceInfo(eventData map[string]interface{}) (string, string) {
-	resourceID := ""
-	resourceType := "unknown"
-
-	// Log the complete event data for debugging
-	jsonBytes, _ := json.MarshalIndent(eventData, "", "  ")
-	log.Printf("WebSocket extractResourceInfo raw data: %s", string(jsonBytes))
-
-	// First check for direct top-level fields which are most reliable
-	if noteID, ok := eventData["note_id"].(string); ok && noteID != "" {
-		resourceID = noteID
-		resourceType = "note"
-		log.Printf("Found direct note_id: %s", noteID)
-	} else if notebookID, ok := eventData["notebook_id"].(string); ok && notebookID != "" {
-		resourceID = notebookID
-		resourceType = "notebook"
-		log.Printf("Found direct notebook_id: %s", notebookID)
-	} else if blockID, ok := eventData["block_id"].(string); ok && blockID != "" {
-		resourceID = blockID
-		resourceType = "block"
-		log.Printf("Found direct block_id: %s", blockID)
-	}
-
-	// If we have the event type, we can determine the resource type from it
-	if eventType, ok := eventData["type"].(string); ok && resourceType == "unknown" {
-		parts := strings.Split(eventType, ".")
-		if len(parts) >= 1 {
-			// First part should be the entity type (note.created, notebook.updated, etc.)
-			entityType := parts[0]
-			if entityType == "note" || entityType == "notebook" || entityType == "block" {
-				resourceType = entityType
-				log.Printf("Determined resource type from event type: %s", resourceType)
-			}
-		}
-	}
-
-	// If we still don't have a resourceID or resourceType, look in the payload
-	if resourceID == "" || resourceType == "unknown" {
-		if payload, ok := eventData["payload"].(map[string]interface{}); ok {
-			// Try extracting directly from payload
-			if noteID, ok := payload["note_id"].(string); ok && noteID != "" {
-				resourceID = noteID
-				resourceType = "note"
-				log.Printf("Found payload note_id: %s", noteID)
-			} else if notebookID, ok := payload["notebook_id"].(string); ok && notebookID != "" {
-				resourceID = notebookID
-				resourceType = "notebook"
-				log.Printf("Found payload notebook_id: %s", notebookID)
-			} else if blockID, ok := payload["block_id"].(string); ok && blockID != "" {
-				resourceID = blockID
-				resourceType = "block"
-				log.Printf("Found payload block_id: %s", blockID)
-			}
-
-			// If there's a data field, also check there
-			if data, ok := payload["data"].(map[string]interface{}); ok {
-				if resourceID == "" {
-					if noteID, ok := data["note_id"].(string); ok && noteID != "" {
-						resourceID = noteID
-						resourceType = "note"
-						log.Printf("Found data.note_id: %s", noteID)
-					} else if id, ok := data["id"].(string); ok && data["entity"] == "note" {
-						resourceID = id
-						resourceType = "note"
-						log.Printf("Found data.id for note: %s", id)
-					} else if notebookID, ok := data["notebook_id"].(string); ok && notebookID != "" {
-						resourceID = notebookID
-						resourceType = "notebook"
-						log.Printf("Found data.notebook_id: %s", notebookID)
-					} else if id, ok := data["id"].(string); ok && data["entity"] == "notebook" {
-						resourceID = id
-						resourceType = "notebook"
-						log.Printf("Found data.id for notebook: %s", id)
-					} else if blockID, ok := data["block_id"].(string); ok && blockID != "" {
-						resourceID = blockID
-						resourceType = "block"
-						log.Printf("Found data.block_id: %s", blockID)
-					} else if id, ok := data["id"].(string); ok && data["entity"] == "block" {
-						resourceID = id
-						resourceType = "block"
-						log.Printf("Found data.id for block: %s", id)
-					}
-				}
-
-				// If we have ID but no type, try to detect type from content
-				if resourceID != "" && resourceType == "unknown" {
-					if _, ok := data["title"]; ok {
-						resourceType = "note"
-					} else if _, ok := data["name"]; ok {
-						resourceType = "notebook"
-					} else if _, ok := data["content"]; ok {
-						resourceType = "block"
-					}
-				}
-			}
-		}
-	}
-
-	// Fallback: If we have the event type but still don't have a resource type
-	if resourceType == "unknown" && eventData["event"] != nil {
-		event := eventData["event"].(string)
-		if strings.HasPrefix(event, "note") {
-			resourceType = "note"
-		} else if strings.HasPrefix(event, "notebook") {
-			resourceType = "notebook"
-		} else if strings.HasPrefix(event, "block") {
-			resourceType = "block"
-		}
-	}
-
-	log.Printf("Final extracted resource info: type=%s, id=%s", resourceType, resourceID)
-	return resourceID, resourceType
-}
-
-// readPump handles incoming messages from the WebSocket client
-func (c *Client) readPump() {
+func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) {
 	defer func() {
-		c.Hub.unregister <- c
-		c.Conn.Close()
+		s.connMutex.Lock()
+		delete(s.connections, connID)
+		s.connMutex.Unlock()
+		wsConn.conn.Close()
+		close(wsConn.send)
+		log.Printf("WebSocket connection closed: %s", connID)
 	}()
 
-	c.Conn.SetReadLimit(4096)
-	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	c.Conn.SetPongHandler(func(string) error {
-		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	wsConn.conn.SetReadLimit(1024)                                 // Increase read limit to handle larger messages
+	wsConn.conn.SetReadDeadline(time.Now().Add(120 * time.Second)) // Increase timeout
+	wsConn.conn.SetPongHandler(func(string) error {
+		wsConn.conn.SetReadDeadline(time.Now().Add(120 * time.Second))
 		return nil
 	})
 
 	for {
-		_, message, err := c.Conn.ReadMessage()
+		_, message, err := wsConn.conn.ReadMessage()
 		if err != nil {
+			log.Printf("Connection %s closing with error: %v", connID, err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("Error reading from WebSocket: %v", err)
+				log.Printf("Error reading message: %v", err)
 			}
 			break
 		}
 
-		// Process the received message
-		c.processMessage(message)
+		// Log raw message for debugging - convert bytes to string safely
+		log.Printf("Received raw message from %s: %s", connID, string(message))
+
+		// Try to parse the message, but handle errors gracefully
+		var clientMsg models.StandardMessage
+		if err := json.Unmarshal(message, &clientMsg); err != nil {
+			log.Printf("Error unmarshalling client message: %v, raw: %s", err, string(message))
+
+			// Instead of just continuing, send an error message back
+			errorMsg := models.NewStandardMessage(models.ErrorMessage, "parse_error", map[string]interface{}{
+				"message": "Failed to parse message",
+				"error":   err.Error(),
+			})
+			errorBytes, _ := json.Marshal(errorMsg)
+			wsConn.send <- errorBytes
+			continue
+		}
+
+		// Additional debugging for subscription messages
+		if clientMsg.Type == models.SubscribeMessage {
+			log.Printf("Subscription message details - Type: %s, Event: %s, Payload: %+v",
+				clientMsg.Type, clientMsg.Event, clientMsg.Payload)
+		}
+
+		// Handle message based on type
+		switch clientMsg.Type {
+		case "ping":
+			// Handle ping messages
+			log.Printf("Ping message from user %s", wsConn.userID)
+			// Send a pong response	
+			pong := models.NewStandardMessage("pong", "pong", nil)
+			pongBytes, _ := json.Marshal(pong)
+			wsConn.send <- pongBytes
+			log.Printf("Pong sent to user %s", wsConn.userID)
+		case models.EventMessage:
+			// Handle event messages
+			log.Printf("Event message from user %s: Event=%s", wsConn.userID, clientMsg.Event)
+
+			// Get the event name from the message
+			eventName := clientMsg.Event
+
+			// Process based on specific event type
+			switch eventName {
+			case "presence":
+				// Handle presence notifications
+				log.Printf("User %s sent presence event", wsConn.userID)
+
+			case "typing":
+				// Handle typing indicators
+				log.Printf("User %s sent typing event", wsConn.userID)
+
+				// Forward typing indicators to relevant users
+				if clientMsg.ResourceType != "" && clientMsg.ResourceID != "" {
+					s.BroadcastEvent(&clientMsg)
+				}
+
+			default:
+				// For resource-specific events, check resource info and forward
+				if clientMsg.ResourceType != "" && clientMsg.ResourceID != "" {
+					log.Printf("User %s sent resource event: %s for %s:%s",
+						wsConn.userID, eventName, clientMsg.ResourceType, clientMsg.ResourceID)
+
+					// Forward to other clients with access to this resource
+					s.BroadcastEvent(&clientMsg)
+				} else {
+					log.Printf("Unhandled event type '%s' from user %s", eventName, wsConn.userID)
+				}
+			}
+
+			// Send confirmation receipt
+			confirm := models.NewStandardMessage("receipt", "confirmed", map[string]interface{}{
+				"event_id": clientMsg.ID,
+				"status":   "processed",
+			})
+			confirmBytes, _ := json.Marshal(confirm)
+			wsConn.send <- confirmBytes
+
+		case models.SubscribeMessage:
+			// Handle subscription requests
+			log.Printf("Subscription request from user %s", wsConn.userID)
+
+			// Extract subscription details
+			if clientMsg.Payload != nil {
+				// Check for event_type subscription
+				if et, ok := clientMsg.Payload["event_type"].(string); ok {
+					log.Printf("User %s subscribed to event: %s", wsConn.userID, et)
+
+					// Send confirmation
+					confirm := models.NewStandardMessage("subscription", "confirmed", map[string]interface{}{
+						"event_type": et,
+					})
+					confirmBytes, _ := json.Marshal(confirm)
+					wsConn.send <- confirmBytes
+				}
+
+				// Check for resource subscription
+				if resource, ok := clientMsg.Payload["resource"].(string); ok {
+					resourceID := ""
+					if id, ok := clientMsg.Payload["id"].(string); ok {
+						resourceID = id
+					}
+
+					log.Printf("User %s subscribed to resource: %s ID: %s",
+						wsConn.userID, resource, resourceID)
+
+					// Send confirmation
+					confirm := models.NewStandardMessage("subscription", "confirmed", map[string]interface{}{
+						"resource": resource,
+						"id":       resourceID,
+					})
+					confirmBytes, _ := json.Marshal(confirm)
+					wsConn.send <- confirmBytes
+				}
+			}
+
+		default:
+			log.Printf("Received unknown message type '%s' from user %s", clientMsg.Type, wsConn.userID)
+		}
 	}
 }
 
-// writePump pumps messages from the hub to the WebSocket connection
-func (c *Client) writePump() {
-	ticker := time.NewTicker(30 * time.Second)
+func (s *WebSocketService) writePump(connID string, wsConn *websocketConnection) {
+	ticker := time.NewTicker(30 * time.Second) // More frequent pings (30s instead of 54s)
 	defer func() {
 		ticker.Stop()
-		c.Conn.Close()
+		wsConn.conn.Close()
 	}()
 
 	for {
 		select {
-		case message, ok := <-c.Send:
-			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		case message, ok := <-wsConn.send:
+			wsConn.conn.SetWriteDeadline(time.Now().Add(15 * time.Second)) // Longer deadline
 			if !ok {
-				// The hub closed the channel
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				// Channel was closed
+				wsConn.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			w, err := c.Conn.NextWriter(websocket.TextMessage)
+			w, err := wsConn.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
+				log.Printf("Error getting next writer for conn %s: %v", connID, err)
 				return
 			}
-			w.Write(message)
+
+			if _, err := w.Write(message); err != nil {
+				log.Printf("Error writing message to conn %s: %v", connID, err)
+				return
+			}
 
 			// Add queued messages to the current websocket message
-			n := len(c.Send)
+			n := len(wsConn.send)
 			for i := 0; i < n; i++ {
-				w.Write(<-c.Send)
+				w.Write([]byte("\n"))
+				if _, err := w.Write(<-wsConn.send); err != nil {
+					log.Printf("Error writing queued message to conn %s: %v", connID, err)
+					return
+				}
 			}
 
 			if err := w.Close(); err != nil {
+				log.Printf("Error closing writer for conn %s: %v", connID, err)
 				return
 			}
 
 		case <-ticker.C:
-			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			wsConn.conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+			if err := wsConn.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+				log.Printf("Error sending ping to conn %s: %v", connID, err)
 				return
 			}
+			log.Printf("Sent ping to %s", connID)
 		}
 	}
 }
 
-// processMessage handles messages received from the client
-func (c *Client) processMessage(msg []byte) {
-	var clientMsg ClientMessage
-	if err := json.Unmarshal(msg, &clientMsg); err != nil {
-		log.Printf("Error parsing client message: %v", err)
+// BroadcastEvent sends an event to all connected clients that should receive it
+func (s *WebSocketService) BroadcastEvent(event *models.StandardMessage) {
+	// Prepare the message once
+	msgBytes, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("Error marshalling event: %v", err)
 		return
 	}
 
-	switch clientMsg.Type {
-	case "subscribe":
-		c.handleSubscribe(clientMsg)
-	case "unsubscribe":
-		c.handleUnsubscribe(clientMsg)
-	case "block_update":
-		c.handleBlockUpdate(clientMsg)
-	case "note_update":
-		c.handleNoteUpdate(clientMsg)
-	case "ping":
-		// Just a keepalive, no response needed
-	default:
-		log.Printf("Unknown message type: %s", clientMsg.Type)
-	}
-}
+	s.connMutex.RLock()
+	defer s.connMutex.RUnlock()
 
-// handleSubscribe processes subscription requests
-func (c *Client) handleSubscribe(msg ClientMessage) {
-	var payload struct {
-		Resource string `json:"resource"`
-		ID       string `json:"id,omitempty"`
-	}
-
-	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-		log.Printf("Error parsing subscription payload: %v", err)
-		return
-	}
-
-	subscriptionKey := payload.Resource
-	if payload.ID != "" {
-		subscriptionKey = payload.Resource + ":" + payload.ID
-	}
-
-	// Check if already subscribed to avoid duplicate confirmations
-	if _, alreadySubscribed := c.Subscriptions[subscriptionKey]; alreadySubscribed {
-		log.Printf("Client %s already subscribed to %s, skipping", c.ID, subscriptionKey)
-		return
-	}
-
-	// Add this subscription
-	if payload.ID != "" {
-		c.Subscriptions[payload.Resource+":"+payload.ID] = true
-		log.Printf("Client %s subscribed to %s:%s", c.ID, payload.Resource, payload.ID)
-	} else {
-		c.Subscriptions[payload.Resource] = true
-		log.Printf("Client %s subscribed to all %s", c.ID, payload.Resource)
-	}
-
-	// Send confirmation message back to client
-	confirmationMsg := ServerMessage{
-		Type:  "subscription",
-		Event: "confirmed",
-		Payload: map[string]interface{}{
-			"resource": payload.Resource,
-			"id":       payload.ID,
-		},
-	}
-
-	jsonData, err := json.Marshal(confirmationMsg)
-	if err == nil {
-		// Important: Add a short delay before sending confirmation
-		// to avoid multiple confirmations being concatenated
-		time.Sleep(10 * time.Millisecond)
-		c.Send <- jsonData
-	}
-}
-
-// handleUnsubscribe processes unsubscription requests
-func (c *Client) handleUnsubscribe(msg ClientMessage) {
-	var payload struct {
-		Resource string `json:"resource"`
-		ID       string `json:"id,omitempty"`
-	}
-
-	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-		log.Printf("Error parsing unsubscription payload: %v", err)
-		return
-	}
-
-	// Remove this subscription
-	if payload.ID != "" {
-		delete(c.Subscriptions, payload.Resource+":"+payload.ID)
-	} else {
-		delete(c.Subscriptions, payload.Resource)
-	}
-}
-
-// handleBlockUpdate processes block update requests
-func (c *Client) handleBlockUpdate(msg ClientMessage) {
-	var blockUpdate struct {
-		ID      string `json:"id"`
-		Content string `json:"content"`
-		Type    string `json:"type,omitempty"`
-	}
-
-	if err := json.Unmarshal(msg.Payload, &blockUpdate); err != nil {
-		log.Printf("Error parsing block update: %v", err)
-		return
-	}
-
-	log.Printf("Received block update request for block ID: %s", blockUpdate.ID)
-
-	// Create update request
-	updateData := map[string]interface{}{
-		"actor_id": c.UserID,
-		"content":  blockUpdate.Content,
-	}
-
-	if blockUpdate.Type != "" {
-		updateData["type"] = blockUpdate.Type
-	}
-
-	// Save via block service
-	if c.Hub.db != nil {
-		blockService := BlockServiceInstance
-		log.Printf("Updating block %s with content: %s", blockUpdate.ID, blockUpdate.Content)
-		updatedBlock, err := blockService.UpdateBlock(c.Hub.db, blockUpdate.ID, updateData)
-		if err != nil {
-			log.Printf("Error updating block: %v", err)
-			// Send error back to client
-			errorMsg, _ := json.Marshal(map[string]string{
-				"type":    "error",
-				"message": "Failed to update block: " + err.Error(),
-			})
-			c.Send <- errorMsg
-		} else {
-			log.Printf("Block updated successfully: %s", updatedBlock.ID)
+	// Send to all connected clients
+	// Note: In a production system, you would filter based on permissions
+	for _, conn := range s.connections {
+		// Check if this user has access to the resource before sending the event
+		if event.ResourceType != "" && event.ResourceID != "" {
+			// Skip RBAC check for public events with no resource
+			resourceUUID, err := uuid.Parse(event.ResourceID)
+			if err == nil {
+				hasAccess, err := RoleServiceInstance.HasAccess(
+					s.db,
+					conn.userID,
+					resourceUUID,
+					models.ResourceType(event.ResourceType),
+					models.ViewerRole,
+				)
+				if err != nil || !hasAccess {
+					// Skip this client if they don't have access
+					continue
+				}
+			}
 		}
-	} else {
-		log.Printf("Cannot update block: database connection is nil")
-	}
-}
 
-// handleNoteUpdate processes note update requests
-func (c *Client) handleNoteUpdate(msg ClientMessage) {
-	var noteUpdate struct {
-		ID    string `json:"id"`
-		Title string `json:"title"`
-	}
-
-	if err := json.Unmarshal(msg.Payload, &noteUpdate); err != nil {
-		log.Printf("Error parsing note update: %v", err)
-		return
-	}
-
-	// Create update request
-	updateData := map[string]interface{}{
-		"user_id": c.UserID,
-		"title":   noteUpdate.Title,
-	}
-
-	// Save via note service
-	if c.Hub.db != nil {
-		noteService := NoteServiceInstance
-		_, err := noteService.UpdateNote(c.Hub.db, noteUpdate.ID, updateData)
-		if err != nil {
-			log.Printf("Error updating note: %v", err)
-			// Send error back to client
-			errorMsg, _ := json.Marshal(map[string]string{
-				"type":    "error",
-				"message": "Failed to update note: " + err.Error(),
-			})
-			c.Send <- errorMsg
+		// Send the event
+		select {
+		case conn.send <- msgBytes:
+			// Message sent successfully
+		default:
+			// Buffer full, client is likely slow or disconnected
+			log.Printf("Client buffer full, dropping message")
 		}
 	}
 }
 
-// Global instance
+// Global instance for the application
 var WebSocketServiceInstance WebSocketServiceInterface

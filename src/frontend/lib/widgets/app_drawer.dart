@@ -9,174 +9,136 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
-    
+    final email = authProvider.currentUser?.email ?? '';
+    final username = email.isNotEmpty ? email.split('@').first : 'User';
+
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          _buildDrawerHeader(context, authProvider),
-          
-          // Home
-          ListTile(
-            leading: const Icon(Icons.home),
-            title: const Text('Home'),
-            onTap: () {
-              context.go('/');
-              Navigator.pop(context);
-            },
+      child: Column(
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(username),
+            accountEmail: Text(email),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white24
+                  : Theme.of(context).primaryColor.withOpacity(0.2),
+              child: const Icon(Icons.person, size: 40),
+            ),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+            ),
           ),
-          
-          // Notebooks
-          ListTile(
-            leading: const Icon(Icons.folder),
-            title: const Text('Notebooks'),
-            onTap: () {
-              context.go('/notebooks');
-              Navigator.pop(context);
-            },
+          _buildNavItem(
+            context,
+            icon: Icons.home,
+            title: 'Home',
+            route: '/',
           ),
-          
-          // Notes
-          ListTile(
-            leading: const Icon(Icons.note),
-            title: const Text('Notes'),
-            onTap: () {
-              context.go('/notes');
-              Navigator.pop(context);
-            },
+          _buildNavItem(
+            context,
+            icon: Icons.folder,
+            title: 'Notebooks',
+            route: '/notebooks',
           ),
-          
-          // Tasks
-          ListTile(
-            leading: const Icon(Icons.check_circle_outline),
-            title: const Text('Tasks'),
-            onTap: () {
-              context.go('/tasks');
-              Navigator.pop(context);
-            },
+          _buildNavItem(
+            context,
+            icon: Icons.description,
+            title: 'Notes',
+            route: '/notes',
           ),
-          
+          _buildNavItem(
+            context,
+            icon: Icons.check_circle_outline,
+            title: 'Tasks',
+            route: '/tasks',
+          ),
+          _buildNavItem(
+            context,
+            icon: Icons.delete_outline,
+            title: 'Trash',
+            route: '/trash',
+          ),
           const Divider(),
-          
-          // Trash
-          ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: const Text('Trash'),
-            onTap: () {
-              context.go('/trash');
-              Navigator.pop(context);
-            },
-          ),
-          
-          const Divider(),
-          
-          // Theme toggle
-          ListTile(
-            leading: Icon(
-              themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-            ),
-            title: Text(
-              themeProvider.isDarkMode ? 'Dark Mode' : 'Light Mode',
-            ),
-            trailing: Switch(
-              value: themeProvider.isDarkMode,
-              onChanged: (val) {
-                themeProvider.toggleThemeMode();
-              },
-            ),
-            onTap: () {
-              themeProvider.toggleThemeMode();
-            },
-          ),
-          
-          // Settings
-          ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text('Settings'),
-            onTap: () {
-              // Navigate to settings screen
-              Navigator.pop(context);
-            },
-          ),
-          
-          // Logout
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('Logout'),
-            onTap: () async {
-              // Show confirmation dialog
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                ),
-              );
-              
-              // If user confirmed, logout
-              if (confirm == true) {
-                await authProvider.logout();
-                if (context.mounted) {
-                  context.go('/login');
-                }
-              } else {
-                // Just close the drawer if canceled
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
-              }
-            },
-          ),
+          _buildThemeSwitcher(context),
+          const Spacer(),
+          _buildLogoutButton(context, authProvider),
         ],
       ),
     );
   }
-  
-  Widget _buildDrawerHeader(BuildContext context, AuthProvider authProvider) {
-    final user = authProvider.currentUser;
-    
-    return DrawerHeader(
-      decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
+
+  Widget _buildNavItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String route,
+  }) {
+    final currentRoute = GoRouterState.of(context).matchedLocation;
+    final isActive = currentRoute.startsWith(route) && 
+                    (route != '/' || currentRoute == '/');
+
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isActive ? Theme.of(context).primaryColor : null,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const CircleAvatar(
-            radius: 30,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person, size: 40, color: Colors.blue),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isActive ? Theme.of(context).primaryColor : null,
+          fontWeight: isActive ? FontWeight.bold : null,
+        ),
+      ),
+      onTap: () {
+        Navigator.pop(context); // Close drawer
+        if (currentRoute != route) {
+          context.go(route);
+        }
+      },
+    );
+  }
+
+  Widget _buildThemeSwitcher(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        final isDarkMode = themeProvider.isDarkMode;
+        return ListTile(
+          leading: Icon(
+            isDarkMode ? Icons.nightlight_round : Icons.wb_sunny,
           ),
-          const SizedBox(height: 10),
-          Text(
-            user?.email ?? 'User',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          title: Text('${isDarkMode ? 'Dark' : 'Light'} Mode'),
+          trailing: Switch(
+            value: isDarkMode,
+            activeColor: Theme.of(context).primaryColor,
+            onChanged: (value) => themeProvider.setTheme(value),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'ThinkStack User',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
-          ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context, AuthProvider authProvider) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton.icon(
+        onPressed: () async {
+          Navigator.pop(context); // Close drawer
+          try {
+            await authProvider.logout();
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Error logging out')),
+            );
+          }
+        },
+        icon: const Icon(Icons.logout),
+        label: const Text('Logout'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 48),
+        ),
       ),
     );
   }

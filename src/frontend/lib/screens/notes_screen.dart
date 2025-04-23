@@ -85,77 +85,19 @@ class _NotesScreenState extends State<NotesScreen> {
     // Track specific events with their appropriate handlers
     _wsProvider.addEventListener('event', 'note.created', (message) {
       _logger.info('Received note.created event in UI handler');
-      try {
-        // Extract note ID from the message using our improved parser
-        final parsedMessage = WebSocketMessage.fromJson(message);
-        final noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-
-        if (noteId != null) {
-          _logger.info('Found note ID: $noteId in event');
-          // Use the presenter to add the note directly
-          _presenter.addNoteFromEvent(noteId);
-          // Update our tracking set after the note is added
-          Future.delayed(Duration(milliseconds: 300), () {
-            _updateLoadedNoteIds();
-          });
-        } else {
-          _logger.warning(
-              'Could not extract note ID from event, falling back to full refresh');
-          // If we can't extract the note ID, refresh everything
-          _handleNoteEvent();
-        }
-      } catch (e) {
-        _logger.error('Error handling note creation in UI', e);
-        // If an error occurs, refresh everything to be safe
-        _handleNoteEvent();
-      }
+      _handleNoteEvent();
     });
 
-    // For updates, use a direct approach similar to notebooks_provider
+    // For updates, use a direct approach
     _wsProvider.addEventListener('event', 'note.updated', (message) {
       _logger.info('Received note.updated event in UI handler');
-      try {
-        final parsedMessage = WebSocketMessage.fromJson(message);
-        final noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-        
-        if (noteId != null) {
-          // Directly fetch the updated note
-          _presenter.fetchNoteById(noteId).then((_) {
-            // No need to call updateLoadedNoteIds as the note is just updated, not added
-          });
-        } else {
-          _handleNoteEvent();
-        }
-      } catch (e) {
-        _logger.error('Error handling note update in UI', e);
-        _handleNoteEvent();
-      }
+      _handleNoteEvent();
     });
 
     // For deletes, handle specifically to ensure UI is updated properly
     _wsProvider.addEventListener('event', 'note.deleted', (message) {
       _logger.info('Received note.deleted event in UI handler');
-      try {
-        final parsedMessage = WebSocketMessage.fromJson(message);
-        final noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-        
-        if (noteId != null) {
-          _logger.info('Found deleted note ID: $noteId in event');
-          // Directly tell the presenter to remove this note
-          _presenter.handleNoteDeleted(noteId);
-          
-          // Update our tracking set
-          setState(() {
-            _loadedNoteIds.remove(noteId);
-          });
-        } else {
-          _logger.warning('Could not extract note ID from delete event, falling back to full refresh');
-          _handleNoteEvent();
-        }
-      } catch (e) {
-        _logger.error('Error handling note deletion in UI', e);
-        _handleNoteEvent();
-      }
+      _handleNoteEvent();
     });
 
     _logger.info('Registered event handlers for automatic refresh');
@@ -182,7 +124,7 @@ class _NotesScreenState extends State<NotesScreen> {
   Future<void> _refresh() async {
     _logger.info('Refreshing notes data');
     _currentPage = 1;
-    await _presenter.fetchNotes();
+    await _presenter.fetchNotes(); // Removed unnecessary page parameter
     _updateLoadedNoteIds();
   }
 
@@ -256,7 +198,7 @@ class _NotesScreenState extends State<NotesScreen> {
     });
   }
 
-  void _showAddNoteDialog() {
+  void _showAddNoteDialog(BuildContext context) {
     final _titleController = TextEditingController();
     String? selectedNotebookId;
 
@@ -352,8 +294,11 @@ class _NotesScreenState extends State<NotesScreen> {
                 try {
                   _logger.info('Creating note: ${_titleController.text} in notebook: $selectedNotebookId');
                   
-                  final newNote = await _presenter.createNote(
-                      selectedNotebookId!, _titleController.text);
+                  final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+                  await notebooksProvider.addNoteToNotebook(
+                    selectedNotebookId!,
+                    _titleController.text,
+                  );
                   
                   Navigator.of(ctx).pop();
                   
@@ -462,7 +407,7 @@ class _NotesScreenState extends State<NotesScreen> {
       drawer: const AppDrawer(),
       body: _buildBody(notesPresenter),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddNoteDialog,
+        onPressed: () => _showAddNoteDialog(context),
         child: const Icon(Icons.add),
         tooltip: 'Add Note',
       ),
@@ -479,7 +424,7 @@ class _NotesScreenState extends State<NotesScreen> {
         title: 'No notes found',
         message: 'Create your first note to get started',
         icon: Icons.note_add_outlined,
-        onAction: _showAddNoteDialog,
+        onAction: () => _showAddNoteDialog(context),
         actionLabel: 'Create Note',
       );
     }

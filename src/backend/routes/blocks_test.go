@@ -50,7 +50,14 @@ func (m *MockBlockService) GetBlocks(db *database.Database, params map[string]in
 	return []models.Block{}, nil
 }
 
-func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[string]interface{}) (models.Block, error) {
+// Updated to match interface
+func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[string]interface{}, params map[string]interface{}) (models.Block, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Block{}, errors.New("user_id must be provided in parameters")
+	}
+
 	content, ok := blockData["content"]
 	if !ok {
 		return models.Block{}, errors.New("content is required")
@@ -81,7 +88,14 @@ func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[stri
 	}, nil
 }
 
-func (m *MockBlockService) GetBlockById(db *database.Database, id string) (models.Block, error) {
+// Updated to match interface
+func (m *MockBlockService) GetBlockById(db *database.Database, id string, params map[string]interface{}) (models.Block, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Block{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return models.Block{
 			ID:      uuid.Must(uuid.Parse(id)),
@@ -94,7 +108,14 @@ func (m *MockBlockService) GetBlockById(db *database.Database, id string) (model
 	return models.Block{}, services.ErrBlockNotFound
 }
 
-func (m *MockBlockService) UpdateBlock(db *database.Database, id string, blockData map[string]interface{}) (models.Block, error) {
+// Updated to match interface
+func (m *MockBlockService) UpdateBlock(db *database.Database, id string, blockData map[string]interface{}, params map[string]interface{}) (models.Block, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Block{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		// Handle content updates
 		var content models.BlockContent
@@ -121,14 +142,28 @@ func (m *MockBlockService) UpdateBlock(db *database.Database, id string, blockDa
 	return models.Block{}, services.ErrBlockNotFound
 }
 
-func (m *MockBlockService) DeleteBlock(db *database.Database, id string) error {
+// Updated to match interface
+func (m *MockBlockService) DeleteBlock(db *database.Database, id string, params map[string]interface{}) error {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return nil
 	}
 	return services.ErrBlockNotFound
 }
 
-func (m *MockBlockService) ListBlocksByNote(db *database.Database, noteID string) ([]models.Block, error) {
+// Updated to match interface
+func (m *MockBlockService) ListBlocksByNote(db *database.Database, noteID string, params map[string]interface{}) ([]models.Block, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return nil, errors.New("user_id must be provided in parameters")
+	}
+
 	if noteID == "90a12345-f12a-98c4-a456-513432930000" {
 		return []models.Block{
 			{
@@ -147,11 +182,14 @@ func TestCreateBlock(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Invalid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/blocks/", bytes.NewBuffer([]byte("invalid json")))
+		req, _ := http.NewRequest("POST", "/api/v1/blocks", bytes.NewBuffer([]byte("invalid json")))
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -210,7 +248,10 @@ func TestGetBlockById(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Block Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -231,7 +272,10 @@ func TestUpdateBlock(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Block Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -252,7 +296,10 @@ func TestDeleteBlock(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Block Not Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -273,7 +320,10 @@ func TestListBlocksByNote(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("No Blocks Found", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -297,7 +347,10 @@ func TestGetBlocks(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
 	mockService := &MockBlockService{}
-	RegisterBlockRoutes(router, db, mockService)
+
+	// Create a router group for api routes
+	apiGroup := router.Group("/api/v1")
+	RegisterBlockRoutes(apiGroup, db, mockService)
 
 	t.Run("Get Blocks With No Filters", func(t *testing.T) {
 		w := httptest.NewRecorder()

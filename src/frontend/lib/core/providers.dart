@@ -1,65 +1,84 @@
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:provider/single_child_widget.dart';
-import '../providers/websocket_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/block_provider.dart';
-import '../providers/notes_provider.dart';
 import '../providers/notebooks_provider.dart';
+import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/trash_provider.dart';
-import '../providers/theme_provider.dart'; // Add ThemeProvider import
+import '../providers/theme_provider.dart';
+import '../providers/websocket_provider.dart';
+import '../services/auth_service.dart';
+import '../services/block_service.dart';
+import '../services/note_service.dart';
+import '../services/notebook_service.dart';
+import '../services/task_service.dart';
+import '../services/trash_service.dart';
+import '../services/base_service.dart';
+import '../services/websocket_service.dart';
+import 'package:provider/single_child_widget.dart';
 
-/// List of providers used in the app
-/// These providers also act as presenters in the MVP pattern
-List<SingleChildWidget> appProviders = [
-  // Add ThemeProvider first as it's used by app-wide UI components
-  ChangeNotifierProvider<ThemeProvider>(
-    create: (_) => ThemeProvider(),
+/// List of all app providers with proper dependency injection
+final List<SingleChildWidget> appProviders = [
+  // Auth provider
+  ChangeNotifierProvider(
+    create: (context) => AuthProvider(
+      authService: ServiceLocator.get<AuthService>()
+    ),
   ),
   
-  // Core WebSocket provider is the foundation for real-time updates
-  ChangeNotifierProvider<WebSocketProvider>(
-    create: (_) => WebSocketProvider(),
+  // Theme provider
+  ChangeNotifierProvider(
+    create: (context) => ThemeProvider(),
   ),
   
-  // Domain providers act as presenters in our MVP pattern
-  ChangeNotifierProxyProvider<WebSocketProvider, NotebooksProvider>(
-    create: (_) => NotebooksProvider(),
-    update: (_, webSocketProvider, previousProvider) {
-      final provider = previousProvider ?? NotebooksProvider();
-      provider.setWebSocketProvider(webSocketProvider);
-      return provider;
-    },
+  // WebSocket provider with dependencies
+  ChangeNotifierProvider(
+    create: (context) => WebSocketProvider(
+      webSocketService: ServiceLocator.get<WebSocketService>(),
+      authService: ServiceLocator.get<AuthService>()
+    ),
   ),
   
-  ChangeNotifierProxyProvider<WebSocketProvider, NotesProvider>(
-    create: (_) => NotesProvider(),
-    update: (_, webSocketProvider, previousProvider) {
-      final provider = previousProvider ?? NotesProvider();
-      provider.setWebSocketProvider(webSocketProvider);
-      return provider;
-    },
+  // Notes provider
+  ChangeNotifierProvider(
+    create: (context) => NotesProvider(
+      noteService: ServiceLocator.get<NoteService>(),
+      authService: ServiceLocator.get<AuthService>(),
+      blockService: ServiceLocator.get<BlockService>()
+    ),
   ),
   
-  ChangeNotifierProxyProvider<WebSocketProvider, TasksProvider>(
-    create: (_) => TasksProvider(),
-    update: (_, webSocketProvider, previousProvider) {
-      final provider = previousProvider ?? TasksProvider();
-      provider.setWebSocketProvider(webSocketProvider);
-      return provider;
-    },
+  // Notebooks provider
+  ChangeNotifierProvider(
+    create: (context) => NotebooksProvider(
+      notebookService: ServiceLocator.get<NotebookService>(),
+      noteService: ServiceLocator.get<NoteService>(),
+      authService: ServiceLocator.get<AuthService>()
+    ),
   ),
   
-  ChangeNotifierProxyProvider<WebSocketProvider, BlockProvider>(
-    create: (_) => BlockProvider(),
-    update: (_, webSocketProvider, previousProvider) {
-      final provider = previousProvider ?? BlockProvider();
-      provider.setWebSocketProvider(webSocketProvider);
-      return provider;
-    },
+  // Tasks provider
+  ChangeNotifierProvider(
+    create: (context) => TasksProvider(
+      taskService: ServiceLocator.get<TaskService>(),
+      authService: ServiceLocator.get<AuthService>()
+    ),
   ),
   
-  // Trash provider for managing deleted items
-  ChangeNotifierProvider<TrashProvider>(
-    create: (context) => TrashProvider(),
+  // Block provider
+  ChangeNotifierProvider(
+    create: (context) => BlockProvider(
+      blockService: ServiceLocator.get<BlockService>(),
+      authService: ServiceLocator.get<AuthService>()
+    ),
+  ),
+  
+  // Trash provider
+  ChangeNotifierProvider(
+    create: (context) => TrashProvider(
+      trashService: ServiceLocator.get<TrashService>(),
+      authService: ServiceLocator.get<AuthService>()
+    ),
   ),
 ];

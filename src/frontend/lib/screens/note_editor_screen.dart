@@ -127,8 +127,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     String? noteId;
     
     if (data is Map) {
-      blockId = data['id']?.toString();
-      noteId = data['noteId']?.toString();
+      blockId = data['id']?.toString() ?? data['block_id']?.toString();
+      noteId = data['note_id']?.toString();
     } else if (data is String) {
       blockId = data;
     }

@@ -44,12 +44,13 @@ func NewKafkaProducer(brokerAddress string) (Producer, error) {
 
 	// Create the Kafka producer with client ID for better traceability
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":  brokerAddress,
-		"socket.timeout.ms":  10000,
-		"client.id":          "thinkstack-producer-main",
-		"message.timeout.ms": 30000,
-		"retries":            5,
-		"retry.backoff.ms":   1000,
+		"bootstrap.servers":        brokerAddress,
+		"socket.timeout.ms":        10000,
+		"client.id":                "thinkstack-producer-main",
+		"message.timeout.ms":       30000,
+		"retries":                  5,
+		"retry.backoff.ms":         1000,
+		"security.protocol":        "plaintext",
 	})
 
 	if err != nil {
@@ -99,9 +100,10 @@ func (kp *KafkaProducer) retryProducerConnection(broker string) {
 		log.Printf("Retrying Kafka producer connection (attempt %d/5)...", retries+1)
 
 		p, err := kafka.NewProducer(&kafka.ConfigMap{
-			"bootstrap.servers": broker,
-			"socket.timeout.ms": 10000,
-			"client.id":         "thinkstack-producer-retry",
+			"bootstrap.servers":        broker,
+			"socket.timeout.ms":        10000,
+			"client.id":                "thinkstack-producer-retry",
+			"broker.address.family":    "v4",
 		})
 
 		if err == nil {

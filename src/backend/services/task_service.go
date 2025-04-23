@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/thinkstack/broker"
@@ -28,125 +29,83 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 		return models.Task{}, tx.Error
 	}
 
-	// Extract basic task data
-	title, ok := taskData["title"].(string)
-	if !ok || title == "" {
-		tx.Rollback()
-		return models.Task{}, errors.New("title is required")
-	}
-
+	// Extract user_id
 	userIDStr, ok := taskData["user_id"].(string)
-	if !ok || userIDStr == "" {
+	if !ok {
 		tx.Rollback()
-		return models.Task{}, errors.New("user_id is required")
+		return models.Task{}, errors.New("user_id must be a string")
 	}
 
-	// Validate that the user exists
-	var userCount int64
-	if err := tx.Model(&models.User{}).Where("id = ?", userIDStr).Count(&userCount).Error; err != nil {
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
 		tx.Rollback()
-		return models.Task{}, err
+		return models.Task{}, errors.New("user_id must be a valid UUID")
 	}
 
-	if userCount == 0 {
-		tx.Rollback()
-		return models.Task{}, errors.New("user not found")
-	}
+	// Create task
+	title, _ := taskData["title"].(string)
+	taskID := uuid.New()
 
-	description := ""
-	if desc, ok := taskData["description"].(string); ok {
-		description = desc
-	}
-
-	isCompleted := false
-	if completed, ok := taskData["is_completed"].(bool); ok {
-		isCompleted = completed
-	}
-
-	// Create a task model with the basic fields
 	task := models.Task{
-		ID:          uuid.New(),
-		UserID:      uuid.Must(uuid.Parse(userIDStr)),
-		Title:       title,
-		Description: description,
-		IsCompleted: isCompleted,
+		ID:     taskID,
+		UserID: userID,
+		Title:  title,
 	}
 
-	// Handle note/block association
-	noteIDStr, noteIDExists := taskData["note_id"].(string)
-	blockIDStr, blockIDExists := taskData["block_id"].(string)
-
-	if noteIDExists && noteIDStr != "" {
-		// If note_id is provided, associate with the last block or create a new one
-		noteID := uuid.Must(uuid.Parse(noteIDStr))
-
-		// Check if the note exists
-		var note models.Note
-		if err := tx.First(&note, "id = ?", noteID).Error; err != nil {
-			tx.Rollback()
-			return models.Task{}, errors.New("note not found")
-		}
-
-		// Find the last block in the note by order
-		var lastBlock models.Block
-		result := tx.Where("note_id = ?", noteID).Order("`order` DESC").First(&lastBlock)
-
-		if result.Error == nil {
-			// Block found, associate the task with it
-			task.BlockID = lastBlock.ID
-		} else if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			// No blocks found, create a new one
-			newBlock := models.Block{
-				ID:      uuid.New(),
-				NoteID:  noteID,
-				Type:    models.TaskBlock,
-				Content: models.BlockContent{"text": "Task"},
-				Order:   1,
-			}
-
-			if err := tx.Create(&newBlock).Error; err != nil {
-				tx.Rollback()
-				return models.Task{}, err
-			}
-
-			task.BlockID = newBlock.ID
-		} else {
-			// Unexpected error
-			tx.Rollback()
-			return models.Task{}, result.Error
-		}
-	} else if blockIDExists && blockIDStr != "" {
-		// If block_id is directly provided, use it
-		task.BlockID = uuid.Must(uuid.Parse(blockIDStr))
-
-		// Verify the block exists
-		var block models.Block
-		if err := tx.First(&block, "id = ?", task.BlockID).Error; err != nil {
-			tx.Rollback()
-			return models.Task{}, errors.New("block not found")
-		}
-	} else {
-		// Neither note_id nor block_id provided
-		tx.Rollback()
-		return models.Task{}, errors.New("either note_id or block_id is required")
+	// Optional fields
+	if descStr, ok := taskData["description"].(string); ok {
+		task.Description = descStr
 	}
 
-	// Create the task
+	if completedBool, ok := taskData["is_completed"].(bool); ok {
+		task.IsCompleted = completedBool
+	}
+
+	if dueDateStr, ok := taskData["due_date"].(string); ok {
+		dueDate, err := time.Parse(time.RFC3339, dueDateStr)
+		if err == nil {
+			task.DueDate = dueDate.String()
+		}
+	}
+
+	// Handle block association
+	if blockIDStr, ok := taskData["block_id"].(string); ok && blockIDStr != "" {
+		blockID, err := uuid.Parse(blockIDStr)
+		if err == nil {
+			var block models.Block
+			if err := tx.First(&block, "id = ?", blockID).Error; err == nil {
+				task.BlockID = blockID
+			}
+		}
+	}
+
 	if err := tx.Create(&task).Error; err != nil {
 		tx.Rollback()
 		return models.Task{}, err
 	}
 
-	// Create event
+	// Create owner role for the task
+	role := models.Role{
+		ID:           uuid.New(),
+		UserID:       userID,
+		ResourceID:   task.ID,
+		ResourceType: models.TaskResource,
+		Role:         models.OwnerRole,
+	}
+
+	if err := tx.Create(&role).Error; err != nil {
+		tx.Rollback()
+		return models.Task{}, err
+	}
+
+	// Create event for task creation
 	event, err := models.NewEvent(
-		string(broker.TaskCreated), // Use standard event type
+		"task.created",
 		"task",
 		"create",
-		task.UserID.String(),
+		userID.String(),
 		map[string]interface{}{
 			"task_id":      task.ID.String(),
-			"user_id":      task.UserID.String(),
-			"block_id":     task.BlockID.String(),
 			"title":        task.Title,
 			"is_completed": task.IsCompleted,
 		},
@@ -163,7 +122,6 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
 		return models.Task{}, err
 	}
 
@@ -238,8 +196,14 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 		return tx.Error
 	}
 
+	taskID, err := uuid.Parse(id)
+	if err != nil {
+		tx.Rollback()
+		return errors.New("invalid task id")
+	}
+
 	var task models.Task
-	if err := tx.First(&task, "id = ?", id).Error; err != nil {
+	if err := tx.First(&task, "id = ?", taskID).Error; err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrTaskNotFound
@@ -247,19 +211,29 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 		return err
 	}
 
+	// Delete task
 	if err := tx.Delete(&task).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
+	// Delete roles for this task
+	if err := tx.Model(&models.Role{}).
+		Where("resource_id = ? AND resource_type = ?", taskID, models.TaskResource).
+		Update("deleted_at", time.Now()).
+		Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Create event for task deletion
 	event, err := models.NewEvent(
-		string(broker.TaskDeleted), // Use standard event type
+		"task.deleted",
 		"task",
 		"delete",
 		task.UserID.String(),
 		map[string]interface{}{
 			"task_id": task.ID.String(),
-			"user_id": task.UserID.String(),
 		},
 	)
 
@@ -274,7 +248,6 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
 		return err
 	}
 

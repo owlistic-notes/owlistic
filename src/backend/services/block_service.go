@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"strconv"
@@ -12,17 +14,17 @@ import (
 )
 
 type BlockServiceInterface interface {
-	CreateBlock(db *database.Database, blockData map[string]interface{}) (models.Block, error)
-	GetBlockById(db *database.Database, id string) (models.Block, error)
-	UpdateBlock(db *database.Database, id string, blockData map[string]interface{}) (models.Block, error)
-	DeleteBlock(db *database.Database, id string) error
-	ListBlocksByNote(db *database.Database, noteID string) ([]models.Block, error)
+	CreateBlock(db *database.Database, blockData map[string]interface{}, params map[string]interface{}) (models.Block, error)
+	GetBlockById(db *database.Database, id string, params map[string]interface{}) (models.Block, error)
+	UpdateBlock(db *database.Database, id string, blockData map[string]interface{}, params map[string]interface{}) (models.Block, error)
+	DeleteBlock(db *database.Database, id string, params map[string]interface{}) error
+	ListBlocksByNote(db *database.Database, noteID string, params map[string]interface{}) ([]models.Block, error)
 	GetBlocks(db *database.Database, params map[string]interface{}) ([]models.Block, error)
 }
 
 type BlockService struct{}
 
-func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]interface{}) (models.Block, error) {
+func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]interface{}, params map[string]interface{}) (models.Block, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return models.Block{}, tx.Error
@@ -38,16 +40,29 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, ErrInvalidInput
 	}
 
-	// Validate that the note exists before creating the block
-	var noteCount int64
-	if err := tx.Model(&models.Note{}).Where("id = ?", noteIDStr).Count(&noteCount).Error; err != nil {
+	// Extract user_id from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return models.Block{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has editor access to the parent note using the new method
+	hasAccess, err := RoleServiceInstance.HasNoteAccess(db, userIDStr, noteIDStr, "editor")
+	if err != nil {
 		tx.Rollback()
 		return models.Block{}, err
 	}
 
-	if noteCount == 0 {
+	if !hasAccess {
 		tx.Rollback()
-		return models.Block{}, errors.New("note not found")
+		return models.Block{}, errors.New("not authorized to add blocks to this note")
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		tx.Rollback()
+		return models.Block{}, ErrInvalidInput
 	}
 
 	// Handle order value conversion from float64 to int
@@ -90,9 +105,11 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		metadata = metaData
 	}
 
+	blockID := uuid.New()
 	block := models.Block{
-		ID:       uuid.New(),
+		ID:       blockID,
 		NoteID:   uuid.Must(uuid.Parse(noteIDStr)),
+		UserID:   userID,
 		Type:     models.BlockType(blockType),
 		Content:  content,
 		Metadata: metadata,
@@ -113,6 +130,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		map[string]interface{}{
 			"block_id": block.ID.String(),
 			"note_id":  block.NoteID.String(),
+			"user_id":  block.UserID.String(),
 			"type":     string(block.Type),
 			"order":    block.Order,
 			"content":  block.Content,
@@ -138,7 +156,23 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 	return block, nil
 }
 
-func (s *BlockService) GetBlockById(db *database.Database, id string) (models.Block, error) {
+func (s *BlockService) GetBlockById(db *database.Database, id string, params map[string]interface{}) (models.Block, error) {
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		return models.Block{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has viewer access using the new method
+	hasAccess, err := RoleServiceInstance.HasBlockAccess(db, userIDStr, id, "viewer")
+	if err != nil {
+		return models.Block{}, err
+	}
+
+	if !hasAccess {
+		return models.Block{}, errors.New("not authorized to access this block")
+	}
+
 	var block models.Block
 	if err := db.DB.First(&block, "id = ?", id).Error; err != nil {
 		return models.Block{}, ErrBlockNotFound
@@ -146,25 +180,38 @@ func (s *BlockService) GetBlockById(db *database.Database, id string) (models.Bl
 	return block, nil
 }
 
-func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData map[string]interface{}) (models.Block, error) {
+func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData map[string]interface{}, params map[string]interface{}) (models.Block, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return models.Block{}, tx.Error
 	}
 
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return models.Block{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Get block to determine the note ID
 	var block models.Block
 	if err := tx.First(&block, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return models.Block{}, ErrBlockNotFound
 	}
 
-	actorID, ok := blockData["user_id"].(string)
-	if !ok {
+	// Check if user has editor access to the parent note using the new method
+	hasAccess, err := RoleServiceInstance.HasBlockAccess(db, userIDStr, id, "editor")
+	if err != nil {
 		tx.Rollback()
-		return models.Block{}, ErrInvalidInput
+		return models.Block{}, err
 	}
 
-	// Create a copy of the original block for event tracking
+	if !hasAccess {
+		tx.Rollback()
+		return models.Block{}, errors.New("not authorized to update this block")
+	}
+
 	eventData := map[string]interface{}{
 		"id":         block.ID,
 		"note_id":    block.NoteID,
@@ -202,7 +249,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 		"block.updated",
 		"block",
 		"update",
-		actorID,
+		userIDStr,
 		eventData,
 	)
 
@@ -236,16 +283,35 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 	return block, nil
 }
 
-func (s *BlockService) DeleteBlock(db *database.Database, id string) error {
+func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[string]interface{}) error {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
+	}
+
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return errors.New("user_id must be provided in parameters")
 	}
 
 	var block models.Block
 	if err := tx.First(&block, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return err
+	}
+
+	// Check if user has editor access to the parent note using the new method
+	hasAccess, err := RoleServiceInstance.HasBlockAccess(db, userIDStr, id, "editor")
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if !hasAccess {
+		tx.Rollback()
+		return errors.New("not authorized to delete this block")
 	}
 
 	// With proper ON DELETE CASCADE constraints, deleting the block
@@ -260,10 +326,11 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string) error {
 		"block.deleted", // Standardized event type
 		"block",
 		"delete",
-		"system", // Default to system since no actor ID is typically provided for deletion
+		block.UserID.String(), // Use the block's owner as the actor
 		map[string]interface{}{
 			"block_id": block.ID.String(),
 			"note_id":  block.NoteID.String(),
+			"user_id":  block.UserID.String(),
 		},
 	)
 
@@ -285,7 +352,23 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string) error {
 	return nil
 }
 
-func (s *BlockService) ListBlocksByNote(db *database.Database, noteID string) ([]models.Block, error) {
+func (s *BlockService) ListBlocksByNote(db *database.Database, noteID string, params map[string]interface{}) ([]models.Block, error) {
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		return nil, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has viewer access to the note
+	hasAccess, err := RoleServiceInstance.HasNoteAccess(db, userIDStr, noteID, "viewer")
+	if err != nil {
+		return nil, err
+	}
+
+	if !hasAccess {
+		return nil, errors.New("not authorized to access blocks in this note")
+	}
+
 	var blocks []models.Block
 	if err := db.DB.Where("note_id = ?", noteID).Order("\"order\" asc").Find(&blocks).Error; err != nil {
 		return nil, err
@@ -297,9 +380,58 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	var blocks []models.Block
 	query := db.DB
 
-	// Apply filters based on params
+	// Debug received params with more details
+	log.Printf("GetBlocks received params: %+v with types:", params)
+	for k, v := range params {
+		log.Printf("  param %s: %v (type: %T)", k, v, v)
+	}
+
+	// Check if user_id is in query string parameters
+	userIDStr := ""
+	userIDValue, userIDExists := params["user_id"]
+
+	if !userIDExists {
+		log.Printf("WARNING: user_id not found in params map. This might be an API handler issue.")
+		return nil, errors.New("user_id parameter is required but missing")
+	}
+
+	// Handle various types of user_id
+	switch v := userIDValue.(type) {
+	case string:
+		userIDStr = v
+	case int:
+		userIDStr = fmt.Sprintf("%d", v)
+	case float64:
+		userIDStr = fmt.Sprintf("%d", int(v))
+	case uuid.UUID:
+		userIDStr = v.String()
+	default:
+		return nil, fmt.Errorf("user_id has invalid type: %T", userIDValue)
+	}
+
+	if userIDStr == "" {
+		return nil, errors.New("user_id cannot be empty")
+	}
+
+	log.Printf("Using user_id: %s", userIDStr)
+
+	// Apply user filter
+	query = query.Where("user_id = ?", userIDStr)
+
+	// Apply additional filters
 	if noteID, ok := params["note_id"].(string); ok && noteID != "" {
+		// Check if user has access to this note
+		hasAccess, err := RoleServiceInstance.HasNoteAccess(db, userIDStr, noteID, "viewer")
+		if err != nil {
+			return nil, err
+		}
+
+		if !hasAccess {
+			return nil, errors.New("not authorized to access blocks from this note")
+		}
+
 		query = query.Where("note_id = ?", noteID)
+		log.Printf("Filtering by note_id: %s", noteID)
 	}
 
 	if blockType, ok := params["type"].(string); ok && blockType != "" {
@@ -307,9 +439,11 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	}
 
 	if err := query.Order("\"order\" asc").Find(&blocks).Error; err != nil {
+		log.Printf("Database error in GetBlocks: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Found %d blocks", len(blocks))
 	return blocks, nil
 }
 

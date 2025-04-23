@@ -15,6 +15,9 @@ import '../providers/auth_provider.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
+import '../services/note_service.dart';
+import '../services/notebook_service.dart';
+import '../services/task_service.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -36,20 +39,98 @@ class _HomeScreenState extends State<HomeScreen> {
       _isInitialized = true;
       _logger.info('Initializing home screen');
       
+      // Get providers
+      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
+      final notesProvider = Provider.of<NotesProvider>(context, listen: false);
+      final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+      
       // Ensure WebSocket is connected
-      Provider.of<WebSocketProvider>(context, listen: false).ensureConnected();
+      wsProvider.ensureConnected();
+      
+      // Set up event listeners
+      _setupEventListeners(wsProvider);
       
       // Fetch data from providers
-      Future.microtask(() {
-        Provider.of<NotesProvider>(context, listen: false).fetchNotes();
-        Provider.of<TasksProvider>(context, listen: false).fetchTasks();
-        Provider.of<NotebooksProvider>(context, listen: false).fetchNotebooks();
+      Future.microtask(() async {
+        try {
+          // First activate providers
+          notesProvider.activate();
+          notebooksProvider.activate();
+          
+          // Fetch data - will now fetch notes for each notebook
+          await notebooksProvider.fetchNotebooks();
+          await notesProvider.fetchNotes();
+          
+          Provider.of<TasksProvider>(context, listen: false).fetchTasks();
+        } catch (e) {
+          _logger.error('Error loading initial data: $e');
+        }
       });
     }
   }
 
+  void _setupEventListeners(WebSocketProvider wsProvider) {
+    // Subscribe to notebook events
+    wsProvider.subscribeToEvent('notebook.created');
+    wsProvider.subscribeToEvent('notebook.updated');
+    wsProvider.subscribeToEvent('notebook.deleted');
+    
+    // Subscribe to note events to update notebooks when notes change
+    wsProvider.subscribeToEvent('note.created');
+    wsProvider.subscribeToEvent('note.updated');
+    wsProvider.subscribeToEvent('note.deleted');
+    
+    // Add event handlers
+    wsProvider.addEventListener('event', 'notebook.created', _handleNotebookEvent);
+    wsProvider.addEventListener('event', 'notebook.updated', _handleNotebookEvent);
+    wsProvider.addEventListener('event', 'notebook.deleted', _handleNotebookEvent);
+    wsProvider.addEventListener('event', 'note.created', _handleNoteEvent);
+    wsProvider.addEventListener('event', 'note.updated', _handleNoteEvent);
+    wsProvider.addEventListener('event', 'note.deleted', _handleNoteEvent);
+  }
+  
+  void _handleNotebookEvent(Map<String, dynamic> message) {
+    _logger.info('Notebook event received, refreshing notebooks');
+    Provider.of<NotebooksProvider>(context, listen: false).fetchNotebooks();
+  }
+  
+  void _handleNoteEvent(Map<String, dynamic> message) {
+    _logger.info('Note event received');
+    try {
+      // Extract the notebook ID from the message
+      final payload = message['payload'];
+      if (payload != null && payload['data'] != null) {
+        final data = payload['data'];
+        if (data['notebook_id'] != null) {
+          final notebookId = data['notebook_id'].toString();
+          _logger.info('Refreshing notebook after note event: $notebookId');
+          
+          // Refresh this specific notebook
+          Provider.of<NotebooksProvider>(context, listen: false)
+              .fetchNotebookById(notebookId);
+        }
+      }
+    } catch (e) {
+      _logger.error('Error handling note event', e);
+    }
+  }
+  
   @override
   void dispose() {
+    // Clean up event listeners
+    if (_isInitialized) {
+      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
+      wsProvider.removeEventListener('event', 'notebook.created');
+      wsProvider.removeEventListener('event', 'notebook.updated');
+      wsProvider.removeEventListener('event', 'notebook.deleted');
+      wsProvider.removeEventListener('event', 'note.created');
+      wsProvider.removeEventListener('event', 'note.updated');
+      wsProvider.removeEventListener('event', 'note.deleted');
+    }
+    
+    // Deactivate providers
+    Provider.of<NotesProvider>(context, listen: false).deactivate();
+    
     _searchController.dispose();
     super.dispose();
   }
@@ -156,10 +237,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showProfileMenu(BuildContext context) {
-    showMenu<dynamic>(
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
-      items: <PopupMenuEntry<dynamic>>[
+      items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           value: 'profile_header',
           child: ListTile(
@@ -167,8 +250,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.person),
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
             ),
-            title: const Text('John Doe'),
-            subtitle: const Text('john.doe@example.com'),
+            title: Text(authProvider.currentUser?.email?.split('@')[0] ?? 'User'),
+            subtitle: Text(authProvider.currentUser?.email ?? 'No email'),
           ),
         ),
         const PopupMenuItem<String>(
@@ -193,12 +276,20 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'logout',
-          child: ListTile(
+          child: const ListTile(
             leading: Icon(Icons.logout),
             title: Text('Logout'),
           ),
+          onTap: () async {
+            // Wait a moment for the menu to close
+            await Future.delayed(Duration.zero);
+            if (context.mounted) {
+              await authProvider.logout();
+              // Navigation will be handled by GoRouter
+            }
+          },
         ),
       ],
     );
@@ -357,6 +448,11 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: notebooks.length,
             itemBuilder: (context, index) {
               final notebook = notebooks[index];
+              
+              // Get the note count safely
+              int noteCount = notebook.notes.length;
+              _logger.debug('Notebook ${notebook.name} has $noteCount notes');
+              
               return SizedBox(
                 width: 160,
                 child: CardContainer(
@@ -391,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${notebook.notes.length} notes',
+                          '$noteCount notes',
                           style: Theme.of(context).textTheme.bodySmall,
                           textAlign: TextAlign.center,
                         ),

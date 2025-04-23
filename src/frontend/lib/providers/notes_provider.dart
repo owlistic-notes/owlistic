@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/note.dart';
-import '../services/api_service.dart';
+import '../services/note_service.dart';
+import '../services/auth_service.dart';
+import '../services/base_service.dart';
 import 'websocket_provider.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
+import '../services/block_service.dart';
 
 class NotesProvider with ChangeNotifier {
   final Logger _logger = Logger('NotesProvider');
@@ -13,6 +16,15 @@ class NotesProvider with ChangeNotifier {
   bool _isLoading = false;
   WebSocketProvider? _webSocketProvider;
   final Set<String> _activeNoteIds = {};
+  final NoteService _noteService;
+  final AuthService _authService;
+  final BlockService _blockService;
+
+  // Constructor with dependency injection
+  NotesProvider({NoteService? noteService, AuthService? authService, required BlockService blockService}) 
+    : _noteService = noteService ?? ServiceLocator.get<NoteService>(),
+      _authService = authService ?? ServiceLocator.get<AuthService>(),
+      _blockService = blockService;
 
   // Getters
   List<Note> get notes => _notesMap.values.toList();
@@ -36,6 +48,14 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
+  // Reset state on logout
+  void resetState() {
+    _logger.info('Resetting NotesProvider state');
+    _notesMap.clear();
+    _activeNoteIds.clear();
+    notifyListeners();
+  }
+
   // Set the WebSocketProvider and register event listeners
   void setWebSocketProvider(WebSocketProvider provider) {
     // Skip if the provider is the same
@@ -46,6 +66,13 @@ class NotesProvider with ChangeNotifier {
       _webSocketProvider?.removeEventListener('event', 'note.updated');
       _webSocketProvider?.removeEventListener('event', 'note.created');
       _webSocketProvider?.removeEventListener('event', 'note.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('note.updated');
+        _webSocketProvider?.unsubscribeFromEvent('note.created');
+        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
+      }
     }
     
     _webSocketProvider = provider;
@@ -54,6 +81,14 @@ class NotesProvider with ChangeNotifier {
     provider.addEventListener('event', 'note.updated', _handleNoteUpdate);
     provider.addEventListener('event', 'note.created', _handleNoteCreate);
     provider.addEventListener('event', 'note.deleted', _handleNoteDelete);
+    
+    // Subscribe to these events using the correct pattern for events
+    if (provider.isConnected) {
+      // Use subscribeToEvent instead of subscribe for event types
+      provider.subscribeToEvent('note.updated');
+      provider.subscribeToEvent('note.created');
+      provider.subscribeToEvent('note.deleted');
+    }
   }
 
   // Mark a note as active/inactive
@@ -79,6 +114,7 @@ class NotesProvider with ChangeNotifier {
 
   // Handle note create events with similar pattern to notebooks and blocks
   void _handleNoteCreate(Map<String, dynamic> message) {
+    // Check if provider is active
     if (!_isActive) {
       _logger.info('Ignoring note.created event because provider is not active');
       return;
@@ -106,7 +142,7 @@ class NotesProvider with ChangeNotifier {
           if (!_isActive) return;
           
           // Fetch the note by ID directly
-          ApiService.getNote(noteId).then((newNote) {
+          _noteService.getNote(noteId).then((newNote) {
             // Only add if provider is active and note is not deleted
             if (_isActive && newNote.deletedAt == null) {
               _notesMap[noteId] = newNote;
@@ -156,7 +192,7 @@ class NotesProvider with ChangeNotifier {
   // Fetch a single note by ID
   Future<Note> _fetchSingleNote(String noteId) async {
     try {
-      final note = await ApiService.getNote(noteId);
+      final note = await _noteService.getNote(noteId);
       
       // Check if this note already exists in our list
       if (_notesMap.containsKey(noteId)) {
@@ -179,23 +215,31 @@ class NotesProvider with ChangeNotifier {
   // Public method to fetch a single note by ID
   Future<Note?> fetchNoteById(String noteId) async {
     try {
-      final notebook = await _fetchSingleNote(noteId);
-      return notebook;
+      final note = await _fetchSingleNote(noteId);
+      return note;
     } catch (error) {
-      _logger.error('Error in fetchNotebookById: $error');
+      _logger.error('Error in fetchNoteById: $error');
       return null;
     }
   }
 
-  // Fetch notes with pagination and duplicate prevention
+  // Fetch notes with pagination and proper user filtering
   Future<void> fetchNotes({int page = 1, List<String>? excludeIds}) async {
+    // Check if user is logged in
+    final currentUser = await _authService.getUserProfile();
+    if (currentUser == null) {
+      _logger.warning('Cannot fetch notes: No authenticated user');
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
     
     try {
-      // Fetch notes from API
-      final response = await ApiService.fetchNotes(page: page);
-      final List<Note> fetchedNotes = response;
+      // Fetch notes from API with user filter (API must filter by owner role)
+      final fetchedNotes = await _noteService.fetchNotes(
+        page: page,
+      );
       
       // Keep track of existing IDs if not starting fresh
       final existingIds = page > 1 ? _notesMap.keys.toSet() : <String>{};
@@ -214,14 +258,20 @@ class NotesProvider with ChangeNotifier {
         }
         
         _notesMap[note.id] = note;
+        
+        // Subscribe to this note for real-time updates - only if not already subscribed
+        if (_webSocketProvider != null && 
+            !_webSocketProvider!.isSubscribed('note', id: note.id)) {
+          _webSocketProvider?.subscribe('note', id: note.id);
+        }
       }
       
       _isLoading = false;
       notifyListeners();
     } catch (error) {
+      _logger.error('Error fetching notes', error);
       _isLoading = false;
       notifyListeners();
-      throw error;
     }
   }
 
@@ -234,7 +284,7 @@ class NotesProvider with ChangeNotifier {
       if (!_notesMap.containsKey(noteId)) {
         _logger.info('Fetching note $noteId from event');
         
-        final note = await ApiService.getNote(noteId);
+        final note = await _noteService.getNote(noteId);
         
         // Only add if the note is not deleted
         if (note.deletedAt == null) {
@@ -256,13 +306,11 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Create a new note - ensure API call and notification
+  // Create a new note - get user ID from auth service
   Future<Note?> createNote(String notebookId, String title) async {
     try {
-      _logger.info('Creating new note in notebook $notebookId with title: $title');
-      
       // Create note on server via REST API
-      final note = await ApiService.createNote(notebookId, title);
+      final note = await _noteService.createNote(notebookId, title);
       
       // Add to local state
       _notesMap[note.id] = note;
@@ -287,7 +335,7 @@ class NotesProvider with ChangeNotifier {
       _logger.info('Deleting note $id via API');
       
       // Delete note on server via REST API
-      await ApiService.deleteNote(id);
+      await _noteService.deleteNote(id);
       
       // Update local state
       _notesMap.remove(id);
@@ -311,7 +359,7 @@ class NotesProvider with ChangeNotifier {
       _logger.info('Updating note $id title to: $title via API');
       
       // Update note via REST API call
-      final updatedNote = await ApiService.updateNote(id, title);
+      final updatedNote = await _noteService.updateNote(id, title);
       
       // Update local state if we have this note
       if (_notesMap.containsKey(id)) {
@@ -367,6 +415,13 @@ class NotesProvider with ChangeNotifier {
       _webSocketProvider?.removeEventListener('event', 'note.updated');
       _webSocketProvider?.removeEventListener('event', 'note.created');
       _webSocketProvider?.removeEventListener('event', 'note.deleted');
+      
+      // Unsubscribe from events
+      if (_webSocketProvider!.isConnected) {
+        _webSocketProvider?.unsubscribeFromEvent('note.updated');
+        _webSocketProvider?.unsubscribeFromEvent('note.created');
+        _webSocketProvider?.unsubscribeFromEvent('note.deleted');
+      }
     }
     super.dispose();
   }

@@ -78,16 +78,17 @@ func NewKafkaConsumer(broker string, topics []string, groupID string) (Consumer,
 
 	// Create consumer with robust configuration
 	kafkaConsumer, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":       broker,
-		"group.id":                groupID,
-		"auto.offset.reset":       "earliest",
-		"socket.timeout.ms":       10000,
-		"session.timeout.ms":      30000,
-		"max.poll.interval.ms":    300000,
-		"enable.auto.commit":      true,
-		"auto.commit.interval.ms": 5000,
-		"enable.partition.eof":    false,
-		"client.id":               "thinkstack-consumer-" + groupID,
+		"bootstrap.servers":         broker,
+		"group.id":                  groupID,
+		"auto.offset.reset":         "earliest",
+		"socket.timeout.ms":         10000,
+		"session.timeout.ms":        30000,
+		"max.poll.interval.ms":      300000,
+		"enable.auto.commit":        true,
+		"auto.commit.interval.ms":   5000,
+		"enable.partition.eof":      false,
+		"client.id":                 "thinkstack-consumer-" + groupID,
+		"broker.address.family":     "v4",
 	})
 
 	if err != nil {
@@ -176,9 +177,10 @@ func (c *KafkaConsumer) retryConnection(broker string) {
 		}
 
 		retryConsumer, retryErr := kafka.NewConsumer(&kafka.ConfigMap{
-			"bootstrap.servers": broker,
-			"group.id":          c.groupID,
-			"auto.offset.reset": "earliest",
+			"bootstrap.servers":         broker,
+			"group.id":                  c.groupID,
+			"auto.offset.reset":         "earliest",
+			"security.protocol":        "plaintext",
 		})
 
 		if retryErr == nil {

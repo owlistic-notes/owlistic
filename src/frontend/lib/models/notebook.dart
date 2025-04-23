@@ -16,14 +16,31 @@ class Notebook {
   });
 
   factory Notebook.fromJson(Map<String, dynamic> json) {
+    List<Note> notesList = [];
+    
+    // Correctly handle notes data with proper logging
+    if (json.containsKey('notes')) {
+      final notesJson = json['notes'];
+      if (notesJson != null) {
+        try {
+          if (notesJson is List) {
+            notesList = notesJson
+              .where((noteJson) => noteJson != null)
+              .map<Note>((noteJson) => Note.fromJson(noteJson))
+              .toList();
+          }
+        } catch (e) {
+          print('Error parsing notes in notebook: $e');
+        }
+      }
+    }
+    
     return Notebook(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       userId: json['user_id']?.toString() ?? '',
-      notes: (json['notes'] as List<dynamic>?)
-          ?.map((note) => Note.fromJson(note))
-          .toList() ?? const [],
+      notes: notesList,
     );
   }
   
