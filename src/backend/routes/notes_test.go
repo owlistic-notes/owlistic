@@ -127,7 +127,14 @@ func (m *MockNoteService) CreateNote(db *database.Database, noteData map[string]
 	}, nil
 }
 
-func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.Note, error) {
+// Updated to match interface
+func (m *MockNoteService) GetNoteById(db *database.Database, id string, params map[string]interface{}) (models.Note, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Note{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return models.Note{
 			ID:    uuid.Must(uuid.Parse(id)),
@@ -144,7 +151,14 @@ func (m *MockNoteService) GetNoteById(db *database.Database, id string) (models.
 	return models.Note{}, services.ErrNoteNotFound
 }
 
-func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedData map[string]interface{}) (models.Note, error) {
+// Updated to match interface
+func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedData map[string]interface{}, params map[string]interface{}) (models.Note, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Note{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		blocks := updatedData["blocks"].([]interface{})
 		blockData := blocks[0].(map[string]interface{})
@@ -175,7 +189,14 @@ func (m *MockNoteService) UpdateNote(db *database.Database, id string, updatedDa
 	return models.Note{}, services.ErrNoteNotFound
 }
 
-func (m *MockNoteService) DeleteNote(db *database.Database, id string) error {
+// Updated to match interface
+func (m *MockNoteService) DeleteNote(db *database.Database, id string, params map[string]interface{}) error {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return nil
 	}

@@ -40,6 +40,7 @@ func TestCreateBlock_Success(t *testing.T) {
 	mockDB, mock := setupMockDB(t)
 	blockService := BlockService{}
 
+	userID := uuid.MustParse("f3c4b2a0-5d8e-4b1c-8f3b-7a2e5d6f7c8b")
 	noteID := uuid.MustParse("288bafb8-baab-45b9-8f3b-42715d5d752c")
 	blockID := uuid.MustParse("9fe002da-ccea-462d-99d8-2df3c9e09407")
 	eventID := uuid.MustParse("847b0278-3931-4561-89a5-334fb336981a")
@@ -97,7 +98,7 @@ func TestCreateBlock_Success(t *testing.T) {
 	}
 
 	// Call the service
-	block, err := blockService.CreateBlock(mockDB, blockData)
+	block, err := blockService.CreateBlock(mockDB, blockData, map[string]interface{}{"user_id": userID.String()})
 
 	// Assert expectations
 	assert.NoError(t, err)
@@ -112,6 +113,7 @@ func TestGetBlockById_Success(t *testing.T) {
 	mockDB, mock := setupMockDB(t)
 	blockService := BlockService{}
 
+	userID := uuid.MustParse("f3c4b2a0-5d8e-4b1c-8f3b-7a2e5d6f7c8b")
 	blockID := uuid.MustParse("06a27d54-c96e-4916-a572-b4b47a87a539")
 	noteID := uuid.MustParse("288bafb8-baab-45b9-8f3b-42715d5d752c")
 	now := time.Now()
@@ -129,7 +131,7 @@ func TestGetBlockById_Success(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Call the service
-	block, err := blockService.GetBlockById(mockDB, blockID.String())
+	block, err := blockService.GetBlockById(mockDB, blockID.String(), map[string]interface{}{"user_id": userID.String()})
 
 	// Assert expectations
 	assert.NoError(t, err)
@@ -142,6 +144,7 @@ func TestUpdateBlock_Success(t *testing.T) {
 	mockDB, mock := setupMockDB(t)
 	blockService := BlockService{}
 
+	userID := uuid.MustParse("f3c4b2a0-5d8e-4b1c-8f3b-7a2e5d6f7c8b")
 	blockID := uuid.MustParse("bc40d480-df75-476a-945a-f5969bc63314")
 	noteID := uuid.MustParse("288bafb8-baab-45b9-8f3b-42715d5d752c")
 	eventID := uuid.MustParse("959d5440-4ec6-4336-b461-09971987fbb3")
@@ -198,7 +201,7 @@ func TestUpdateBlock_Success(t *testing.T) {
 	}
 
 	// Call the service
-	block, err := blockService.UpdateBlock(mockDB, blockID.String(), updateData)
+	block, err := blockService.UpdateBlock(mockDB, blockID.String(), updateData, map[string]interface{}{"user_id": userID.String()})
 
 	// Assert expectations
 	assert.NoError(t, err)
@@ -211,6 +214,7 @@ func TestDeleteBlock_Success(t *testing.T) {
 	mockDB, mock := setupMockDB(t)
 	blockService := BlockService{}
 
+	userID := uuid.MustParse("f3c4b2a0-5d8e-4b1c-8f3b-7a2e5d6f7c8b")
 	blockID := uuid.MustParse("bc40d480-df75-476a-945a-f5969bc63314")
 	noteID := uuid.MustParse("288bafb8-baab-45b9-8f3b-42715d5d752c")
 	eventID := uuid.MustParse("959d5440-4ec6-4336-b461-09971987fbb3")
@@ -255,7 +259,7 @@ func TestDeleteBlock_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	// Call the service
-	err := blockService.DeleteBlock(mockDB, blockID.String())
+	err := blockService.DeleteBlock(mockDB, blockID.String(), map[string]interface{}{"user_id": userID.String()})
 
 	// Assert expectations
 	assert.NoError(t, err)
@@ -266,6 +270,7 @@ func TestListBlocksByNote_Success(t *testing.T) {
 	mockDB, mock := setupMockDB(t)
 	blockService := BlockService{}
 
+	userID := uuid.MustParse("f3c4b2a0-5d8e-4b1c-8f3b-7a2e5d6f7c8b")
 	noteID := uuid.MustParse("1b32487f-c44b-4076-be53-599b62f7c415")
 	blockID := uuid.MustParse("bc40d480-df75-476a-945a-f5969bc63314")
 
@@ -283,7 +288,7 @@ func TestListBlocksByNote_Success(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Call the service
-	blocks, err := blockService.ListBlocksByNote(mockDB, noteID.String())
+	blocks, err := blockService.ListBlocksByNote(mockDB, noteID.String(), map[string]interface{}{"user_id": userID.String()})
 
 	// Assert expectations
 	assert.NoError(t, err)

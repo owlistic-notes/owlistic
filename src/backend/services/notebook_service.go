@@ -13,9 +13,9 @@ import (
 
 type NotebookServiceInterface interface {
 	CreateNotebook(db *database.Database, notebookData map[string]interface{}) (models.Notebook, error)
-	GetNotebookById(db *database.Database, id string) (models.Notebook, error)
-	UpdateNotebook(db *database.Database, id string, notebookData map[string]interface{}) (models.Notebook, error)
-	DeleteNotebook(db *database.Database, id string) error
+	GetNotebookById(db *database.Database, id string, params map[string]interface{}) (models.Notebook, error)
+	UpdateNotebook(db *database.Database, id string, notebookData map[string]interface{}, params map[string]interface{}) (models.Notebook, error)
+	DeleteNotebook(db *database.Database, id string, params map[string]interface{}) error
 	ListNotebooksByUser(db *database.Database, userID string) ([]models.Notebook, error)
 	GetAllNotebooks(db *database.Database) ([]models.Notebook, error)
 	GetNotebooks(db *database.Database, params map[string]interface{}) ([]models.Notebook, error)
@@ -116,7 +116,23 @@ func (s *NotebookService) CreateNotebook(db *database.Database, notebookData map
 	return notebook, nil
 }
 
-func (s *NotebookService) GetNotebookById(db *database.Database, id string) (models.Notebook, error) {
+func (s *NotebookService) GetNotebookById(db *database.Database, id string, params map[string]interface{}) (models.Notebook, error) {
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		return models.Notebook{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has viewer access
+	hasAccess, err := RoleServiceInstance.HasNotebookAccess(db, userIDStr, id, "viewer")
+	if err != nil {
+		return models.Notebook{}, err
+	}
+
+	if !hasAccess {
+		return models.Notebook{}, errors.New("not authorized to access this notebook")
+	}
+
 	var notebook models.Notebook
 	if err := db.DB.First(&notebook, "id = ?", id).Error; err != nil {
 		return models.Notebook{}, ErrNotebookNotFound
@@ -124,10 +140,29 @@ func (s *NotebookService) GetNotebookById(db *database.Database, id string) (mod
 	return notebook, nil
 }
 
-func (s *NotebookService) UpdateNotebook(db *database.Database, id string, notebookData map[string]interface{}) (models.Notebook, error) {
+func (s *NotebookService) UpdateNotebook(db *database.Database, id string, notebookData map[string]interface{}, params map[string]interface{}) (models.Notebook, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return models.Notebook{}, tx.Error
+	}
+
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return models.Notebook{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has editor rights
+	hasAccess, err := RoleServiceInstance.HasNotebookAccess(db, userIDStr, id, "editor")
+	if err != nil {
+		tx.Rollback()
+		return models.Notebook{}, err
+	}
+
+	if !hasAccess {
+		tx.Rollback()
+		return models.Notebook{}, errors.New("not authorized to update this notebook")
 	}
 
 	var notebook models.Notebook
@@ -153,7 +188,6 @@ func (s *NotebookService) UpdateNotebook(db *database.Database, id string, noteb
 	}
 
 	// Create event for notebook update
-	userIDStr := notebookData["user_id"].(string)
 	event, err := models.NewEvent(
 		"notebook.updated",
 		"notebook",
@@ -183,16 +217,50 @@ func (s *NotebookService) UpdateNotebook(db *database.Database, id string, noteb
 	return notebook, nil
 }
 
-func (s *NotebookService) DeleteNotebook(db *database.Database, id string) error {
+func (s *NotebookService) DeleteNotebook(db *database.Database, id string, params map[string]interface{}) error {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
+	}
+
+	// Extract user ID for permission check
+	userIDValue, exists := params["user_id"]
+	if !exists {
+		tx.Rollback()
+		return errors.New("user_id must be provided")
+	}
+
+	var userIDStr string
+	switch v := userIDValue.(type) {
+	case string:
+		userIDStr = v
+	case int:
+		userIDStr = fmt.Sprintf("%d", v)
+	case float64:
+		userIDStr = fmt.Sprintf("%d", int(v))
+	case uuid.UUID:
+		userIDStr = v.String()
+	default:
+		tx.Rollback()
+		return fmt.Errorf("user_id has invalid type: %T", userIDValue)
 	}
 
 	var notebook models.Notebook
 	if err := tx.First(&notebook, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return ErrNotebookNotFound
+	}
+
+	// Check if user has owner rights using the new method
+	hasAccess, err := RoleServiceInstance.HasNotebookAccess(db, userIDStr, id, "owner")
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if !hasAccess {
+		tx.Rollback()
+		return errors.New("not authorized to delete this notebook")
 	}
 
 	// Soft delete notebook (gorm will handle this)
@@ -206,7 +274,7 @@ func (s *NotebookService) DeleteNotebook(db *database.Database, id string) error
 		"notebook.deleted",
 		"notebook",
 		"delete",
-		notebook.UserID.String(),
+		userIDStr,
 		map[string]interface{}{
 			"notebook_id": notebook.ID.String(),
 		},
@@ -293,6 +361,40 @@ func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]
 
 	if err := query.Find(&notebooks).Error; err != nil {
 		return nil, err
+	}
+
+	log.Printf("Found %d notebooks directly owned by user %s", len(notebooks), userIDStr)
+
+	// Also find notebooks where the user has been given an explicit role
+	roleParams := map[string]interface{}{
+		"user_id":       userIDStr,
+		"resource_type": string(models.NotebookResource),
+	}
+
+	sharedRoles, err := RoleServiceInstance.GetRoles(db, roleParams)
+	if err != nil {
+		log.Printf("Error finding role-based notebooks: %v", err)
+	} else {
+		for _, role := range sharedRoles {
+			// Skip notebooks the user already owns
+			var isOwned bool
+			for _, notebook := range notebooks {
+				if notebook.ID == role.ResourceID {
+					isOwned = true
+					break
+				}
+			}
+
+			if !isOwned {
+				var sharedNotebook models.Notebook
+				if err := db.DB.Where("id = ? AND deleted_at IS NULL", role.ResourceID).
+					First(&sharedNotebook).Error; err == nil {
+					notebooks = append(notebooks, sharedNotebook)
+				}
+			}
+		}
+		log.Printf("Found %d additional notebooks where user has an explicit role",
+			len(sharedRoles)-len(notebooks))
 	}
 
 	return notebooks, nil

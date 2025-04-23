@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,22 @@ const (
 	EditorRole RoleType = "editor" // Can edit but not delete
 	ViewerRole RoleType = "viewer" // Read-only access
 )
+
+// RoleTypeFromString converts a string to a RoleType
+func RoleTypeFromString(roleStr string) (RoleType, error) {
+	switch roleStr {
+	case "admin":
+		return AdminRole, nil
+	case "owner":
+		return OwnerRole, nil
+	case "editor":
+		return EditorRole, nil
+	case "viewer":
+		return ViewerRole, nil
+	default:
+		return "", errors.New("invalid role type")
+	}
+}
 
 // ResourceType represents the type of resource for RBAC
 type ResourceType string

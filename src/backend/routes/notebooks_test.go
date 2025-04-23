@@ -97,7 +97,14 @@ func (m *MockNotebookService) CreateNotebook(db *database.Database, notebookData
 	}, nil
 }
 
-func (m *MockNotebookService) GetNotebookById(db *database.Database, id string) (models.Notebook, error) {
+// Updated to match interface
+func (m *MockNotebookService) GetNotebookById(db *database.Database, id string, params map[string]interface{}) (models.Notebook, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Notebook{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return models.Notebook{
 			ID:     uuid.Must(uuid.Parse(id)),
@@ -108,7 +115,14 @@ func (m *MockNotebookService) GetNotebookById(db *database.Database, id string) 
 	return models.Notebook{}, services.ErrNotebookNotFound
 }
 
-func (m *MockNotebookService) UpdateNotebook(db *database.Database, id string, updatedData map[string]interface{}) (models.Notebook, error) {
+// Updated to match interface
+func (m *MockNotebookService) UpdateNotebook(db *database.Database, id string, updatedData map[string]interface{}, params map[string]interface{}) (models.Notebook, error) {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return models.Notebook{}, errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return models.Notebook{
 			ID:     uuid.Must(uuid.Parse(id)),
@@ -119,7 +133,14 @@ func (m *MockNotebookService) UpdateNotebook(db *database.Database, id string, u
 	return models.Notebook{}, services.ErrNotebookNotFound
 }
 
-func (m *MockNotebookService) DeleteNotebook(db *database.Database, id string) error {
+// Updated to match interface
+func (m *MockNotebookService) DeleteNotebook(db *database.Database, id string, params map[string]interface{}) error {
+	// Check permissions using the params (simplified for tests)
+	_, hasUserID := params["user_id"]
+	if !hasUserID {
+		return errors.New("user_id must be provided in parameters")
+	}
+
 	if id == "123e4567-e89b-12d3-a456-426614174000" {
 		return nil
 	}

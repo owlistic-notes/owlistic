@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
 	"github.com/thinkstack/services"
 )
 
@@ -73,7 +72,19 @@ func CreateNotebook(c *gin.Context, db *database.Database, notebookService servi
 
 func GetNotebookById(c *gin.Context, db *database.Database, notebookService services.NotebookServiceInterface) {
 	id := c.Param("id")
-	notebook, err := notebookService.GetNotebookById(db, id)
+
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
+
+	notebook, err := notebookService.GetNotebookById(db, id, params)
 	if err != nil {
 		if errors.Is(err, services.ErrNotebookNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Notebook not found"})
@@ -81,24 +92,6 @@ func GetNotebookById(c *gin.Context, db *database.Database, notebookService serv
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
-	}
-
-	// Verify the user has permission to access this notebook
-	userIDInterface, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-	userID := userIDInterface.(uuid.UUID)
-
-	if notebook.UserID != userID {
-		// Check if the user has been given explicit access
-		hasAccess, err := services.RoleServiceInstance.HasAccess(
-			db, userID, notebook.ID, models.NotebookResource, models.ViewerRole)
-		if err != nil || !hasAccess {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to access this notebook"})
-			return
-		}
 	}
 
 	c.JSON(http.StatusOK, notebook)
@@ -112,15 +105,18 @@ func UpdateNotebook(c *gin.Context, db *database.Database, notebookService servi
 		return
 	}
 
-	// Add user ID from context to notebook data for ownership check
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
 	userIDInterface, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-	notebookData["user_id"] = userIDInterface.(uuid.UUID).String()
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
 
-	notebook, err := notebookService.UpdateNotebook(db, id, notebookData)
+	notebook, err := notebookService.UpdateNotebook(db, id, notebookData, params)
 	if err != nil {
 		if errors.Is(err, services.ErrNotebookNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Notebook not found"})
@@ -135,31 +131,18 @@ func UpdateNotebook(c *gin.Context, db *database.Database, notebookService servi
 func DeleteNotebook(c *gin.Context, db *database.Database, notebookService services.NotebookServiceInterface) {
 	id := c.Param("id")
 
-	// Get notebook to verify ownership first
-	notebook, err := notebookService.GetNotebookById(db, id)
-	if err != nil {
-		if errors.Is(err, services.ErrNotebookNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Notebook not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	// Create params map for permissions check
+	params := make(map[string]interface{})
 
-	// Verify current user owns this notebook
+	// Add user ID from context to params
 	userIDInterface, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-	userID := userIDInterface.(uuid.UUID)
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
 
-	if notebook.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to delete this notebook"})
-		return
-	}
-
-	if err := notebookService.DeleteNotebook(db, id); err != nil {
+	if err := notebookService.DeleteNotebook(db, id, params); err != nil {
 		if errors.Is(err, services.ErrNotebookNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Notebook not found"})
 			return

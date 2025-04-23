@@ -137,7 +137,7 @@ func TestUpdateNote_Success(t *testing.T) {
 		"user_id": userID.String(),
 	}
 
-	note, err := service.UpdateNote(db, noteID.String(), updatedData)
+	note, err := service.UpdateNote(db, noteID.String(), updatedData, map[string]interface{}{"user_id": userID.String()})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated Title", note.Title)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -153,7 +153,7 @@ func TestGetNoteById_NotFound(t *testing.T) {
 
 	noteService := &NoteService{}
 
-	_, err := noteService.GetNoteById(db, "non-existent-id")
+	_, err := noteService.GetNoteById(db, "non-existent-id", map[string]interface{}{"user_id": "user-id"})
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "note not found")
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -201,7 +201,7 @@ func TestDeleteNote_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	noteService := &NoteService{}
-	err := noteService.DeleteNote(db, existingID.String())
+	err := noteService.DeleteNote(db, existingID.String(), map[string]interface{}{"user_id": userID.String()})
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

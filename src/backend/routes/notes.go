@@ -50,7 +50,19 @@ func CreateNote(c *gin.Context, db *database.Database, noteService services.Note
 
 func GetNoteById(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
 	id := c.Param("id")
-	note, err := noteService.GetNoteById(db, id)
+
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
+
+	note, err := noteService.GetNoteById(db, id, params)
 	if err != nil {
 		if errors.Is(err, services.ErrNoteNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
@@ -58,28 +70,6 @@ func GetNoteById(c *gin.Context, db *database.Database, noteService services.Not
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
-	}
-
-	// Check if the authenticated user has permission for this note
-	userIDInterface, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
-		return
-	}
-
-	userID, ok := userIDInterface.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
-		return
-	}
-
-	// If user is not the owner, check for explicit permission
-	if note.UserID != userID {
-		hasAccess, err := services.RoleServiceInstance.HasAccess(db, userID, note.ID, "note", "viewer")
-		if err != nil || !hasAccess {
-			c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to access this note"})
-			return
-		}
 	}
 
 	c.JSON(http.StatusOK, note)
@@ -93,15 +83,18 @@ func UpdateNote(c *gin.Context, db *database.Database, noteService services.Note
 		return
 	}
 
-	// Get user ID from context and add to note data for ownership check in service
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Get user ID from context and add to params
 	userIDInterface, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
 		return
 	}
-	noteData["user_id"] = userIDInterface.(uuid.UUID).String()
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
 
-	updatedNote, err := noteService.UpdateNote(db, id, noteData)
+	updatedNote, err := noteService.UpdateNote(db, id, noteData, params)
 	if err != nil {
 		if errors.Is(err, services.ErrNoteNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
@@ -115,7 +108,19 @@ func UpdateNote(c *gin.Context, db *database.Database, noteService services.Note
 
 func DeleteNote(c *gin.Context, db *database.Database, noteService services.NoteServiceInterface) {
 	id := c.Param("id")
-	if err := noteService.DeleteNote(db, id); err != nil {
+
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
+	userIDInterface, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	params["user_id"] = userIDInterface.(uuid.UUID).String()
+
+	if err := noteService.DeleteNote(db, id, params); err != nil {
 		if errors.Is(err, services.ErrNoteNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Note not found"})
 			return

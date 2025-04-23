@@ -22,6 +22,14 @@ type RoleServiceInterface interface {
 	GetRole(db *database.Database, userID uuid.UUID, resourceID uuid.UUID, resourceType models.ResourceType) (models.Role, error)
 	GetRoles(db *database.Database, params map[string]interface{}) ([]models.Role, error)
 	RemoveRole(db *database.Database, roleID uuid.UUID) error
+
+	// New utility methods for RBAC
+	HasSystemRole(db *database.Database, userID string, requiredRole string) (bool, error)
+	HasNoteAccess(db *database.Database, userID string, noteID string, requiredRole string) (bool, error)
+	HasNotebookAccess(db *database.Database, userID string, notebookID string, requiredRole string) (bool, error)
+	HasBlockAccess(db *database.Database, userID string, blockID string, requiredRole string) (bool, error)
+	HasTaskAccess(db *database.Database, userID string, taskID string, requiredRole string) (bool, error)
+	HasAccessByStrings(db *database.Database, userID string, resourceID string, resourceType string, minimumRole string) (bool, error)
 }
 
 type RoleService struct{}
@@ -287,5 +295,111 @@ func (s *RoleService) RemoveRole(db *database.Database, roleID uuid.UUID) error 
 	return nil
 }
 
+// HasSystemRole checks if a user has a specific system-level role
+func (s *RoleService) HasSystemRole(db *database.Database, userID string, requiredRole string) (bool, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, errors.New("invalid user ID format")
+	}
+
+	// Check if user is an admin
+	var adminRoleCount int64
+	if err := db.DB.Model(&models.Role{}).
+		Where("user_id = ? AND resource_type = ? AND role = ?",
+			userUUID, models.UserResource, models.AdminRole).
+		Count(&adminRoleCount).Error; err != nil {
+		return false, err
+	}
+
+	// Admin role always grants access
+	if adminRoleCount > 0 {
+		return true, nil
+	}
+
+	// For non-admin checks, convert the required role
+	requiredRoleType, err := models.RoleTypeFromString(requiredRole)
+	if err != nil {
+		return false, err
+	}
+
+	// Global system role is represented as a role on the UserResource for the user's own ID
+	var role models.Role
+	if err := db.DB.Where("user_id = ? AND resource_id = ? AND resource_type = ?",
+		userUUID, userUUID, models.UserResource).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil // No role found
+		}
+		return false, err
+	}
+
+	// Check if the role is sufficient
+	return isRoleSufficient(role.Role, requiredRoleType), nil
+}
+
+// HasNoteAccess checks if a user has a specific role for a note
+func (s *RoleService) HasNoteAccess(db *database.Database, userID string, noteID string, requiredRole string) (bool, error) {
+	_, err := models.RoleTypeFromString(requiredRole)
+	if err != nil {
+		return false, err
+	}
+
+	return s.HasAccessByStrings(db, userID, noteID, string(models.NoteResource), requiredRole)
+}
+
+// HasNotebookAccess checks if a user has a specific role for a notebook
+func (s *RoleService) HasNotebookAccess(db *database.Database, userID string, notebookID string, requiredRole string) (bool, error) {
+	return s.HasAccessByStrings(db, userID, notebookID, string(models.NotebookResource), requiredRole)
+}
+
+// HasBlockAccess checks if a user has a specific role for a block
+func (s *RoleService) HasBlockAccess(db *database.Database, userID string, blockID string, requiredRole string) (bool, error) {
+	return s.HasAccessByStrings(db, userID, blockID, string(models.BlockResource), requiredRole)
+}
+
+// HasTaskAccess checks if a user has a specific role for a task
+func (s *RoleService) HasTaskAccess(db *database.Database, userID string, taskID string, requiredRole string) (bool, error) {
+	return s.HasAccessByStrings(db, userID, taskID, string(models.TaskResource), requiredRole)
+}
+
+// HasAccessByStrings is a string-based wrapper for HasAccess to make it easier to use from handlers
+func (s *RoleService) HasAccessByStrings(db *database.Database, userID string, resourceID string, resourceTypeStr string, minimumRoleStr string) (bool, error) {
+	// Convert string IDs to UUID
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, errors.New("invalid user ID")
+	}
+
+	resourceUUID, err := uuid.Parse(resourceID)
+	if err != nil {
+		return false, errors.New("invalid resource ID")
+	}
+
+	// Convert resource type string to ResourceType
+	var resourceType models.ResourceType
+	switch resourceTypeStr {
+	case "note":
+		resourceType = models.NoteResource
+	case "notebook":
+		resourceType = models.NotebookResource
+	case "block":
+		resourceType = models.BlockResource
+	case "task":
+		resourceType = models.TaskResource
+	case "user":
+		resourceType = models.UserResource
+	default:
+		return false, errors.New("invalid resource type")
+	}
+
+	// Convert role string to RoleType
+	minimumRole, err := models.RoleTypeFromString(minimumRoleStr)
+	if err != nil {
+		return false, err
+	}
+
+	// Use the existing HasAccess method
+	return s.HasAccess(db, userUUID, resourceUUID, resourceType, minimumRole)
+}
+
 // Global instance that will be initialized in main.go
-var RoleServiceInstance RoleServiceInterface
+var RoleServiceInstance RoleServiceInterface = NewRoleService()

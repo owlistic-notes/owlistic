@@ -14,9 +14,9 @@ import (
 
 type NoteServiceInterface interface {
 	CreateNote(db *database.Database, noteData map[string]interface{}) (models.Note, error)
-	GetNoteById(db *database.Database, id string) (models.Note, error)
-	UpdateNote(db *database.Database, id string, noteData map[string]interface{}) (models.Note, error)
-	DeleteNote(db *database.Database, id string) error
+	GetNoteById(db *database.Database, id string, params map[string]interface{}) (models.Note, error)
+	UpdateNote(db *database.Database, id string, noteData map[string]interface{}, params map[string]interface{}) (models.Note, error)
+	DeleteNote(db *database.Database, id string, params map[string]interface{}) error
 	ListNotesByUser(db *database.Database, userID string) ([]models.Note, error)
 	GetAllNotes(db *database.Database) ([]models.Note, error)
 	GetNotes(db *database.Database, params map[string]interface{}) ([]models.Note, error)
@@ -163,7 +163,23 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 	return completeNote, nil
 }
 
-func (s *NoteService) GetNoteById(db *database.Database, id string) (models.Note, error) {
+func (s *NoteService) GetNoteById(db *database.Database, id string, params map[string]interface{}) (models.Note, error) {
+	// Get user ID from params for permission check
+	userID, ok := params["user_id"].(string)
+	if !ok {
+		return models.Note{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has viewer access using the new method
+	hasAccess, err := RoleServiceInstance.HasNoteAccess(db, userID, id, "viewer")
+	if err != nil {
+		return models.Note{}, err
+	}
+
+	if !hasAccess {
+		return models.Note{}, errors.New("not authorized to access this note")
+	}
+
 	var note models.Note
 	if err := db.DB.Preload("Blocks", func(db *gorm.DB) *gorm.DB {
 		return db.Order("\"blocks\".\"order\" ASC")
@@ -176,33 +192,36 @@ func (s *NoteService) GetNoteById(db *database.Database, id string) (models.Note
 	return note, nil
 }
 
-func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[string]interface{}) (models.Note, error) {
+// UpdateNote handles updating a note with permission checks
+func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[string]interface{}, params map[string]interface{}) (models.Note, error) {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return models.Note{}, tx.Error
+	}
+
+	// Get user ID from params for permission check (not from noteData)
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return models.Note{}, errors.New("user_id must be provided in parameters")
+	}
+
+	// Check if user has editor rights using the new method
+	hasAccess, err := RoleServiceInstance.HasNoteAccess(db, userIDStr, id, "editor")
+	if err != nil {
+		tx.Rollback()
+		return models.Note{}, err
+	}
+
+	if !hasAccess {
+		tx.Rollback()
+		return models.Note{}, errors.New("not authorized to update this note")
 	}
 
 	var note models.Note
 	if err := tx.First(&note, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return models.Note{}, ErrNoteNotFound
-	}
-
-	// Verify user has permission to update this note
-	userIDStr, ok := noteData["user_id"].(string)
-	if ok {
-		userID, err := uuid.Parse(userIDStr)
-		if err == nil {
-			if note.UserID != userID {
-				// User is not the owner, check if they have editor role
-				hasEditorAccess, err := RoleServiceInstance.HasAccess(
-					db, userID, note.ID, models.NoteResource, models.EditorRole)
-				if err != nil || !hasEditorAccess {
-					tx.Rollback()
-					return models.Note{}, errors.New("not authorized to update this note")
-				}
-			}
-		}
 	}
 
 	// Update note fields
@@ -240,7 +259,6 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[
 	}
 
 	// Create event for note update
-	userIDStr = noteData["user_id"].(string)
 	event, err := models.NewEvent(
 		"note.updated",
 		"note",
@@ -278,10 +296,17 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[
 	return updatedNote, nil
 }
 
-func (s *NoteService) DeleteNote(db *database.Database, id string) error {
+func (s *NoteService) DeleteNote(db *database.Database, id string, params map[string]interface{}) error {
 	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
+	}
+
+	// Get user ID from params for permission check
+	userIDStr, ok := params["user_id"].(string)
+	if !ok {
+		tx.Rollback()
+		return errors.New("user_id must be provided in parameters")
 	}
 
 	var note models.Note
@@ -291,6 +316,18 @@ func (s *NoteService) DeleteNote(db *database.Database, id string) error {
 			return ErrNoteNotFound
 		}
 		return err
+	}
+
+	// Check if user has owner rights using the new method
+	hasAccess, err := RoleServiceInstance.HasNoteAccess(db, userIDStr, id, "owner")
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if !hasAccess {
+		tx.Rollback()
+		return errors.New("not authorized to delete this note")
 	}
 
 	// Soft delete note (gorm will handle this)
@@ -304,7 +341,7 @@ func (s *NoteService) DeleteNote(db *database.Database, id string) error {
 		"note.deleted",
 		"note",
 		"delete",
-		note.UserID.String(),
+		userIDStr,
 		map[string]interface{}{
 			"note_id":     note.ID.String(),
 			"notebook_id": note.NotebookID.String(),
@@ -344,6 +381,7 @@ func (s *NoteService) GetAllNotes(db *database.Database) ([]models.Note, error) 
 	return notes, nil
 }
 
+// GetNotes retrieves notes based on query parameters with access control
 func (s *NoteService) GetNotes(db *database.Database, params map[string]interface{}) ([]models.Note, error) {
 	var notes []models.Note
 	query := db.DB
@@ -384,19 +422,35 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 
 	log.Printf("Found %d notes directly owned by user %s", len(notes), userID)
 
-	// Also find notes where the user has been given a role but is not the owner
-	var roleBasedNotes []models.Note
-	err := db.DB.Model(&models.Note{}).
-		Joins("JOIN roles ON roles.resource_id = notes.id").
-		Where("roles.user_id = ? AND roles.resource_type = ? AND notes.user_id != ? AND notes.deleted_at IS NULL",
-			userID, models.NoteResource, userID).
-		Find(&roleBasedNotes).Error
+	// Find notes where the user has explicit roles (using our new role service methods)
+	var allRoles []models.Role
+	roleParams := map[string]interface{}{
+		"user_id":       userID,
+		"resource_type": string(models.NoteResource),
+	}
 
+	sharedNotes, err := RoleServiceInstance.GetRoles(db, roleParams)
 	if err != nil {
 		log.Printf("Error finding role-based notes: %v", err)
 	} else {
-		log.Printf("Found %d additional notes where user has an explicit role", len(roleBasedNotes))
-		notes = append(notes, roleBasedNotes...)
+		for _, role := range sharedNotes {
+			// Skip notes that the user already owns
+			var isOwned bool
+			for _, note := range notes {
+				if note.ID == role.ResourceID {
+					isOwned = true
+					break
+				}
+			}
+
+			if !isOwned {
+				var sharedNote models.Note
+				if err := db.DB.Where("id = ? AND deleted_at IS NULL", role.ResourceID).First(&sharedNote).Error; err == nil {
+					notes = append(notes, sharedNote)
+				}
+			}
+		}
+		log.Printf("Found %d additional notes where user has an explicit role", len(notes)-len(allRoles))
 	}
 
 	// Load blocks for each note

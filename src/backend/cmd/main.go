@@ -112,8 +112,6 @@ func main() {
 
 	// Create protected API group with auth middleware
 	apiGroup.Use(middleware.AuthMiddleware(authService))
-	// Enable access control middleware for RBAC
-	// apiGroup.Use(middleware.AccessControlMiddleware(db))
 	// Register protected API routes using the API group
 	routes.RegisterNoteRoutes(apiGroup, db, services.NoteServiceInstance)
 	routes.RegisterTaskRoutes(apiGroup, db, services.TaskServiceInstance)

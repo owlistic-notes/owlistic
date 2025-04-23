@@ -61,16 +61,19 @@ func CreateBlock(c *gin.Context, db *database.Database, blockService services.Bl
 		return
 	}
 
-	// Add user ID from context to blockData
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
 	userIDInterface, exists := c.Get("userID")
 	if exists {
-		blockData["user_id"] = userIDInterface.(uuid.UUID).String()
+		params["user_id"] = userIDInterface.(uuid.UUID).String()
 	} else {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	block, err := blockService.CreateBlock(db, blockData)
+	block, err := blockService.CreateBlock(db, blockData, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -80,7 +83,20 @@ func CreateBlock(c *gin.Context, db *database.Database, blockService services.Bl
 
 func GetBlockById(c *gin.Context, db *database.Database, blockService services.BlockServiceInterface) {
 	id := c.Param("id")
-	block, err := blockService.GetBlockById(db, id)
+
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params
+	userIDInterface, exists := c.Get("userID")
+	if exists {
+		params["user_id"] = userIDInterface.(uuid.UUID).String()
+	} else {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	block, err := blockService.GetBlockById(db, id, params)
 	if err != nil {
 		if errors.Is(err, services.ErrBlockNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Block not found"})
@@ -100,16 +116,19 @@ func UpdateBlock(c *gin.Context, db *database.Database, blockService services.Bl
 		return
 	}
 
-	// Add user ID from context to blockData for permission checking
+	// Create params map for permissions check
+	params := make(map[string]interface{})
+
+	// Add user ID from context to params (not to blockData)
 	userIDInterface, exists := c.Get("userID")
 	if exists {
-		blockData["user_id"] = userIDInterface.(uuid.UUID).String()
+		params["user_id"] = userIDInterface.(uuid.UUID).String()
 	} else {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	block, err := blockService.UpdateBlock(db, id, blockData)
+	block, err := blockService.UpdateBlock(db, id, blockData, params)
 	if err != nil {
 		if errors.Is(err, services.ErrBlockNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Block not found"})
@@ -127,31 +146,19 @@ func UpdateBlock(c *gin.Context, db *database.Database, blockService services.Bl
 func DeleteBlock(c *gin.Context, db *database.Database, blockService services.BlockServiceInterface) {
 	id := c.Param("id")
 
-	// We need to get the block first to check ownership
-	block, err := blockService.GetBlockById(db, id)
-	if err != nil {
-		if errors.Is(err, services.ErrBlockNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Block not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	// Create params map for permissions check
+	params := make(map[string]interface{})
 
-	// Verify user is authorized to delete this block
+	// Add user ID from context to params
 	userIDInterface, exists := c.Get("userID")
-	if !exists {
+	if exists {
+		params["user_id"] = userIDInterface.(uuid.UUID).String()
+	} else {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	userID := userIDInterface.(uuid.UUID)
-	if block.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to delete this block"})
-		return
-	}
-
-	if err := blockService.DeleteBlock(db, id); err != nil {
+	if err := blockService.DeleteBlock(db, id, params); err != nil {
 		if errors.Is(err, services.ErrBlockNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Block not found"})
 			return
@@ -181,7 +188,7 @@ func GetBlocksByNote(c *gin.Context, db *database.Database, blockService service
 	// Add note ID to params
 	params["note_id"] = noteID
 
-	blocks, err := blockService.GetBlocks(db, params)
+	blocks, err := blockService.ListBlocksByNote(db, noteID, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
