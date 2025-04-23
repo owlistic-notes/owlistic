@@ -9,12 +9,6 @@ import 'core/router.dart';
 import 'core/theme.dart';
 import 'providers/theme_provider.dart';
 import 'providers/auth_provider.dart';
-import 'providers/notes_provider.dart';
-import 'providers/notebooks_provider.dart';
-import 'providers/tasks_provider.dart';
-import 'providers/block_provider.dart';
-import 'providers/trash_provider.dart';
-import 'providers/websocket_provider.dart';
 import 'services/auth_service.dart';
 import 'services/note_service.dart';
 import 'services/notebook_service.dart';
@@ -90,7 +84,13 @@ void main() async {
   };
   
   // Load environment variables
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+    Logger('DotEnv').info('Environment variables loaded successfully');
+  } catch (e) {
+    Logger('DotEnv').error('Failed to load .env file', e);
+    // Continue with default values or show an error to the user
+  }
   
   // Initialize services and load token
   await initializeServices();
