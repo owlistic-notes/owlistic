@@ -7,6 +7,8 @@ class Task {
   final String? dueDate;
   final String? noteId;
   final String? blockId;
+  final DateTime? createdAt;
+  final DateTime? deletedAt;
 
   const Task({
     required this.id,
@@ -17,9 +19,30 @@ class Task {
     this.dueDate,
     this.noteId,
     this.blockId,
+    this.createdAt,
+    this.deletedAt,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
+    // Parse createdAt and deletedAt
+    DateTime? createdAt;
+    if (json['created_at'] != null) {
+      try {
+        createdAt = DateTime.parse(json['created_at']);
+      } catch (e) {
+        print('Error parsing created_at: $e');
+      }
+    }
+
+    DateTime? deletedAt;
+    if (json['deleted_at'] != null) {
+      try {
+        deletedAt = DateTime.parse(json['deleted_at']);
+      } catch (e) {
+        print('Error parsing deleted_at: $e');
+      }
+    }
+
     return Task(
       id: json['ID'] ?? '',
       title: json['Title'] ?? '',
@@ -29,6 +52,8 @@ class Task {
       dueDate: json['DueDate'],
       noteId: json['NoteID'],
       blockId: json['block_id'],
+      createdAt: createdAt,
+      deletedAt: deletedAt,
     );
   }
   
@@ -42,6 +67,35 @@ class Task {
       if (dueDate != null) 'DueDate': dueDate,
       if (noteId != null) 'NoteID': noteId,
       if (blockId != null) 'block_id': blockId,
+      if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
     };
+  }
+
+  /// Creates a copy of this task with the given fields replaced with the new values
+  Task copyWith({
+    String? id,
+    String? title,
+    bool? isCompleted,
+    String? userId,
+    String? description,
+    String? dueDate,
+    String? noteId,
+    String? blockId,
+    DateTime? createdAt,
+    DateTime? deletedAt,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      isCompleted: isCompleted ?? this.isCompleted,
+      userId: userId ?? this.userId,
+      description: description ?? this.description,
+      dueDate: dueDate ?? this.dueDate,
+      noteId: noteId ?? this.noteId,
+      blockId: blockId ?? this.blockId,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+    );
   }
 }

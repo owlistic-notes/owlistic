@@ -3,17 +3,19 @@ import 'block.dart';
 class Note {
   final String id;
   final String title;
-  final String userId;
   final String notebookId;
+  final String userId;
   final List<Block> blocks;
+  final DateTime? createdAt;
   final DateTime? deletedAt;
 
   const Note({
     required this.id,
     required this.title,
-    required this.userId,
     required this.notebookId,
+    required this.userId,
     this.blocks = const [],
+    this.createdAt,
     this.deletedAt,
   });
 
@@ -23,21 +25,51 @@ class Note {
   }
 
   factory Note.fromJson(Map<String, dynamic> json) {
+    List<Block> blocksList = [];
+    
+    // Parse blocks if available
+    if (json.containsKey('blocks')) {
+      final blocksJson = json['blocks'];
+      if (blocksJson != null) {
+        try {
+          if (blocksJson is List) {
+            blocksList = blocksJson
+              .where((blockJson) => blockJson != null)
+              .map<Block>((blockJson) => Block.fromJson(blockJson))
+              .toList();
+          }
+        } catch (e) {
+          print('Error parsing blocks in note: $e');
+        }
+      }
+    }
+    
+    // Parse createdAt and deletedAt
+    DateTime? createdAt;
+    if (json['created_at'] != null) {
+      try {
+        createdAt = DateTime.parse(json['created_at']);
+      } catch (e) {
+        print('Error parsing created_at: $e');
+      }
+    }
+
     DateTime? deletedAt;
     if (json['deleted_at'] != null) {
       try {
         deletedAt = DateTime.parse(json['deleted_at']);
-      } catch (_) {}
+      } catch (e) {
+        print('Error parsing deleted_at: $e');
+      }
     }
-    
+
     return Note(
       id: json['id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
-      userId: json['user_id']?.toString() ?? '',
       notebookId: json['notebook_id']?.toString() ?? '',
-      blocks: (json['blocks'] as List<dynamic>?)
-          ?.map((block) => Block.fromJson(block))
-          .toList() ?? const [],
+      userId: json['user_id']?.toString() ?? '',
+      blocks: blocksList,
+      createdAt: createdAt,
       deletedAt: deletedAt,
     );
   }
@@ -46,9 +78,11 @@ class Note {
     return {
       'id': id,
       'title': title,
-      'user_id': userId,
       'notebook_id': notebookId,
+      'user_id': userId,
       'blocks': blocks.map((block) => block.toJson()).toList(),
+      if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
     };
   }
   
@@ -56,16 +90,20 @@ class Note {
   Note copyWith({
     String? id,
     String? title,
-    String? userId,
     String? notebookId,
+    String? userId,
     List<Block>? blocks,
+    DateTime? createdAt,
+    DateTime? deletedAt,
   }) {
     return Note(
       id: id ?? this.id,
       title: title ?? this.title,
-      userId: userId ?? this.userId,
       notebookId: notebookId ?? this.notebookId,
+      userId: userId ?? this.userId,
       blocks: blocks ?? this.blocks,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }

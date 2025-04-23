@@ -6,6 +6,8 @@ class Notebook {
   final String description;
   final String userId;
   final List<Note> notes;
+  final DateTime? createdAt;
+  final DateTime? deletedAt;
 
   const Notebook({
     required this.id,
@@ -13,6 +15,8 @@ class Notebook {
     required this.description,
     required this.userId,
     this.notes = const [],
+    this.createdAt,
+    this.deletedAt,
   });
 
   factory Notebook.fromJson(Map<String, dynamic> json) {
@@ -35,12 +39,33 @@ class Notebook {
       }
     }
     
+    // Parse createdAt and deletedAt
+    DateTime? createdAt;
+    if (json['created_at'] != null) {
+      try {
+        createdAt = DateTime.parse(json['created_at']);
+      } catch (e) {
+        print('Error parsing created_at: $e');
+      }
+    }
+
+    DateTime? deletedAt;
+    if (json['deleted_at'] != null) {
+      try {
+        deletedAt = DateTime.parse(json['deleted_at']);
+      } catch (e) {
+        print('Error parsing deleted_at: $e');
+      }
+    }
+    
     return Notebook(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       userId: json['user_id']?.toString() ?? '',
       notes: notesList,
+      createdAt: createdAt,
+      deletedAt: deletedAt,
     );
   }
   
@@ -51,6 +76,8 @@ class Notebook {
       'description': description,
       'user_id': userId,
       'notes': notes.map((note) => note.toJson()).toList(),
+      if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
     };
   }
   
@@ -61,6 +88,8 @@ class Notebook {
     String? description,
     String? userId,
     List<Note>? notes,
+    DateTime? createdAt,
+    DateTime? deletedAt,
   }) {
     return Notebook(
       id: id ?? this.id,
@@ -68,6 +97,8 @@ class Notebook {
       description: description ?? this.description,
       userId: userId ?? this.userId,
       notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }
