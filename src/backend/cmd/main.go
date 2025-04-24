@@ -98,7 +98,7 @@ func main() {
 
 	// Register public routes (no auth required)
 	routes.RegisterAuthRoutes(authGroup, db, authService)
-	routes.RegisterUserRoutes(apiGroup, db, userService, authService)
+	routes.RegisterUserRoutes(authGroup, db, userService, authService)
 
 	// Create protected API group with auth middleware
 	apiGroup.Use(middleware.AuthMiddleware(authService))
