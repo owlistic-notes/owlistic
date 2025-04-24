@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/thinkstack/config"
@@ -29,7 +28,8 @@ type KafkaProducer struct {
 }
 
 var (
-	defaultProducer Producer
+	// DefaultProducer is the global producer instance
+	DefaultProducer Producer
 	producerMutex   sync.RWMutex
 )
 
@@ -40,26 +40,21 @@ func NewKafkaProducer(brokerAddress string) (Producer, error) {
 		brokerAddress = "localhost:9092"
 	}
 
-	log.Printf("Attempting to connect to Kafka broker at: %s", brokerAddress)
+	log.Printf("Connecting to Kafka broker at: %s", brokerAddress)
 
 	// Create the Kafka producer with client ID for better traceability
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":        brokerAddress,
-		"socket.timeout.ms":        10000,
-		"client.id":                "thinkstack-producer-main",
-		"message.timeout.ms":       30000,
-		"retries":                  5,
-		"retry.backoff.ms":         1000,
-		"security.protocol":        "plaintext",
+		"bootstrap.servers":  brokerAddress,
+		"socket.timeout.ms":  10000,
+		"client.id":          "thinkstack-producer-main",
+		"message.timeout.ms": 30000,
+		"retries":            5,
+		"retry.backoff.ms":   1000,
+		"security.protocol":  "plaintext",
 	})
 
 	if err != nil {
-		// Start a background task to retry connection
-		kp := &KafkaProducer{available: false}
-		go kp.retryProducerConnection(brokerAddress)
-		SetKafkaEnabled(false)
-
-		return kp, fmt.Errorf("failed to create Kafka producer: %v", err)
+		return nil, fmt.Errorf("failed to create Kafka producer: %v", err)
 	}
 
 	kp := &KafkaProducer{
@@ -70,7 +65,6 @@ func NewKafkaProducer(brokerAddress string) (Producer, error) {
 	// Start event handler
 	go kp.handleProducerEvents()
 
-	SetKafkaEnabled(true)
 	log.Println("Kafka producer initialized successfully")
 	return kp, nil
 }
@@ -87,37 +81,10 @@ func InitProducer() error {
 
 	var err error
 	producerMutex.Lock()
-	defaultProducer, err = NewKafkaProducer(broker)
+	DefaultProducer, err = NewKafkaProducer(broker)
 	producerMutex.Unlock()
 
 	return err
-}
-
-// Try to reconnect in the background
-func (kp *KafkaProducer) retryProducerConnection(broker string) {
-	for retries := 0; retries < 5; retries++ {
-		time.Sleep(10 * time.Second)
-		log.Printf("Retrying Kafka producer connection (attempt %d/5)...", retries+1)
-
-		p, err := kafka.NewProducer(&kafka.ConfigMap{
-			"bootstrap.servers":        broker,
-			"socket.timeout.ms":        10000,
-			"client.id":                "thinkstack-producer-retry",
-			"broker.address.family":    "v4",
-		})
-
-		if err == nil {
-			kp.mutex.Lock()
-			kp.producer = p
-			kp.available = true
-			kp.mutex.Unlock()
-			SetKafkaEnabled(true)
-			log.Println("Successfully reconnected Kafka producer")
-			go kp.handleProducerEvents()
-			return
-		}
-	}
-	log.Println("Failed to reconnect Kafka producer after 5 attempts")
 }
 
 // Handle asynchronous producer events
@@ -143,7 +110,7 @@ func (kp *KafkaProducer) handleProducerEvents() {
 				kp.mutex.Lock()
 				kp.available = false
 				kp.mutex.Unlock()
-				SetKafkaEnabled(false)
+				log.Printf("All Kafka brokers are down")
 			}
 		}
 	}
@@ -211,35 +178,24 @@ func (kp *KafkaProducer) IsAvailable() bool {
 	return kp.available
 }
 
-// Global functions that delegate to the default producer instance
-
-func PublishMessage(topic string, key string, value string) error {
-	producerMutex.RLock()
-	p := defaultProducer
-	producerMutex.RUnlock()
-
-	if p == nil {
-		return fmt.Errorf("default kafka producer not initialized")
-	}
-	return p.PublishMessage(topic, key, value)
-}
-
+// CloseProducer closes the default producer instance
 func CloseProducer() {
 	producerMutex.Lock()
 	defer producerMutex.Unlock()
 
-	if defaultProducer != nil {
-		defaultProducer.Close()
-		defaultProducer = nil
+	if DefaultProducer != nil {
+		DefaultProducer.Close()
+		DefaultProducer = nil
 	}
 }
 
+// IsProducerAvailable returns whether the default producer is available
 func IsProducerAvailable() bool {
 	producerMutex.RLock()
 	defer producerMutex.RUnlock()
 
-	if defaultProducer == nil {
+	if DefaultProducer == nil {
 		return false
 	}
-	return defaultProducer.IsAvailable()
+	return DefaultProducer.IsAvailable()
 }

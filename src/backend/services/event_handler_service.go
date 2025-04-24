@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -15,7 +14,6 @@ type EventHandlerServiceInterface interface {
 	Start()
 	Stop()
 	ProcessPendingEvents()
-	IsKafkaAvailable() bool
 }
 
 type EventHandlerService struct {
@@ -23,49 +21,41 @@ type EventHandlerService struct {
 	isRunning     bool
 	ticker        *time.Ticker
 	kafkaProducer broker.Producer
-	kafkaEnabled  bool
 }
 
+// NewEventHandlerService creates a new service with the default producer
 func NewEventHandlerService(db *database.Database) EventHandlerServiceInterface {
 	return &EventHandlerService{
-		db:           db,
-		isRunning:    false,
-		ticker:       time.NewTicker(1 * time.Second),
-		kafkaEnabled: broker.IsKafkaEnabled(),
-		// By default, use the global producer. This can be overridden for testing
-		kafkaProducer: nil, // Will use the global producer via broker.PublishMessage
+		db:            db,
+		isRunning:     false,
+		ticker:        time.NewTicker(1 * time.Second),
+		kafkaProducer: broker.DefaultProducer,
 	}
 }
 
-// NewEventHandlerServiceWithProducer creates a new EventHandlerService with a custom producer
+// NewEventHandlerServiceWithProducer creates a service with a custom producer (for testing)
 func NewEventHandlerServiceWithProducer(db *database.Database, producer broker.Producer) EventHandlerServiceInterface {
 	return &EventHandlerService{
 		db:            db,
 		isRunning:     false,
 		ticker:        time.NewTicker(1 * time.Second),
 		kafkaProducer: producer,
-		kafkaEnabled:  producer != nil && producer.IsAvailable(),
 	}
 }
 
+// Start begins the event processing loop
 func (s *EventHandlerService) Start() {
 	if s.isRunning {
 		return
 	}
 
-	// Check if Kafka is available before starting
-	s.kafkaEnabled = broker.IsKafkaEnabled()
-
-	if !s.kafkaEnabled {
-		log.Println("Warning: EventHandlerService started with Kafka disabled - events will not be dispatched")
-	} else {
-		log.Println("EventHandlerService started successfully with Kafka enabled")
-	}
+	log.Println("EventHandlerService started successfully")
 
 	s.isRunning = true
 	go s.ProcessPendingEvents()
 }
 
+// Stop halts the event processing loop
 func (s *EventHandlerService) Stop() {
 	if !s.isRunning {
 		return
@@ -74,22 +64,11 @@ func (s *EventHandlerService) Stop() {
 	s.ticker.Stop()
 }
 
-// IsKafkaAvailable reports whether events can be dispatched
-func (s *EventHandlerService) IsKafkaAvailable() bool {
-	return s.kafkaEnabled
-}
-
+// ProcessPendingEvents fetches and processes events from the database
 func (s *EventHandlerService) ProcessPendingEvents() {
 	for range s.ticker.C {
 		if !s.isRunning {
 			return
-		}
-
-		// Check if Kafka is available
-		s.kafkaEnabled = broker.IsKafkaEnabled()
-		if !s.kafkaEnabled {
-			// Don't attempt to process events if Kafka is unavailable
-			continue
 		}
 
 		var events []models.Event
@@ -113,12 +92,8 @@ func (s *EventHandlerService) ProcessPendingEvents() {
 	}
 }
 
+// dispatchEvent processes and publishes a single event
 func (s *EventHandlerService) dispatchEvent(event models.Event) error {
-	// Check if Kafka is enabled before trying to dispatch
-	if !s.kafkaEnabled {
-		return fmt.Errorf("cannot dispatch event: Kafka is not available")
-	}
-
 	// Parse event data into a proper object
 	var dataMap map[string]interface{}
 	if err := json.Unmarshal(event.Data, &dataMap); err != nil {
@@ -126,56 +101,55 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 		dataMap = make(map[string]interface{})
 	}
 
-	// Build a consistent event structure for all resources
-	eventPayload := map[string]interface{}{
-		"data": dataMap, // Original event data
+	// Determine resource type and ID based on entity
+	var resourceType, resourceId string
+	resourceType = event.Entity // Default resource type to entity
+	
+	// Extract resource IDs
+	if noteId, exists := dataMap["note_id"]; exists {
+		if resourceType == "note" {
+			resourceId = noteId.(string)
+		}
+	}
+	if notebookId, exists := dataMap["notebook_id"]; exists {
+		if resourceType == "notebook" {
+			resourceId = notebookId.(string)
+		}
+	}
+	if blockId, exists := dataMap["block_id"]; exists {
+		if resourceType == "block" {
+			resourceId = blockId.(string)
+		}
+	}
+	
+	// Also check for direct ID in the data
+	if id, exists := dataMap["id"]; exists && resourceId == "" {
+		resourceId = id.(string)
 	}
 
-	// Add standard metadata
-	eventPayload["event_id"] = event.ID.String()
-	eventPayload["timestamp"] = event.Timestamp
-	eventPayload["entity"] = event.Entity
-	eventPayload["type"] = event.Event
+	// Add standard metadata to the data directly (no nested payload)
+	dataMap["event_id"] = event.ID.String()
+	dataMap["timestamp"] = event.Timestamp
+	dataMap["entity"] = event.Entity
+	dataMap["type"] = event.Event
 
 	// Get topic based on entity type
 	topic := getTopicForEvent(event.Entity)
 
-	// Extract and add resource IDs to the top level for easier access
-	if noteId, exists := dataMap["note_id"]; exists {
-		eventPayload["note_id"] = noteId
-	}
-	if notebookId, exists := dataMap["notebook_id"]; exists {
-		eventPayload["notebook_id"] = notebookId
-	}
-	if blockId, exists := dataMap["block_id"]; exists {
-		eventPayload["block_id"] = blockId
-	}
-	if userId, exists := dataMap["user_id"]; exists {
-		eventPayload["user_id"] = userId
-	}
+	log.Printf("Dispatching event to topic %s: %v", topic, dataMap)
 
-	log.Printf("Dispatching event to topic %s: %v", topic, eventPayload)
+	// Create StandardMessage with "event" as type and event.Event as the event name
+	message := models.NewStandardMessage(models.EventMessage, event.Event, dataMap).
+		WithResource(resourceType, resourceId)
 
-	// The type is only needed at the top level, not duplicated in the payload
-	fullPayload := map[string]interface{}{
-		"type":    event.Event,
-		"payload": eventPayload,
-	}
-
-	// Publish the event
-	jsonData, err := json.Marshal(fullPayload)
+	// Publish the event using the StandardMessage format
+	jsonData, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
 
-	// Use either the custom producer if set, or the global function
-	var publishErr error
-	if s.kafkaProducer != nil {
-		publishErr = s.kafkaProducer.PublishMessage(topic, event.Event, string(jsonData))
-	} else {
-		publishErr = broker.PublishMessage(topic, event.Event, string(jsonData))
-	}
-
+	// Always use the kafka producer - it will never be null
+	publishErr := s.kafkaProducer.PublishMessage(topic, event.Event, string(jsonData))
 	if publishErr != nil {
 		return publishErr
 	}

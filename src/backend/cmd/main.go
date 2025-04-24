@@ -26,18 +26,12 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize Kafka producer with better error handling
-	kafkaAvailable := true
+	// Initialize Kafka producer - fail if not available
 	err = broker.InitProducer()
 	if err != nil {
-		log.Printf("Warning: Failed to initialize Kafka producer: %v", err)
-		log.Println("The application will continue, but event publishing will be disabled")
-		kafkaAvailable = false
-		broker.SetKafkaEnabled(false)
-	} else {
-		broker.SetKafkaEnabled(true)
-		defer broker.CloseProducer()
+		log.Fatalf("Failed to initialize Kafka producer: %v", err)
 	}
+	defer broker.CloseProducer()
 
 	// Initialize all service instances properly with database
 	// Initialize authentication service
@@ -70,18 +64,14 @@ func main() {
 	webSocketService.SetJWTSecret([]byte(cfg.JWTSecret))
 	services.WebSocketServiceInstance = webSocketService
 
-	// Only start Kafka-dependent services if Kafka is available
-	if kafkaAvailable {
-		log.Println("Starting event handler service...")
-		eventHandlerService.Start()
-		defer eventHandlerService.Stop()
+	// Start event-based services
+	log.Println("Starting event handler service...")
+	eventHandlerService.Start()
+	defer eventHandlerService.Stop()
 
-		log.Println("Starting WebSocket service...")
-		webSocketService.Start()
-		defer webSocketService.Stop()
-	} else {
-		log.Println("Kafka-dependent services are disabled due to Kafka unavailability")
-	}
+	log.Println("Starting WebSocket service...")
+	webSocketService.Start()
+	defer webSocketService.Stop()
 
 	router := gin.Default()
 

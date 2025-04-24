@@ -24,8 +24,8 @@ func (s *NotificationService) PublishNotification(userID, eventType, message, ti
 		return err
 	}
 
-	broker.PublishMessage(broker.NotificationTopic, userID, string(eventJSON))
-	return nil
+	// Always use the DefaultProducer directly - it will never be null
+	return broker.DefaultProducer.PublishMessage(broker.NotificationTopic, userID, string(eventJSON))
 }
 
 var NotificationServiceInstance NotificationServiceInterface = &NotificationService{}

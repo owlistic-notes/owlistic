@@ -229,6 +229,7 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 
 		// Handle message based on type
 		switch clientMsg.Type {
+
 		case "ping":
 			// Handle ping messages
 			log.Printf("Ping message from user %s", wsConn.userID)
@@ -237,6 +238,7 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 			pongBytes, _ := json.Marshal(pong)
 			wsConn.send <- pongBytes
 			log.Printf("Pong sent to user %s", wsConn.userID)
+
 		case models.EventMessage:
 			// Handle event messages
 			log.Printf("Event message from user %s: Event=%s", wsConn.userID, clientMsg.Event)
@@ -246,6 +248,7 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 
 			// Process based on specific event type
 			switch eventName {
+
 			case "presence":
 				// Handle presence notifications
 				log.Printf("User %s sent presence event", wsConn.userID)
@@ -300,19 +303,22 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 
 				// Check for resource subscription
 				if resource, ok := clientMsg.Payload["resource"].(string); ok {
-					resourceID := ""
-					if id, ok := clientMsg.Payload["id"].(string); ok {
-						resourceID = id
-					}
-
+					resourceID, hasID := clientMsg.Payload["id"].(string)
+					
 					log.Printf("User %s subscribed to resource: %s ID: %s",
 						wsConn.userID, resource, resourceID)
 
-					// Send confirmation
-					confirm := models.NewStandardMessage("subscription", "confirmed", map[string]interface{}{
+					// Send confirmation - only include ID if it's not empty
+					payload := map[string]interface{}{
 						"resource": resource,
-						"id":       resourceID,
-					})
+					}
+					
+					// Only add the ID to the payload if it exists and is not empty
+					if hasID && resourceID != "" {
+						payload["id"] = resourceID
+					}
+					
+					confirm := models.NewStandardMessage("subscription", "confirmed", payload)
 					confirmBytes, _ := json.Marshal(confirm)
 					wsConn.send <- confirmBytes
 				}

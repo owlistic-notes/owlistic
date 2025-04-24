@@ -320,6 +320,8 @@ class WebSocketService {
   // Handle incoming messages with improved logging
   void _handleMessage(Map<String, dynamic> message) {
     try {
+      _logger.debug('Received raw message: $message');
+
       final String type = message['type'] ?? 'unknown';
       final String event = message['event'] ?? 'unknown';
       

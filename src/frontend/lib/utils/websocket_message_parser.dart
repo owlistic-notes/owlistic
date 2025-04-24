@@ -4,25 +4,41 @@ import '../utils/logger.dart';
 
 /// Class to represent a standardized WebSocket message with RBAC information
 class WebSocketMessage {
+  final String id;
   final String type;
   final String event;
+  final DateTime timestamp;
   final Map<String, dynamic> payload;
   final String? resourceType;
   final String? resourceId;
 
   WebSocketMessage({
+    required this.id,
     required this.type,
     required this.event,
+    required this.timestamp,
     required this.payload,
     this.resourceType,
     this.resourceId,
   });
 
   factory WebSocketMessage.fromJson(Map<String, dynamic> json) {
-    // Get standard fields directly from the message
+    // Parse timestamp from ISO string or use current time as fallback
+    DateTime timestamp;
+    try {
+      timestamp = json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'])
+          : DateTime.now();
+    } catch (e) {
+      timestamp = DateTime.now();
+      Logger("WebSocketMessageParser").error('Failed to parse timestamp: $e');
+    }
+    
     return WebSocketMessage(
+      id: json['id'] ?? '',
       type: json['type'] ?? 'unknown',
       event: json['event'] ?? 'unknown',
+      timestamp: timestamp,
       payload: json['payload'] != null 
           ? Map<String, dynamic>.from(json['payload']) 
           : {},
@@ -33,8 +49,10 @@ class WebSocketMessage {
   
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'type': type,
       'event': event,
+      'timestamp': timestamp.toIso8601String(),
       'payload': payload,
       if (resourceType != null) 'resource_type': resourceType,
       if (resourceId != null) 'resource_id': resourceId,
