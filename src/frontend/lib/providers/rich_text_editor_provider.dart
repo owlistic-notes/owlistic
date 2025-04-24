@@ -309,6 +309,22 @@ class RichTextEditorProvider with ChangeNotifier {
           _handleNewNodeCreated(nodeId);
         }
       }
+    } 
+    // If we have fewer nodes than before, there might be deleted nodes
+    else if (currentNodeCount < _lastKnownNodeCount) {
+      _logger.debug('Document node count decreased: $_lastKnownNodeCount -> $currentNodeCount');
+      
+      // Find deleted nodes (present in previous list but not in current list)
+      final deletedNodeIds = _lastKnownNodeIds.where((id) => !currentNodeIds.contains(id)).toList();
+      
+      if (deletedNodeIds.isNotEmpty) {
+        _logger.info('Detected ${deletedNodeIds.length} deleted nodes: ${deletedNodeIds.join(', ')}');
+        
+        // Handle each deleted node
+        for (final nodeId in deletedNodeIds) {
+          _handleNodeDeleted(nodeId);
+        }
+      }
     }
     
     // Update our last known state
@@ -342,6 +358,39 @@ class RichTextEditorProvider with ChangeNotifier {
     
     // Create server-side block for this node
     _createBlockForNode(nodeId, node);
+  }
+  
+  // Handle deleted nodes (like when pressing Backspace at beginning of paragraph)
+  void _handleNodeDeleted(String nodeId) {
+    // Check if this node was mapped to a block
+    final blockId = _nodeToBlockMap[nodeId];
+    if (blockId == null) {
+      _logger.debug('Node $nodeId wasn\'t mapped to a block, nothing to delete');
+      return;
+    }
+    
+    // Check if this is a node we were trying to create
+    if (_uncommittedNodes.containsKey(nodeId)) {
+      _logger.info('Node $nodeId was deleted before it was committed, removing from uncommitted nodes');
+      _uncommittedNodes.remove(nodeId);
+      return;
+    }
+    
+    _logger.info('Node $nodeId was deleted, will delete block $blockId on server');
+    
+    // Remove from our mappings
+    _nodeToBlockMap.remove(nodeId);
+    
+    // Remove from blocks list if it exists
+    _blocks.removeWhere((block) => block.id == blockId);
+    
+    // Call the deletion handler to delete on server
+    if (onBlockDeleted != null) {
+      onBlockDeleted!(blockId);
+    } else {
+      // If no handler, try to delete directly
+      _blockProvider.deleteBlock(blockId);
+    }
   }
   
   // Create a server block for a new node created in the editor
