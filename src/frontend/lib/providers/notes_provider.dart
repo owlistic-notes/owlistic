@@ -226,10 +226,25 @@ class NotesProvider with ChangeNotifier {
   // Public method to fetch a single note by ID
   Future<Note?> fetchNoteById(String noteId) async {
     try {
-      final note = await _fetchSingleNote(noteId);
+      _logger.info('Fetching note by ID: $noteId');
+      
+      // Fetch note from API service
+      final note = await _noteService.getNote(noteId);
+      _logger.debug('Successfully fetched note: ${note.title}');
+      
+      // Update our local map with the fetched note
+      _notesMap[noteId] = note;
+      
+      // If this note is active, subscribe to it via WebSocket
+      if (_activeNoteIds.contains(noteId)) {
+        _webSocketService.subscribe('note', id: noteId);
+      }
+      
+      // Always notify listeners to update UI
+      notifyListeners();
       return note;
-    } catch (error) {
-      _logger.error('Error in fetchNoteById: $error');
+    } catch (e) {
+      _logger.error('Error fetching note by id: $noteId', e);
       return null;
     }
   }
@@ -407,9 +422,8 @@ class NotesProvider with ChangeNotifier {
 
   // Add this method to handle note deletion events with more robust implementation
   void handleNoteDeleted(String noteId) {
-    if (!_isActive) return;
-    
     _logger.info('Handling note deleted: $noteId');
+    
     if (_notesMap.containsKey(noteId)) {
       _notesMap.remove(noteId);
       _logger.info('Removed note $noteId from local state');
@@ -417,6 +431,7 @@ class NotesProvider with ChangeNotifier {
       // Also unsubscribe from this note's events
       _webSocketService.unsubscribe('note', id: noteId);
       
+      // Always notify listeners to update UI
       notifyListeners();
     } else {
       _logger.info('Note $noteId not found in local state, nothing to remove');

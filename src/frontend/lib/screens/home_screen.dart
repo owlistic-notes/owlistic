@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:thinkstack/models/note.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
-import '../widgets/search_bar_widget.dart';
 import '../providers/notes_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/notebooks_provider.dart';
@@ -15,9 +15,6 @@ import '../providers/auth_provider.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
-import '../services/note_service.dart';
-import '../services/notebook_service.dart';
-import '../services/task_service.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -34,33 +31,34 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     if (!_isInitialized) {
       _isInitialized = true;
       _logger.info('Initializing home screen');
-      
+
       // Get providers
       final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
       final notesProvider = Provider.of<NotesProvider>(context, listen: false);
-      final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
-      
+      final notebooksProvider =
+          Provider.of<NotebooksProvider>(context, listen: false);
+
       // Ensure WebSocket is connected
       wsProvider.ensureConnected();
-      
+
       // Set up event listeners
       _setupEventListeners(wsProvider);
-      
+
       // Fetch data from providers
       Future.microtask(() async {
         try {
           // First activate providers
           notesProvider.activate();
           notebooksProvider.activate();
-          
+
           // Fetch data - will now fetch notes for each notebook
           await notebooksProvider.fetchNotebooks();
           await notesProvider.fetchNotes();
-          
+
           Provider.of<TasksProvider>(context, listen: false).fetchTasks();
         } catch (e) {
           _logger.error('Error loading initial data: $e');
@@ -74,47 +72,144 @@ class _HomeScreenState extends State<HomeScreen> {
     wsProvider.subscribeToEvent('notebook.created');
     wsProvider.subscribeToEvent('notebook.updated');
     wsProvider.subscribeToEvent('notebook.deleted');
-    
+
     // Subscribe to note events to update notebooks when notes change
     wsProvider.subscribeToEvent('note.created');
     wsProvider.subscribeToEvent('note.updated');
     wsProvider.subscribeToEvent('note.deleted');
-    
+
     // Add event handlers
-    wsProvider.addEventListener('event', 'notebook.created', _handleNotebookEvent);
-    wsProvider.addEventListener('event', 'notebook.updated', _handleNotebookEvent);
-    wsProvider.addEventListener('event', 'notebook.deleted', _handleNotebookEvent);
+    wsProvider.addEventListener(
+        'event', 'notebook.created', _handleNotebookEvent);
+    wsProvider.addEventListener(
+        'event', 'notebook.updated', _handleNotebookEvent);
+    wsProvider.addEventListener(
+        'event', 'notebook.deleted', _handleNotebookEvent);
     wsProvider.addEventListener('event', 'note.created', _handleNoteEvent);
     wsProvider.addEventListener('event', 'note.updated', _handleNoteEvent);
     wsProvider.addEventListener('event', 'note.deleted', _handleNoteEvent);
   }
-  
+
   void _handleNotebookEvent(Map<String, dynamic> message) {
-    _logger.info('Notebook event received, refreshing notebooks');
-    Provider.of<NotebooksProvider>(context, listen: false).fetchNotebooks();
-  }
-  
-  void _handleNoteEvent(Map<String, dynamic> message) {
-    _logger.info('Note event received');
+    _logger.info('Notebook event received, processing efficiently');
     try {
-      // Extract the notebook ID from the message
       final payload = message['payload'];
+      final eventType = message['event'];
+
       if (payload != null && payload['data'] != null) {
         final data = payload['data'];
-        if (data['notebook_id'] != null) {
-          final notebookId = data['notebook_id'].toString();
-          _logger.info('Refreshing notebook after note event: $notebookId');
-          
-          // Refresh this specific notebook
-          Provider.of<NotebooksProvider>(context, listen: false)
-              .fetchNotebookById(notebookId);
+
+        // Get the notebook ID and check if it's a valid event
+        final notebookId = data['id']?.toString();
+        if (notebookId == null) {
+          _logger.error('Invalid notebook event: missing notebook ID');
+          return;
+        }
+
+        final notebooksProvider =
+            Provider.of<NotebooksProvider>(context, listen: false);
+
+        if (eventType == 'notebook.created') {
+          _logger.info('Adding new notebook directly from event: $notebookId');
+          // Fetch only the new notebook and force UI refresh
+          notebooksProvider.fetchNotebookById(notebookId).then((_) {
+            // Force a UI refresh by calling setState if context is still valid
+            if (mounted) setState(() {});
+          });
+        } else if (eventType == 'notebook.updated') {
+          _logger.info('Updating existing notebook from event: $notebookId');
+          // Update only the changed notebook and force UI refresh
+          notebooksProvider.fetchNotebookById(notebookId).then((_) {
+            if (mounted) setState(() {});
+          });
+        } else if (eventType == 'notebook.deleted') {
+          _logger.info('Removing deleted notebook from list: $notebookId');
+          // Remove the notebook from the map
+          notebooksProvider.removeNotebookById(notebookId);
+          // Force UI refresh
+          if (mounted) setState(() {});
+        }
+      }
+    } catch (e) {
+      _logger.error('Error handling notebook event', e);
+    }
+  }
+
+  void _handleNoteEvent(Map<String, dynamic> message) {
+    _logger.info('Note event received, processing efficiently');
+    try {
+      final payload = message['payload'];
+      final eventType = message['event'];
+
+      if (payload != null && payload['data'] != null) {
+        final data = payload['data'];
+        final noteId = data['id']?.toString();
+        final notebookId = data['notebook_id']?.toString();
+
+        if (noteId == null || notebookId == null) {
+          _logger.error('Invalid note event: missing note ID or notebook ID');
+          return;
+        }
+
+        final notesProvider =
+            Provider.of<NotesProvider>(context, listen: false);
+        final notebooksProvider =
+            Provider.of<NotebooksProvider>(context, listen: false);
+
+        if (eventType == 'note.created') {
+          _logger.info(
+              'Adding new note directly from event: $noteId to notebook: $notebookId');
+
+          // Start a state update batch to avoid multiple redraws
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Fetch both the note and update the notebook
+            Future.wait([
+              notesProvider.fetchNoteById(noteId),
+              notebooksProvider.fetchNotebookById(notebookId)
+            ]).then((_) {
+              // Force UI refresh after both operations complete
+              if (mounted) setState(() {});
+            });
+          });
+        } else if (eventType == 'note.updated') {
+          _logger.info(
+              'Updating existing note from event: $noteId in notebook: $notebookId');
+
+          // Start a state update batch
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Fetch both the note and update the notebook
+            Future.wait([
+              notesProvider.fetchNoteById(noteId),
+              notebooksProvider.fetchNotebookById(notebookId)
+            ]).then((_) {
+              // Force UI refresh after both operations complete
+              if (mounted) setState(() {});
+            });
+          });
+        } else if (eventType == 'note.deleted') {
+          _logger.info('Removing deleted note from notebook: $noteId');
+
+          // For note deletion, we need to update the notebook's notes list
+          final notebook = notebooksProvider.getNotebook(notebookId);
+          if (notebook != null) {
+            // Filter out the deleted note
+            final updatedNotes =
+                notebook.notes.where((note) => note.id != noteId).toList();
+            notebooksProvider.updateNotebookNotes(notebookId, updatedNotes);
+          }
+
+          // Also remove from notes provider
+          notesProvider.handleNoteDeleted(noteId);
+
+          // Force UI refresh
+          if (mounted) setState(() {});
         }
       }
     } catch (e) {
       _logger.error('Error handling note event', e);
     }
   }
-  
+
   @override
   void dispose() {
     // Clean up event listeners
@@ -127,10 +222,10 @@ class _HomeScreenState extends State<HomeScreen> {
       wsProvider.removeEventListener('event', 'note.updated');
       wsProvider.removeEventListener('event', 'note.deleted');
     }
-    
+
     // Deactivate providers
     Provider.of<NotesProvider>(context, listen: false).deactivate();
-    
+
     _searchController.dispose();
     super.dispose();
   }
@@ -151,20 +246,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showThemeMenu(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
+
     showMenu(
       context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      position:
+          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
       items: [
         PopupMenuItem(
           value: ThemeMode.light,
           child: Row(
             children: [
-              Icon(Icons.wb_sunny, 
-                color: themeProvider.themeMode == ThemeMode.light 
-                  ? Theme.of(context).primaryColor 
-                  : null
-              ),
+              Icon(Icons.wb_sunny,
+                  color: themeProvider.themeMode == ThemeMode.light
+                      ? Theme.of(context).primaryColor
+                      : null),
               const SizedBox(width: 8),
               const Text('Light Mode'),
               if (themeProvider.themeMode == ThemeMode.light)
@@ -177,10 +272,9 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             children: [
               Icon(Icons.nightlight_round,
-                color: themeProvider.themeMode == ThemeMode.dark 
-                  ? Theme.of(context).primaryColor 
-                  : null
-              ),
+                  color: themeProvider.themeMode == ThemeMode.dark
+                      ? Theme.of(context).primaryColor
+                      : null),
               const SizedBox(width: 8),
               const Text('Dark Mode'),
               if (themeProvider.themeMode == ThemeMode.dark)
@@ -199,12 +293,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showNotificationsMenu(BuildContext context) {
     showMenu(
       context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      position:
+          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
       items: [
         const PopupMenuItem(
           enabled: false,
           child: ListTile(
-            title: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: Text('Notifications',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
         const PopupMenuItem(
@@ -238,10 +334,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showProfileMenu(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      position:
+          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           value: 'profile_header',
@@ -250,7 +347,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.person),
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
             ),
-            title: Text(authProvider.currentUser?.email?.split('@')[0] ?? 'User'),
+            title:
+                Text(authProvider.currentUser?.email?.split('@')[0] ?? 'User'),
             subtitle: Text(authProvider.currentUser?.email ?? 'No email'),
           ),
         ),
@@ -298,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    
+
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBarCommon(
@@ -313,11 +411,13 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildWelcomeCard(context, authProvider),
-            _buildSectionHeader(context, 'Recent Notebooks', Icons.folder_outlined),
+            _buildSectionHeader(
+                context, 'Recent Notebooks', Icons.folder_outlined),
             _buildRecentNotebooks(),
             _buildSectionHeader(context, 'Recent Notes', Icons.note_outlined),
             _buildRecentNotes(),
-            _buildSectionHeader(context, 'Recent Tasks', Icons.assignment_outlined),
+            _buildSectionHeader(
+                context, 'Recent Tasks', Icons.assignment_outlined),
             _buildRecentTasks(),
             const SizedBox(height: 80), // Space for FAB
           ],
@@ -390,7 +490,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+  Widget _buildSectionHeader(
+      BuildContext context, String title, IconData icon) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
@@ -427,7 +528,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         final notebooks = notebooksProvider.notebooks.take(5).toList();
-        
+
         if (notebooks.isEmpty) {
           // Return EmptyState without fixed height constraint
           return EmptyState(
@@ -448,11 +549,11 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: notebooks.length,
             itemBuilder: (context, index) {
               final notebook = notebooks[index];
-              
+
               // Get the note count safely
               int noteCount = notebook.notes.length;
               _logger.debug('Notebook ${notebook.name} has $noteCount notes');
-              
+
               return SizedBox(
                 width: 160,
                 child: CardContainer(
@@ -468,7 +569,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor.withOpacity(0.1),
+                            color:
+                                Theme.of(context).primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(24),
                           ),
                           child: Icon(
@@ -512,16 +614,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (notesProvider.recentNotes.isEmpty) {
           // Check if notebooks exist before showing the create note button
-          final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+          final notebooksProvider =
+              Provider.of<NotebooksProvider>(context, listen: false);
           final hasNotebooks = notebooksProvider.notebooks.isNotEmpty;
-          
+
           return EmptyState(
             title: 'No notes yet',
-            message: hasNotebooks 
-                ? 'Create your first note to get started.' 
+            message: hasNotebooks
+                ? 'Create your first note to get started.'
                 : 'Create a notebook first, then add notes to it.',
             icon: Icons.note_outlined,
-            onAction: () => hasNotebooks 
+            onAction: () => hasNotebooks
                 ? _showAddNoteDialog(context)
                 : _showAddNotebookDialog(context, showNoteDialogAfter: true),
             actionLabel: hasNotebooks ? 'Create Note' : 'Create Notebook',
@@ -559,13 +662,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
               child: note.blocks.isNotEmpty
-                ? Text(
-                    note.blocks.first.getTextContent(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  )
-                : const SizedBox.shrink(), // Don't show anything if no blocks
+                  ? Text(
+                      note.blocks.first.getTextContent(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    )
+                  : const SizedBox.shrink(), // Don't show anything if no blocks
             );
           },
         );
@@ -605,7 +708,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   scale: 1.2,
                   child: Checkbox(
                     value: task.isCompleted,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4)),
                     onChanged: (bool? value) async {
                       try {
                         await tasksProvider.toggleTaskCompletion(
@@ -614,7 +718,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       } catch (error) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Failed to update task status')),
+                          const SnackBar(
+                              content: Text('Failed to update task status')),
                         );
                       }
                     },
@@ -623,7 +728,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: Text(
                   task.title,
                   style: TextStyle(
-                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                    decoration:
+                        task.isCompleted ? TextDecoration.lineThrough : null,
                     color: task.isCompleted
                         ? Theme.of(context).textTheme.bodySmall?.color
                         : Theme.of(context).textTheme.bodyLarge?.color,
@@ -651,7 +757,8 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
@@ -759,7 +866,8 @@ class _HomeScreenState extends State<HomeScreen> {
     String? selectedNotebookId;
 
     // Get notebooks provider to check if notebooks exist
-    final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+    final notebooksProvider =
+        Provider.of<NotebooksProvider>(context, listen: false);
     // If no notebooks exist, show notebook creation dialog first
     if (notebooksProvider.notebooks.isEmpty) {
       _showAddNotebookDialog(context, showNoteDialogAfter: true);
@@ -771,7 +879,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.note_add_outlined, color: Theme.of(context).primaryColor),
+            Icon(Icons.note_add_outlined,
+                color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Note'),
           ],
@@ -786,7 +895,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Consumer<NotebooksProvider>(
               builder: (context, notebooksProvider, _) {
                 final notebooks = notebooksProvider.notebooks;
-                
+
                 // Set the initial value if not set
                 if (selectedNotebookId == null && notebooks.isNotEmpty) {
                   selectedNotebookId = notebooks.first.id;
@@ -832,9 +941,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
+              if (_titleController.text.isNotEmpty &&
+                  selectedNotebookId != null) {
                 try {
-                  final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+                  final notebooksProvider =
+                      Provider.of<NotebooksProvider>(context, listen: false);
                   await notebooksProvider.addNoteToNotebook(
                     selectedNotebookId!,
                     _titleController.text,
@@ -888,7 +999,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
                 try {
-                  final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
+                  final tasksProvider =
+                      Provider.of<TasksProvider>(context, listen: false);
                   await tasksProvider.createTask(_titleController.text, '');
                   Navigator.of(ctx).pop();
                 } catch (error) {
@@ -906,7 +1018,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showAddNotebookDialog(BuildContext context, {bool showNoteDialogAfter = false}) {
+  void _showAddNotebookDialog(BuildContext context,
+      {bool showNoteDialogAfter = false}) {
     final _nameController = TextEditingController();
     final _descriptionController = TextEditingController();
 
@@ -918,7 +1031,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         title: Row(
           children: [
-            Icon(Icons.folder_outlined, color: Theme.of(context).primaryColor), // Folder icon for notebook
+            Icon(Icons.folder_outlined,
+                color:
+                    Theme.of(context).primaryColor), // Folder icon for notebook
             const SizedBox(width: 8),
             const Text('Add Notebook'),
           ],
@@ -930,7 +1045,8 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: 'Name',
-                prefixIcon: Icon(Icons.drive_file_rename_outline), // Rename icon for name field
+                prefixIcon: Icon(Icons
+                    .drive_file_rename_outline), // Rename icon for name field
               ),
               autofocus: true,
             ),
@@ -939,7 +1055,8 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: _descriptionController,
               decoration: const InputDecoration(
                 labelText: 'Description',
-                prefixIcon: Icon(Icons.description_outlined), // Description icon
+                prefixIcon:
+                    Icon(Icons.description_outlined), // Description icon
               ),
               maxLines: 3,
             ),
@@ -954,7 +1071,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               if (_nameController.text.isNotEmpty) {
                 try {
-                  final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+                  final notebooksProvider =
+                      Provider.of<NotebooksProvider>(context, listen: false);
                   await notebooksProvider.createNotebook(
                     _nameController.text,
                     _descriptionController.text,

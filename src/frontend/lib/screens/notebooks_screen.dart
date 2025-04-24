@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:thinkstack/utils/websocket_message_parser.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
@@ -58,20 +59,68 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     // Ensure WebSocket is connected first
     await wsProvider.ensureConnected();
     
-    // Register a custom handler for notebook creation events
+    // Replace the previous event handlers with more efficient ones
     wsProvider.addEventListener('event', 'notebook.created', (message) {
       _logger.info('Notebook created event received');
-      _refreshNotebooks();
+      // Extract notebook ID from message
+      try {
+        // Use the standardized parser
+        final parsedMessage = WebSocketMessage.fromJson(message);
+        final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+        
+        if (notebookId != null && notebookId.isNotEmpty) {
+          // Only fetch the specific notebook without triggering a full refresh
+          _handleNewNotebook(notebookId);
+        } else {
+          _logger.warning('Could not extract notebook_id from message');
+        }
+      } catch (e) {
+        _logger.error('Error handling notebook create event', e);
+      }
     });
 
     wsProvider.addEventListener('event', 'notebook.updated', (message) {
       _logger.info('Notebook updated event received');
-      _refreshNotebooks();
+      try {
+        // Use the standardized parser
+        final parsedMessage = WebSocketMessage.fromJson(message);
+        final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+        
+        if (notebookId != null && notebookId.isNotEmpty) {
+          // Only update the specific notebook
+          if (_loadedNotebookIds.contains(notebookId)) {
+            _presenter.fetchNotebookById(notebookId);
+          }
+        } else {
+          _logger.warning('Could not extract notebook_id from message');
+        }
+      } catch (e) {
+        _logger.error('Error handling notebook update event', e);
+      }
     });
 
     wsProvider.addEventListener('event', 'notebook.deleted', (message) {
       _logger.info('Notebook deleted event received');
-      _refreshNotebooks();
+      try {
+        // Use the standardized parser
+        final parsedMessage = WebSocketMessage.fromJson(message);
+        final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
+        
+        if (notebookId != null && notebookId.isNotEmpty) {
+          // Remove the notebook locally without making a network request
+          if (_loadedNotebookIds.contains(notebookId)) {
+            _presenter.removeNotebookById(notebookId);
+            // Update tracking list
+            setState(() {
+              _loadedNotebookIds.remove(notebookId);
+            });
+          }
+        } else {
+          _logger.warning('Could not extract notebook_id from message');
+        }
+      } catch (e) {
+        _logger.error('Error handling notebook delete event', e);
+      }
     });
     
     // Activate the presenter
@@ -107,7 +156,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     });
   }
 
-  // Process a single new notebook from WebSocket without full refresh
+  // Process a single new notebook from WebSocket event in a non-blocking way
   void _handleNewNotebook(String notebookId) {
     // Check if this notebook is already loaded
     if (_loadedNotebookIds.contains(notebookId)) {
@@ -117,11 +166,14 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     
     _logger.info('Adding new notebook $notebookId from WebSocket event');
     
-    // Fetch just this one notebook and add it to the list
-    // Using null safety with ?. operator to prevent null reference errors
-    _presenter.fetchNotebookById(notebookId).then((_) { // Changed refreshNotebookById to fetchNotebookById
-      // Update our tracking set
-      _updateLoadedIds();
+    // Fetch just this one notebook and add it to the list without refreshing
+    _presenter.fetchNotebookById(notebookId).then((_) {
+      // Update our tracking set after successful fetch
+      if (mounted) {
+        setState(() {
+          _loadedNotebookIds.add(notebookId);
+        });
+      }
     }).catchError((error) {
       _logger.error('Error fetching notebook by id', error);
     });

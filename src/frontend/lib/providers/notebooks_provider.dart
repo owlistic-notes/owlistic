@@ -267,7 +267,11 @@ class NotebooksProvider with ChangeNotifier {
   }
   
   // Fetch a notebook by ID with its notes
-  Future<Notebook?> fetchNotebookById(String id, {List<String>? excludeIds}) async {
+  Future<Notebook?> fetchNotebookById(String id, {
+    List<String>? excludeIds,
+    bool addToExistingList = false,
+    bool updateExisting = false
+  }) async {
     // Skip if this ID should be excluded
     if (excludeIds != null && excludeIds.contains(id)) {
       _logger.info('Skipping excluded notebook ID: $id');
@@ -275,6 +279,8 @@ class NotebooksProvider with ChangeNotifier {
     }
     
     try {
+      _logger.info('Fetching notebook with ID: $id');
+      
       // First fetch the notebook itself
       final notebook = await _notebookService.getNotebook(id);
       
@@ -291,7 +297,10 @@ class NotebooksProvider with ChangeNotifier {
       // Subscribe to this notebook
       _webSocketService.subscribe('notebook', id: id);
       
+      // Always notify listeners to update UI
       notifyListeners();
+      
+      _logger.info('Successfully fetched and updated notebook: ${notebook.name}');
       return notebookWithNotes;
     } catch (e) {
       _logger.error('Error fetching notebook $id', e);
@@ -579,5 +588,51 @@ class NotebooksProvider with ChangeNotifier {
     _connectionSubscription?.cancel();
     cleanup();
     super.dispose();
+  }
+  
+  // Update the notebooks list directly (useful for deletions)
+  void updateNotebooksList(List<Notebook> updatedNotebooks) {
+    _notebooksMap.clear();
+    for (var notebook in updatedNotebooks) {
+      _notebooksMap[notebook.id] = notebook;
+    }
+    notifyListeners();
+    _logger.info('Updated notebooks list with ${updatedNotebooks.length} notebooks');
+  }
+
+  // Update just the notes collection of a specific notebook
+  void updateNotebookNotes(String notebookId, List<Note> updatedNotes) {
+    _logger.info('Updating notes for notebook: $notebookId');
+  
+    if (_notebooksMap.containsKey(notebookId)) {
+      final notebook = _notebooksMap[notebookId];
+      if (notebook != null) {
+        final updatedNotebook = notebook.copyWith(notes: updatedNotes);
+        _notebooksMap[notebookId] = updatedNotebook;
+        
+        // Always notify listeners to update UI
+        notifyListeners();
+        
+        _logger.info('Successfully updated notes for notebook $notebookId: ${updatedNotes.length} notes');
+      }
+    } else {
+      _logger.info('Notebook $notebookId not found, cannot update notes');
+    }
+  }
+
+  // Remove a notebook by ID
+  void removeNotebookById(String notebookId) {
+    _logger.info('Removing notebook with ID: $notebookId');
+  
+    if (_notebooksMap.containsKey(notebookId)) {
+      _notebooksMap.remove(notebookId);
+      
+      // Always notify listeners to update UI
+      notifyListeners();
+      
+      _logger.info('Successfully removed notebook $notebookId from map');
+    } else {
+      _logger.info('Notebook $notebookId not found, nothing to remove');
+    }
   }
 }
