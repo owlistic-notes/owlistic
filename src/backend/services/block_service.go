@@ -306,6 +306,8 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[
 	hasAccess, err := RoleServiceInstance.HasBlockAccess(db, userIDStr, id, "editor")
 	if err != nil {
 		tx.Rollback()
+		log.Printf("Permission check error: %v when checking user %s access to block %s", 
+			err, userIDStr, id)
 		return err
 	}
 

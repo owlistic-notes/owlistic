@@ -160,13 +160,16 @@ func (s *RoleService) HasAccess(db *database.Database, userID uuid.UUID, resourc
 		}
 
 		// Check if the resource belongs to the user directly
-		var noteUserID uuid.UUID
-		if err := db.DB.Model(&models.Note{}).
+		var noteUserIDStr string
+		err := db.DB.Model(&models.Note{}).
 			Where("id = ?", parentID).
 			Select("user_id").
-			Take(&noteUserID).Error; err == nil {
+			Take(&noteUserIDStr).Error
 
-			if noteUserID == userID {
+		if err == nil {
+			// Parse the UUID string to compare with userID
+			noteUserUUID, parseErr := uuid.Parse(noteUserIDStr)
+			if parseErr == nil && noteUserUUID == userID {
 				log.Printf("User %s owns the parent note %s, granting access", userID, parentID)
 				return true, nil
 			}
@@ -352,8 +355,40 @@ func (s *RoleService) HasNotebookAccess(db *database.Database, userID string, no
 }
 
 // HasBlockAccess checks if a user has a specific role for a block
+// Improved to directly check parent note permissions without checking block permissions first
 func (s *RoleService) HasBlockAccess(db *database.Database, userID string, blockID string, requiredRole string) (bool, error) {
-	return s.HasAccessByStrings(db, userID, blockID, string(models.BlockResource), requiredRole)
+	log.Printf("Checking block access for user %s to block %s", userID, blockID)
+
+	// Parse the user ID to validate it
+	_, err := uuid.Parse(userID)
+	if err != nil {
+		return false, errors.New("invalid user ID format")
+	}
+
+	// Parse the block ID
+	blockUUID, err := uuid.Parse(blockID)
+	if err != nil {
+		return false, errors.New("invalid block ID format")
+	}
+
+	// Directly get the parent note ID from the block
+	var noteID string
+	err = db.DB.Model(&models.Block{}).
+		Where("id = ?", blockUUID).
+		Select("note_id").
+		Take(&noteID).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, errors.New("block not found")
+		}
+		return false, err
+	}
+
+	log.Printf("Found parent note %s for block %s, checking note access directly", noteID, blockID)
+
+	// Check permissions directly on the parent note
+	return s.HasNoteAccess(db, userID, noteID, requiredRole)
 }
 
 // HasTaskAccess checks if a user has a specific role for a task
