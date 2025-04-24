@@ -150,104 +150,365 @@ class RichTextEditorProvider with ChangeNotifier {
         }
       }
       
-      // Clear document and mapping
-      _document.clear();
-      _nodeToBlockMap.clear();
-      
-      // Sort blocks by order
-      final sortedBlocks = List.from(_blocks)
-        ..sort((a, b) => a.order.compareTo(b.order));
-      
-      _logger.debug('Creating document nodes for ${sortedBlocks.length} blocks');
-      // Create node based on block type
-      // Keep track of created nodes by block ID to help with selection restoration
-      final Map<String, String> blockToNodeMap = {};
-      
-      // Convert each block to a document node
-      for (final block in sortedBlocks) {
-        try {
-          final nodes = _createNodesFromBlock(block);
-          
-          // Add all nodes to document
-          for (final node in nodes) {
-            _document.add(node);
-            // Map node ID to block ID
-            _nodeToBlockMap[node.id] = block.id;
-            
-            // Also track the first node for each block
-            if (!blockToNodeMap.containsKey(block.id)) {
-              blockToNodeMap[block.id] = node.id;
-            }
-          }
-        } catch (e) {
-          _logger.error('Error creating node for block ${block.id}: $e');
-        }
+      // Check if we need to optimize the update instead of rebuilding
+      if (_document.isEmpty || _blocks.isEmpty) {
+        // Document is empty or we're clearing it - just build from scratch
+        _rebuildEntireDocument();
+      } else {
+        // Use optimized update that preserves structure when possible
+        _updateDocumentFromBlocks(previousNodeId, previousTextOffset);
       }
-      
+
       _logger.debug('Document populated with ${_document.length} nodes');
-      
-      // Try to restore selection if possible
-      if (_document.isNotEmpty) {
-        // First, try to find the same node ID in the new document
-        String? newNodeId;
-        
-        if (previousNodeId != null && previousNodeId.isNotEmpty) {
-          // Get the block ID that the previous node belonged to
-          final previousBlockId = _nodeToBlockMap[previousNodeId];
-          
-          if (previousBlockId != null) {
-            // Look for a node with the same block ID
-            newNodeId = blockToNodeMap[previousBlockId];
-          }
-        }
-        
-        // If we found a match or otherwise need to reset, do it after a small delay
-        // to let the document stabilize
-        Future.delayed(Duration.zero, () {
-          try {
-            // If we have a node to select, use it
-            if (newNodeId != null && newNodeId.isNotEmpty) {
-              final node = _document.getNodeById(newNodeId);
-              if (node != null && node is TextNode) {
-                int offset = previousTextOffset ?? 0;
-                
-                // Ensure offset is within text bounds
-                offset = offset.clamp(0, node.text.length);
-                
-                _composer.setSelectionWithReason(DocumentSelection.collapsed(
-                    position: DocumentPosition(
-                      nodeId: newNodeId,
-                      nodePosition: TextNodePosition(offset: offset),
-                    ),
-                  ),
-                );
-              } 
-              // If no matching node, just select the first text node
-              else if (_document.isNotEmpty) {
-                for (final node in _document) {
-                  if (node is TextNode) {
-                    _composer.setSelectionWithReason(DocumentSelection.collapsed(
-                        position: DocumentPosition(
-                          nodeId: node.id,
-                          nodePosition: const TextNodePosition(offset: 0),
-                        ),
-                      ),
-                    );
-                    break;
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            _logger.error('Error restoring selection: $e');
-          }
-        });
-      }
     } catch (e) {
       _logger.error('Error populating document: $e');
     } finally {
       _updatingDocument = false;
     }
+  }
+
+  // Completely rebuild the document from scratch
+  void _rebuildEntireDocument() {
+    _logger.info('Rebuilding entire document from scratch');
+    
+    // Clear document and mapping
+    _document.clear();
+    _nodeToBlockMap.clear();
+    
+    // Sort blocks by order
+    final sortedBlocks = List.from(_blocks)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    
+    _logger.debug('Creating document nodes for ${sortedBlocks.length} blocks');
+    
+    // Convert each block to a document node
+    for (final block in sortedBlocks) {
+      try {
+        final nodes = _createNodesFromBlock(block);
+        
+        // Add all nodes to document
+        for (final node in nodes) {
+          _document.add(node);
+          // Map node ID to block ID
+          _nodeToBlockMap[node.id] = block.id;
+        }
+      } catch (e) {
+        _logger.error('Error creating node for block ${block.id}: $e');
+      }
+    }
+    
+    // Attempt to restore reasonable selection if document not empty
+    _attemptToRestoreSelection();
+  }
+  
+  // Optimized update that performs targeted document changes
+  void _updateDocumentFromBlocks(String? previousNodeId, int? previousTextOffset) {
+    _logger.info('Performing optimized document update');
+    
+    // Create maps for faster lookups
+    final Map<String, Block> currentBlocksMap = {
+      for (var b in _blocks) b.id: b
+    };
+    
+    // Get existing nodeIds and their block mappings
+    final Map<String, String> existingNodeBlockMap = Map.from(_nodeToBlockMap);
+    final Map<String, String> blockToNodeMap = {};
+    
+    // Reverse map from block ID to node ID (first node for each block)
+    existingNodeBlockMap.forEach((nodeId, blockId) {
+      if (!blockToNodeMap.containsKey(blockId)) {
+        blockToNodeMap[blockId] = nodeId;
+      }
+    });
+    
+    // Sort blocks by order
+    final sortedBlocks = List.from(_blocks)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    
+    // Track nodes we've processed to identify deleted nodes later
+    final Set<String> processedNodes = {};
+    
+    // Track blocks we need to completely replace due to type changes
+    final Set<String> blocksToReplace = {};
+    
+    // STEP 1: Update existing nodes and identify blocks that need replacing
+    for (int i = 0; i < sortedBlocks.length; i++) {
+      final block = sortedBlocks[i];
+      final existingNodeId = blockToNodeMap[block.id];
+      
+      if (existingNodeId != null) {
+        final existingNode = _document.getNodeById(existingNodeId);
+        if (existingNode != null) {
+          // Check if type has changed (requiring replacement)
+          bool typeChanged = false;
+          
+          if (existingNode is ParagraphNode && block.type != 'text' && 
+              block.type != 'heading' && block.type != 'code') {
+            typeChanged = true;
+          } else if (existingNode is ListItemNode && block.type != 'checklist') {
+            typeChanged = true;
+          }
+          
+          if (typeChanged) {
+            blocksToReplace.add(block.id);
+            continue;
+          }
+          
+          // Update content of existing node if type hasn't changed
+          _updateNodeContentFromBlock(existingNode, block);
+          processedNodes.add(existingNodeId);
+        }
+      }
+    }
+    
+    // STEP 2: Handle node deletions for blocks no longer present
+    List<String> nodeIdsToDelete = [];
+    existingNodeBlockMap.forEach((nodeId, blockId) {
+      if (!currentBlocksMap.containsKey(blockId) || 
+          blocksToReplace.contains(blockId)) {
+        nodeIdsToDelete.add(nodeId);
+      }
+    });
+    
+    // Delete nodes in reverse order to maintain indexes
+    nodeIdsToDelete.sort((a, b) {
+      final nodeA = _document.getNodeIndexById(a) ?? 0;
+      final nodeB = _document.getNodeIndexById(b) ?? 0;
+      return nodeB.compareTo(nodeA); // Reverse order
+    });
+    
+    for (final nodeId in nodeIdsToDelete) {
+      _logger.debug('Deleting node $nodeId from document');
+      final index = _document.getNodeIndexById(nodeId);
+      if (index != null) {
+        _document.deleteNodeAt(index);
+      }
+      _nodeToBlockMap.remove(nodeId);
+    }
+    
+    // STEP 3: Insert new blocks and replace blocks with type changes
+    for (int i = 0; i < sortedBlocks.length; i++) {
+      final block = sortedBlocks[i];
+      final existingNodeId = blockToNodeMap[block.id];
+      
+      final bool isNewBlock = existingNodeId == null;
+      final bool needsReplacement = blocksToReplace.contains(block.id);
+      
+      if (isNewBlock || needsReplacement) {
+        // Determine insert position
+        int insertIndex;
+        
+        if (i == 0) {
+          insertIndex = 0; // Insert at start
+        } else {
+          // Try to find the node for the previous block
+          int prevIndex = i - 1;
+          String? prevNodeId;
+          
+          while (prevIndex >= 0 && prevNodeId == null) {
+            final prevBlockId = sortedBlocks[prevIndex].id;
+            prevNodeId = blockToNodeMap[prevBlockId];
+            prevIndex--;
+          }
+          
+          if (prevNodeId != null) {
+            final prevIndex = _document.getNodeIndexById(prevNodeId);
+            insertIndex = prevIndex != null ? prevIndex + 1 : _document.length;
+          } else {
+            insertIndex = 0; // Fall back to beginning if prev not found
+          }
+        }
+        
+        // Clamp to document bounds
+        insertIndex = insertIndex.clamp(0, _document.length);
+        
+        // Create and insert new nodes
+        final nodes = _createNodesFromBlock(block);
+        for (final node in nodes) {
+          if (insertIndex >= _document.length) {
+            _document.add(node);
+          } else {
+            _document.insertNodeAt(insertIndex, node);
+          }
+          _nodeToBlockMap[node.id] = block.id;
+          blockToNodeMap[block.id] = node.id; // Update for subsequent insertions
+          insertIndex++; // Move insertion point for next node
+        }
+        
+        _logger.debug('${isNewBlock ? "Inserted" : "Replaced"} block ${block.id} at position $insertIndex');
+      }
+    }
+    
+    // STEP 4: Reorder nodes to match block order if needed
+    _reorderNodesIfNeeded(sortedBlocks.cast<Block>(), blockToNodeMap);
+    
+    // Try to restore selection to same position
+    _restoreSelection(previousNodeId, previousTextOffset, blockToNodeMap);
+  }
+  
+  // Update content of an existing node from a block
+  void _updateNodeContentFromBlock(DocumentNode node, Block block) {
+    if (node is ParagraphNode) {
+      final content = block.content;
+      final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
+      
+      // Only update if content has changed
+      if (node.text.toPlainText() != text) {
+        // Create new attributed text
+        final attributedText = _createAttributedTextFromContent(text, content);
+        
+        // Replace the node with a copy that has the new text
+        // (ParagraphNode is immutable so we can't modify it directly)
+        _document.replaceNodeById(
+          node.id,
+          node.copyParagraphWith(
+            text: attributedText,
+            // Preserve existing metadata
+            metadata: Map<String, dynamic>.from(node.metadata),
+          ),
+        );
+        
+        _logger.debug('Updated content for node ${node.id} (block ${block.id})');
+      }
+    } else if (node is ListItemNode && block.type == 'checklist') {
+      final content = block.content;
+      final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
+      final checked = content is Map ? (content['checked'] == true) : false;
+      final newType = checked ? ListItemType.ordered : ListItemType.unordered;
+      
+      // Only update if content has changed
+      bool needsUpdate = node.text.toPlainText() != text || node.type != newType;
+      
+      if (needsUpdate) {
+        // ListItemNode is also immutable, so create a new one with updated properties
+        final attributedText = _createAttributedTextFromContent(text, content);
+        
+        // Create a new node with the updated properties
+        final updatedNode = ListItemNode(
+          id: node.id,
+          text: attributedText, 
+          itemType: newType,
+        );
+        
+        // Replace the node in the document
+        _document.replaceNodeById(node.id, updatedNode);
+        
+        _logger.debug('Updated list item node ${node.id} (block ${block.id})');
+      }
+    }
+  }
+  
+  // Reorder nodes in the document to match block order if needed
+  void _reorderNodesIfNeeded(List<Block> sortedBlocks, Map<String, String> blockToNodeMap) {
+    // This is a simplified approach - for complex reordering cases,
+    // we might need a more sophisticated algorithm
+    
+    // Create expected node order
+    final List<String> expectedNodeOrder = [];
+    for (final block in sortedBlocks) {
+      final nodeId = blockToNodeMap[block.id];
+      if (nodeId != null) {
+        expectedNodeOrder.add(nodeId);
+      }
+    }
+    
+    // Check current order
+    final List<String> currentNodeOrder = [];
+    for (final node in _document) {
+      currentNodeOrder.add(node.id);
+    }
+    
+    // Compare orders
+    bool orderingNeeded = false;
+    if (expectedNodeOrder.length == currentNodeOrder.length) {
+      for (int i = 0; i < expectedNodeOrder.length; i++) {
+        if (expectedNodeOrder[i] != currentNodeOrder[i]) {
+          orderingNeeded = true;
+          break;
+        }
+      }
+    } else {
+      // Different lengths means ordering needed
+      orderingNeeded = true;
+    }
+    
+    if (orderingNeeded) {
+      _logger.debug('Reordering nodes to match block order');
+      
+      // For each node that's out of order, move it to the correct position
+      for (int targetIndex = 0; targetIndex < expectedNodeOrder.length; targetIndex++) {
+        final expectedNodeId = expectedNodeOrder[targetIndex];
+        final currentIndex = _document.getNodeIndexById(expectedNodeId);
+        
+        if (currentIndex != null && currentIndex != targetIndex) {
+          _document.moveNode(nodeId: expectedNodeId, targetIndex: targetIndex);
+          _logger.debug('Moved node $expectedNodeId from position $currentIndex to $targetIndex');
+        }
+      }
+    }
+  }
+  
+  // Helper method to try to restore selection after document updates
+  void _restoreSelection(String? previousNodeId, int? previousTextOffset, Map<String, String> blockToNodeMap) {
+    if (previousNodeId == null || _document.isEmpty) return;
+    
+    Future.delayed(Duration.zero, () {
+      try {
+        // First try to find the exact same node
+        DocumentNode? targetNode = _document.getNodeById(previousNodeId);
+        
+        // If node doesn't exist anymore, find its block and the new node for that block
+        if (targetNode == null) {
+          final previousBlockId = _nodeToBlockMap[previousNodeId];
+          if (previousBlockId != null) {
+            final newNodeId = blockToNodeMap[previousBlockId];
+            if (newNodeId != null) {
+              targetNode = _document.getNodeById(newNodeId);
+            }
+          }
+        }
+        
+        // If we have a target node, set selection
+        if (targetNode != null && targetNode is TextNode) {
+          int offset = previousTextOffset ?? 0;
+          
+          // Ensure offset is within text bounds
+          offset = offset.clamp(0, targetNode.text.length);
+          
+          _composer.setSelectionWithReason(DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: targetNode.id,
+              nodePosition: TextNodePosition(offset: offset),
+            ),
+          ));
+        } 
+        // Fall back to first text node if target not found
+        else if (_document.isNotEmpty) {
+          _attemptToRestoreSelection();
+        }
+      } catch (e) {
+        _logger.error('Error restoring selection: $e');
+      }
+    });
+  }
+  
+  // Fallback method to select first text node when specific selection can't be restored
+  void _attemptToRestoreSelection() {
+    if (_document.isEmpty) return;
+    
+    Future.delayed(Duration.zero, () {
+      for (final node in _document) {
+        if (node is TextNode) {
+          _composer.setSelectionWithReason(DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: node.id,
+              nodePosition: const TextNodePosition(offset: 0),
+            ),
+          ));
+          break;
+        }
+      }
+    });
   }
   
   // DocumentChangeListener implementation
@@ -694,7 +955,7 @@ class RichTextEditorProvider with ChangeNotifier {
       
       _logger.debug('Changes detected: +$addedCount ~$modifiedCount -$removedCount');
       
-      // Update our blocks list and recreate document
+      // Update our blocks list and refresh document with optimized updates
       _blocks = List.from(blocks);
       _populateDocumentFromBlocks();
       
