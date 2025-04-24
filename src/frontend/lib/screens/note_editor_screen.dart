@@ -378,6 +378,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     // Create new provider with necessary callbacks
     _editorProvider = RichTextEditorProvider(
       blocks: _blocks,
+      noteId: widget.note.id,  // Pass the note ID for block creation
       onBlockContentChanged: (blockId, content) {
         _updateBlockContent(blockId, content);
       },
@@ -389,7 +390,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _saveTitle();
         _saveAllBlockContents();
       },
+      blockProvider: Provider.of<BlockProvider>(context, listen: false), // Pass block provider
     );
+    
+    // Activate the editor provider
+    _editorProvider!.activate();
     
     // Ensure UI is refreshed
     if (mounted) {
@@ -410,6 +415,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       });
       
       // Delete block on the server
+      _logger.info('Deleted block: $blockId');
       Provider.of<BlockProvider>(context, listen: false).deleteBlock(blockId);
       
     } catch (e) {
@@ -598,7 +604,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
     
     // Dispose editor provider
-    _editorProvider?.dispose();
+    if (_editorProvider != null) {
+      _editorProvider!.deactivate();
+      _editorProvider!.dispose();
+      _editorProvider = null;
+    }
     
     // Dispose controllers
     _titleController.dispose();

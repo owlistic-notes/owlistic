@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import '../models/block.dart';
 import '../utils/logger.dart';
+import '../services/base_service.dart';
+import '../providers/block_provider.dart';
 
 /// Provider for managing the state of a full-page rich text editor that combines multiple blocks
 class RichTextEditorProvider with ChangeNotifier {
@@ -23,6 +25,12 @@ class RichTextEditorProvider with ChangeNotifier {
   final Function(String sourceBlockId, String targetBlockId, Map<String, dynamic> mergedContent)? onBlocksMerged;
   // Callback when focus is lost
   final Function()? onFocusLost;
+  
+  // Add current note ID to track which note blocks belong to
+  final String noteId;
+  
+  // Add direct reference to BlockProvider for creating blocks
+  final BlockProvider _blockProvider;
 
   // Get the mapping between document node IDs and block IDs
   getNodeToBlockMapping() {
@@ -34,6 +42,9 @@ class RichTextEditorProvider with ChangeNotifier {
   
   // Mapping between document node IDs and block IDs
   final Map<String, String> _nodeToBlockMap = {};
+  
+  // Track nodes that don't yet have server blocks
+  final Map<String, DateTime> _uncommittedNodes = {};
   
   // Content update debouncer
   DateTime _lastEdit = DateTime.now();
@@ -56,15 +67,23 @@ class RichTextEditorProvider with ChangeNotifier {
   // Add active state tracking
   bool _isActive = false;
   
+  // Track last known node count to detect new nodes
+  int _lastKnownNodeCount = 0;
+  
+  // For tracking changes in the document structure
+  List<String> _lastKnownNodeIds = [];
+  
   // Standard constructor with callback parameters
   RichTextEditorProvider({
     required List<Block> blocks,
+    required this.noteId,
     this.onBlockContentChanged,
     this.onMultiBlockOperation,
     this.onBlockDeleted,
     this.onBlocksMerged,
     this.onFocusLost,
-  }) {
+    BlockProvider? blockProvider,
+  }) : _blockProvider = blockProvider ?? ServiceLocator.get<BlockProvider>() {
     _blocks = List.from(blocks);
     // Store original blocks for later comparison
     _originalBlocks.addAll(blocks); 
@@ -82,6 +101,9 @@ class RichTextEditorProvider with ChangeNotifier {
   void activate() {
     _isActive = true;
     _logger.info('RichTextEditorProvider activated');
+    
+    // Register document event to capture split paragraph events
+    _document.addListener(_documentStructureChangeListener);
   }
 
   void deactivate() {
@@ -90,6 +112,9 @@ class RichTextEditorProvider with ChangeNotifier {
     
     // Commit all content before deactivating
     commitAllContent();
+    
+    // Remove document structure listener
+    _document.removeListener(_documentStructureChangeListener);
   }
   
   // Add resetState for consistency
@@ -100,6 +125,7 @@ class RichTextEditorProvider with ChangeNotifier {
     _nodeToBlockMap.clear();
     _blocks.clear();
     _originalBlocks.clear();
+    _uncommittedNodes.clear();
     _isActive = false;
     notifyListeners();
   }
@@ -117,8 +143,12 @@ class RichTextEditorProvider with ChangeNotifier {
     _focusNode = FocusNode();
     _focusNode.addListener(_handleFocusChange);
     
-    // Listen for document changes
+    // Listen for document content changes
     _document.addListener(_documentChangeListener);
+    
+    // Store initial node IDs for tracking structure changes
+    _lastKnownNodeIds = _document.map((node) => node.id).toList();
+    _lastKnownNodeCount = _document.length;
     
     // Add blocks to document
     _populateDocumentFromBlocks();
@@ -150,372 +180,305 @@ class RichTextEditorProvider with ChangeNotifier {
         }
       }
       
-      // Check if we need to optimize the update instead of rebuilding
-      if (_document.isEmpty || _blocks.isEmpty) {
-        // Document is empty or we're clearing it - just build from scratch
-        _rebuildEntireDocument();
-      } else {
-        // Use optimized update that preserves structure when possible
-        _updateDocumentFromBlocks(previousNodeId, previousTextOffset);
+      // Clear document and mapping
+      _document.clear();
+      _nodeToBlockMap.clear();
+      
+      // Sort blocks by order
+      final sortedBlocks = List.from(_blocks)
+        ..sort((a, b) => a.order.compareTo(b.order));
+      
+      _logger.debug('Creating document nodes for ${sortedBlocks.length} blocks');
+      // Create node based on block type
+      // Keep track of created nodes by block ID to help with selection restoration
+      final Map<String, String> blockToNodeMap = {};
+      
+      // Convert each block to a document node
+      for (final block in sortedBlocks) {
+        try {
+          final nodes = _createNodesFromBlock(block);
+          
+          // Add all nodes to document
+          for (final node in nodes) {
+            _document.add(node);
+            // Map node ID to block ID
+            _nodeToBlockMap[node.id] = block.id;
+            
+            // Also track the first node for each block
+            if (!blockToNodeMap.containsKey(block.id)) {
+              blockToNodeMap[block.id] = node.id;
+            }
+          }
+        } catch (e) {
+          _logger.error('Error creating node for block ${block.id}: $e');
+        }
       }
-
+      
       _logger.debug('Document populated with ${_document.length} nodes');
+      
+      // Try to restore selection if possible
+      if (_document.isNotEmpty) {
+        // First, try to find the same node ID in the new document
+        String? newNodeId;
+        
+        if (previousNodeId != null && previousNodeId.isNotEmpty) {
+          // Get the block ID that the previous node belonged to
+          final previousBlockId = _nodeToBlockMap[previousNodeId];
+          
+          if (previousBlockId != null) {
+            // Look for a node with the same block ID
+            newNodeId = blockToNodeMap[previousBlockId];
+          }
+        }
+        
+        // If we found a match or otherwise need to reset, do it after a small delay
+        // to let the document stabilize
+        Future.delayed(Duration.zero, () {
+          try {
+            // If we have a node to select, use it
+            if (newNodeId != null && newNodeId.isNotEmpty) {
+              final node = _document.getNodeById(newNodeId);
+              if (node != null && node is TextNode) {
+                int offset = previousTextOffset ?? 0;
+                
+                // Ensure offset is within text bounds
+                offset = offset.clamp(0, node.text.length);
+                
+                _composer.setSelectionWithReason(DocumentSelection.collapsed(
+                    position: DocumentPosition(
+                      nodeId: newNodeId,
+                      nodePosition: TextNodePosition(offset: offset),
+                    ),
+                  ),
+                );
+              } 
+              // If no matching node, just select the first text node
+              else if (_document.isNotEmpty) {
+                for (final node in _document) {
+                  if (node is TextNode) {
+                    _composer.setSelectionWithReason(DocumentSelection.collapsed(
+                        position: DocumentPosition(
+                          nodeId: node.id,
+                          nodePosition: const TextNodePosition(offset: 0),
+                        ),
+                      ),
+                    );
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            _logger.error('Error restoring selection: $e');
+          }
+        });
+      }
     } catch (e) {
       _logger.error('Error populating document: $e');
     } finally {
       _updatingDocument = false;
     }
   }
-
-  // Completely rebuild the document from scratch
-  void _rebuildEntireDocument() {
-    _logger.info('Rebuilding entire document from scratch');
-    
-    // Clear document and mapping
-    _document.clear();
-    _nodeToBlockMap.clear();
-    
-    // Sort blocks by order
-    final sortedBlocks = List.from(_blocks)
-      ..sort((a, b) => a.order.compareTo(b.order));
-    
-    _logger.debug('Creating document nodes for ${sortedBlocks.length} blocks');
-    
-    // Convert each block to a document node
-    for (final block in sortedBlocks) {
-      try {
-        final nodes = _createNodesFromBlock(block);
-        
-        // Add all nodes to document
-        for (final node in nodes) {
-          _document.add(node);
-          // Map node ID to block ID
-          _nodeToBlockMap[node.id] = block.id;
-        }
-      } catch (e) {
-        _logger.error('Error creating node for block ${block.id}: $e');
-      }
-    }
-    
-    // Attempt to restore reasonable selection if document not empty
-    _attemptToRestoreSelection();
-  }
   
-  // Optimized update that performs targeted document changes
-  void _updateDocumentFromBlocks(String? previousNodeId, int? previousTextOffset) {
-    _logger.info('Performing optimized document update');
-    
-    // Create maps for faster lookups
-    final Map<String, Block> currentBlocksMap = {
-      for (var b in _blocks) b.id: b
-    };
-    
-    // Get existing nodeIds and their block mappings
-    final Map<String, String> existingNodeBlockMap = Map.from(_nodeToBlockMap);
-    final Map<String, String> blockToNodeMap = {};
-    
-    // Reverse map from block ID to node ID (first node for each block)
-    existingNodeBlockMap.forEach((nodeId, blockId) {
-      if (!blockToNodeMap.containsKey(blockId)) {
-        blockToNodeMap[blockId] = nodeId;
-      }
-    });
-    
-    // Sort blocks by order
-    final sortedBlocks = List.from(_blocks)
-      ..sort((a, b) => a.order.compareTo(b.order));
-    
-    // Track nodes we've processed to identify deleted nodes later
-    final Set<String> processedNodes = {};
-    
-    // Track blocks we need to completely replace due to type changes
-    final Set<String> blocksToReplace = {};
-    
-    // STEP 1: Update existing nodes and identify blocks that need replacing
-    for (int i = 0; i < sortedBlocks.length; i++) {
-      final block = sortedBlocks[i];
-      final existingNodeId = blockToNodeMap[block.id];
-      
-      if (existingNodeId != null) {
-        final existingNode = _document.getNodeById(existingNodeId);
-        if (existingNode != null) {
-          // Check if type has changed (requiring replacement)
-          bool typeChanged = false;
-          
-          if (existingNode is ParagraphNode && block.type != 'text' && 
-              block.type != 'heading' && block.type != 'code') {
-            typeChanged = true;
-          } else if (existingNode is ListItemNode && block.type != 'checklist') {
-            typeChanged = true;
-          }
-          
-          if (typeChanged) {
-            blocksToReplace.add(block.id);
-            continue;
-          }
-          
-          // Update content of existing node if type hasn't changed
-          _updateNodeContentFromBlock(existingNode, block);
-          processedNodes.add(existingNodeId);
-        }
-      }
-    }
-    
-    // STEP 2: Handle node deletions for blocks no longer present
-    List<String> nodeIdsToDelete = [];
-    existingNodeBlockMap.forEach((nodeId, blockId) {
-      if (!currentBlocksMap.containsKey(blockId) || 
-          blocksToReplace.contains(blockId)) {
-        nodeIdsToDelete.add(nodeId);
-      }
-    });
-    
-    // Delete nodes in reverse order to maintain indexes
-    nodeIdsToDelete.sort((a, b) {
-      final nodeA = _document.getNodeIndexById(a) ?? 0;
-      final nodeB = _document.getNodeIndexById(b) ?? 0;
-      return nodeB.compareTo(nodeA); // Reverse order
-    });
-    
-    for (final nodeId in nodeIdsToDelete) {
-      _logger.debug('Deleting node $nodeId from document');
-      final index = _document.getNodeIndexById(nodeId);
-      if (index != null) {
-        _document.deleteNodeAt(index);
-      }
-      _nodeToBlockMap.remove(nodeId);
-    }
-    
-    // STEP 3: Insert new blocks and replace blocks with type changes
-    for (int i = 0; i < sortedBlocks.length; i++) {
-      final block = sortedBlocks[i];
-      final existingNodeId = blockToNodeMap[block.id];
-      
-      final bool isNewBlock = existingNodeId == null;
-      final bool needsReplacement = blocksToReplace.contains(block.id);
-      
-      if (isNewBlock || needsReplacement) {
-        // Determine insert position
-        int insertIndex;
-        
-        if (i == 0) {
-          insertIndex = 0; // Insert at start
-        } else {
-          // Try to find the node for the previous block
-          int prevIndex = i - 1;
-          String? prevNodeId;
-          
-          while (prevIndex >= 0 && prevNodeId == null) {
-            final prevBlockId = sortedBlocks[prevIndex].id;
-            prevNodeId = blockToNodeMap[prevBlockId];
-            prevIndex--;
-          }
-          
-          if (prevNodeId != null) {
-            final prevIndex = _document.getNodeIndexById(prevNodeId);
-            insertIndex = prevIndex != null ? prevIndex + 1 : _document.length;
-          } else {
-            insertIndex = 0; // Fall back to beginning if prev not found
-          }
-        }
-        
-        // Clamp to document bounds
-        insertIndex = insertIndex.clamp(0, _document.length);
-        
-        // Create and insert new nodes
-        final nodes = _createNodesFromBlock(block);
-        for (final node in nodes) {
-          if (insertIndex >= _document.length) {
-            _document.add(node);
-          } else {
-            _document.insertNodeAt(insertIndex, node);
-          }
-          _nodeToBlockMap[node.id] = block.id;
-          blockToNodeMap[block.id] = node.id; // Update for subsequent insertions
-          insertIndex++; // Move insertion point for next node
-        }
-        
-        _logger.debug('${isNewBlock ? "Inserted" : "Replaced"} block ${block.id} at position $insertIndex');
-      }
-    }
-    
-    // STEP 4: Reorder nodes to match block order if needed
-    _reorderNodesIfNeeded(sortedBlocks.cast<Block>(), blockToNodeMap);
-    
-    // Try to restore selection to same position
-    _restoreSelection(previousNodeId, previousTextOffset, blockToNodeMap);
-  }
-  
-  // Update content of an existing node from a block
-  void _updateNodeContentFromBlock(DocumentNode node, Block block) {
-    if (node is ParagraphNode) {
-      final content = block.content;
-      final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
-      
-      // Only update if content has changed
-      if (node.text.toPlainText() != text) {
-        // Create new attributed text
-        final attributedText = _createAttributedTextFromContent(text, content);
-        
-        // Replace the node with a copy that has the new text
-        // (ParagraphNode is immutable so we can't modify it directly)
-        _document.replaceNodeById(
-          node.id,
-          node.copyParagraphWith(
-            text: attributedText,
-            // Preserve existing metadata
-            metadata: Map<String, dynamic>.from(node.metadata),
-          ),
-        );
-        
-        _logger.debug('Updated content for node ${node.id} (block ${block.id})');
-      }
-    } else if (node is ListItemNode && block.type == 'checklist') {
-      final content = block.content;
-      final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
-      final checked = content is Map ? (content['checked'] == true) : false;
-      final newType = checked ? ListItemType.ordered : ListItemType.unordered;
-      
-      // Only update if content has changed
-      bool needsUpdate = node.text.toPlainText() != text || node.type != newType;
-      
-      if (needsUpdate) {
-        // ListItemNode is also immutable, so create a new one with updated properties
-        final attributedText = _createAttributedTextFromContent(text, content);
-        
-        // Create a new node with the updated properties
-        final updatedNode = ListItemNode(
-          id: node.id,
-          text: attributedText, 
-          itemType: newType,
-        );
-        
-        // Replace the node in the document
-        _document.replaceNodeById(node.id, updatedNode);
-        
-        _logger.debug('Updated list item node ${node.id} (block ${block.id})');
-      }
-    }
-  }
-  
-  // Reorder nodes in the document to match block order if needed
-  void _reorderNodesIfNeeded(List<Block> sortedBlocks, Map<String, String> blockToNodeMap) {
-    // This is a simplified approach - for complex reordering cases,
-    // we might need a more sophisticated algorithm
-    
-    // Create expected node order
-    final List<String> expectedNodeOrder = [];
-    for (final block in sortedBlocks) {
-      final nodeId = blockToNodeMap[block.id];
-      if (nodeId != null) {
-        expectedNodeOrder.add(nodeId);
-      }
-    }
-    
-    // Check current order
-    final List<String> currentNodeOrder = [];
-    for (final node in _document) {
-      currentNodeOrder.add(node.id);
-    }
-    
-    // Compare orders
-    bool orderingNeeded = false;
-    if (expectedNodeOrder.length == currentNodeOrder.length) {
-      for (int i = 0; i < expectedNodeOrder.length; i++) {
-        if (expectedNodeOrder[i] != currentNodeOrder[i]) {
-          orderingNeeded = true;
-          break;
-        }
-      }
-    } else {
-      // Different lengths means ordering needed
-      orderingNeeded = true;
-    }
-    
-    if (orderingNeeded) {
-      _logger.debug('Reordering nodes to match block order');
-      
-      // For each node that's out of order, move it to the correct position
-      for (int targetIndex = 0; targetIndex < expectedNodeOrder.length; targetIndex++) {
-        final expectedNodeId = expectedNodeOrder[targetIndex];
-        final currentIndex = _document.getNodeIndexById(expectedNodeId);
-        
-        if (currentIndex != null && currentIndex != targetIndex) {
-          _document.moveNode(nodeId: expectedNodeId, targetIndex: targetIndex);
-          _logger.debug('Moved node $expectedNodeId from position $currentIndex to $targetIndex');
-        }
-      }
-    }
-  }
-  
-  // Helper method to try to restore selection after document updates
-  void _restoreSelection(String? previousNodeId, int? previousTextOffset, Map<String, String> blockToNodeMap) {
-    if (previousNodeId == null || _document.isEmpty) return;
-    
-    Future.delayed(Duration.zero, () {
-      try {
-        // First try to find the exact same node
-        DocumentNode? targetNode = _document.getNodeById(previousNodeId);
-        
-        // If node doesn't exist anymore, find its block and the new node for that block
-        if (targetNode == null) {
-          final previousBlockId = _nodeToBlockMap[previousNodeId];
-          if (previousBlockId != null) {
-            final newNodeId = blockToNodeMap[previousBlockId];
-            if (newNodeId != null) {
-              targetNode = _document.getNodeById(newNodeId);
-            }
-          }
-        }
-        
-        // If we have a target node, set selection
-        if (targetNode != null && targetNode is TextNode) {
-          int offset = previousTextOffset ?? 0;
-          
-          // Ensure offset is within text bounds
-          offset = offset.clamp(0, targetNode.text.length);
-          
-          _composer.setSelectionWithReason(DocumentSelection.collapsed(
-            position: DocumentPosition(
-              nodeId: targetNode.id,
-              nodePosition: TextNodePosition(offset: offset),
-            ),
-          ));
-        } 
-        // Fall back to first text node if target not found
-        else if (_document.isNotEmpty) {
-          _attemptToRestoreSelection();
-        }
-      } catch (e) {
-        _logger.error('Error restoring selection: $e');
-      }
-    });
-  }
-  
-  // Fallback method to select first text node when specific selection can't be restored
-  void _attemptToRestoreSelection() {
-    if (_document.isEmpty) return;
-    
-    Future.delayed(Duration.zero, () {
-      for (final node in _document) {
-        if (node is TextNode) {
-          _composer.setSelectionWithReason(DocumentSelection.collapsed(
-            position: DocumentPosition(
-              nodeId: node.id,
-              nodePosition: const TextNodePosition(offset: 0),
-            ),
-          ));
-          break;
-        }
-      }
-    });
-  }
-  
-  // DocumentChangeListener implementation
+  // DocumentChangeListener implementation for content changes
   void _documentChangeListener(_) {
     if (!_updatingDocument) {
       _handleDocumentChange();
     }
+  }
+  
+  // Add a specific listener to detect structural changes (new nodes)
+  void _documentStructureChangeListener(_) {
+    if (_updatingDocument) return;
+    
+    final currentNodeCount = _document.length;
+    final currentNodeIds = _document.map((node) => node.id).toList();
+    
+    // If we have more nodes now than before, there might be new nodes
+    if (currentNodeCount > _lastKnownNodeCount) {
+      _logger.debug('Document node count changed: $_lastKnownNodeCount -> $currentNodeCount');
+      
+      // Find new nodes (present in current list but not in previous list)
+      final newNodeIds = currentNodeIds.where((id) => !_lastKnownNodeIds.contains(id)).toList();
+      
+      if (newNodeIds.isNotEmpty) {
+        _logger.info('Detected ${newNodeIds.length} new nodes: ${newNodeIds.join(', ')}');
+        
+        // Handle each new node
+        for (final nodeId in newNodeIds) {
+          _handleNewNodeCreated(nodeId);
+        }
+      }
+    }
+    
+    // Update our last known state
+    _lastKnownNodeIds = currentNodeIds;
+    _lastKnownNodeCount = currentNodeCount;
+  }
+  
+  // Handle newly created nodes (like from pressing Enter to split a paragraph)
+  void _handleNewNodeCreated(String nodeId) {
+    // Skip if this node is already mapped to a block
+    if (_nodeToBlockMap.containsKey(nodeId)) {
+      _logger.debug('Node $nodeId already mapped to a block, skipping');
+      return;
+    }
+    
+    // Skip if we're already processing this node
+    if (_uncommittedNodes.containsKey(nodeId)) {
+      _logger.debug('Node $nodeId is already being processed, skipping');
+      return;
+    }
+    
+    // Get the node from the document
+    final node = _document.getNodeById(nodeId);
+    if (node == null) {
+      _logger.warning('Could not find node $nodeId in document');
+      return;
+    }
+    
+    // Mark as uncommitted
+    _uncommittedNodes[nodeId] = DateTime.now();
+    
+    // Create server-side block for this node
+    _createBlockForNode(nodeId, node);
+  }
+  
+  // Create a server block for a new node created in the editor
+  Future<void> _createBlockForNode(String nodeId, DocumentNode node) async {
+    try {
+      _logger.info('Creating block for new node $nodeId');
+      
+      // Determine block type based on node
+      String blockType = 'text';
+      if (node is ParagraphNode) {
+        final blockTypeAttr = node.metadata['blockType'];
+        if (blockTypeAttr == 'heading') {
+          blockType = 'heading';
+        } else if (blockTypeAttr == 'code') {
+          blockType = 'code';
+        }
+      } else if (node is ListItemNode) {
+        blockType = 'checklist';
+      }
+      
+      // Extract content from node
+      final Map<String, dynamic> content = _extractNodeContentForApi(node);
+      
+      // Calculate a reasonable order value
+      int order = await _calculateOrderForNewNode(nodeId);
+      
+      _logger.debug('Creating block of type $blockType with order $order');
+      
+      // Create block through BlockProvider
+      final block = await _blockProvider.createBlock(
+        noteId, 
+        content,
+        blockType,
+        order
+      );
+      
+      // Update our mappings
+      _nodeToBlockMap[nodeId] = block.id;
+      _blocks.add(block);
+      
+      // Remove from uncommitted nodes
+      _uncommittedNodes.remove(nodeId);
+      
+      _logger.info('Successfully created block ${block.id} for node $nodeId');
+    } catch (e) {
+      _logger.error('Failed to create block for node $nodeId: $e');
+      // Keep in uncommitted nodes list to try again later
+    }
+  }
+  
+  // Extract content from a node in the format expected by the API
+  Map<String, dynamic> _extractNodeContentForApi(DocumentNode node) {
+    Map<String, dynamic> content = {};
+    
+    if (node is ParagraphNode) {
+      // Basic text content
+      content['text'] = node.text.toPlainText();
+      
+      // Extract spans/formatting information
+      final spans = _extractSpansFromAttributedText(node.text);
+      if (spans.isNotEmpty) {
+        content['spans'] = spans;
+      }
+      
+      // Add type-specific properties
+      if (node.metadata['blockType'] == 'heading') {
+        content['level'] = node.metadata['headingLevel'] ?? 1;
+      } else if (node.metadata['blockType'] == 'code') {
+        content['language'] = 'plain';
+      }
+    } else if (node is ListItemNode) {
+      content['text'] = node.text.toPlainText();
+      content['checked'] = node.type == ListItemType.ordered;
+      
+      // Extract spans for list items as well
+      final spans = _extractSpansFromAttributedText(node.text);
+      if (spans.isNotEmpty) {
+        content['spans'] = spans;
+      }
+    }
+    
+    return content;
+  }
+  
+  // Calculate a reasonable order value for a new node
+  Future<int> _calculateOrderForNewNode(String nodeId) async {
+    // Get the position of this node in the document
+    final nodeIndex = _document.getNodeIndexById(nodeId);
+    if (nodeIndex == null) return 1000; // Fallback value
+    
+    // Sort blocks by order to find neighbors
+    final sortedBlocks = List.from(_blocks)..sort((a, b) => a.order.compareTo(b.order));
+    
+    // If this is the first node, put it at the beginning
+    if (nodeIndex == 0) {
+      return sortedBlocks.isEmpty ? 10 : sortedBlocks.first.order - 10;
+    }
+    
+    // If this is the last node, put it at the end
+    if (nodeIndex >= _document.length - 1) {
+      return sortedBlocks.isEmpty ? 10 : sortedBlocks.last.order + 10;
+    }
+    
+    // Otherwise, find the blocks before and after this node
+    // and place it between them
+    final prevNodeId = _document.getNodeAt(nodeIndex - 1)?.id;
+    final nextNodeId = _document.getNodeAt(nodeIndex + 1)?.id;
+    
+    int prevOrder = 0;
+    int nextOrder = 1000;
+    
+    // Find previous block's order
+    if (prevNodeId != null) {
+      final prevBlockId = _nodeToBlockMap[prevNodeId];
+      if (prevBlockId != null) {
+        final prevBlock = _blocks.firstWhere(
+          (b) => b.id == prevBlockId,
+          orElse: () => sortedBlocks.first,
+        );
+        prevOrder = prevBlock.order;
+      }
+    }
+    
+    // Find next block's order
+    if (nextNodeId != null) {
+      final nextBlockId = _nodeToBlockMap[nextNodeId];
+      if (nextBlockId != null) {
+        final nextBlock = _blocks.firstWhere(
+          (b) => b.id == nextBlockId, 
+          orElse: () => sortedBlocks.last,
+        );
+        nextOrder = nextBlock.order;
+      }
+    }
+    
+    // Calculate an order between the two
+    return prevOrder + ((nextOrder - prevOrder) ~/ 2);
   }
   
   // Track which block is being edited and schedule updates
@@ -556,6 +519,26 @@ class RichTextEditorProvider with ChangeNotifier {
         _commitBlockContentChange(nodeId);
       }
     });
+  }
+  
+  // Try to create blocks for any uncommitted nodes before losing focus
+  void _commitUncommittedNodes() async {
+    if (_uncommittedNodes.isEmpty) return;
+    
+    _logger.info('Creating blocks for ${_uncommittedNodes.length} uncommitted nodes');
+    
+    // Make a copy of the keys to avoid concurrent modification
+    final nodeIds = List.from(_uncommittedNodes.keys);
+    
+    for (final nodeId in nodeIds) {
+      final node = _document.getNodeById(nodeId);
+      if (node != null) {
+        await _createBlockForNode(nodeId, node);
+      } else {
+        // Node no longer exists, remove from tracking
+        _uncommittedNodes.remove(nodeId);
+      }
+    }
   }
   
   // Commit changes for a specific node
@@ -845,9 +828,12 @@ class RichTextEditorProvider with ChangeNotifier {
     return mergedSpans;
   }
   
-  // Handle focus changes
+  // Enhanced focus change handling
   void _handleFocusChange() {
     if (!_focusNode.hasFocus) {
+      // Try to commit any uncommitted nodes first
+      _commitUncommittedNodes();
+      
       // Commit any pending changes
       if (_currentEditingBlockId != null) {
         final nodeIds = _document.map((node) => node.id).toList();
@@ -955,7 +941,7 @@ class RichTextEditorProvider with ChangeNotifier {
       
       _logger.debug('Changes detected: +$addedCount ~$modifiedCount -$removedCount');
       
-      // Update our blocks list and refresh document with optimized updates
+      // Update our blocks list and recreate document
       _blocks = List.from(blocks);
       _populateDocumentFromBlocks();
       
@@ -970,7 +956,10 @@ class RichTextEditorProvider with ChangeNotifier {
   void commitAllContent() {
     _logger.debug('Committing content for all blocks');
     
-    // First, check for deleted blocks (in original but not current)
+    // First commit any uncommitted nodes
+    _commitUncommittedNodes();
+    
+    // Check for deleted blocks (in original but not current)
     _checkForDeletedBlocks();
     
     // Then commit content for all current blocks
@@ -1032,7 +1021,12 @@ class RichTextEditorProvider with ChangeNotifier {
     if (_isActive) {
       commitAllContent();
     }
+    
+    // Try to ensure all blocks get created before disposing
+    _commitUncommittedNodes();
+    
     _document.removeListener(_documentChangeListener);
+    _document.removeListener(_documentStructureChangeListener);
     _focusNode.removeListener(_handleFocusChange);
     _focusNode.dispose();
     _composer.dispose();
