@@ -250,7 +250,7 @@ class NotesProvider with ChangeNotifier {
   }
 
   // Fetch notes with pagination and proper user filtering
-  Future<void> fetchNotes({int page = 1, List<String>? excludeIds}) async {
+  Future<void> fetchNotes({required String notebookId, int page = 1, List<String>? excludeIds}) async {
     // Check if user is logged in
     final currentUser = await _authService.getUserProfile();
     if (currentUser == null) {
@@ -262,8 +262,9 @@ class NotesProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      // Fetch notes from API with user filter (API must filter by owner role)
+      // Fetch notes from API with notebook filter
       final fetchedNotes = await _noteService.fetchNotes(
+        notebookId: notebookId,
         page: page,
       );
       
@@ -272,7 +273,8 @@ class NotesProvider with ChangeNotifier {
       
       // Update the map without replacing existing notes if first page
       if (page == 1) {
-        _notesMap.clear();
+        // Only clear notes associated with this notebook
+        _notesMap.removeWhere((_, note) => note.notebookId == notebookId);
       }
       
       // Add new notes to the map, skipping duplicates
@@ -298,6 +300,13 @@ class NotesProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // Helper method to get notes by notebook ID
+  List<Note> getNotesByNotebookId(String notebookId) {
+    return _notesMap.values
+      .where((note) => note.notebookId == notebookId)
+      .toList();
   }
 
   // Add single note from websocket event

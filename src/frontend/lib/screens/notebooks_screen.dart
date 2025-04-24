@@ -70,7 +70,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         
         if (notebookId != null && notebookId.isNotEmpty) {
           // Only fetch the specific notebook without triggering a full refresh
-          _handleNewNotebook(notebookId);
+          _refreshNotebookById(notebookId);
         } else {
           _logger.warning('Could not extract notebook_id from message');
         }
@@ -89,7 +89,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         if (notebookId != null && notebookId.isNotEmpty) {
           // Only update the specific notebook
           if (_loadedNotebookIds.contains(notebookId)) {
-            _presenter.fetchNotebookById(notebookId);
+            _refreshNotebookById(notebookId);
           }
         } else {
           _logger.warning('Could not extract notebook_id from message');
@@ -137,7 +137,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     wsProvider.subscribe('note');
   }
 
-  // Refresh notebooks data after events
+  // Refresh all notebooks data 
   Future<void> _refreshNotebooks() async {
     if (!mounted) return;
     
@@ -149,18 +149,18 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     }
   }
 
-  // Update the set of loaded IDs
-  void _updateLoadedIds() {
-    setState(() {
-      _loadedNotebookIds = _presenter.notebooks.map((nb) => nb.id).toSet();
-    });
-  }
-
-  // Process a single new notebook from WebSocket event in a non-blocking way
-  void _handleNewNotebook(String notebookId) {
+  // Refresh a specific notebook by ID
+  Future<void> _refreshNotebookById(String notebookId) async {
     // Check if this notebook is already loaded
     if (_loadedNotebookIds.contains(notebookId)) {
-      _logger.debug('Notebook $notebookId already loaded, skipping');
+      _logger.debug('Notebook $notebookId already loaded, updating');
+      // Update existing notebook
+      _presenter.fetchNotebookById(notebookId).then((_) {
+        // Update our tracking set after successful fetch
+        if (mounted) setState(() {});
+      }).catchError((error) {
+        _logger.error('Error updating notebook by id', error);
+      });
       return;
     }
     
@@ -176,6 +176,13 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       }
     }).catchError((error) {
       _logger.error('Error fetching notebook by id', error);
+    });
+  }
+
+  // Update the set of loaded IDs
+  void _updateLoadedIds() {
+    setState(() {
+      _loadedNotebookIds = _presenter.notebooks.map((nb) => nb.id).toSet();
     });
   }
   
@@ -354,7 +361,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => presenter.fetchNotebooks(page: 1, pageSize: 20),
+      onRefresh: _refreshNotebooks,
       color: Theme.of(context).primaryColor,
       child: ListView.builder(
         controller: _scrollController,

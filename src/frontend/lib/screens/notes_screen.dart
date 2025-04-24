@@ -29,13 +29,14 @@ class _NotesScreenState extends State<NotesScreen> {
   int _currentPage = 1;
   bool _hasMoreData = true;
   bool _isLoadingMore = false;
-  Set<String> _loadedNoteIds =
-      {}; // Track loaded note IDs to prevent duplicates
+  Set<String> _loadedNoteIds = {}; // Track loaded note IDs to prevent duplicates
   bool _isRefreshing = false; // Track refresh state to avoid multiple refreshes
+  String? _selectedNotebookId; // Track the selected notebook ID for filtering
 
   // NotesProvider acts as the Presenter
   late NotesProvider _presenter;
   late WebSocketProvider _wsProvider;
+  late NotebooksProvider _notebooksProvider;
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _NotesScreenState extends State<NotesScreen> {
       // Get presenters
       _presenter = context.notesPresenter();
       _wsProvider = context.webSocketProvider();
+      _notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
 
       // Initialize WebSocket and fetch data
       _initializeData();
@@ -77,8 +79,16 @@ class _NotesScreenState extends State<NotesScreen> {
     // Activate the presenter
     _presenter.activate();
 
-    // Fetch initial data
-    await _refresh();
+    // Fetch notebooks first to populate the dropdown
+    await _notebooksProvider.fetchNotebooks();
+    
+    // Set the default selected notebook if available
+    if (_notebooksProvider.notebooks.isNotEmpty) {
+      _selectedNotebookId = _notebooksProvider.notebooks.first.id;
+    }
+
+    // Fetch initial data for all notebooks
+    await _refreshNotes();
   }
 
   void _registerEventHandlers() {
@@ -110,7 +120,7 @@ class _NotesScreenState extends State<NotesScreen> {
       
       // Small delay to batch potential multiple events
       Future.delayed(const Duration(milliseconds: 300), () {
-        _refresh().then((_) {
+        _refreshNotes().then((_) {
           _isRefreshing = false;
         }).catchError((e) {
           _isRefreshing = false;
@@ -121,10 +131,25 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   // Refresh notes data
-  Future<void> _refresh() async {
+  Future<void> _refreshNotes() async {
     _logger.info('Refreshing notes data');
     _currentPage = 1;
-    await _presenter.fetchNotes(); // Removed unnecessary page parameter
+    
+    if (_notebooksProvider.notebooks.isEmpty) {
+      _logger.warning('No notebooks available to fetch notes');
+      return;
+    }
+    
+    // If we have a selected notebook, fetch notes only for that notebook
+    if (_selectedNotebookId != null) {
+      await _presenter.fetchNotes(notebookId: _selectedNotebookId!);
+    } else {
+      // Otherwise fetch notes for all notebooks
+      for (final notebook in _notebooksProvider.notebooks) {
+        await _presenter.fetchNotes(notebookId: notebook.id);
+      }
+    }
+    
     _updateLoadedNoteIds();
   }
 
@@ -183,11 +208,23 @@ class _NotesScreenState extends State<NotesScreen> {
     final currentCount = _presenter.notes.length;
     final currentIds = _presenter.notes.map((note) => note.id).toSet();
 
-    // Pass the currently loaded IDs to avoid fetching duplicates
-    await _presenter.fetchNotes(
-      page: _currentPage,
-      excludeIds: currentIds.toList(),
-    );
+    if (_selectedNotebookId != null) {
+      // Load more notes for the selected notebook
+      await _presenter.fetchNotes(
+        notebookId: _selectedNotebookId!,
+        page: _currentPage,
+        excludeIds: currentIds.toList(),
+      );
+    } else if (_notebooksProvider.notebooks.isNotEmpty) {
+      // Load more notes from all notebooks
+      for (final notebook in _notebooksProvider.notebooks) {
+        await _presenter.fetchNotes(
+          notebookId: notebook.id,
+          page: _currentPage,
+          excludeIds: currentIds.toList(),
+        );
+      }
+    }
 
     // Check if we got new data
     final hasNewData = _presenter.notes.length > currentCount;
@@ -391,6 +428,7 @@ class _NotesScreenState extends State<NotesScreen> {
   Widget build(BuildContext context) {
     // Listen to presenters for updates
     final notesPresenter = context.notesPresenter(listen: true);
+    final notebooksProvider = Provider.of<NotebooksProvider>(context);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -403,6 +441,39 @@ class _NotesScreenState extends State<NotesScreen> {
             Navigator.of(context).pop();
           }
         },
+        additionalActions: [
+          // Add notebook filter dropdown
+          if (notebooksProvider.notebooks.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: DropdownButton<String?>(
+                hint: const Text("All Notebooks"),
+                value: _selectedNotebookId,
+                underline: Container(),
+                icon: const Icon(Icons.filter_list),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedNotebookId = newValue;
+                    _refreshNotes(); // Refresh when selection changes
+                  });
+                },
+                items: [
+                  // Add "All Notebooks" option
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text("All Notebooks"),
+                  ),
+                  // Add individual notebooks
+                  ...notebooksProvider.notebooks.map((notebook) {
+                    return DropdownMenuItem<String?>(
+                      value: notebook.id,
+                      child: Text(notebook.name),
+                    );
+                  }).toList(),
+                ],
+              ),
+            ),
+        ],
       ),
       drawer: const AppDrawer(),
       body: _buildBody(notesPresenter),
@@ -418,8 +489,13 @@ class _NotesScreenState extends State<NotesScreen> {
     if (presenter.isLoading && presenter.notes.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    
+    // Get notes based on selected notebook
+    List<Note> notesToDisplay = _selectedNotebookId != null 
+        ? presenter.getNotesByNotebookId(_selectedNotebookId!)
+        : presenter.notes;
 
-    if (presenter.notes.isEmpty) {
+    if (notesToDisplay.isEmpty) {
       return EmptyState(
         title: 'No notes found',
         message: 'Create your first note to get started',
@@ -430,15 +506,15 @@ class _NotesScreenState extends State<NotesScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: _refresh, // Use our new refresh method
+      onRefresh: _refreshNotes,
       color: Theme.of(context).primaryColor,
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: presenter.notes.length + (_isLoadingMore ? 1 : 0),
+        itemCount: notesToDisplay.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           // Show loading indicator at the end
-          if (index == presenter.notes.length) {
+          if (index == notesToDisplay.length) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(8.0),
@@ -447,7 +523,7 @@ class _NotesScreenState extends State<NotesScreen> {
             );
           }
 
-          final note = presenter.notes[index];
+          final note = notesToDisplay[index];
           return CardContainer(
             key: ValueKey('note_${note.id}'),
             onTap: () => _navigateToNoteEditor(note),

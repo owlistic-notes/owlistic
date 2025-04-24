@@ -55,9 +55,13 @@ class _HomeScreenState extends State<HomeScreen> {
           notesProvider.activate();
           notebooksProvider.activate();
 
-          // Fetch data - will now fetch notes for each notebook
+          // Fetch notebooks first
           await notebooksProvider.fetchNotebooks();
-          await notesProvider.fetchNotes();
+          
+          // For each notebook, fetch its notes
+          for (final notebook in notebooksProvider.notebooks) {
+            await notesProvider.fetchNotes(notebookId: notebook.id);
+          }
 
           Provider.of<TasksProvider>(context, listen: false).fetchTasks();
         } catch (e) {
@@ -612,6 +616,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        // Use the recent notes getter that returns notes from all notebooks
         if (notesProvider.recentNotes.isEmpty) {
           // Check if notebooks exist before showing the create note button
           final notebooksProvider =

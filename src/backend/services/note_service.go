@@ -423,35 +423,34 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 	log.Printf("Found %d notes directly owned by user %s", len(notes), userID)
 
 	// Find notes where the user has explicit roles (using our new role service methods)
-	var allRoles []models.Role
-	roleParams := map[string]interface{}{
-		"user_id":       userID,
-		"resource_type": string(models.NoteResource),
-	}
+	// var allRoles []models.Role
+	// roleParams := map[string]interface{}{
+	// 	"user_id":       userID,
+	// 	"resource_type": string(models.NoteResource),
+	// }
+	// sharedNotes, err := RoleServiceInstance.GetRoles(db, roleParams)
+	// if err != nil {
+	// 	log.Printf("Error finding role-based notes: %v", err)
+	// } else {
+	// 	for _, role := range sharedNotes {
+	// 		// Skip notes that the user already owns
+	// 		var isOwned bool
+	// 		for _, note := range notes {
+	// 			if note.ID == role.ResourceID {
+	// 				isOwned = true
+	// 				break
+	// 			}
+	// 		}
 
-	sharedNotes, err := RoleServiceInstance.GetRoles(db, roleParams)
-	if err != nil {
-		log.Printf("Error finding role-based notes: %v", err)
-	} else {
-		for _, role := range sharedNotes {
-			// Skip notes that the user already owns
-			var isOwned bool
-			for _, note := range notes {
-				if note.ID == role.ResourceID {
-					isOwned = true
-					break
-				}
-			}
-
-			if !isOwned {
-				var sharedNote models.Note
-				if err := db.DB.Where("id = ? AND deleted_at IS NULL", role.ResourceID).First(&sharedNote).Error; err == nil {
-					notes = append(notes, sharedNote)
-				}
-			}
-		}
-		log.Printf("Found %d additional notes where user has an explicit role", len(notes)-len(allRoles))
-	}
+	// 		if !isOwned {
+	// 			var sharedNote models.Note
+	// 			if err := db.DB.Where("id = ? AND deleted_at IS NULL", role.ResourceID).First(&sharedNote).Error; err == nil {
+	// 				notes = append(notes, sharedNote)
+	// 			}
+	// 		}
+	// 	}
+	// 	log.Printf("Found %d additional notes where user has an explicit role", len(notes)-len(allRoles))
+	// }
 
 	// Load blocks for each note
 	for i := range notes {
