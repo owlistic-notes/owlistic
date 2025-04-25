@@ -483,9 +483,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _ignoreBlockUpdates = true;
     
     _logger.info('Updating block $blockId with new content');
+    
+    // Find block index to determine order
+    int blockIndex = _blocks.indexWhere((block) => block.id == blockId);
+    int order = blockIndex >= 0 ? blockIndex + 1 : 1; 
+    
     // Update block content on the server immediately
     Provider.of<BlockProvider>(context, listen: false)
-        .updateBlockContent(blockId, content);
+        .updateBlockContent(blockId, content, order: order);
     
     // Reset the flag after a short delay
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -505,6 +510,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       if (_blocks.isNotEmpty) {
         newOrder = _blocks.map((b) => b.order).reduce((a, b) => a > b ? a : b) + 1;
       }
+      _logger.debug('New block will have order: $newOrder');
       
       // Create initial content
       Map<String, dynamic> initialContent;

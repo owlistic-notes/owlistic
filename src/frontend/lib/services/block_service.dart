@@ -91,7 +91,7 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> updateBlock(String blockId, dynamic content, {String? type}) async {
+  Future<Block> updateBlock(String blockId, dynamic content, {String? type, int? order}) async {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
     
@@ -113,6 +113,10 @@ class BlockService extends BaseService {
     
     if (type != null) {
       body['type'] = type;
+    }
+    
+    if (order != null) {
+      body['order'] = order;
     }
     
     final response = await authenticatedPut(

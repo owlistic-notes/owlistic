@@ -424,7 +424,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Update a block with debouncing
-  void updateBlockContent(String id, dynamic content, {String? type, bool immediate = false}) {
+  void updateBlockContent(String id, dynamic content, {String? type, int? order, bool immediate = false}) {
     // Cancel any existing timer for this block
     if (_saveTimers.containsKey(id)) {
       _saveTimers[id]?.cancel();
@@ -454,17 +454,17 @@ class BlockProvider with ChangeNotifier {
     // For full updates, use debounced saving to reduce API calls
     if (immediate) {
       // If immediate, save now
-      _saveBlockToBackend(id, contentMap, type: type);
+      _saveBlockToBackend(id, contentMap, type: type, order: order);
     } else {
       // Otherwise, debounce for 1 second
       _saveTimers[id] = Timer(const Duration(seconds: 1), () {
-        _saveBlockToBackend(id, contentMap, type: type);
+        _saveBlockToBackend(id, contentMap, type: type, order: order);
       });
     }
   }
   
   // Method to persist block changes to backend
-  Future<void> _saveBlockToBackend(String id, dynamic content, {String? type}) async {
+  Future<void> _saveBlockToBackend(String id, dynamic content, {String? type, int? order}) async {
     if (!_blocks.containsKey(id)) return;
     
     try {
@@ -472,7 +472,8 @@ class BlockProvider with ChangeNotifier {
       final updatedBlock = await _blockService.updateBlock(
         id, 
         content, 
-        type: type
+        type: type,
+        order: order
       );
       
       // Update local block with returned data to ensure consistency
@@ -483,8 +484,8 @@ class BlockProvider with ChangeNotifier {
   }
 
   // For backward compatibility
-  Future<void> updateBlock(String id, String content, {String? type}) async {
-    updateBlockContent(id, content, type: type, immediate: true);
+  Future<void> updateBlock(String id, String content, {String? type, int? order}) async {
+    updateBlockContent(id, content, type: type, order: order, immediate: true);
   }
 
   // Method to handle block creation events
