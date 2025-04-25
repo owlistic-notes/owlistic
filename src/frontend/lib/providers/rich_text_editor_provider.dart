@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import '../models/block.dart';
@@ -34,20 +36,14 @@ class RichTextEditorProvider with ChangeNotifier {
 
   // Get the mapping between document node IDs and block IDs
   getNodeToBlockMapping() {
-    return _blockToNodeMap;
+    return _nodeToBlockMap;
   }
   
   // The blocks used to create the document
   List<Block> _blocks = [];
   
-  // Use a simplified 1-to-1 mapping between blocks and nodes
-  final Map<String, String> _blockToNodeMap = {};
-  
-  // Inverse mapping for quick lookups (node ID to block ID)
+  // Mapping between document node IDs and block IDs
   final Map<String, String> _nodeToBlockMap = {};
-  
-  // Track deletion operations that are pending server sync
-  final Set<String> _pendingDeletions = {};
   
   // Track nodes that don't yet have server blocks
   final Map<String, DateTime> _uncommittedNodes = {};
@@ -128,7 +124,6 @@ class RichTextEditorProvider with ChangeNotifier {
     _logger.info('Resetting RichTextEditorProvider state');
     // Clear document
     _document.clear();
-    _blockToNodeMap.clear();
     _nodeToBlockMap.clear();
     _blocks.clear();
     _originalBlocks.clear();
@@ -163,38 +158,6 @@ class RichTextEditorProvider with ChangeNotifier {
     _logger.info('Rich text editor initialized with ${_blocks.length} blocks');
   }
  
-  // Helper methods for node-to-block lookups - now simplified for 1-to-1 mapping
-  String? getBlockIdForNode(String nodeId) {
-    return _nodeToBlockMap[nodeId];
-  }
-  
-  // Map a node to a block with 1-to-1 relationship - updated with logging
-  void mapNodeToBlock(String nodeId, String blockId) {
-    _blockToNodeMap[blockId] = nodeId;
-    _nodeToBlockMap[nodeId] = blockId;
-    _logger.debug('Mapped: Node $nodeId ↔ Block $blockId');
-  }
-  
-  // Remove a node mapping
-  void removeNodeMapping(String nodeId) {
-    // Get the block ID for this node
-    String? blockId = _nodeToBlockMap[nodeId];
-    if (blockId != null) {
-      // Remove mapping in both directions
-      _nodeToBlockMap.remove(nodeId);
-      
-      // Remove the block-to-node mapping if this node is mapped to that block
-      if (_blockToNodeMap[blockId] == nodeId) {
-        _blockToNodeMap.remove(blockId);
-      }
-    }
-  }
-  
-  // Check if a node is mapped to a block
-  bool isNodeMapped(String nodeId) {
-    return _nodeToBlockMap.containsKey(nodeId);
-  }
-  
   // Convert blocks to document nodes
   void _populateDocumentFromBlocks() {
     if (_updatingDocument) {
@@ -209,23 +172,18 @@ class RichTextEditorProvider with ChangeNotifier {
       // Remember current selection
       String? previousNodeId;
       int? previousTextOffset;
+      DocumentPosition? previousPosition;
       
       if (_composer.selection != null) {
         previousNodeId = _composer.selection?.extent.nodeId;
         if (_composer.selection?.extent.nodePosition is TextNodePosition) {
           previousTextOffset = (_composer.selection!.extent.nodePosition as TextNodePosition).offset;
+          previousPosition = _composer.selection!.extent;
         }
-      }
-      
-      // Store block ID for current node if it exists
-      String? previousBlockId;
-      if (previousNodeId != null) {
-        previousBlockId = _nodeToBlockMap[previousNodeId];
       }
       
       // Clear document and mapping
       _document.clear();
-      _blockToNodeMap.clear();
       _nodeToBlockMap.clear();
       
       // Sort blocks by order
@@ -233,26 +191,24 @@ class RichTextEditorProvider with ChangeNotifier {
         ..sort((a, b) => a.order.compareTo(b.order));
       
       _logger.debug('Creating document nodes for ${sortedBlocks.length} blocks');
+      // Create node based on block type
+      // Keep track of created nodes by block ID to help with selection restoration
+      final Map<String, String> blockToNodeMap = {};
       
       // Convert each block to a document node
       for (final block in sortedBlocks) {
         try {
           final nodes = _createNodesFromBlock(block);
           
-          if (nodes.isNotEmpty) {
-            // We only care about the first node for each block in our simplified 1-to-1 mapping
-            final mainNode = nodes.first;
-            _document.add(mainNode);
+          // Add all nodes to document
+          for (final node in nodes) {
+            _document.add(node);
+            // Map node ID to block ID
+            _nodeToBlockMap[node.id] = block.id;
             
-            // Create the bidirectional mapping
-            _blockToNodeMap[block.id] = mainNode.id;
-            _nodeToBlockMap[mainNode.id] = block.id;
-            
-            _logger.debug('Mapped block ${block.id} to node ${mainNode.id}');
-            
-            // Add any additional nodes without mapping them to blocks
-            for (int i = 1; i < nodes.length; i++) {
-              _document.add(nodes[i]);
+            // Also track the first node for each block
+            if (!blockToNodeMap.containsKey(block.id)) {
+              blockToNodeMap[block.id] = node.id;
             }
           }
         } catch (e) {
@@ -261,112 +217,68 @@ class RichTextEditorProvider with ChangeNotifier {
       }
       
       _logger.debug('Document populated with ${_document.length} nodes');
-      _logger.debug('Block-to-node map: $_blockToNodeMap');
-      _logger.debug('Node-to-block map: $_nodeToBlockMap');
-      
-      _validateMappings(); // Validate mappings
       
       // Try to restore selection if possible
-      if (_document.isNotEmpty && previousBlockId != null) {
-        // Get the new node ID for the previous block
-        final newNodeId = _blockToNodeMap[previousBlockId];
+      if (_document.isNotEmpty) {
+        // First, try to find the same node ID in the new document
+        String? newNodeId;
         
-        if (newNodeId != null) {
-          _logger.debug('Restoring selection to node $newNodeId for block $previousBlockId');
+        if (previousNodeId != null && previousNodeId.isNotEmpty) {
+          // Get the block ID that the previous node belonged to
+          final previousBlockId = _nodeToBlockMap[previousNodeId];
           
-          // Restore selection after a brief delay to let document stabilize
-          Future.delayed(Duration.zero, () {
-            try {
+          if (previousBlockId != null) {
+            // Look for a node with the same block ID
+            newNodeId = blockToNodeMap[previousBlockId];
+          }
+        }
+        
+        // If we found a match or otherwise need to reset, do it after a small delay
+        // to let the document stabilize
+        Future.delayed(Duration.zero, () {
+          try {
+            // If we have a node to select, use it
+            if (newNodeId != null && newNodeId.isNotEmpty) {
               final node = _document.getNodeById(newNodeId);
               if (node != null && node is TextNode) {
                 int offset = previousTextOffset ?? 0;
+                
+                // Ensure offset is within text bounds
                 offset = offset.clamp(0, node.text.length);
                 
-                _composer.setSelectionWithReason(
-                  DocumentSelection.collapsed(
+                _composer.setSelectionWithReason(DocumentSelection.collapsed(
                     position: DocumentPosition(
                       nodeId: newNodeId,
                       nodePosition: TextNodePosition(offset: offset),
                     ),
                   ),
                 );
-              } else {
-                _resetSelectionToFirstNode();
+              } 
+              // If no matching node, just select the first text node
+              else if (_document.isNotEmpty) {
+                for (final node in _document) {
+                  if (node is TextNode) {
+                    _composer.setSelectionWithReason(DocumentSelection.collapsed(
+                        position: DocumentPosition(
+                          nodeId: node.id,
+                          nodePosition: const TextNodePosition(offset: 0),
+                        ),
+                      ),
+                    );
+                    break;
+                  }
+                }
               }
-            } catch (e) {
-              _logger.error('Error restoring selection: $e');
-              _resetSelectionToFirstNode();
             }
-          });
-        } else {
-          _resetSelectionToFirstNode();
-        }
-      } else if (_document.isNotEmpty) {
-        _resetSelectionToFirstNode();
+          } catch (e) {
+            _logger.error('Error restoring selection: $e');
+          }
+        });
       }
-      
     } catch (e) {
       _logger.error('Error populating document: $e');
     } finally {
       _updatingDocument = false;
-    }
-  }
-
-  // Helper method to safely reset selection to the first available text node
-  void _resetSelectionToFirstNode() {
-    if (_document.isEmpty) return;
-    
-    for (final node in _document) {
-      if (node is TextNode) {
-        try {
-          _composer.setSelectionWithReason(
-            DocumentSelection.collapsed(
-              position: DocumentPosition(
-                nodeId: node.id,
-                nodePosition: const TextNodePosition(offset: 0),
-              ),
-            ),
-          );
-          break;
-        } catch (e) {
-          _logger.error('Failed to set selection to node: $e');
-          // Continue trying with next node
-        }
-      }
-    }
-  }
-  
-  // Simplified validation function for 1-to-1 mappings
-  void _validateMappings() {
-    // Check that all blocks have a corresponding node
-    for (final block in _blocks) {
-      if (!_blockToNodeMap.containsKey(block.id)) {
-        _logger.warning('Block ${block.id} has no mapped node. This should not happen.');
-      }
-    }
-    
-    // Check that all mapped nodes exist in the document
-    for (final entry in _blockToNodeMap.entries) {
-      final blockId = entry.key;
-      final nodeId = entry.value;
-      
-      if (!_blocks.any((block) => block.id == blockId)) {
-        _logger.warning('Node $nodeId maps to non-existent block $blockId.');
-      }
-      
-      if (_document.getNodeById(nodeId) == null) {
-        _logger.warning('Node $nodeId in mapping does not exist in document.');
-      }
-    }
-    
-    // Check that bidirectional mapping is consistent
-    for (final entry in _nodeToBlockMap.entries) {
-      final nodeId = entry.key;
-      final blockId = entry.value;
-      
-      if (_blockToNodeMap[blockId] != nodeId) {
-        _logger.warning('Inconsistent mapping: Node $nodeId maps to block $blockId, but block maps to ${_blockToNodeMap[blockId]}');
-      }
     }
   }
   
@@ -426,7 +338,7 @@ class RichTextEditorProvider with ChangeNotifier {
   void _handleNewNodeCreated(String nodeId) {
     // Skip if this node is already mapped to a block
     if (_nodeToBlockMap.containsKey(nodeId)) {
-      _logger.debug('Node $nodeId already mapped to block ${_nodeToBlockMap[nodeId]}');
+      _logger.debug('Node $nodeId already mapped to a block, skipping');
       return;
     }
     
@@ -450,7 +362,7 @@ class RichTextEditorProvider with ChangeNotifier {
     _createBlockForNode(nodeId, node);
   }
   
-  // Handle deleted nodes with simplified mapping
+  // Handle deleted nodes (like when pressing Backspace at beginning of paragraph)
   void _handleNodeDeleted(String nodeId) {
     // Check if this node was mapped to a block
     final blockId = _nodeToBlockMap[nodeId];
@@ -466,13 +378,21 @@ class RichTextEditorProvider with ChangeNotifier {
       return;
     }
     
-    _logger.info('Node $nodeId was deleted, deleting block $blockId on server');
+    _logger.info('Node $nodeId was deleted, will delete block $blockId on server');
     
-    // Remove node from mapping
-    removeNodeMapping(nodeId);
+    // Remove from our mappings
+    _nodeToBlockMap.remove(nodeId);
     
-    // Delete the block from the server since the node is gone
-    _deleteBlockFromServer(blockId);
+    // Remove from blocks list if it exists
+    _blocks.removeWhere((block) => block.id == blockId);
+    
+    // Call the deletion handler to delete on server
+    if (onBlockDeleted != null) {
+      onBlockDeleted!(blockId);
+    } else {
+      // If no handler, try to delete directly
+      _blockProvider.deleteBlock(blockId);
+    }
   }
   
   // Create a server block for a new node created in the editor
@@ -509,8 +429,8 @@ class RichTextEditorProvider with ChangeNotifier {
         order
       );
       
-      // Update our mapping
-      mapNodeToBlock(nodeId, block.id);
+      // Update our mappings
+      _nodeToBlockMap[nodeId] = block.id;
       _blocks.add(block);
       
       // Remove from uncommitted nodes
@@ -586,7 +506,7 @@ class RichTextEditorProvider with ChangeNotifier {
     
     // Find previous block's order
     if (prevNodeId != null) {
-      final prevBlockId = getBlockIdForNode(prevNodeId);
+      final prevBlockId = _nodeToBlockMap[prevNodeId];
       if (prevBlockId != null) {
         final prevBlock = _blocks.firstWhere(
           (b) => b.id == prevBlockId,
@@ -598,7 +518,7 @@ class RichTextEditorProvider with ChangeNotifier {
     
     // Find next block's order
     if (nextNodeId != null) {
-      final nextBlockId = getBlockIdForNode(nextNodeId);
+      final nextBlockId = _nodeToBlockMap[nextNodeId];
       if (nextBlockId != null) {
         final nextBlock = _blocks.firstWhere(
           (b) => b.id == nextBlockId, 
@@ -635,7 +555,7 @@ class RichTextEditorProvider with ChangeNotifier {
     if (nodeId == null) return;
     
     // Find the block ID for this node
-    final blockId = getBlockIdForNode(nodeId);
+    final blockId = _nodeToBlockMap[nodeId];
     if (blockId == null) return;
     
     // Set the current editing block
@@ -675,7 +595,7 @@ class RichTextEditorProvider with ChangeNotifier {
   // Commit changes for a specific node
   void _commitBlockContentChange(String nodeId) {
     // Find block ID for this node
-    final blockId = getBlockIdForNode(nodeId);
+    final blockId = _nodeToBlockMap[nodeId];
     if (blockId == null) return;
     
     // Find node in document
@@ -690,60 +610,37 @@ class RichTextEditorProvider with ChangeNotifier {
     _currentEditingBlockId = null;
   }
   
-  // New method to handle block deletion with better tracking
-  void _deleteBlockFromServer(String blockId) {
-    // Remove from blocks list if it exists
-    _blocks.removeWhere((block) => block.id == blockId);
-    
-    // Add to pending deletions
-    _pendingDeletions.add(blockId);
-    
-    // Call the deletion handler to delete on server
-    if (onBlockDeleted != null) {
-      _logger.info('Calling onBlockDeleted for block: $blockId');
-      onBlockDeleted!(blockId);
-    } else {
-      // If no handler, try to delete directly
-      _logger.info('Directly deleting block with BlockProvider: $blockId');
-      try {
-        _blockProvider.deleteBlock(blockId).then((_) {
-          _pendingDeletions.remove(blockId);
-        }).catchError((e) {
-          _logger.error('Failed to delete block $blockId: $e');
-        });
-      } catch (e) {
-        _logger.error('Error during block deletion: $e');
-      }
-    }
-  }
-  
-  // Delete a block - simplified for 1-to-1 mapping
+  // Delete a block
   void deleteBlock(String blockId) {
     _logger.info('Deleting block: $blockId');
     
-    // Find the node belonging to this block
-    final nodeId = _blockToNodeMap[blockId];
+    // Find nodes belonging to this block
+    final nodesToDelete = <String>[];
+    _nodeToBlockMap.forEach((nodeId, mappedBlockId) {
+      if (mappedBlockId == blockId) {
+        nodesToDelete.add(nodeId);
+      }
+    });
     
-    // Delete the node from the document if it exists
+    // Delete each node from the document
     _updatingDocument = true;
     try {
-      if (nodeId != null) {
+      for (final nodeId in nodesToDelete) {
         final node = _document.getNodeById(nodeId);
         if (node != null) {
           _document.deleteNode(nodeId);
         }
-        // Remove from node-to-block mapping
         _nodeToBlockMap.remove(nodeId);
       }
-      
-      // Remove from block-to-node mapping
-      _blockToNodeMap.remove(blockId);
     } finally {
       _updatingDocument = false;
     }
     
-    // Delete the block from the server
-    _deleteBlockFromServer(blockId);
+    // Remove from blocks list
+    _blocks.removeWhere((block) => block.id == blockId);
+    
+    // Notify callback
+    onBlockDeleted?.call(blockId);
     
     // Notify listeners
     notifyListeners();
@@ -992,7 +889,7 @@ class RichTextEditorProvider with ChangeNotifier {
       if (_currentEditingBlockId != null) {
         final nodeIds = _document.map((node) => node.id).toList();
         for (final nodeId in nodeIds) {
-          if (getBlockIdForNode(nodeId) == _currentEditingBlockId) {
+          if (_nodeToBlockMap[nodeId] == _currentEditingBlockId) {
             _commitBlockContentChange(nodeId);
             break;
           }
@@ -1014,22 +911,25 @@ class RichTextEditorProvider with ChangeNotifier {
     return _blocks.map((b) => b.id).toList();
   }
   
-  // Commit content for a specific block - simplified version
+  // Commit content for a specific block
   void _commitContentForBlock(String blockId) {
     // Find the node for this block
-    final nodeId = _blockToNodeMap[blockId];
-    if (nodeId == null) return;
+    String? nodeId;
+    for (final entry in _nodeToBlockMap.entries) {
+      if (entry.value == blockId) {
+        nodeId = entry.key;
+        break;
+      }
+    }
     
-    // Commit the content change for this node
-    _commitBlockContentChange(nodeId);
+    if (nodeId != null) {
+      _commitBlockContentChange(nodeId);
+    }
   }
   
-  // Update blocks and refresh the document - with improved logging
+  // Update blocks and refresh the document
   void updateBlocks(List<Block> blocks) {
     _logger.info('Updating blocks: received ${blocks.length}, current ${_blocks.length}');
-    
-    // Log the current mappings before updating
-    _logger.debug('Before update - Block→Node mappings: ${_blockToNodeMap.length}, Node→Block mappings: ${_nodeToBlockMap.length}');
     
     if (_blocks.isEmpty && blocks.isNotEmpty) {
       _logger.info('First blocks received, updating document');
@@ -1050,22 +950,6 @@ class RichTextEditorProvider with ChangeNotifier {
     
     // Check for changes: additions, deletions, or modifications
     bool hasChanges = existingBlocksMap.length != newBlocksMap.length;
-    
-    // Also check for blocks that were pending deletion but came back
-    // (indicating a failed delete request)
-    List<String> resurrectedBlockIds = [];
-    for (final blockId in newBlocksMap.keys) {
-      if (_pendingDeletions.contains(blockId)) {
-        _logger.warning('Block $blockId was pending deletion but is still present - server deletion may have failed');
-        resurrectedBlockIds.add(blockId);
-        hasChanges = true;
-      }
-    }
-    
-    // Remove "resurrected" blocks from pending deletions
-    for (final blockId in resurrectedBlockIds) {
-      _pendingDeletions.remove(blockId);
-    }
     
     if (!hasChanges) {
       for (final block in blocks) {
@@ -1145,16 +1029,11 @@ class RichTextEditorProvider with ChangeNotifier {
     // Check original blocks against current blocks
     for (final originalBlock in _originalBlocks) {
       if (!currentBlocksMap.containsKey(originalBlock.id)) {
-        // This block was deleted but might not have been synced to the server
-        if (!_pendingDeletions.contains(originalBlock.id)) {
-          _logger.info('Found unsynced deleted block: ${originalBlock.id}');
-          _deleteBlockFromServer(originalBlock.id);
-        }
+        // This block was deleted
+        _logger.info('Block was deleted during editing: ${originalBlock.id}');
+        onBlockDeleted?.call(originalBlock.id);
       }
     }
-    
-    // Clear the pending deletions that are no longer needed
-    _pendingDeletions.clear();
   }
   
   // Request focus on the editor
@@ -1192,16 +1071,6 @@ class RichTextEditorProvider with ChangeNotifier {
     // Make sure all content is saved before disposing
     if (_isActive) {
       commitAllContent();
-    }
-    
-    // Ensure any pending deletions are processed
-    for (final blockId in _pendingDeletions.toList()) {
-      try {
-        _logger.info('Processing pending deletion for block $blockId during disposal');
-        _blockProvider.deleteBlock(blockId);
-      } catch (e) {
-        _logger.error('Failed to process pending deletion during disposal: $e');
-      }
     }
     
     // Try to ensure all blocks get created before disposing
