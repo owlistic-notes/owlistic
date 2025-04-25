@@ -8,9 +8,10 @@ import (
 
 const (
 	// Message types
-	EventMessage     string = "event"
-	SubscribeMessage string = "subscribe"
-	ErrorMessage     string = "error"
+	EventMessage       string = "event"
+	SubscribeMessage   string = "subscribe"
+	UnsubscribeMessage string = "unsubscribe"
+	ErrorMessage       string = "error"
 )
 
 // StandardMessage represents a standardized WebSocket message format

@@ -233,7 +233,7 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 		case "ping":
 			// Handle ping messages
 			log.Printf("Ping message from user %s", wsConn.userID)
-			// Send a pong response	
+			// Send a pong response
 			pong := models.NewStandardMessage("pong", "pong", nil)
 			pongBytes, _ := json.Marshal(pong)
 			wsConn.send <- pongBytes
@@ -304,7 +304,7 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 				// Check for resource subscription
 				if resource, ok := clientMsg.Payload["resource"].(string); ok {
 					resourceID, hasID := clientMsg.Payload["id"].(string)
-					
+
 					log.Printf("User %s subscribed to resource: %s ID: %s",
 						wsConn.userID, resource, resourceID)
 
@@ -312,13 +312,54 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 					payload := map[string]interface{}{
 						"resource": resource,
 					}
-					
+
 					// Only add the ID to the payload if it exists and is not empty
 					if hasID && resourceID != "" {
 						payload["id"] = resourceID
 					}
-					
+
 					confirm := models.NewStandardMessage("subscription", "confirmed", payload)
+					confirmBytes, _ := json.Marshal(confirm)
+					wsConn.send <- confirmBytes
+				}
+			}
+
+		case models.UnsubscribeMessage:
+			// Handle unsubscription requests
+			log.Printf("Unsubscription request from user %s", wsConn.userID)
+
+			// Extract unsubscription details
+			if clientMsg.Payload != nil {
+				// Check for event_type unsubscription
+				if et, ok := clientMsg.Payload["event_type"].(string); ok {
+					log.Printf("User %s unsubscribed from event: %s", wsConn.userID, et)
+
+					// Send confirmation
+					confirm := models.NewStandardMessage("unsubscription", "confirmed", map[string]interface{}{
+						"event_type": et,
+					})
+					confirmBytes, _ := json.Marshal(confirm)
+					wsConn.send <- confirmBytes
+				}
+
+				// Check for resource unsubscription
+				if resource, ok := clientMsg.Payload["resource"].(string); ok {
+					resourceID, hasID := clientMsg.Payload["id"].(string)
+
+					log.Printf("User %s unsubscribed from resource: %s ID: %s",
+						wsConn.userID, resource, resourceID)
+
+					// Send confirmation - only include ID if it's not empty
+					payload := map[string]interface{}{
+						"resource": resource,
+					}
+
+					// Only add the ID to the payload if it exists and is not empty
+					if hasID && resourceID != "" {
+						payload["id"] = resourceID
+					}
+
+					confirm := models.NewStandardMessage("unsubscription", "confirmed", payload)
 					confirmBytes, _ := json.Marshal(confirm)
 					wsConn.send <- confirmBytes
 				}
