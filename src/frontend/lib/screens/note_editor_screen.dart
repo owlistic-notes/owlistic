@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/note.dart';
@@ -8,7 +9,6 @@ import '../providers/block_provider.dart';
 import '../providers/websocket_provider.dart';
 import '../providers/rich_text_editor_provider.dart';
 import '../utils/logger.dart';
-import '../utils/websocket_message_parser.dart';
 import '../widgets/rich_text_editor.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
@@ -85,14 +85,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       // Enhanced block event subscriptions with standardized event names
       _webSocketProvider.subscribe('block', id: null); // All blocks
       _webSocketProvider.subscribe('note:blocks', id: widget.note.id); // Blocks for this note
-      
-      // Register for specific block events using both formats
-      _webSocketProvider.subscribe('event:block.created'); 
-      _webSocketProvider.subscribe('event:block.updated');
-      _webSocketProvider.subscribe('event:block.deleted');
-      _webSocketProvider.subscribe('block.created'); 
-      _webSocketProvider.subscribe('block.updated');
-      _webSocketProvider.subscribe('block.deleted');
+      _webSocketProvider.subscribe('block.created'); // Block creation events
+      _webSocketProvider.subscribe('block.updated'); // Block update events
+      _webSocketProvider.subscribe('block.deleted'); // Block deletion events
       
       // Set up event handlers for real-time block updates
       _setupBlockEventHandlers();
@@ -109,103 +104,76 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // Set up handlers for block-related WebSocket events
   void _setupBlockEventHandlers() {
     // Handle block creation events
-    _webSocketProvider.on('event:block.created', (data) {
-      _handleBlockCreatedEvent(data);
-    });
-    
-    // Handle block update events
-    _webSocketProvider.on('event:block.updated', (data) {
-      _handleBlockUpdatedEvent(data);
-    });
-    
-    // Handle block deletion events
-    _webSocketProvider.on('event:block.deleted', (data) {
-      _handleBlockDeletedEvent(data);
-    });
-    
-    // Also register for raw events as fallback
     _webSocketProvider.on('block.created', (data) {
       _handleBlockCreatedEvent(data);
     });
     
+    // Handle block update events
     _webSocketProvider.on('block.updated', (data) {
       _handleBlockUpdatedEvent(data);
     });
     
+    // Handle block deletion events
     _webSocketProvider.on('block.deleted', (data) {
       _handleBlockDeletedEvent(data);
     });
-    
-    _logger.debug('Registered WebSocket handlers for block events');
   }
 
   // Handle block creation event from WebSocket
   void _handleBlockCreatedEvent(dynamic data) {
     _logger.info('Received block.created event: $data');
     
-    try {
-      if (data == null) {
-        _logger.warning('Received null data in block.created event');
-        return;
-      }
-      
-      // Parse the WebSocket message
-      final WebSocketMessage message = WebSocketMessage.fromJson(data);
-      
-      // Extract block ID using the WebSocketModelExtractor utility
-      String? blockId = WebSocketModelExtractor.extractBlockId(message);
-      String? noteId = WebSocketModelExtractor.extractNoteId(message);
-      
-      if (blockId == null) {
-        _logger.error('Unable to extract block ID using WebSocketModelExtractor');
-        return;
-      }
-      
-      // Check if this block belongs to the current note
-      if (noteId != null && noteId != widget.note.id) {
-        _logger.debug('Block belongs to note $noteId, not ${widget.note.id}, ignoring');
-        return;
-      }
-      
-      // Set a brief delay to ensure backend has processed the block creation
-      Future.delayed(const Duration(milliseconds: 300), () {
-        _logger.info('Fetching new block $blockId after delay');
-        _fetchBlockById(blockId);
-      });
-    } catch (e) {
-      _logger.error('Error processing block.created event: $e');
+    // Extract block ID from the event data
+    String? blockId;
+    String? noteId;
+    
+    if (data is Map) {
+      blockId = data['id']?.toString() ?? data['block_id']?.toString();
+      noteId = data['note_id']?.toString();
+    } else if (data is String) {
+      blockId = data;
     }
+    
+    if (blockId == null) {
+      _logger.error('Unable to extract block ID from event data');
+      return;
+    }
+    
+    // Check if this block belongs to the current note
+    if (noteId != null && noteId != widget.note.id) {
+      _logger.debug('Block belongs to note $noteId, not ${widget.note.id}, ignoring');
+      return;
+    }
+    
+    // Set a brief delay to ensure backend has processed the block creation
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _logger.info('Fetching new block $blockId after delay');
+      _fetchBlockById(blockId!);
+    });
   }
 
   // Handle block update event from WebSocket
   void _handleBlockUpdatedEvent(dynamic data) {
     _logger.info('Received block.updated event: $data');
     
-    try {
-      if (data == null) {
-        _logger.warning('Received null data in block.updated event');
-        return;
-      }
-      
-      // Parse the WebSocket message
-      final WebSocketMessage message = WebSocketMessage.fromJson(data);
-      
-      // Extract block ID using the WebSocketModelExtractor utility
-      String? blockId = WebSocketModelExtractor.extractBlockId(message);
-      
-      if (blockId == null) {
-        _logger.error('Unable to extract block ID using WebSocketModelExtractor');
-        return;
-      }
-      
-      // Check if this block is one we're already tracking
-      bool isKnownBlock = _blocks.any((block) => block.id == blockId);
-      if (isKnownBlock) {
-        // Fetch the updated block
-        _fetchBlockById(blockId);
-      }
-    } catch (e) {
-      _logger.error('Error processing block.updated event: $e');
+    // Extract block ID from the event data
+    String? blockId;
+    if (data is Map && data.containsKey('id')) {
+      blockId = data['id'].toString();
+    } else if (data is String) {
+      blockId = data;
+    }
+    
+    if (blockId == null) {
+      _logger.error('Unable to extract block ID from event data');
+      return;
+    }
+    
+    // Check if this block is one we're already tracking
+    bool isKnownBlock = _blocks.any((block) => block.id == blockId);
+    if (isKnownBlock) {
+      // Fetch the updated block
+      _fetchBlockById(blockId);
     }
   }
 
@@ -213,45 +181,38 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   void _handleBlockDeletedEvent(dynamic data) {
     _logger.info('Received block.deleted event: $data');
     
-    try {
-      if (data == null) {
-        _logger.warning('Received null data in block.deleted event');
-        return;
+    // Extract block ID from the event data
+    String? blockId;
+    if (data is Map && data.containsKey('id')) {
+      blockId = data['id'].toString();
+    } else if (data is String) {
+      blockId = data;
+    }
+    
+    if (blockId == null) {
+      _logger.error('Unable to extract block ID from event data');
+      return;
+    }
+    
+    // Check if this block is one we're tracking
+    bool removedBlock = false;
+    _blocks.removeWhere((block) {
+      if (block.id == blockId) {
+        removedBlock = true;
+        return true;
+      }
+      return false;
+    });
+    
+    if (removedBlock) {
+      // Update the editor with the remaining blocks
+      if (_editorProvider != null) {
+        _editorProvider!.updateBlocks(_blocks);
       }
       
-      // Parse the WebSocket message
-      final WebSocketMessage message = WebSocketMessage.fromJson(data);
-      
-      // Extract block ID using the WebSocketModelExtractor utility
-      String? blockId = WebSocketModelExtractor.extractBlockId(message);
-      
-      if (blockId == null) {
-        _logger.error('Unable to extract block ID using WebSocketModelExtractor');
-        return;
+      if (mounted) {
+        setState(() {});
       }
-      
-      // Check if this block is one we're tracking
-      bool removedBlock = false;
-      _blocks.removeWhere((block) {
-        if (block.id == blockId) {
-          removedBlock = true;
-          return true;
-        }
-        return false;
-      });
-      
-      if (removedBlock) {
-        // Update the editor with the remaining blocks
-        if (_editorProvider != null) {
-          _editorProvider!.updateBlocks(_blocks);
-        }
-        
-        if (mounted) {
-          setState(() {});
-        }
-      }
-    } catch (e) {
-      _logger.error('Error processing block.deleted event: $e');
     }
   }
 
@@ -454,22 +415,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _blocks.removeWhere((block) => block.id == blockId);
       });
       
-      // Delete block on the server with better error handling
-      _logger.info('Sending delete request for block: $blockId');
-      final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-      
-      blockProvider.deleteBlock(blockId).then((_) {
-        _logger.info('Successfully deleted block $blockId from server');
-      }).catchError((e) {
-        _logger.error('Error deleting block $blockId from server: $e');
-        // Fetch blocks to resync if there was an error
-        _fetchBlocks();
-      });
+      // Delete block on the server
+      _logger.info('Deleted block: $blockId');
+      Provider.of<BlockProvider>(context, listen: false).deleteBlock(blockId);
       
     } catch (e) {
       _logger.error('Error deleting block', e);
-      // Reset UI state to ensure consistency
-      _fetchBlocks();
     } finally {
       // Reset ignore flag after a delay
       Future.delayed(const Duration(milliseconds: 500), () {
@@ -508,17 +459,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       }
     }
     
-    // Delete blocks that were removed with better error tracking
+    // Delete blocks that were removed
     if (deletedBlockIds.isNotEmpty) {
       _logger.info('Deleting blocks: ${deletedBlockIds.join(', ')}');
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
       
       for (final blockId in deletedBlockIds) {
-        blockProvider.deleteBlock(blockId).then((_) {
-          _logger.info('Successfully deleted block $blockId during reconciliation');
-        }).catchError((e) {
-          _logger.error('Failed to delete block $blockId during reconciliation: $e');
-        });
+        blockProvider.deleteBlock(blockId);
       }
     }
   }

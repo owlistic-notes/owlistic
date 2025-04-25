@@ -124,8 +124,8 @@ class WebSocketModelExtractor {
     final payload = message.payload;
     
     // Check direct payload fields
-    if (payload.containsKey('block_id')) {
-      return payload['block_id']?.toString();
+    if (payload.containsKey('id')) {
+      return payload['id']?.toString();
     }
     
     // Check in data structure if present
