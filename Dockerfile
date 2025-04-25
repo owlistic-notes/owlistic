@@ -1,32 +1,50 @@
 # Use the official Golang image as the base image
-FROM golang:1.24-bookworm as builder
+FROM golang:1.24-alpine AS builder
+
+# Install librdkafka for Kafka client dependencies with Alpine packages
+RUN apk add --no-cache \
+    gcc \
+    mold \
+    musl-dev \
+    cyrus-sasl-dev \
+    build-base \
+    pkgconf \
+    librdkafka-dev \
+    git
 
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy the source code
-COPY ./src/ /app/
-
-# Set the working directory for the backend
-WORKDIR /app/backend
+# Copy go.mod and go.sum files first for better layer caching
+COPY ./src/backend/go.mod ./src/backend/go.sum* /app/
 
 # Download dependencies
 RUN go mod download
 
-# Build the application
-RUN go build -v -o /app/thinkstack ./cmd/main.go
+# Copy the rest of the source code
+COPY ./src/backend/ /app/
 
-# Use a minimal image for the final stage
-FROM debian:bullseye-slim
+# Build the application with proper linking flags for librdkafka
+RUN CGO_ENABLED=1 CGO_LDFLAGS="-fuse-ld=mold -lsasl2 -w -s" go build -v -tags musl -o /app/thinkstack ./cmd/main.go
+
+# Use a minimal Alpine image for the final stage
+FROM alpine:3.19
+
+# Install runtime dependencies - adding more libraries that might be needed
+RUN apk add --no-cache \
+    librdkafka \
+    librdkafka-dev \
+    ca-certificates \
+    libc6-compat
 
 # Set the working directory inside the container
 WORKDIR /app
 
 # Copy the built binary from the builder stage
-COPY --from=builder /app .
+COPY --from=builder /app/thinkstack ./
 
 # Expose the application port
 EXPOSE 8080
 
-# Run the application
-CMD ["./thinkstack"]
+# Set the entrypoint to the binary
+ENTRYPOINT ["/app/thinkstack"]
