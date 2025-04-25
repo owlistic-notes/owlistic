@@ -273,13 +273,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
-  // Fetch blocks for this note
+  // Fetch blocks for this note - updated to use pagination
   Future<void> _fetchBlocks() async {
     setState(() => _isLoading = true);
     
     try {
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-      await blockProvider.fetchBlocksForNote(widget.note.id);
+      
+      // Fetch first page of blocks with a larger page size for initial load
+      await blockProvider.fetchBlocksForNote(widget.note.id, page: 1, pageSize: 50);
       
       // After fetching, get blocks from provider and sort by order
       _updateBlocksFromProvider();
@@ -293,6 +295,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       setState(() {
         _isLoading = false;
       });
+      
+      // If there are more blocks, load them in the background
+      _loadRemainingBlocksInBackground();
     } catch (e) {
       _logger.error('Error fetching blocks', e);
       setState(() => _isLoading = false);
@@ -302,6 +307,37 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           const SnackBar(content: Text('Failed to load note blocks')),
         );
       }
+    }
+  }
+
+  // Load remaining blocks in the background
+  Future<void> _loadRemainingBlocksInBackground() async {
+    try {
+      final blockProvider = Provider.of<BlockProvider>(context, listen: false);
+      
+      // Check if there are more blocks to load
+      if (blockProvider.hasMoreBlocks(widget.note.id)) {
+        _logger.info('Loading more blocks in background');
+        
+        // Load more blocks until we've loaded everything
+        while (blockProvider.hasMoreBlocks(widget.note.id)) {
+          await blockProvider.loadMoreBlocks(widget.note.id);
+          
+          // Update our local blocks from the provider
+          if (mounted) {
+            _updateBlocksFromProvider();
+          } else {
+            break; // Stop if the widget is no longer mounted
+          }
+          
+          // Small delay to avoid hammering the server
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+        
+        _logger.info('Finished loading all blocks in background');
+      }
+    } catch (e) {
+      _logger.error('Error loading remaining blocks', e);
     }
   }
 

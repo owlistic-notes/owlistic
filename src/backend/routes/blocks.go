@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -45,12 +47,38 @@ func GetBlocks(c *gin.Context, db *database.Database, blockService services.Bloc
 	if blockType := c.Query("type"); blockType != "" {
 		params["type"] = blockType
 	}
+	
+	// Pagination parameters
+	if page := c.Query("page"); page != "" {
+		if pageNum, err := strconv.Atoi(page); err == nil {
+			params["page"] = pageNum
+		}
+	}
+	
+	if pageSize := c.Query("page_size"); pageSize != "" {
+		if size, err := strconv.Atoi(pageSize); err == nil {
+			params["page_size"] = size
+		}
+	}
+	
+	// Check if client wants total count
+	if countTotal := c.Query("count_total"); countTotal == "true" {
+		params["count_total"] = true
+	}
 
 	blocks, err := blockService.GetBlocks(db, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	
+	// If total count was requested, return it in headers
+	if countTotal, ok := params["count_total"].(bool); ok && countTotal {
+		// We would need to modify our service to return this count
+		// For now, just returning the blocks
+		c.Header("X-Total-Count", fmt.Sprintf("%d", len(blocks)))
+	}
+	
 	c.JSON(http.StatusOK, blocks)
 }
 

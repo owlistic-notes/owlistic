@@ -440,12 +440,67 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 		query = query.Where("type = ?", blockType)
 	}
 
+	// Pagination support
+	var page, pageSize int
+	
+	// Get page number (default to 1 if not provided)
+	if pageVal, ok := params["page"]; ok {
+		switch v := pageVal.(type) {
+		case int:
+			page = v
+		case float64:
+			page = int(v)
+		case string:
+			if p, err := strconv.Atoi(v); err == nil {
+				page = p
+			}
+		}
+	}
+	if page <= 0 {
+		page = 1
+	}
+	
+	// Get page size (default to 100 if not provided)
+	if sizeVal, ok := params["page_size"]; ok {
+		switch v := sizeVal.(type) {
+		case int:
+			pageSize = v
+		case float64:
+			pageSize = int(v)
+		case string:
+			if p, err := strconv.Atoi(v); err == nil {
+				pageSize = p
+			}
+		}
+	}
+	if pageSize <= 0 {
+		pageSize = 100 // Default page size
+	} else if pageSize > 500 {
+		pageSize = 500 // Maximum page size
+	}
+	
+	// Get total count for pagination metadata
+	var totalCount int64
+	if countRequested, ok := params["count_total"].(bool); ok && countRequested {
+		if err := query.Model(&models.Block{}).Count(&totalCount).Error; err != nil {
+			log.Printf("Error counting blocks: %v", err)
+			// Non-fatal, continue with query
+		}
+	}
+	
+	// Apply pagination if requested
+	if page > 0 && pageSize > 0 {
+		offset := (page - 1) * pageSize
+		query = query.Offset(offset).Limit(pageSize)
+		log.Printf("Applying pagination: page %d, size %d, offset %d", page, pageSize, offset)
+	}
+
 	if err := query.Order("\"order\" asc").Find(&blocks).Error; err != nil {
 		log.Printf("Database error in GetBlocks: %v", err)
 		return nil, err
 	}
 
-	log.Printf("Found %d blocks", len(blocks))
+	log.Printf("Found %d blocks (total count: %d)", len(blocks), totalCount)
 	return blocks, nil
 }
 
