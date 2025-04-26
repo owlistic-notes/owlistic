@@ -1,26 +1,20 @@
 # Use the official Golang image as the base image
-FROM --platform=linux/amd64 golang:1.21.4-alpine3.18 AS builder
+FROM --platform=linux/arm64 golang:1.23.4-alpine AS builder
 
-ENV TARGETARCH=amd64
+ENV TARGETARCH=arm64
+ARG TARGETARCH=${TARGETARCH}
 
 # Install librdkafka for Kafka client dependencies with Alpine packages
 RUN apk add --no-cache \
     gcc \
-    g++ \
-    libc-dev \
-    mold \
     musl-dev \
-    cyrus-sasl-dev \
-    build-base \
-    pkgconf \
-    librdkafka-dev \
-    git
+    cyrus-sasl-dev
 
 # Set the working directory inside the container
 WORKDIR /app
 
 # Copy go.mod and go.sum files first for better layer caching
-COPY ./src/backend/go.mod ./src/backend/go.sum* /app/
+COPY ./src/backend/go.mod ./src/backend/go.sum /app/
 
 # Download dependencies
 RUN go mod download
@@ -32,8 +26,6 @@ COPY ./src/backend/ /app/
 # Adding -tags musl and removing -m64 flag via CGO_CFLAGS
 RUN CGO_ENABLED=1 CGO_LDFLAGS="-lsasl2" \
     GO111MODULE=on GOOS=linux GOARCH=${TARGETARCH} \
-    CXX=g++ \
-    CC=gcc \
     go build -v -tags musl -ldflags "-w -s" \
     -o /app/thinkstack ./cmd/main.go
 
