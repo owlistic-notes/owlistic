@@ -50,11 +50,10 @@ jobs:
       - name: Build Backend Docker Image
         run: |
           cd src/backend
-          docker buildx create --use
-          docker buildx build --platform linux/arm64,linux/amd64 \
+          docker build --platform linux/arm64,linux/amd64 \
             --build-arg TARGETARCH=$(uname -m) \
-            -t ${{ secrets.DOCKER_USERNAME }}/thinkstack:${{ github.ref_name }} \
-            -t ${{ secrets.DOCKER_USERNAME }}/thinkstack:latest \
+            -t thinkstack:${{ github.ref_name }} \
+            -t thinkstack:latest \
             .
 
       # Push Docker Image
@@ -139,12 +138,12 @@ jobs:
         run: |
           cd src/frontend
           docker build \
-            -t ${{ secrets.DOCKER_USERNAME }}/thinkstack:${{ github.ref_name }} \
-            -t ${{ secrets.DOCKER_USERNAME }}/thinkstack:latest \
+            -t  thinkstack:${{ github.ref_name }} \
+            -t  thinkstack:latest \
             .
 
       # Push Docker Image
       - name: Push Frontend Docker Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/thinkstack:${{ github.ref_name }}
-          docker push${{ secrets.DOCKER_USERNAME }}/thinkstack:latest
+          docker push thinkstack:${{ github.ref_name }}
+          docker push thinkstack:latest
