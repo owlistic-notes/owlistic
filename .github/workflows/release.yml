@@ -59,8 +59,8 @@ jobs:
       # Push Docker Image
       - name: Push Backend Docker Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/thinkstack:${{ github.ref_name }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/thinkstack:latest 
+          docker push thinkstack:${{ github.ref_name }}
+          docker push thinkstack:latest 
 
   frontend:
     name: Frontend Build and Push
@@ -99,7 +99,7 @@ jobs:
           flutter pub get
 
           # Initialize web project (creates index.html if missing)
-          flutter create --platforms=web,android #,ios,macos,linux .
+          flutter create --platforms=web,android . #,ios,macos,linux
           
           # Build web app
           flutter build web --release
