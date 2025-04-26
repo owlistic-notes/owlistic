@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/thinkstack/config"
 )
 
