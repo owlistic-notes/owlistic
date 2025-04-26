@@ -1,5 +1,5 @@
 # Use the official Golang image as the base image
-FROM --platform=linux/arm64 golang:1.23.4-alpine AS builder
+FROM --platform=linux/$TARGETARCH golang:1.23.4-alpine AS builder
 
 ENV TARGETARCH=arm64
 ARG TARGETARCH=${TARGETARCH}
@@ -14,13 +14,13 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copy go.mod and go.sum files first for better layer caching
-COPY ./src/backend/go.mod ./src/backend/go.sum /app/
+COPY ./go.mod ./go.sum ./
 
 # Download dependencies
 RUN go mod download
 
 # Copy the rest of the source code
-COPY ./src/backend/ /app/
+COPY . .
 
 # Build the application with proper linking flags for librdkafka
 # Adding -tags musl and removing -m64 flag via CGO_CFLAGS

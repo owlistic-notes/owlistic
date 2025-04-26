@@ -3,7 +3,7 @@ version: '3.8'
 services:
   thinkstack:
     build:
-      context: .
+      context: ./src/backend
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
@@ -17,6 +17,16 @@ services:
       - DB_PASSWORD=admin
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
+  thinkstack-ui:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - thinkstack
+    environment:
+      - BASE_URL=http://thinkstack:8080
   postgres:
     image: postgres:15
     environment:
