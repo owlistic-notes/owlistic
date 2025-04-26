@@ -385,7 +385,9 @@ class BlockProvider with ChangeNotifier {
     final state = _paginationState[noteId];
     if (state == null) return true; // If no state, assume we might have more
     
-    return state['has_more'] ?? false;
+    final bool hasMore = state['has_more'] ?? false;
+    _logger.debug('hasMoreBlocks for note $noteId: $hasMore');
+    return hasMore;
   }
   
   // Get pagination info for a note
@@ -487,7 +489,12 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Update a block with debouncing
-  void updateBlockContent(String id, dynamic content, {String? type, int? order, bool immediate = false}) {
+  void updateBlockContent(String id, dynamic content, {
+    String? type, 
+    int? order, 
+    bool immediate = false,
+    bool updateLocalOnly = false
+  }) {
     // Cancel any existing timer for this block
     if (_saveTimers.containsKey(id)) {
       _saveTimers[id]?.cancel();
@@ -512,7 +519,20 @@ class BlockProvider with ChangeNotifier {
       return;
     }
     
-    _logger.debug('Sending block update to server, waiting for event');
+    // Update local block without waiting for server response
+    if (updateLocalOnly) {
+      final existingBlock = _blocks[id]!;
+      _blocks[id] = existingBlock.copyWith(
+        content: contentMap,
+        type: type ?? existingBlock.type,
+        order: order ?? existingBlock.order
+      );
+      
+      // Notify listeners immediately for UI responsiveness
+      _enqueueNotification();
+    }
+    
+    _logger.debug('Debouncing block update to server');
     
     // For full updates, use debounced saving to reduce API calls
     if (immediate) {
@@ -531,6 +551,8 @@ class BlockProvider with ChangeNotifier {
     if (!_blocks.containsKey(id)) return;
     
     try {
+      _logger.debug('Saving block $id to server');
+      
       // Update via BlockService
       final updatedBlock = await _blockService.updateBlock(
         id, 
@@ -540,7 +562,20 @@ class BlockProvider with ChangeNotifier {
       );
       
       // Update local block with returned data to ensure consistency
+      // but do not notify listeners unless there's a significant change
+      final existingBlock = _blocks[id]!;
+      final bool hasSignificantChanges = 
+          existingBlock.type != updatedBlock.type || 
+          existingBlock.order != updatedBlock.order ||
+          existingBlock.content.toString() != updatedBlock.content.toString();
+      
       _blocks[id] = updatedBlock;
+      
+      if (hasSignificantChanges) {
+        _enqueueNotification();
+      }
+      
+      _logger.debug('Block $id saved successfully');
     } catch (error) {
       _logger.error('Error saving block $id', error);
     }

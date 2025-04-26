@@ -56,6 +56,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // Current page number for pagination
   int _currentPage = 1;
   
+  // Add debounce timer for scroll events
+  Timer? _scrollDebouncer;
+
   @override
   void initState() {
     super.initState();
@@ -71,10 +74,25 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   
   // Scroll listener to detect when we need to load more blocks
   void _scrollListener() {
-    if (!_loadingMoreBlocks &&
-        _scrollController.position.pixels > 
+    // Don't do anything if we're already loading or have a pending request
+    if (_loadingMoreBlocks || _scrollDebouncer?.isActive == true) return;
+
+    // Only trigger near the bottom of the scroll area
+    if (_scrollController.position.pixels > 
         _scrollController.position.maxScrollExtent - 500) {
-      _loadMoreBlocks();
+      
+      // Debounce scroll events to prevent multiple rapid calls
+      _scrollDebouncer?.cancel();
+      _scrollDebouncer = Timer(const Duration(milliseconds: 150), () {
+        // Check if there are more blocks to load before attempting
+        final blockProvider = Provider.of<BlockProvider>(context, listen: false);
+        if (blockProvider.hasMoreBlocks(widget.note.id)) {
+          _logger.info('Triggered load of page ${_currentPage + 1} from scroll');
+          _loadMoreBlocks();
+        } else {
+          _logger.debug('No more blocks available to load');
+        }
+      });
     }
   }
   
@@ -338,32 +356,49 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   
   // Load more blocks when scrolling
   Future<void> _loadMoreBlocks() async {
-    if (_loadingMoreBlocks) return;
+    // Safety check - if we're already loading, don't start another request
+    if (_loadingMoreBlocks) {
+      _logger.debug('Already loading blocks, ignoring request');
+      return;
+    }
     
-    setState(() {
-      _loadingMoreBlocks = true;
-    });
+    // Set loading flag immediately to prevent multiple calls
+    _loadingMoreBlocks = true;
+    if (mounted) setState(() {});
     
     try {
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
       
+      // Double check if there are more blocks to load
+      if (!blockProvider.hasMoreBlocks(widget.note.id)) {
+        _logger.debug('No more blocks to load, cancelling request');
+        setState(() {
+          _loadingMoreBlocks = false;
+        });
+        return;
+      }
+      
+      // Log clear info about which page we're loading
+      final nextPage = _currentPage + 1;
+      _logger.info('Loading blocks page $nextPage of size $_batchSize');
+      
       // Capture current scroll position
       final scrollPosition = _scrollController.position.pixels;
       
-      // Capture current selection/focus state with correct reason
+      // Capture current selection/focus state 
       final editorHasFocus = _editorProvider?.focusNode.hasFocus ?? false;
       final currentSelection = _editorProvider?.composer.selection;
       
-      // Store the selection reason properly
-      final selectionReason = _editorProvider?.composer.latestSelectionChangeReason;
-      
-      // Load next page of blocks
-      _currentPage++;
+      // Load next page of blocks - notice we're using nextPage variable 
+      // and only incrementing _currentPage after successful load
       await blockProvider.fetchBlocksForNote(widget.note.id,
-        page: _currentPage,
+        page: nextPage,
         pageSize: _batchSize,
-        append: true // Important: append flag to add to existing blocks
+        append: true
       );
+      
+      // Only update current page after successful fetch
+      _currentPage = nextPage;
       
       // Update blocks without disrupting the UI
       _updateBlocksFromProvider(preserveFocus: editorHasFocus);
@@ -373,18 +408,20 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           _loadingMoreBlocks = false;
         });
         
-        // Restore focus and selection if needed
+        // Restore focus if needed
         if (editorHasFocus && currentSelection != null && _editorProvider != null) {
           Future.microtask(() {
             _editorProvider!.restoreFocus(currentSelection);
           });
         }
         
-        // Restore scroll position
-        if (_scrollController.hasClients && 
-            scrollPosition <= _scrollController.position.maxScrollExtent) {
-          _scrollController.jumpTo(scrollPosition);
-        }
+        // Restore scroll position with a slight delay to ensure render is complete
+        Future.delayed(const Duration(milliseconds: 50), () {
+          if (_scrollController.hasClients && 
+              scrollPosition <= _scrollController.position.maxScrollExtent) {
+            _scrollController.jumpTo(scrollPosition);
+          }
+        });
       }
     } catch (e) {
       _logger.error('Error loading more blocks', e);
@@ -573,23 +610,48 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
-  // Update a specific block's content
+  // Update a specific block's content with optimized server sync
   void _updateBlockContent(String blockId, dynamic content) {
     // Set flag to prevent external updates from messing with cursor position
     _ignoreBlockUpdates = true;
     
-    _logger.info('Updating block $blockId with new content');
+    _logger.debug('Updating block $blockId with new content');
     
-    // Find block index to determine order
-    int blockIndex = _blocks.indexWhere((block) => block.id == blockId);
-    int order = blockIndex >= 0 ? blockIndex + 1 : 1; 
+    // Find original block to preserve metadata and pass any needed fields
+    final blockIndex = _blocks.indexWhere((block) => block.id == blockId);
+    if (blockIndex < 0) {
+      _logger.warning('Tried to update non-existent block: $blockId');
+      _ignoreBlockUpdates = false;
+      return;
+    }
     
-    // Update block content on the server immediately
+    final block = _blocks[blockIndex];
+    final int order = blockIndex + 1;
+    
+    // Only send the actual change to the server, not the entire block list
     Provider.of<BlockProvider>(context, listen: false)
-        .updateBlockContent(blockId, content, order: order);
+        .updateBlockContent(blockId, content, order: order, updateLocalOnly: true);
+    
+    // Also update our local block content immediately for better responsiveness
+    setState(() {
+      if (content is Map) {
+        // For map content, we need to update the content field
+        // Cast the map to Map<String, dynamic> to satisfy type requirements
+        _blocks[blockIndex] = block.copyWith(
+          content: Map<String, dynamic>.from(content),
+          order: order
+        );
+      } else if (content is String) {
+        // For string content, wrap in a map
+        _blocks[blockIndex] = block.copyWith(
+          content: {'text': content},
+          order: order
+        );
+      }
+    });
     
     // Reset the flag after a short delay
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 250), () {
       _ignoreBlockUpdates = false;
     });
   }
@@ -687,6 +749,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   void dispose() {
+    _scrollDebouncer?.cancel();
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     // Safely unsubscribe and clean up using stored provider references

@@ -116,4 +116,26 @@ class Block {
   List<Map<String, dynamic>>? getSpans() {
     return DataConverter.extractSpans(content);
   }
+
+  // Add a copyWith method to make local updates easier
+  Block copyWith({
+    String? id,
+    String? noteId,
+    String? userId,
+    String? type,
+    Map<String, dynamic>? content,
+    int? order,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Block(
+      id: id ?? this.id,
+      noteId: noteId ?? this.noteId,
+      type: type ?? this.type,
+      content: content ?? this.content,
+      order: order ?? this.order,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? DateTime.now(),
+    );
+  }
 }
