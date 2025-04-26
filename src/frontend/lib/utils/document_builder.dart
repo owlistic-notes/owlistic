@@ -88,17 +88,27 @@ class DocumentBuilder {
       int? previousTextOffset;
       DocumentPosition? previousPosition;
       
-      if (composer.selection != null) {
-        previousNodeId = composer.selection?.extent.nodeId;
-        if (composer.selection?.extent.nodePosition is TextNodePosition) {
-          previousTextOffset = (composer.selection!.extent.nodePosition as TextNodePosition).offset;
-          previousPosition = composer.selection!.extent;
+      try {
+        if (composer.selection != null) {
+          previousNodeId = composer.selection?.extent.nodeId;
+          if (composer.selection?.extent.nodePosition is TextNodePosition) {
+            previousTextOffset = (composer.selection!.extent.nodePosition as TextNodePosition).offset;
+            previousPosition = composer.selection!.extent;
+          }
         }
+      } catch (e) {
+        _logger.warning('Error capturing selection state: $e');
       }
       
-      // Clear document and mapping
-      document.clear();
-      nodeToBlockMap.clear();
+      // Clear document and mapping with error handling
+      try {
+        document.clear();
+        nodeToBlockMap.clear();
+      } catch (e) {
+        _logger.error('Error clearing document: $e');
+        // Try to recreate document if clearing fails
+        _initialize();
+      }
       
       // Sort blocks by order
       final sortedBlocks = List.from(blocks)
@@ -109,92 +119,60 @@ class DocumentBuilder {
       // Keep track of created nodes by block ID to help with selection restoration
       final Map<String, String> blockToNodeMap = {};
       
-      // Convert each block to a document node
+      // Convert each block to a document node with error handling
       for (final block in sortedBlocks) {
         try {
           final nodes = createNodesFromBlock(block);
           
           // Add all nodes to document
           for (final node in nodes) {
-            document.add(node);
-            // Map node ID to block ID
-            nodeToBlockMap[node.id] = block.id;
-            
-            // Also track the first node for each block
-            if (!blockToNodeMap.containsKey(block.id)) {
-              blockToNodeMap[block.id] = node.id;
+            try {
+              document.add(node);
+              // Map node ID to block ID
+              nodeToBlockMap[node.id] = block.id;
+              
+              // Also track the first node for each block
+              if (!blockToNodeMap.containsKey(block.id)) {
+                blockToNodeMap[block.id] = node.id;
+              }
+            } catch (e) {
+              _logger.error('Error adding node to document: $e');
+              // Continue with next node
             }
           }
         } catch (e) {
           _logger.error('Error creating node for block ${block.id}: $e');
+          // Continue with next block
         }
       }
       
-      _logger.debug('Document populated with ${document.length} nodes');
-      
-      // Try to restore selection if possible
-      if (document.isNotEmpty) {
-        // First, try to find the same node ID in the new document
-        String? newNodeId;
-        
-        if (previousNodeId != null && previousNodeId.isNotEmpty) {
-          // Get the block ID that the previous node belonged to
-          final previousBlockId = nodeToBlockMap[previousNodeId];
-          
-          if (previousBlockId != null) {
-            // Look for a node with the same block ID
-            newNodeId = blockToNodeMap[previousBlockId];
-          }
+      // If document is empty after population attempts, add an empty paragraph
+      // to ensure the document is never completely empty
+      if (document.isEmpty) {
+        try {
+          _logger.warning('Document is empty after population, adding default node');
+          final defaultNode = ParagraphNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('')
+          );
+          document.add(defaultNode);
+        } catch (e) {
+          _logger.error('Error adding default node: $e');
         }
-        
-        // If we found a match or otherwise need to reset, do it after a small delay
-        // to let the document stabilize
-        Future.delayed(Duration.zero, () {
-          try {
-            // If we have a node to select, use it
-            if (newNodeId != null && newNodeId.isNotEmpty) {
-              final node = document.getNodeById(newNodeId);
-              if (node != null && node is TextNode) {
-                int offset = previousTextOffset ?? 0;
-                
-                // Ensure offset is within text bounds
-                offset = offset.clamp(0, node.text.length);
-                
-                composer.setSelectionWithReason(
-                  DocumentSelection.collapsed(
-                    position: DocumentPosition(
-                      nodeId: newNodeId,
-                      nodePosition: TextNodePosition(offset: offset),
-                    ),
-                  ),
-                  SelectionReason.contentChange, // Use contentChange since this is not a user interaction
-                );
-              } 
-              // If no matching node, just select the first text node
-              else if (document.isNotEmpty) {
-                for (final node in document) {
-                  if (node is TextNode) {
-                    composer.setSelectionWithReason(
-                      DocumentSelection.collapsed(
-                        position: DocumentPosition(
-                          nodeId: node.id,
-                          nodePosition: const TextNodePosition(offset: 0),
-                        ),
-                      ),
-                      SelectionReason.contentChange, // Use contentChange since this is not a user interaction
-                    );
-                    break;
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            _logger.error('Error restoring selection: $e');
-          }
-        });
       }
     } catch (e) {
       _logger.error('Error populating document: $e');
+      // If overall population fails, try to ensure document isn't empty
+      if (document.isEmpty) {
+        try {
+          document.add(ParagraphNode(
+            id: Editor.createNodeId(),
+            text: AttributedText('')
+          ));
+        } catch (e) {
+          _logger.error('Error adding fallback node: $e');
+        }
+      }
     } finally {
       _updatingDocument = false;
       
@@ -419,62 +397,80 @@ class DocumentBuilder {
     }
   }
   
-  // Create AttributedText from content including spans
+  // Create AttributedText from content including spans with better error handling
   AttributedText createAttributedTextFromContent(String text, dynamic content) {
+    // Safety check for empty text
+    if (text.isEmpty) {
+      return AttributedText('');
+    }
+    
     final attributedText = AttributedText(text);
     
-    // Process spans if available
-    if (content is Map && content.containsKey('spans')) {
-      final spans = content['spans'];
-      if (spans is List) {
-        for (final span in spans) {
-          if (span is Map && 
-              span.containsKey('start') && 
-              span.containsKey('end') && 
-              span.containsKey('type')) {
-            final start = span['start'] as int;
-            final end = span['end'] as int;
-            final type = span['type'] as String;
-            
-            // Apply different attributes based on span type
-            switch (type) {
-              case 'bold':
-                attributedText.addAttribution(
-                  const NamedAttribution('bold'), 
-                  SpanRange(start, end)
-                );
-                break;
-              case 'italic':
-                attributedText.addAttribution(
-                  const NamedAttribution('italic'), 
-                  SpanRange(start, end)
-                );
-                break;
-              case 'link':
-                final href = span['href'] as String?;
-                if (href != null) {
-                  attributedText.addAttribution(
-                    LinkAttribution(href), 
-                    SpanRange(start, end)
-                  );
+    try {
+      // Process spans if available
+      if (content is Map && content.containsKey('spans')) {
+        final spans = content['spans'];
+        if (spans is List) {
+          for (final span in spans) {
+            if (span is Map && 
+                span.containsKey('start') && 
+                span.containsKey('end') && 
+                span.containsKey('type')) {
+              try {
+                final start = span['start'] as int? ?? 0;
+                final end = span['end'] as int? ?? 0;
+                final type = span['type'] as String? ?? '';
+                
+                // Validate span range to avoid errors
+                if (start >= 0 && end > start && end <= text.length) {
+                  // Apply different attributes based on span type
+                  switch (type) {
+                    case 'bold':
+                      attributedText.addAttribution(
+                        const NamedAttribution('bold'), 
+                        SpanRange(start, end)
+                      );
+                      break;
+                    case 'italic':
+                      attributedText.addAttribution(
+                        const NamedAttribution('italic'), 
+                        SpanRange(start, end)
+                      );
+                      break;
+                    case 'link':
+                      final href = span['href'] as String?;
+                      if (href != null) {
+                        attributedText.addAttribution(
+                          LinkAttribution(href), 
+                          SpanRange(start, end)
+                        );
+                      }
+                      break;
+                    case 'underline':
+                      attributedText.addAttribution(
+                        const NamedAttribution('underline'), 
+                        SpanRange(start, end)
+                      );
+                      break;
+                    case 'strikethrough':
+                      attributedText.addAttribution(
+                        const NamedAttribution('strikethrough'), 
+                        SpanRange(start, end)
+                      );
+                      break;
+                  }
                 }
-                break;
-              case 'underline':
-                attributedText.addAttribution(
-                  const NamedAttribution('underline'), 
-                  SpanRange(start, end)
-                );
-                break;
-              case 'strikethrough':
-                attributedText.addAttribution(
-                  const NamedAttribution('strikethrough'), 
-                  SpanRange(start, end)
-                );
-                break;
+              } catch (e) {
+                _logger.warning('Error processing span: $e');
+                // Continue with next span
+              }
             }
           }
         }
       }
+    } catch (e) {
+      _logger.error('Error processing text spans: $e');
+      // Return plain text if span processing fails
     }
     
     return attributedText;
