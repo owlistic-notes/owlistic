@@ -50,7 +50,7 @@ jobs:
       - name: Build Backend Docker Image
         run: |
           cd src/backend
-          docker build --platform linux/arm64,linux/amd64 \
+          docker build \
             --build-arg TARGETARCH=$(uname -m) \
             -t thinkstack:${{ github.ref_name }} \
             -t thinkstack:latest \
