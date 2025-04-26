@@ -58,8 +58,6 @@ build/
 *.log
 *.prof
 *.cover
-*.mod
-*.sum
 vendor/
 bin/
 build/

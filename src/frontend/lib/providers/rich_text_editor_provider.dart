@@ -61,6 +61,9 @@ class RichTextEditorProvider with ChangeNotifier {
   // Flag to prevent recursive document updates
   bool _updatingDocument = false;
   
+  // Cache of server blocks for timestamp comparison
+  final Map<String, Block> _serverBlockCache = {};
+  
   // Standard constructor with callback parameters
   RichTextEditorProvider({
     required List<Block> blocks,
@@ -74,7 +77,13 @@ class RichTextEditorProvider with ChangeNotifier {
   }) : _blockProvider = blockProvider ?? ServiceLocator.get<BlockProvider>() {
     _blocks = List.from(blocks);
     // Store original blocks for later comparison
-    _originalBlocks.addAll(blocks); 
+    _originalBlocks.addAll(blocks);
+    
+    // Initialize server block cache
+    for (final block in blocks) {
+      _serverBlockCache[block.id] = block;
+    }
+    
     _initialize();
   }
   
@@ -111,6 +120,7 @@ class RichTextEditorProvider with ChangeNotifier {
     // Clear blocks
     _blocks.clear();
     _originalBlocks.clear();
+    _serverBlockCache.clear();
     _isActive = false;
     notifyListeners();
   }
@@ -182,6 +192,9 @@ class RichTextEditorProvider with ChangeNotifier {
     // Remove from blocks list if it exists
     _blocks.removeWhere((block) => block.id == blockId);
     
+    // Remove from server cache
+    _serverBlockCache.remove(blockId);
+    
     // Call the deletion handler to delete on server
     if (onBlockDeleted != null) {
       onBlockDeleted!(blockId);
@@ -228,6 +241,9 @@ class RichTextEditorProvider with ChangeNotifier {
       // Update our mappings
       _documentBuilder.nodeToBlockMap[nodeId] = block.id;
       _blocks.add(block);
+      
+      // Add to server cache
+      _serverBlockCache[block.id] = block;
       
       // Remove from uncommitted nodes
       _documentBuilder.uncommittedNodes.remove(nodeId);
@@ -351,13 +367,49 @@ class RichTextEditorProvider with ChangeNotifier {
     if (node == null) return;
     
     // Find the original block to preserve metadata
-    final originalBlock = _blocks.firstWhere((b) => b.id == blockId);
+    final originalBlock = _blocks.firstWhere((b) => b.id == blockId, 
+        orElse: () => _serverBlockCache[blockId] ?? _originalBlocks.firstWhere(
+          (b) => b.id == blockId, 
+          orElse: () => Block(
+            id: blockId,
+            noteId: noteId,
+            type: 'text',
+            content: {'text': ''},
+            order: 0
+          )
+        )
+    );
     
     // Extract content based on node type using the mapper
     Map<String, dynamic> content = _documentBuilder.extractContentFromNode(node, blockId, originalBlock);
     
-    // Send content update
-    onBlockContentChanged?.call(blockId, content);
+    // Check if this content should be sent to the server (timestamp-based)
+    final serverBlock = _serverBlockCache[blockId];
+    bool shouldUpdate = serverBlock == null; // Always update if we don't have server version
+    
+    if (!shouldUpdate && serverBlock != null) {
+      shouldUpdate = _documentBuilder.shouldSendBlockUpdate(blockId, serverBlock);
+    }
+    
+    if (shouldUpdate) {
+      // Send content update
+      _logger.debug('Sending block content update for $blockId');
+      onBlockContentChanged?.call(blockId, content);
+      
+      // After successful update, update server cache with estimated new version
+      // The actual updated block will come from server later
+      final updatedBlock = originalBlock.copyWith(
+        content: content,
+        updatedAt: DateTime.now()
+      );
+      _serverBlockCache[blockId] = updatedBlock;
+      
+      // Clear modification tracking since we've sent the update
+      _documentBuilder.clearModificationTracking(blockId);
+    } else {
+      _logger.debug('Skipping update for $blockId - content not changed or server has newer version');
+    }
+    
     _currentEditingBlockId = null;
   }
   
@@ -389,6 +441,9 @@ class RichTextEditorProvider with ChangeNotifier {
     
     // Remove from blocks list
     _blocks.removeWhere((block) => block.id == blockId);
+    
+    // Remove from server cache
+    _serverBlockCache.remove(blockId);
     
     // Notify callback
     onBlockDeleted?.call(blockId);
@@ -455,9 +510,20 @@ class RichTextEditorProvider with ChangeNotifier {
     if (_blocks.isEmpty && blocks.isNotEmpty) {
       // Initial load - just populate the document
       _blocks = List.from(blocks);
+      
+      // Update server cache
+      for (final block in blocks) {
+        _serverBlockCache[block.id] = block;
+      }
+      
       _documentBuilder.populateDocumentFromBlocks(_blocks);
       notifyListeners();
       return;
+    }
+    
+    // Update server cache with latest blocks from server
+    for (final block in blocks) {
+      _serverBlockCache[block.id] = block;
     }
     
     // Get current selection and focus state if preserving focus
@@ -544,23 +610,35 @@ class RichTextEditorProvider with ChangeNotifier {
       _logger.info('Structural changes detected, rebuilding document with focus preservation');
       _blocks = List.from(blocks);
       
-      // Store focused block ID for restoring position
-      String? focusedBlockId;
-      if (currentSelection != null) {
-        final nodeId = currentSelection.extent.nodeId;
-        if (nodeId != null) {
-          focusedBlockId = _documentBuilder.nodeToBlockMap[nodeId];
-        }
-      }
+      // Make a safe copy of selection to prevent issues during document rebuilding
+      final safeSelection = _documentBuilder.createSafeSelectionCopy(currentSelection);
       
-      // Use special document population that tries to preserve focus
+      // Use specialized document population with fail-safe focus restoration
       _documentBuilder.populateDocumentFromBlocks(_blocks);
       
-      // Restore focus with correct reason
-      if (preserveFocus && currentSelection != null && hasFocus) {
+      // Restore focus with correct reason and fail-safe mechanisms
+      if (preserveFocus && hasFocus) {
         Future.microtask(() {
-          // Try to restore to the original selection with proper reason
-          restoreFocus(currentSelection);
+          // Try to restore selection with better error handling
+          bool restored = _documentBuilder.tryRestoreSelection(safeSelection);
+          
+          if (!restored && hasFocus) {
+            // If restoration failed, try to find a reasonable alternative position
+            final alternativePosition = _documentBuilder.findBestAlternativePosition();
+            if (alternativePosition != null) {
+              // Use setSelectionWithReason instead of direct assignment
+              composer.setSelectionWithReason(
+                DocumentSelection(
+                  base: alternativePosition,
+                  extent: alternativePosition,
+                ),
+                SelectionReason.contentChange
+              );
+            }
+            
+            // Ensure focus is still applied
+            focusNode.requestFocus();
+          }
         });
       }
       
@@ -574,30 +652,35 @@ class RichTextEditorProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Restore focus to a previous position
+  // Restore focus to a previous position - improved with better error handling
   void restoreFocus(DocumentSelection selection) {
     try {
-      final position = selection.extent;
-      final nodeId = position.nodeId;
-      if (nodeId != null) {
-        // Find the node in the document
-        final node = document.getNodeById(nodeId);
-        if (node != null) {
-          // Always use contentChange when the reason is programmatic content loading
-          // This ensures the selection history behaves correctly
+      // Use the safer document builder method to restore focus
+      bool restored = _documentBuilder.tryRestoreSelection(selection);
+      
+      if (!restored) {
+        // Use fallback mechanism for position restoration
+        final alternativePosition = _documentBuilder.findBestAlternativePosition();
+        if (alternativePosition != null) {
+          // Use setSelectionWithReason instead of direct assignment
           composer.setSelectionWithReason(
-            selection,
-            SelectionReason.contentChange,
+            DocumentSelection(
+              base: alternativePosition,
+              extent: alternativePosition,
+            ),
+            SelectionReason.contentChange
           );
-          
-          // Request focus if needed
-          if (!focusNode.hasFocus) {
-            focusNode.requestFocus();
-          }
         }
+      }
+      
+      // Request focus if needed - use microtask to allow UI to update first
+      if (!focusNode.hasFocus) {
+        Future.microtask(() => focusNode.requestFocus());
       }
     } catch (e) {
       _logger.error('Error restoring focus: $e');
+      // Try to focus on the document anyway
+      Future.microtask(() => focusNode.requestFocus());
     }
   }
   
@@ -630,8 +713,19 @@ class RichTextEditorProvider with ChangeNotifier {
         // This block was deleted
         _logger.info('Block was deleted during editing: ${originalBlock.id}');
         onBlockDeleted?.call(originalBlock.id);
+        
+        // Remove from server cache
+        _serverBlockCache.remove(originalBlock.id);
       }
     }
+  }
+  
+  // Update server cache with a single block
+  void updateServerCache(Block block) {
+    _serverBlockCache[block.id] = block;
+    
+    // Clear modification flag since we just got an updated version from server
+    _documentBuilder.clearModificationTracking(block.id);
   }
   
   // Request focus on the editor

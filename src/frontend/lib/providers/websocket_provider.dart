@@ -287,11 +287,6 @@ class WebSocketProvider with ChangeNotifier {
       
       // Detailed logging for block-related events
       final String eventKey = '$type:$event';
-      if (type == 'event' && (event.contains('block') || event.startsWith('block.'))) {
-        _logger.debug('Received block event - $event');
-        _logger.debug('Looking for handlers for key: $eventKey');
-        _logger.debug('Available handlers: ${_eventHandlers.keys.join(', ')}');
-      }
       
       // Handle events - immediate processing is better than Future.microtask
       if (type == 'event') {

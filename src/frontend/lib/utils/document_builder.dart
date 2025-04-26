@@ -28,6 +28,14 @@ class DocumentBuilder {
   // Flag to prevent recursive document updates
   bool _updatingDocument = false;
   
+  // Track locally modified blocks with timestamps to optimize server updates
+  final Map<String, DateTime> _locallyModifiedBlocks = {};
+  
+  // Last known selection data for robust position restoration
+  String? _lastKnownNodeId;
+  int? _lastKnownOffset;
+  DocumentSelection? _lastKnownSelection;
+  
   DocumentBuilder() {
     _initialize();
   }
@@ -47,9 +55,31 @@ class DocumentBuilder {
     // Store initial node IDs for tracking structure changes
     _lastKnownNodeIds = document.map((node) => node.id).toList();
     _lastKnownNodeCount = document.length;
+    
+    // Add selection listener to keep track of last valid position
+    composer.addListener(_captureSelectionForRecovery);
+  }
+  
+  // Capture selection data when it changes for recovery purposes
+  void _captureSelectionForRecovery() {
+    final selection = composer.selection;
+    if (selection != null) {
+      try {
+        _lastKnownSelection = selection;
+        _lastKnownNodeId = selection.extent.nodeId;
+        if (selection.extent.nodePosition is TextNodePosition) {
+          _lastKnownOffset = (selection.extent.nodePosition as TextNodePosition).offset;
+        }
+      } catch (e) {
+        _logger.warning('Error capturing selection state: $e');
+      }
+    }
   }
   
   void dispose() {
+    // Remove selection listener
+    composer.removeListener(_captureSelectionForRecovery);
+    
     focusNode.dispose();
     composer.dispose();
   }
@@ -83,18 +113,39 @@ class DocumentBuilder {
     _logger.info('Populating document with ${blocks.length} blocks');
     
     try {
-      // Remember current selection
+      // Remember current selection with enhanced state capture
       String? previousNodeId;
       int? previousTextOffset;
       DocumentPosition? previousPosition;
+      DocumentSelection? previousSelection;
       
       try {
+        // Try to capture the current selection for restoration
         if (composer.selection != null) {
+          previousSelection = composer.selection;
           previousNodeId = composer.selection?.extent.nodeId;
           if (composer.selection?.extent.nodePosition is TextNodePosition) {
             previousTextOffset = (composer.selection!.extent.nodePosition as TextNodePosition).offset;
             previousPosition = composer.selection!.extent;
           }
+        } else if (_lastKnownSelection != null) {
+          // Fall back to last known good selection if current selection is null
+          previousSelection = _lastKnownSelection;
+          previousNodeId = _lastKnownNodeId;
+          previousTextOffset = _lastKnownOffset;
+          if (_lastKnownNodeId != null && _lastKnownOffset != null) {
+            previousPosition = DocumentPosition(
+              nodeId: _lastKnownNodeId!,
+              nodePosition: TextNodePosition(offset: _lastKnownOffset!),
+            );
+          }
+        }
+        
+        // Capture block ID of the focused node to help with position restoration
+        String? previousBlockId;
+        if (previousNodeId != null) {
+          previousBlockId = nodeToBlockMap[previousNodeId];
+          _logger.debug('Saving position in block: $previousBlockId, node: $previousNodeId, offset: $previousTextOffset');
         }
       } catch (e) {
         _logger.warning('Error capturing selection state: $e');
@@ -159,6 +210,109 @@ class DocumentBuilder {
         } catch (e) {
           _logger.error('Error adding default node: $e');
         }
+      }
+      
+      // Restore selection with new fail-safe mechanisms
+      try {
+        if (previousSelection != null) {
+          _logger.debug('Attempting to restore previous selection');
+          
+          // Try different strategies to restore position
+          bool positionRestored = false;
+          
+          // STRATEGY 1: Try to find the same node ID if it still exists
+          if (previousNodeId != null && document.getNodeById(previousNodeId) != null) {
+            _logger.debug('Found exact previous node, restoring position');
+            
+            if (previousPosition != null) {
+              // Verify the position is valid for the node type
+              final node = document.getNodeById(previousNodeId);
+              bool validPosition = false;
+              
+              if (node is TextNode && previousPosition.nodePosition is TextNodePosition) {
+                final textNode = node as TextNode;
+                final textPosition = previousPosition.nodePosition as TextNodePosition;
+                // Ensure text offset is within bounds
+                final safeOffset = textPosition.offset.clamp(0, textNode.text.length);
+                
+                // Use setSelectionWithReason instead of direct assignment
+                composer.setSelectionWithReason(
+                  DocumentSelection(
+                    base: DocumentPosition(
+                      nodeId: previousNodeId,
+                      nodePosition: TextNodePosition(offset: safeOffset),
+                    ),
+                    extent: DocumentPosition(
+                      nodeId: previousNodeId,
+                      nodePosition: TextNodePosition(offset: safeOffset),
+                    ),
+                  ),
+                  SelectionReason.contentChange
+                );
+                positionRestored = true;
+              }
+            }
+          }
+          
+          // STRATEGY 2: Try to find a node mapping to the same block ID
+          if (!positionRestored && previousNodeId != null) {
+            final previousBlockId = nodeToBlockMap[previousNodeId];
+            if (previousBlockId != null && blockToNodeMap.containsKey(previousBlockId)) {
+              _logger.debug('Found different node for same block, restoring position');
+              
+              final newNodeId = blockToNodeMap[previousBlockId]!;
+              final node = document.getNodeById(newNodeId);
+              
+              // Default to start of node if offset can't be preserved
+              int safeOffset = 0;
+              if (node is TextNode && previousTextOffset != null) {
+                // Ensure offset is within bounds
+                safeOffset = previousTextOffset.clamp(0, node.text.length);
+              }
+              
+              // Use setSelectionWithReason instead of direct assignment
+              composer.setSelectionWithReason(
+                DocumentSelection(
+                  base: DocumentPosition(
+                    nodeId: newNodeId,
+                    nodePosition: TextNodePosition(offset: safeOffset),
+                  ),
+                  extent: DocumentPosition(
+                    nodeId: newNodeId,
+                    nodePosition: TextNodePosition(offset: safeOffset),
+                  ),
+                ),
+                SelectionReason.contentChange
+              );
+              positionRestored = true;
+            }
+          }
+          
+          // STRATEGY 3: If all else fails, position at the start of the document
+          if (!positionRestored && document.isNotEmpty) {
+            _logger.debug('Using fallback position at start of document');
+            
+            final firstNode = document.first;
+            
+            // Use setSelectionWithReason instead of direct assignment
+            composer.setSelectionWithReason(
+              DocumentSelection(
+                base: DocumentPosition(
+                  nodeId: firstNode.id,
+                  nodePosition: const TextNodePosition(offset: 0),
+                ),
+                extent: DocumentPosition(
+                  nodeId: firstNode.id,
+                  nodePosition: const TextNodePosition(offset: 0),
+                ),
+              ),
+              SelectionReason.contentChange
+            );
+          }
+        }
+      } catch (e) {
+        _logger.error('Error restoring selection: $e');
+        // Selection restoration failed, but document is still usable
       }
     } catch (e) {
       _logger.error('Error populating document: $e');
@@ -309,6 +463,39 @@ class DocumentBuilder {
     return prevOrder + ((nextOrder - prevOrder) ~/ 2);
   }
   
+  // Mark a block as locally modified to optimize server updates
+  void markBlockAsModified(String blockId) {
+    _locallyModifiedBlocks[blockId] = DateTime.now();
+  }
+  
+  // Check if block should be updated based on timestamps
+  bool shouldSendBlockUpdate(String blockId, Block serverBlock) {
+    // If not in locally modified list, no need to update
+    if (!_locallyModifiedBlocks.containsKey(blockId)) {
+      return false;
+    }
+    
+    // Get local modification time
+    final localModTime = _locallyModifiedBlocks[blockId]!;
+    
+    // Compare with server timestamp
+    final serverUpdateTime = serverBlock.updatedAt;
+    
+    // Only update if local changes are newer
+    if (localModTime.isAfter(serverUpdateTime)) {
+      _logger.debug('Block $blockId has newer local changes (local: $localModTime, server: $serverUpdateTime)');
+      return true;
+    } else {
+      _logger.debug('Block $blockId server version is newer or same, skipping update');
+      return false;
+    }
+  }
+  
+  // Clear modification tracking after successful update
+  void clearModificationTracking(String blockId) {
+    _locallyModifiedBlocks.remove(blockId);
+  }
+  
   // Extract content from a node in the format expected by the API
   Map<String, dynamic> extractContentFromNode(DocumentNode node, String blockId, Block originalBlock) {
     Map<String, dynamic> content = {};
@@ -339,6 +526,9 @@ class DocumentBuilder {
         content['spans'] = spans;
       }
     }
+    
+    // Mark this block as modified with current timestamp
+    markBlockAsModified(blockId);
     
     return content;
   }
@@ -555,5 +745,157 @@ class DocumentBuilder {
     }
     
     return mergedSpans;
+  }
+  
+  // Find the best node to place cursor at when restoring selection fails
+  DocumentPosition? findBestAlternativePosition() {
+    try {
+      if (document.isEmpty) {
+        return null;
+      }
+      
+      // Try several strategies to find a valid position
+      
+      // 1. If we have a lastKnownNodeId and it exists, use it
+      if (_lastKnownNodeId != null && document.getNodeById(_lastKnownNodeId!) != null) {
+        final node = document.getNodeById(_lastKnownNodeId!);
+        if (node is TextNode) {
+          // Place cursor at same position or at end if text is shorter now
+          final safeOffset = (_lastKnownOffset ?? 0).clamp(0, node.text.length);
+          return DocumentPosition(
+            nodeId: _lastKnownNodeId!,
+            nodePosition: TextNodePosition(offset: safeOffset),
+          );
+        }
+      }
+      
+      // 2. Try first node in document
+      final firstNode = document.first;
+      if (firstNode is TextNode) {
+        return DocumentPosition(
+          nodeId: firstNode.id,
+          nodePosition: const TextNodePosition(offset: 0),
+        );
+      }
+      
+      // 3. Try any text node
+      for (final node in document) {
+        if (node is TextNode) {
+          return DocumentPosition(
+            nodeId: node.id,
+            nodePosition: const TextNodePosition(offset: 0),
+          );
+        }
+      }
+      
+      // No suitable position found
+      return null;
+    } catch (e) {
+      _logger.error('Error finding alternative cursor position: $e');
+      return null;
+    }
+  }
+  
+  // Attempt to restore selection safely
+  bool tryRestoreSelection(DocumentSelection? selection) {
+    if (selection == null) {
+      return false;
+    }
+    
+    try {
+      // Verify that the nodes exist
+      final baseNodeExists = document.getNodeById(selection.base.nodeId) != null;
+      final extentNodeExists = document.getNodeById(selection.extent.nodeId) != null;
+      
+      if (!baseNodeExists || !extentNodeExists) {
+        _logger.warning('Node(s) in selection no longer exist, using fallback');
+        return false;
+      }
+      
+      // Validate positions for each node
+      bool validBase = true;
+      bool validExtent = true;
+      
+      // Validate base position
+      if (selection.base.nodePosition is TextNodePosition) {
+        final node = document.getNodeById(selection.base.nodeId);
+        if (node is TextNode) {
+          final position = selection.base.nodePosition as TextNodePosition;
+          if (position.offset < 0 || position.offset > node.text.length) {
+            validBase = false;
+          }
+        } else {
+          validBase = false;
+        }
+      }
+      
+      // Validate extent position
+      if (selection.extent.nodePosition is TextNodePosition) {
+        final node = document.getNodeById(selection.extent.nodeId);
+        if (node is TextNode) {
+          final position = selection.extent.nodePosition as TextNodePosition;
+          if (position.offset < 0 || position.offset > node.text.length) {
+            validExtent = false;
+          }
+        } else {
+          validExtent = false;
+        }
+      }
+      
+      if (!validBase || !validExtent) {
+        _logger.warning('Invalid position in selection, using fallback');
+        return false;
+      }
+      
+      // Selection is valid, restore it using setSelectionWithReason
+      composer.setSelectionWithReason(selection, SelectionReason.contentChange);
+      return true;
+    } catch (e) {
+      _logger.error('Error trying to restore selection: $e');
+      return false;
+    }
+  }
+  
+  // Create a safe copy of a potentially problematic document selection
+  DocumentSelection? createSafeSelectionCopy(DocumentSelection? selection) {
+    if (selection == null) {
+      return null;
+    }
+    
+    try {
+      // Create a copy of base position
+      DocumentPosition? safeBase;
+      if (selection.base.nodePosition is TextNodePosition) {
+        safeBase = DocumentPosition(
+          nodeId: selection.base.nodeId,
+          nodePosition: TextNodePosition(
+            offset: (selection.base.nodePosition as TextNodePosition).offset
+          ),
+        );
+      }
+      
+      // Create a copy of extent position
+      DocumentPosition? safeExtent;
+      if (selection.extent.nodePosition is TextNodePosition) {
+        safeExtent = DocumentPosition(
+          nodeId: selection.extent.nodeId,
+          nodePosition: TextNodePosition(
+            offset: (selection.extent.nodePosition as TextNodePosition).offset
+          ),
+        );
+      }
+      
+      if (safeBase != null && safeExtent != null) {
+        return DocumentSelection(
+          base: safeBase,
+          extent: safeExtent,
+        );
+      }
+      
+      return null;
+    } catch (e) {
+      _logger.error('Error creating safe selection copy: $e');
+      return null;
+    }
   }
 }

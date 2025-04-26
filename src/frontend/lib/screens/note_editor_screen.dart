@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:thinkstack/utils/websocket_message_parser.dart';
 import '../models/note.dart';
 import '../models/block.dart';
 import '../providers/notes_provider.dart';
@@ -164,103 +165,136 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   // Handle block creation event from WebSocket
   void _handleBlockCreatedEvent(dynamic data) {
+    if (data == null) {
+      _logger.warning('Received null data for block.created event');
+      return;
+    }
+    
     _logger.info('Received block.created event: $data');
     
-    // Extract block ID from the event data
-    String? blockId;
-    String? noteId;
-    
-    if (data is Map) {
-      blockId = data['id']?.toString() ?? data['block_id']?.toString();
-      noteId = data['note_id']?.toString();
-    } else if (data is String) {
-      blockId = data;
+    try {
+      // Use the structured parser to extract data
+      final parsedMessage = WebSocketMessage.fromJson(data);
+      final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      
+      if (blockId == null) {
+        _logger.error('Unable to extract block ID from event data');
+        return;
+      }
+      
+      // Check if this block belongs to the current note
+      if (noteId != null && noteId != widget.note.id) {
+        _logger.debug('Block belongs to note $noteId, not ${widget.note.id}, ignoring');
+        return;
+      }
+      
+      // Set a brief delay to ensure backend has processed the block creation
+      Future.delayed(const Duration(milliseconds: 300), () {
+        _logger.info('Fetching new block $blockId after delay');
+        _fetchBlockById(blockId);
+      });
+    } catch (e) {
+      _logger.error('Error handling block create event: $e');
     }
-    
-    if (blockId == null) {
-      _logger.error('Unable to extract block ID from event data');
-      return;
-    }
-    
-    // Check if this block belongs to the current note
-    if (noteId != null && noteId != widget.note.id) {
-      _logger.debug('Block belongs to note $noteId, not ${widget.note.id}, ignoring');
-      return;
-    }
-    
-    // Set a brief delay to ensure backend has processed the block creation
-    Future.delayed(const Duration(milliseconds: 300), () {
-      _logger.info('Fetching new block $blockId after delay');
-      _fetchBlockById(blockId!);
-    });
   }
 
   // Handle block update event from WebSocket
   void _handleBlockUpdatedEvent(dynamic data) {
-    _logger.info('Received block.updated event: $data');
-    
-    // Extract block ID from the event data
-    String? blockId;
-    if (data is Map && data.containsKey('id')) {
-      blockId = data['id'].toString();
-    } else if (data is String) {
-      blockId = data;
-    }
-    
-    if (blockId == null) {
-      _logger.error('Unable to extract block ID from event data');
+    if (data == null) {
+      _logger.warning('Received null data for block.updated event');
       return;
     }
     
-    // Check if this block is one we're already tracking
-    bool isKnownBlock = _blocks.any((block) => block.id == blockId);
-    if (isKnownBlock) {
-      // Fetch the updated block
-      _fetchBlockById(blockId);
+    _logger.info('Received block.updated event: $data');
+    
+    try {
+      // Use the structured parser to extract data
+      final parsedMessage = WebSocketMessage.fromJson(data);
+      final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      
+      if (blockId == null) {
+        _logger.error('Unable to extract block ID from event data');
+        return;
+      }
+      
+      // Check if this block belongs to the current note
+      if (noteId != null && noteId != widget.note.id) {
+        _logger.debug('Block belongs to note $noteId, not ${widget.note.id}, ignoring');
+        return;
+      }
+      
+      // Check if this block is one we're already tracking
+      bool isKnownBlock = _blocks.any((block) => block.id == blockId);
+      if (isKnownBlock) {
+        // Fetch the updated block
+        _fetchBlockById(blockId);
+      }
+    } catch (e) {
+      _logger.error('Error handling block update event: $e');
     }
   }
 
   // Handle block deletion event from WebSocket
   void _handleBlockDeletedEvent(dynamic data) {
-    _logger.info('Received block.deleted event: $data');
-    
-    // Extract block ID from the event data
-    String? blockId;
-    if (data is Map && data.containsKey('id')) {
-      blockId = data['id'].toString();
-    } else if (data is String) {
-      blockId = data;
-    }
-    
-    if (blockId == null) {
-      _logger.error('Unable to extract block ID from event data');
+    if (data == null) {
+      _logger.warning('Received null data for block.deleted event');
       return;
     }
     
-    // Check if this block is one we're tracking
-    bool removedBlock = false;
-    _blocks.removeWhere((block) {
-      if (block.id == blockId) {
-        removedBlock = true;
-        return true;
-      }
-      return false;
-    });
+    _logger.info('Received block.deleted event: $data');
     
-    if (removedBlock) {
-      // Update the editor with the remaining blocks
-      if (_editorProvider != null) {
-        _editorProvider!.updateBlocks(_blocks);
+    try {
+      // Use the structured parser to extract data
+      final parsedMessage = WebSocketMessage.fromJson(data);
+      final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      
+      if (blockId == null) {
+        _logger.error('Unable to extract block ID from event data');
+        return;
       }
       
-      if (mounted) {
-        setState(() {});
+      // Check if this block belongs to the current note
+      if (noteId != null && noteId != widget.note.id) {
+        _logger.debug('Block belongs to note $noteId, not ${widget.note.id}, ignoring');
+        return;
       }
+      
+      // Check if this block is one we're tracking
+      bool removedBlock = false;
+      _blocks.removeWhere((block) {
+        if (block.id == blockId) {
+          removedBlock = true;
+          return true;
+        }
+        return false;
+      });
+      
+      if (removedBlock) {
+        // Update the editor with the remaining blocks
+        if (_editorProvider != null) {
+          _editorProvider!.updateBlocks(_blocks);
+        }
+        
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    } catch (e) {
+      _logger.error('Error handling block delete event: $e');
     }
   }
 
-  // Fetch a specific block by ID with improved error handling and logging
+  // Fetch a specific block by ID with improved error handling and rendering
   Future<void> _fetchBlockById(String blockId) async {
+    // Don't fetch if we're already ignoring updates (prevents recursive updates)
+    if (_ignoreBlockUpdates) {
+      _logger.debug('Ignoring fetch request during local edit for block: $blockId');
+      return;
+    }
+    
     try {
       _logger.info('Fetching block with ID: $blockId');
       
@@ -292,19 +326,23 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             });
           }
           
-          // Update the editor with the new/updated blocks - force rebuild
-          _logger.info('Updating editor with modified block list: ${_blocks.length} blocks');
-          if (_editorProvider != null) {
-            // Use a timer to ensure state has updated before updating the provider
-            Future.microtask(() {
-              if (mounted) {
+          // FIX: Ensure we update the editor immediately
+          // Use a more reliable approach to ensure UI updates
+          Future.microtask(() {
+            if (mounted) {
+              _logger.info('Updating editor with modified block list: ${_blocks.length} blocks');
+              
+              if (_editorProvider != null) {
                 _editorProvider!.updateBlocks(_blocks);
+              } else {
+                _logger.info('Creating new editor provider since none exists');
+                _createEditorProvider();
               }
-            });
-          } else {
-            _logger.info('Creating new editor provider since none exists');
-            _createEditorProvider();
-          }
+              
+              // Force UI refresh to ensure blocks are visible
+              setState(() {});
+            }
+          });
         } else {
           _logger.debug('Block belongs to note ${block.noteId}, not ${widget.note.id}');
         }
