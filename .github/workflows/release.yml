@@ -52,6 +52,7 @@ jobs:
           cd src/backend
           docker build \
             --build-arg TARGETARCH=$(uname -m) \
+            --build-arg TARGETOS=$(uname -s) \
             -t thinkstack:${{ github.ref_name }} \
             -t thinkstack:latest \
             .
