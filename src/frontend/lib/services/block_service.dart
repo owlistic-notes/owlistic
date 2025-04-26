@@ -6,16 +6,15 @@ import 'base_service.dart';
 class BlockService extends BaseService {
   final Logger _logger = Logger('BlockService');
 
+  // Enhance fetchBlocksForNote to support pagination
   Future<List<Block>> fetchBlocksForNote(
     String noteId, 
-    {Map<String, dynamic>? queryParams, int page = 1, int pageSize = 100}
+    {Map<String, dynamic>? queryParams}
   ) async {
     try {
       // Build base query parameters
       Map<String, dynamic> params = {
         'note_id': noteId,
-        'page': page.toString(),
-        'page_size': pageSize.toString(),
       };
       
       // Add any additional query parameters
@@ -23,7 +22,7 @@ class BlockService extends BaseService {
         params.addAll(queryParams);
       }
       
-      _logger.debug('Fetching blocks for note: $noteId (page $page, size $pageSize)');
+      _logger.debug('Fetching blocks for note: $noteId with params: $params');
       
       final response = await authenticatedGet(
         '/api/v1/blocks',
@@ -32,69 +31,13 @@ class BlockService extends BaseService {
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        final blocks = data.map((json) => Block.fromJson(json)).toList();
-        
-        // Get total count from headers if available
-        String? totalCountHeader = response.headers["x-total-count"];
-        int? totalCount = totalCountHeader != null ? int.tryParse(totalCountHeader) : null;
-        
-        _logger.debug('Fetched ${blocks.length} blocks${totalCount != null ? " (total: $totalCount)" : ""}');
-        return blocks;
+        return data.map((json) => Block.fromJson(json)).toList();
       } else {
         _logger.error('Failed to load blocks: Status ${response.statusCode}');
         throw Exception('Failed to load blocks: ${response.statusCode}');
       }
     } catch (e) {
       _logger.error('Error in fetchBlocksForNote', e);
-      rethrow;
-    }
-  }
-
-  // Add a method specifically for bulk/paginated fetching
-  Future<Map<String, dynamic>> fetchBlocksPaginated(
-    String noteId,
-    {int page = 1, int pageSize = 100, bool countTotal = true}
-  ) async {
-    try {
-      Map<String, dynamic> params = {
-        'note_id': noteId,
-        'page': page.toString(),
-        'page_size': pageSize.toString(),
-        'count_total': countTotal.toString(),
-      };
-
-      _logger.debug('Fetching blocks paginated for note: $noteId (page $page, size $pageSize)');
-      
-      final response = await authenticatedGet(
-        '/api/v1/blocks',
-        queryParameters: params
-      );
-      
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        final blocks = data.map((json) => Block.fromJson(json)).toList();
-        
-        // Get total count from headers if available
-        String? totalCountHeader = response.headers["x-total-count"];
-        int totalCount = totalCountHeader != null ? int.tryParse(totalCountHeader) ?? blocks.length : blocks.length;
-        
-        bool hasMore = blocks.length >= pageSize;
-        
-        _logger.debug('Fetched ${blocks.length} blocks (total: $totalCount, hasMore: $hasMore)');
-        
-        return {
-          'blocks': blocks,
-          'total_count': totalCount,
-          'page': page,
-          'page_size': pageSize,
-          'has_more': hasMore
-        };
-      } else {
-        _logger.error('Failed to load blocks: Status ${response.statusCode}');
-        throw Exception('Failed to load blocks: ${response.statusCode}');
-      }
-    } catch (e) {
-      _logger.error('Error in fetchBlocksPaginated', e);
       rethrow;
     }
   }
@@ -202,36 +145,6 @@ class BlockService extends BaseService {
       }
     } catch (e) {
       _logger.error('Error in getBlock', e);
-      rethrow;
-    }
-  }
-
-  // Add a method to fetch blocks by IDs (bulk fetch)
-  Future<List<Block>> fetchBlocksByIds(List<String> blockIds) async {
-    if (blockIds.isEmpty) {
-      return [];
-    }
-    
-    try {
-      // Join block IDs with comma for query parameter
-      final String idList = blockIds.join(',');
-      
-      _logger.debug('Fetching ${blockIds.length} blocks by IDs');
-      
-      final response = await authenticatedGet(
-        '/api/v1/blocks',
-        queryParameters: {'ids': idList}
-      );
-      
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => Block.fromJson(json)).toList();
-      } else {
-        _logger.error('Failed to load blocks by IDs: Status ${response.statusCode}');
-        throw Exception('Failed to load blocks by IDs: ${response.statusCode}');
-      }
-    } catch (e) {
-      _logger.error('Error in fetchBlocksByIds', e);
       rethrow;
     }
   }

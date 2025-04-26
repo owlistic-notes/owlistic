@@ -43,14 +43,39 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // Set to track blocks that existed at screen initialization
   final Set<String> _initialBlockIds = {};
   
+  // Add scroll controller to detect when to load more blocks
+  final ScrollController _scrollController = ScrollController();
+  
+  // Store loading state for pagination
+  bool _loadingMoreBlocks = false;
+  
+  // Define batch size for initial and subsequent loads
+  static const int _initialPageSize = 20;
+  static const int _batchSize = 10;
+  
+  // Current page number for pagination
+  int _currentPage = 1;
+  
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.note.title);
     
+    // Add scroll listener to load more blocks when nearing the end
+    _scrollController.addListener(_scrollListener);
+    
     Timer(Duration.zero, () {
       _initializeProviders();
     });
+  }
+  
+  // Scroll listener to detect when we need to load more blocks
+  void _scrollListener() {
+    if (!_loadingMoreBlocks &&
+        _scrollController.position.pixels > 
+        _scrollController.position.maxScrollExtent - 500) {
+      _loadMoreBlocks();
+    }
   }
   
   void _initializeProviders() {
@@ -273,17 +298,20 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
-  // Fetch blocks for this note - updated to use pagination
+  // Fetch first batch of blocks for this note
   Future<void> _fetchBlocks() async {
     setState(() => _isLoading = true);
     
     try {
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
       
-      // Fetch first page of blocks with a larger page size for initial load
-      await blockProvider.fetchBlocksForNote(widget.note.id, page: 1, pageSize: 50);
+      // Only fetch initial small batch for quick display
+      await blockProvider.fetchBlocksForNote(widget.note.id, 
+        page: 1, 
+        pageSize: _initialPageSize
+      );
       
-      // After fetching, get blocks from provider and sort by order
+      // After fetching, get blocks from provider
       _updateBlocksFromProvider();
       
       // Store initial block IDs for later comparison
@@ -294,10 +322,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       
       setState(() {
         _isLoading = false;
+        _currentPage = 1;
       });
-      
-      // If there are more blocks, load them in the background
-      _loadRemainingBlocksInBackground();
     } catch (e) {
       _logger.error('Error fetching blocks', e);
       setState(() => _isLoading = false);
@@ -309,44 +335,77 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       }
     }
   }
-
-  // Load remaining blocks in the background
-  Future<void> _loadRemainingBlocksInBackground() async {
+  
+  // Load more blocks when scrolling
+  Future<void> _loadMoreBlocks() async {
+    if (_loadingMoreBlocks) return;
+    
+    setState(() {
+      _loadingMoreBlocks = true;
+    });
+    
     try {
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
       
-      // Check if there are more blocks to load
-      if (blockProvider.hasMoreBlocks(widget.note.id)) {
-        _logger.info('Loading more blocks in background');
+      // Capture current scroll position
+      final scrollPosition = _scrollController.position.pixels;
+      
+      // Capture current selection/focus state with correct reason
+      final editorHasFocus = _editorProvider?.focusNode.hasFocus ?? false;
+      final currentSelection = _editorProvider?.composer.selection;
+      
+      // Store the selection reason properly
+      final selectionReason = _editorProvider?.composer.latestSelectionChangeReason;
+      
+      // Load next page of blocks
+      _currentPage++;
+      await blockProvider.fetchBlocksForNote(widget.note.id,
+        page: _currentPage,
+        pageSize: _batchSize,
+        append: true // Important: append flag to add to existing blocks
+      );
+      
+      // Update blocks without disrupting the UI
+      _updateBlocksFromProvider(preserveFocus: editorHasFocus);
+      
+      if (mounted) {
+        setState(() {
+          _loadingMoreBlocks = false;
+        });
         
-        // Load more blocks until we've loaded everything
-        while (blockProvider.hasMoreBlocks(widget.note.id)) {
-          await blockProvider.loadMoreBlocks(widget.note.id);
-          
-          // Update our local blocks from the provider
-          if (mounted) {
-            _updateBlocksFromProvider();
-          } else {
-            break; // Stop if the widget is no longer mounted
-          }
-          
-          // Small delay to avoid hammering the server
-          await Future.delayed(const Duration(milliseconds: 100));
+        // Restore focus and selection if needed
+        if (editorHasFocus && currentSelection != null && _editorProvider != null) {
+          Future.microtask(() {
+            _editorProvider!.restoreFocus(currentSelection);
+          });
         }
         
-        _logger.info('Finished loading all blocks in background');
+        // Restore scroll position
+        if (_scrollController.hasClients && 
+            scrollPosition <= _scrollController.position.maxScrollExtent) {
+          _scrollController.jumpTo(scrollPosition);
+        }
       }
     } catch (e) {
-      _logger.error('Error loading remaining blocks', e);
+      _logger.error('Error loading more blocks', e);
+      if (mounted) {
+        setState(() {
+          _loadingMoreBlocks = false;
+        });
+      }
     }
   }
 
-  // Update blocks from provider
-  void _updateBlocksFromProvider() {
+  // Update blocks from provider with focus preservation
+  void _updateBlocksFromProvider({bool preserveFocus = false}) {
     if (_ignoreBlockUpdates) {
       _logger.debug('Ignoring block updates due to local edit');
       return;
     }
+    
+    // Capture current editor state if preserving focus
+    final hadFocus = preserveFocus ? _editorProvider?.focusNode.hasFocus ?? false : false;
+    final selection = preserveFocus ? _editorProvider?.composer.selection : null;
     
     final blockProvider = Provider.of<BlockProvider>(context, listen: false);
     final newBlocks = blockProvider.getBlocksForNote(widget.note.id);
@@ -388,7 +447,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       
       // Update editor provider if it exists
       if (_editorProvider != null) {
-        _editorProvider!.updateBlocks(_blocks);
+        _editorProvider!.updateBlocks(_blocks, preserveFocus: preserveFocus, savedSelection: selection);
       } else {
         // Create editor provider if it doesn't exist yet
         _createEditorProvider();
@@ -628,6 +687,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
     // Safely unsubscribe and clean up using stored provider references
     if (_initialized) {
       try {
@@ -714,8 +775,18 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             );
           },
         ),
-        // Remove the edit icon from additional actions
-        additionalActions: [],
+        // Add loading indicator to app bar when loading more blocks
+        additionalActions: _loadingMoreBlocks ? [
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          const SizedBox(width: 16),
+        ] : [],
       ),
       body: Theme(
         // Apply explicit text color overrides for dark mode to ensure visibility
@@ -741,7 +812,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     );
   }
   
-  // Build the editor widget
+  // Build the editor widget with scroll controller
   Widget _buildEditor() {
     // Create provider if it doesn't exist
     if (_editorProvider == null) {
@@ -757,7 +828,26 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         fontSize: 16,
       ),
       child: _editorProvider != null
-          ? RichTextEditor(provider: _editorProvider!)
+          ? Column(
+              children: [
+                Expanded(
+                  child: RichTextEditor(
+                    provider: _editorProvider!,
+                    scrollController: _scrollController,
+                  ),
+                ),
+                // Loading indicator at the bottom when fetching more blocks
+                if (_loadingMoreBlocks)
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+              ],
+            )
           : const Center(child: Text('Error initializing editor')),
     );
   }

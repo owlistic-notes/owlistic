@@ -160,24 +160,28 @@ class DocumentBuilder {
                 // Ensure offset is within text bounds
                 offset = offset.clamp(0, node.text.length);
                 
-                composer.setSelectionWithReason(DocumentSelection.collapsed(
+                composer.setSelectionWithReason(
+                  DocumentSelection.collapsed(
                     position: DocumentPosition(
                       nodeId: newNodeId,
                       nodePosition: TextNodePosition(offset: offset),
                     ),
                   ),
+                  SelectionReason.contentChange, // Use contentChange since this is not a user interaction
                 );
               } 
               // If no matching node, just select the first text node
               else if (document.isNotEmpty) {
                 for (final node in document) {
                   if (node is TextNode) {
-                    composer.setSelectionWithReason(DocumentSelection.collapsed(
+                    composer.setSelectionWithReason(
+                      DocumentSelection.collapsed(
                         position: DocumentPosition(
                           nodeId: node.id,
                           nodePosition: const TextNodePosition(offset: 0),
                         ),
                       ),
+                      SelectionReason.contentChange, // Use contentChange since this is not a user interaction
                     );
                     break;
                   }

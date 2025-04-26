@@ -33,6 +33,9 @@ class BlockProvider with ChangeNotifier {
   StreamSubscription? _connectionSubscription;
   final AppStateService _appStateService = AppStateService();
 
+  // Add pagination state tracking
+  final Map<String, Map<String, dynamic>> _paginationState = {};
+
   // Constructor with dependency injection
   BlockProvider({BlockService? blockService, AuthService? authService})
     : _blockService = blockService ?? ServiceLocator.get<BlockService>(),
@@ -283,37 +286,79 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Fetch blocks for a specific note
-  Future<void> fetchBlocksForNote(String noteId) async {
+  // Fetch blocks for a specific note with pagination
+  Future<void> fetchBlocksForNote(String noteId, {
+    int page = 1, 
+    int pageSize = 100,
+    bool append = false, // Add append option to add blocks without replacing
+    bool refresh = false
+  }) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final blocks = await _blockService.fetchBlocksForNote(noteId);
+      // If refresh is true, clear existing blocks for this note
+      if (refresh) {
+        // Remove old blocks for this note
+        final oldBlockIds = _blocks.keys.where(
+          (id) => _blocks[id]?.noteId == noteId
+        ).toList();
+        
+        for (final id in oldBlockIds) {
+          _blocks.remove(id);
+        }
+        
+        // Clear note blocks map
+        _noteBlocksMap[noteId]?.clear();
+      }
+      
+      _logger.debug('Fetching blocks for note: $noteId (page: $page, size: $pageSize)');
+      
+      // Query parameters for the API
+      final Map<String, dynamic> queryParams = {
+        'page': page,
+        'page_size': pageSize,
+        'count_total': 'true'
+      };
+      
+      // Fetch blocks from service
+      final blocksResult = await _blockService.fetchBlocksForNote(
+        noteId, 
+        queryParams: queryParams
+      );
+      
+      // Process pagination headers from response
+      final totalCount = blocksResult.length;
+      final hasMore = totalCount >= pageSize;
+      
+      // Update pagination state
+      _paginationState[noteId] = {
+        'page': page,
+        'page_size': pageSize,
+        'total_count': totalCount,
+        'has_more': hasMore
+      };
+      
+      _logger.debug('Fetched ${blocksResult.length} blocks for note $noteId');
       
       // Initialize note blocks list if it doesn't exist
       _noteBlocksMap[noteId] ??= [];
       
-      // Clear existing note blocks in the map
-      _noteBlocksMap[noteId]?.clear();
-      
-      // Remove old blocks for this note
-      final oldBlockIds = _blocks.keys.where(
-        (id) => _blocks[id]?.noteId == noteId
-      ).toList();
-      
-      for (final id in oldBlockIds) {
-        _blocks.remove(id);
+      // If not appending, clear existing blocks
+      if (!append) {
+        _noteBlocksMap[noteId]?.clear();
       }
       
       // Add all blocks to our maps
-      for (var block in blocks) {
+      for (var block in blocksResult) {
         _blocks[block.id] = block;
         
-        // Also add to the noteBlocksMap
-        _noteBlocksMap[noteId]!.add(block.id);
+        // Add to the noteBlocksMap if not already there
+        if (!(_noteBlocksMap[noteId]?.contains(block.id) ?? false)) {
+          _noteBlocksMap[noteId]!.add(block.id);
+        }
         
-        // Subscribe to this block - only if not already subscribed
+        // Subscribe to this block
         if (!_webSocketService.isSubscribed('block', id: block.id)) {
           _webSocketService.subscribe('block', id: block.id);
         }
@@ -326,13 +371,31 @@ class BlockProvider with ChangeNotifier {
       _updateCount++;
       notifyListeners();
       
-      _logger.debug('Fetched ${blocks.length} blocks for note $noteId');
+      _logger.debug('Total blocks loaded for note $noteId: ${getBlocksForNote(noteId).length}');
     } catch (error) {
       _logger.error('Error fetching blocks for note $noteId', error);
       _isLoading = false;
       notifyListeners();
       rethrow;
     }
+  }
+
+  // Check if there are more blocks to load for a note
+  bool hasMoreBlocks(String noteId) {
+    final state = _paginationState[noteId];
+    if (state == null) return true; // If no state, assume we might have more
+    
+    return state['has_more'] ?? false;
+  }
+  
+  // Get pagination info for a note
+  Map<String, dynamic> getPaginationInfo(String noteId) {
+    return _paginationState[noteId] ?? {
+      'page': 1,
+      'page_size': 100,
+      'total_count': 0,
+      'has_more': false
+    };
   }
 
   // Fetch a single block by ID

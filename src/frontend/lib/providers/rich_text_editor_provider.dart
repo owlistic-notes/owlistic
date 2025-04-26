@@ -80,7 +80,7 @@ class RichTextEditorProvider with ChangeNotifier {
   
   // Convenience getters that access document mapper properties
   MutableDocument get document => _documentBuilder.document;
-  DocumentComposer get composer => _documentBuilder.composer;
+  MutableDocumentComposer get composer => _documentBuilder.composer;
   Editor get editor => _documentBuilder.editor;
   FocusNode get focusNode => _documentBuilder.focusNode;
   List<Block> get blocks => List.unmodifiable(_blocks);
@@ -446,18 +446,25 @@ class RichTextEditorProvider with ChangeNotifier {
   }
   
   // Update blocks and refresh the document
-  void updateBlocks(List<Block> blocks) {
+  void updateBlocks(List<Block> blocks, {
+    bool preserveFocus = false,
+    DocumentSelection? savedSelection
+  }) {
     _logger.info('Updating blocks: received ${blocks.length}, current ${_blocks.length}');
     
     if (_blocks.isEmpty && blocks.isNotEmpty) {
-      _logger.info('First blocks received, updating document');
+      // Initial load - just populate the document
       _blocks = List.from(blocks);
       _documentBuilder.populateDocumentFromBlocks(_blocks);
       notifyListeners();
       return;
     }
     
-    // Use a map for more efficient lookups
+    // Get current selection and focus state if preserving focus
+    final currentSelection = preserveFocus ? savedSelection ?? composer.selection : null;
+    final hasFocus = preserveFocus ? focusNode.hasFocus : false;
+    
+    // Create maps for efficient lookups
     final Map<String, Block> existingBlocksMap = {
       for (var block in _blocks) block.id: block
     };
@@ -466,58 +473,131 @@ class RichTextEditorProvider with ChangeNotifier {
       for (var block in blocks) block.id: block
     };
     
-    // Check for changes: additions, deletions, or modifications
-    bool hasChanges = existingBlocksMap.length != newBlocksMap.length;
+    // Determine what kind of update is needed
+    bool hasStructuralChanges = false;
+    bool onlyAddedAtEnd = true;
     
-    if (!hasChanges) {
-      for (final block in blocks) {
-        final existingBlock = existingBlocksMap[block.id];
-        if (existingBlock == null || 
-            existingBlock.type != block.type ||
-            existingBlock.order != block.order ||
-            existingBlock.content.toString() != block.content.toString()) {
-          hasChanges = true;
-          break;
+    // Check first for additions/removals
+    if (existingBlocksMap.length != newBlocksMap.length) {
+      hasStructuralChanges = true;
+      
+      // If we're only adding blocks, check if they're all at the end
+      if (existingBlocksMap.length < newBlocksMap.length) {
+        // Are all existing blocks still present?
+        onlyAddedAtEnd = existingBlocksMap.keys.every((id) => newBlocksMap.containsKey(id));
+        
+        if (onlyAddedAtEnd) {
+          // Find the highest order of existing blocks
+          final highestExistingOrder = _blocks.isEmpty ? -1 : 
+              _blocks.map((b) => b.order).reduce((a, b) => a > b ? a : b);
+              
+          // Check if all new blocks have higher order
+          for (final blockId in newBlocksMap.keys) {
+            if (!existingBlocksMap.containsKey(blockId) && 
+                newBlocksMap[blockId]!.order <= highestExistingOrder) {
+              onlyAddedAtEnd = false;
+              break;
+            }
+          }
         }
+      } else {
+        // We're removing blocks, so not just adding at end
+        onlyAddedAtEnd = false;
       }
     }
     
-    if (hasChanges) {
-      _logger.info('Block list has changes, updating document');
+    // CASE 1: Blocks only added at the end - we can append without disrupting focus
+    if (hasStructuralChanges && onlyAddedAtEnd) {
+      _logger.info('Only adding blocks at end, performing targeted update');
       
-      // Keep track of what's changed for better log messages
-      int addedCount = 0;
-      int modifiedCount = 0;
-      int removedCount = 0;
+      // Get blocks to add (in new blocks but not in existing blocks)
+      final blocksToAdd = blocks
+          .where((b) => !existingBlocksMap.containsKey(b.id))
+          .toList()
+          ..sort((a, b) => a.order.compareTo(b.order));
       
-      // Find added/modified blocks
-      for (final block in blocks) {
-        if (!existingBlocksMap.containsKey(block.id)) {
-          addedCount++;
-        } else if (existingBlocksMap[block.id]!.content.toString() != block.content.toString() ||
-                 existingBlocksMap[block.id]!.type != block.type ||
-                 existingBlocksMap[block.id]!.order != block.order) {
-          modifiedCount++;
+      // Add the blocks to our list
+      _blocks = List.from(_blocks)..addAll(blocksToAdd);
+      
+      // Create nodes for these blocks and add them to the document
+      for (final block in blocksToAdd) {
+        final nodes = _documentBuilder.createNodesFromBlock(block);
+        for (final node in nodes) {
+          document.add(node);
+          _documentBuilder.nodeToBlockMap[node.id] = block.id;
         }
       }
       
-      // Find removed blocks
-      for (final id in existingBlocksMap.keys) {
-        if (!newBlocksMap.containsKey(id)) {
-          removedCount++;
-        }
+      // Restore focus if needed - use contentChange reason
+      if (preserveFocus && currentSelection != null) {
+        Future.microtask(() {
+          restoreFocus(currentSelection);
+        });
       }
       
-      _logger.debug('Changes detected: +$addedCount ~$modifiedCount -$removedCount');
-      
-      // Update our blocks list and recreate document
+      notifyListeners();
+      return;
+    }
+    
+    // CASE 2: More complex changes - need to rebuild document but preserve focus
+    if (hasStructuralChanges) {
+      _logger.info('Structural changes detected, rebuilding document with focus preservation');
       _blocks = List.from(blocks);
+      
+      // Store focused block ID for restoring position
+      String? focusedBlockId;
+      if (currentSelection != null) {
+        final nodeId = currentSelection.extent.nodeId;
+        if (nodeId != null) {
+          focusedBlockId = _documentBuilder.nodeToBlockMap[nodeId];
+        }
+      }
+      
+      // Use special document population that tries to preserve focus
       _documentBuilder.populateDocumentFromBlocks(_blocks);
       
-      // Notify listeners after document update
+      // Restore focus with correct reason
+      if (preserveFocus && currentSelection != null && hasFocus) {
+        Future.microtask(() {
+          // Try to restore to the original selection with proper reason
+          restoreFocus(currentSelection);
+        });
+      }
+      
       notifyListeners();
-    } else {
-      _logger.debug('No substantive changes in blocks, skipping update');
+      return;
+    }
+    
+    // CASE 3: No structural changes, just content updates
+    _logger.debug('No structural changes, updating blocks without document rebuild');
+    _blocks = List.from(blocks);
+    notifyListeners();
+  }
+
+  // Restore focus to a previous position
+  void restoreFocus(DocumentSelection selection) {
+    try {
+      final position = selection.extent;
+      final nodeId = position.nodeId;
+      if (nodeId != null) {
+        // Find the node in the document
+        final node = document.getNodeById(nodeId);
+        if (node != null) {
+          // Always use contentChange when the reason is programmatic content loading
+          // This ensures the selection history behaves correctly
+          composer.setSelectionWithReason(
+            selection,
+            SelectionReason.contentChange,
+          );
+          
+          // Request focus if needed
+          if (!focusNode.hasFocus) {
+            focusNode.requestFocus();
+          }
+        }
+      }
+    } catch (e) {
+      _logger.error('Error restoring focus: $e');
     }
   }
   
