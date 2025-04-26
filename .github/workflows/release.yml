@@ -1,0 +1,143 @@
+name: On release
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  backend:
+    name: Backend Build and Push
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Set up Go environment
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      # Build Golang binary
+      - name: Build Golang Binary
+        run: |
+          cd src/backend
+          go build -o thinkstack ./cmd/main.go
+
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Create tag variables
+      - name: Create Tag Variables
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          IMAGE_NAME=thinkstack
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+          echo "VERSION_TAG=${IMAGE_NAME}:${TAG}" >> $GITHUB_ENV
+          echo "LATEST_TAG=${IMAGE_NAME}:latest" >> $GITHUB_ENV
+
+      # Build Docker Image
+      - name: Build Backend Docker Image
+        run: |
+          cd src/backend
+          docker build -t ${{ env.VERSION_TAG }} -t ${{ env.LATEST_TAG }} .
+
+      # Push Docker Image
+      - name: Push Backend Docker Image
+        run: |
+          docker push ${{ env.VERSION_TAG }}
+          docker push ${{ env.LATEST_TAG }}
+
+  frontend:
+    name: Frontend Build and Push
+    runs-on: ubuntu-latest
+    needs: backend
+
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+
+      # Set up Flutter environment
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "stable"
+
+      # Install Dependencies
+      - name: Install Flutter Dependencies
+        run: |
+          cd src/frontend
+          flutter pub get
+
+      # Build Flutter Apps for Multiple Platforms
+      - name: Build Client Apps
+        run: |
+          cd src/frontend
+
+          # Configure Flutter for web
+          flutter config --enable-web --enable-android 
+          # --enable-ios --enable-macos-desktop  --enable-linux-desktop --enable-linux-desktop
+
+          # Get Flutter packages
+          flutter pub get
+
+          # Initialize web project (creates index.html if missing)
+          flutter create --platforms=web,android #,ios,macos,linux .
+          
+          # Build web app
+          flutter build web --release
+
+          # Build Android app
+          flutter build apk --release
+
+          # Build iOS app
+          # flutter build ios --release
+
+          # Build macOS app
+          # flutter build macos --release
+
+          # Build macOS app
+          # flutter build linux --release
+
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Create tag variables
+      - name: Create Tag Variables
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          IMAGE_NAME=thinkstack-ui
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+          echo "VERSION_TAG=${IMAGE_NAME}:${TAG}" >> $GITHUB_ENV
+          echo "LATEST_TAG=${IMAGE_NAME}:latest" >> $GITHUB_ENV
+
+      # Build Docker Image
+      - name: Build Frontend Docker Image
+        run: |
+          cd src/frontend
+          docker build -t ${{ env.VERSION_TAG }} -t ${{ env.LATEST_TAG }} .
+
+      # Push Docker Image
+      - name: Push Frontend Docker Image
+        run: |
+          docker push ${{ env.VERSION_TAG }}
+          docker push ${{ env.LATEST_TAG }}
