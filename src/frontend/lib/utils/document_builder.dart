@@ -498,11 +498,15 @@ class DocumentBuilder {
   
   // Extract content from a node in the format expected by the API
   Map<String, dynamic> extractContentFromNode(DocumentNode node, String blockId, Block originalBlock) {
-    Map<String, dynamic> content = {};
+    // Initialize with original content to preserve metadata and prevent empty content
+    Map<String, dynamic> content = Map<String, dynamic>.from(originalBlock.content);
     
     if (node is ParagraphNode) {
-      // Basic text content
-      content['text'] = node.text.toPlainText();
+      // Get text content and ensure it's not null
+      final plainText = node.text.toPlainText();
+      
+      // BUGFIX: Always update the text field with current content from editor
+      content['text'] = plainText;
       
       // Extract spans/formatting information
       final spans = extractSpansFromAttributedText(node.text);
@@ -511,13 +515,15 @@ class DocumentBuilder {
       }
       
       // Preserve block-specific metadata
-      if (originalBlock.type == 'heading' && originalBlock.content is Map) {
-        content['level'] = (originalBlock.content as Map)['level'] ?? 1;
-      } else if (originalBlock.type == 'code' && originalBlock.content is Map) {
-        content['language'] = (originalBlock.content as Map)['language'] ?? 'plain';
+      if (originalBlock.type == 'heading') {
+        content['level'] = content['level'] ?? 1;
+      } else if (originalBlock.type == 'code') {
+        content['language'] = content['language'] ?? 'plain';
       }
     } else if (node is ListItemNode) {
-      content['text'] = node.text.toPlainText();
+      // Get text content and ensure it's not null
+      final plainText = node.text.toPlainText();
+      content['text'] = plainText;
       content['checked'] = node.type == ListItemType.ordered;
       
       // Extract spans for list items as well

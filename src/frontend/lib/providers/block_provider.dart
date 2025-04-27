@@ -493,7 +493,7 @@ class BlockProvider with ChangeNotifier {
     String? type, 
     int? order, 
     bool immediate = false,
-    bool updateLocalOnly = false
+    bool updateLocalOnly = false // This parameter will be ignored
   }) {
     // Cancel any existing timer for this block
     if (_saveTimers.containsKey(id)) {
@@ -509,32 +509,26 @@ class BlockProvider with ChangeNotifier {
     // Process content to proper format
     Map<String, dynamic> contentMap;
     if (content is String) {
-      // Legacy string content - wrap in a map
       contentMap = {'text': content};
     } else if (content is Map) {
-      // Already a map - use directly
       contentMap = Map<String, dynamic>.from(content);
     } else {
       _logger.error('Unsupported content type: ${content.runtimeType}');
       return;
     }
     
-    // Update local block without waiting for server response
-    if (updateLocalOnly) {
-      final existingBlock = _blocks[id]!;
-      _blocks[id] = existingBlock.copyWith(
-        content: contentMap,
-        type: type ?? existingBlock.type,
-        order: order ?? existingBlock.order
-      );
-      
-      // Notify listeners immediately for UI responsiveness
-      _enqueueNotification();
-    }
+    // Update local block
+    final existingBlock = _blocks[id]!;
+    _blocks[id] = existingBlock.copyWith(
+      content: contentMap,
+      type: type ?? existingBlock.type,
+      order: order ?? existingBlock.order
+    );
     
-    _logger.debug('Debouncing block update to server');
+    // Notify listeners for UI responsiveness
+    _enqueueNotification();
     
-    // For full updates, use debounced saving to reduce API calls
+    // FIXED: Always save to backend, ignore updateLocalOnly parameter
     if (immediate) {
       // If immediate, save now
       _saveBlockToBackend(id, contentMap, type: type, order: order);
@@ -545,7 +539,7 @@ class BlockProvider with ChangeNotifier {
       });
     }
   }
-  
+
   // Method to persist block changes to backend
   Future<void> _saveBlockToBackend(String id, dynamic content, {String? type, int? order}) async {
     if (!_blocks.containsKey(id)) return;
