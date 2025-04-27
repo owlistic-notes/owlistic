@@ -66,7 +66,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _titleController = TextEditingController(text: widget.note.title);
     
     // Add scroll listener to load more blocks when nearing the end
-    _scrollController.addListener(_scrollListener);
+    // and to track visible blocks for optimizing subscriptions
+    _scrollController.addListener(() {
+      _scrollListener();
+      _updateVisibleBlocks();
+    });
     
     Timer(Duration.zero, () {
       _initializeProviders();
@@ -780,9 +784,43 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       // First commit any pending edits in the editor 
       _editorProvider!.commitAllContent();
       
+      // Force immediate save for all modified blocks 
+      final blockProvider = Provider.of<BlockProvider>(context, listen: false);
+      for (final block in _blocks) {
+        blockProvider.updateBlockContent(
+          block.id, 
+          block.content,
+          order: block.order,
+          immediate: true, // Force immediate save to server
+          updateLocalOnly: false // Make sure to save to server
+        );
+      }
+      
       // Then reconcile with server by comparing current blocks with initial blocks
       _reconcileBlocksWithServer();
     }
+  }
+
+  // Add method to track visible blocks
+  void _updateVisibleBlocks() {
+    if (!mounted || _scrollController.positions.isEmpty) return;
+    
+    // Get the visible range
+    final visibleStart = _scrollController.offset;
+    final visibleEnd = visibleStart + _scrollController.position.viewportDimension;
+    
+    // This is a simplified approach - in a real app you'd need to map
+    // scroll positions to actual blocks using their render objects
+    final visibleBlockIds = <String>[];
+    
+    // For now, consider all loaded blocks as potentially visible
+    for (final block in _blocks) {
+      visibleBlockIds.add(block.id);
+    }
+    
+    // Update subscriptions for visible blocks
+    Provider.of<BlockProvider>(context, listen: false)
+      .subscribeToVisibleBlocks(widget.note.id, visibleBlockIds);
   }
 
   @override

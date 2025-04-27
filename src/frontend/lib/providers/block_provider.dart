@@ -493,7 +493,7 @@ class BlockProvider with ChangeNotifier {
     String? type, 
     int? order, 
     bool immediate = false,
-    bool updateLocalOnly = false // This parameter will be ignored
+    bool updateLocalOnly = false // Restore this parameter
   }) {
     // Cancel any existing timer for this block
     if (_saveTimers.containsKey(id)) {
@@ -517,7 +517,7 @@ class BlockProvider with ChangeNotifier {
       return;
     }
     
-    // Update local block
+    // Update local block without waiting for server response
     final existingBlock = _blocks[id]!;
     _blocks[id] = existingBlock.copyWith(
       content: contentMap,
@@ -525,10 +525,15 @@ class BlockProvider with ChangeNotifier {
       order: order ?? existingBlock.order
     );
     
-    // Notify listeners for UI responsiveness
+    // Notify listeners immediately for UI responsiveness
     _enqueueNotification();
     
-    // FIXED: Always save to backend, ignore updateLocalOnly parameter
+    // If only updating locally, don't send to backend
+    if (updateLocalOnly) {
+      return; // Restore this early return
+    }
+    
+    // For full updates, use debounced saving to reduce API calls
     if (immediate) {
       // If immediate, save now
       _saveBlockToBackend(id, contentMap, type: type, order: order);
@@ -654,6 +659,28 @@ class BlockProvider with ChangeNotifier {
       _logger.info('Successfully removed block $blockId');
     } else {
       _logger.debug('Block $blockId not found, nothing to remove');
+    }
+  }
+
+  // Subscribe only to visible blocks
+  void subscribeToVisibleBlocks(String noteId, List<String> visibleBlockIds) {
+    // Get all blocks for this note
+    final allBlockIds = _noteBlocksMap[noteId] ?? [];
+    
+    // Unsubscribe from blocks that are no longer visible
+    for (final blockId in allBlockIds) {
+      if (!visibleBlockIds.contains(blockId) && _webSocketService.isSubscribed('block', id: blockId)) {
+        _logger.debug('Unsubscribing from non-visible block: $blockId');
+        _webSocketService.unsubscribe('block', id: blockId);
+      }
+    }
+    
+    // Subscribe to visible blocks
+    for (final blockId in visibleBlockIds) {
+      if (!_webSocketService.isSubscribed('block', id: blockId)) {
+        _logger.debug('Subscribing to visible block: $blockId');
+        _webSocketService.subscribe('block', id: blockId);
+      }
     }
   }
 
