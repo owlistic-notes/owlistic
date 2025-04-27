@@ -20,6 +20,7 @@ type BlockServiceInterface interface {
 	DeleteBlock(db *database.Database, id string, params map[string]interface{}) error
 	ListBlocksByNote(db *database.Database, noteID string, params map[string]interface{}) ([]models.Block, error)
 	GetBlocks(db *database.Database, params map[string]interface{}) ([]models.Block, error)
+	GetBlockWithStyles(db *database.Database, id string, params map[string]interface{}) (models.Block, map[string]interface{}, error)
 }
 
 type BlockService struct{}
@@ -306,7 +307,7 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[
 	hasAccess, err := RoleServiceInstance.HasBlockAccess(db, userIDStr, id, "editor")
 	if err != nil {
 		tx.Rollback()
-		log.Printf("Permission check error: %v when checking user %s access to block %s", 
+		log.Printf("Permission check error: %v when checking user %s access to block %s",
 			err, userIDStr, id)
 		return err
 	}
@@ -442,7 +443,7 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 
 	// Pagination support
 	var page, pageSize int
-	
+
 	// Get page number (default to 1 if not provided)
 	if pageVal, ok := params["page"]; ok {
 		switch v := pageVal.(type) {
@@ -459,7 +460,7 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	if page <= 0 {
 		page = 1
 	}
-	
+
 	// Get page size (default to 100 if not provided)
 	if sizeVal, ok := params["page_size"]; ok {
 		switch v := sizeVal.(type) {
@@ -478,7 +479,7 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	} else if pageSize > 500 {
 		pageSize = 500 // Maximum page size
 	}
-	
+
 	// Get total count for pagination metadata
 	var totalCount int64
 	if countRequested, ok := params["count_total"].(bool); ok && countRequested {
@@ -487,7 +488,7 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 			// Non-fatal, continue with query
 		}
 	}
-	
+
 	// Apply pagination if requested
 	if page > 0 && pageSize > 0 {
 		offset := (page - 1) * pageSize
@@ -511,3 +512,19 @@ func NewBlockService() BlockServiceInterface {
 
 // Don't initialize here, will be set properly in main.go
 var BlockServiceInstance BlockServiceInterface
+
+// GetBlockWithStyles returns a block with its style information separately
+func (s *BlockService) GetBlockWithStyles(db *database.Database, id string, params map[string]interface{}) (models.Block, map[string]interface{}, error) {
+	// First get the block
+	block, err := s.GetBlockById(db, id, params)
+	if err != nil {
+		return models.Block{}, nil, err
+	}
+
+	// Extract style information
+	styleInfo := map[string]interface{}{
+		"styles": block.GetInlineStyles(),
+	}
+
+	return block, styleInfo, nil
+}

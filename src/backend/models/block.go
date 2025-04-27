@@ -24,6 +24,21 @@ const (
 // BlockContent stores the structured content of a block
 type BlockContent map[string]interface{}
 
+// InlineStyle represents a formatting span within block text
+type InlineStyle struct {
+	Type  string `json:"type"`
+	Start int    `json:"start"`
+	End   int    `json:"end"`
+	Href  string `json:"href,omitempty"` // For link styles
+}
+
+// StyleOptions defines the styling configuration for a block's content
+type StyleOptions struct {
+	RawMarkdown    string        `json:"raw_markdown,omitempty"`    // Original markdown text
+	InlineStyles   []InlineStyle `json:"styles,omitempty"`          // Extracted style information
+	PreserveFormat bool          `json:"preserve_format,omitempty"` // Whether to preserve formatting in storage
+}
+
 // Value implements the driver.Valuer interface for JSONB storage
 func (bc BlockContent) Value() (driver.Value, error) {
 	if bc == nil {
@@ -60,4 +75,42 @@ type Block struct {
 	CreatedAt time.Time      `gorm:"not null;default:now()" json:"created_at"`
 	UpdatedAt time.Time      `gorm:"not null;default:now()" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+// GetInlineStyles returns the block's inline style information
+func (b *Block) GetInlineStyles() []InlineStyle {
+	if b.Content == nil {
+		return nil
+	}
+
+	// Try getting styles directly from the content map
+	if spans, ok := b.Content["spans"].([]interface{}); ok {
+		styles := make([]InlineStyle, 0, len(spans))
+		for _, span := range spans {
+			if spanMap, ok := span.(map[string]interface{}); ok {
+				style := InlineStyle{}
+
+				if t, ok := spanMap["type"].(string); ok {
+					style.Type = t
+				}
+
+				if start, ok := spanMap["start"].(float64); ok {
+					style.Start = int(start)
+				}
+
+				if end, ok := spanMap["end"].(float64); ok {
+					style.End = int(end)
+				}
+
+				if href, ok := spanMap["href"].(string); ok {
+					style.Href = href
+				}
+
+				styles = append(styles, style)
+			}
+		}
+		return styles
+	}
+
+	return nil
 }
