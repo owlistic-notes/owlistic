@@ -74,14 +74,28 @@ class BlockProvider with ChangeNotifier {
   
   // Subscribe to events
   void _subscribeToEvents() {
+    // Subscribe to standard block event types
     _webSocketService.subscribeToEvent('block.updated');
     _webSocketService.subscribeToEvent('block.created');
     _webSocketService.subscribeToEvent('block.deleted');
     _webSocketService.subscribeToEvent('note.updated');
     
-    // Also subscribe to blocks for active notes
+    // For each active note, subscribe to its blocks
     for (final noteId in _activeNoteIds) {
-      _webSocketService.subscribe('note:blocks', id: noteId);
+      // Get blocks for this note
+      final blockIds = _noteBlocksMap[noteId] ?? [];
+      
+      // Subscribe to each block individually
+      for (final blockId in blockIds) {
+        // Only subscribe if not already subscribed
+        if (!_webSocketService.isSubscribed('block', id: blockId)) {
+          _logger.debug('Subscribing to block: $blockId in note: $noteId');
+          _webSocketService.subscribe('block', id: blockId);
+        }
+      }
+      
+      // Subscribe to the note itself
+      _webSocketService.subscribe('note', id: noteId);
     }
   }
   
@@ -126,10 +140,18 @@ class BlockProvider with ChangeNotifier {
   // Mark a note as active/inactive
   void activateNote(String noteId) {
     _activeNoteIds.add(noteId);
-    // Subscribe to blocks for this note
+    
+    // Subscribe to the note itself
     if (_webSocketService.isConnected) {
-      _webSocketService.subscribe('note:blocks', id: noteId);
+      _webSocketService.subscribe('note', id: noteId);
+      
+      // Also subscribe to any blocks we already have for this note
+      final blockIds = _noteBlocksMap[noteId] ?? [];
+      for (final blockId in blockIds) {
+        _webSocketService.subscribe('block', id: blockId);
+      }
     }
+    
     _logger.debug('Note $noteId activated');
   }
   
@@ -173,7 +195,7 @@ class BlockProvider with ChangeNotifier {
     _hasPendingNotification = false;
   }
 
-  // Handle block update events
+  // Handle block update events with timestamp checking
   void _handleBlockUpdate(Map<String, dynamic> message) {
     try {
       // Use the message parser
@@ -181,17 +203,30 @@ class BlockProvider with ChangeNotifier {
       final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
+      // Extract event timestamp if available
+      DateTime? eventTimestamp = WebSocketModelExtractor.extractTimestamp(parsedMessage);
+      
       if (blockId != null) {
         _logger.debug('Received block.updated event for block ID $blockId');
         
-        // Check if we should care about this block
+        // If we have the block locally, check if this update is newer
+        if (_blocks.containsKey(blockId)) {
+          final localBlock = _blocks[blockId]!;
+          
+          // Skip update if event is older than our local block
+          if (eventTimestamp != null && eventTimestamp.isBefore(localBlock.updatedAt)) {
+            _logger.debug('Ignoring older update for block $blockId (event: $eventTimestamp, local: ${localBlock.updatedAt})');
+            return;
+          }
+        }
+        
+        // Otherwise check if we should care about this block
         bool shouldUpdate = _blocks.containsKey(blockId);
         if (!shouldUpdate && noteId != null) {
           shouldUpdate = _activeNoteIds.contains(noteId);
         }
         
         if (shouldUpdate) {
-          // Use the existing _fetchSingleBlock method but don't notify immediately
           _fetchBlockById(blockId);
         }
       }
@@ -281,99 +316,67 @@ class BlockProvider with ChangeNotifier {
         _logger.debug('Received note.updated event for note ID $noteId, refreshing blocks');
         fetchBlocksForNote(noteId);
       }
-    } catch (e) {
+    } catch (e) {notifyListeners();
       _logger.error('Error handling note update', e);
     }
   }
 
   // Fetch blocks for a specific note with pagination
-  Future<void> fetchBlocksForNote(String noteId, {
+  Future<List<Block>> fetchBlocksForNote(String noteId, {
     int page = 1, 
     int pageSize = 100,
-    bool append = false, // Add append option to add blocks without replacing
+    bool append = false,
     bool refresh = false
   }) async {
     _isLoading = true;
-    notifyListeners();
-
+    
     try {
-      // If refresh is true, clear existing blocks for this note
-      if (refresh) {
-        // Remove old blocks for this note
-        final oldBlockIds = _blocks.keys.where(
-          (id) => _blocks[id]?.noteId == noteId
-        ).toList();
-        
-        for (final id in oldBlockIds) {
-          _blocks.remove(id);
-        }
-        
-        // Clear note blocks map
-        _noteBlocksMap[noteId]?.clear();
-      }
-      
-      _logger.debug('Fetching blocks for note: $noteId (page: $page, size: $pageSize)');
+      _logger.info('Fetching blocks for note $noteId, page $page, pageSize $pageSize');
       
       // Query parameters for the API
       final Map<String, dynamic> queryParams = {
+        'note_id': noteId,
         'page': page,
         'page_size': pageSize,
         'count_total': 'true'
       };
       
       // Fetch blocks from service
-      final blocksResult = await _blockService.fetchBlocksForNote(
-        noteId, 
-        queryParams: queryParams
-      );
-      
-      // Process pagination headers from response
-      final totalCount = blocksResult.length;
-      final hasMore = totalCount >= pageSize;
-      
-      // Update pagination state
-      _paginationState[noteId] = {
-        'page': page,
-        'page_size': pageSize,
-        'total_count': totalCount,
-        'has_more': hasMore
-      };
-      
-      _logger.debug('Fetched ${blocksResult.length} blocks for note $noteId');
+      final blocksResult = await _blockService.fetchBlocksForNote(noteId, queryParams: queryParams);
       
       // Initialize note blocks list if it doesn't exist
       _noteBlocksMap[noteId] ??= [];
       
       // If not appending, clear existing blocks
       if (!append) {
+        for (final blockId in List.from(_noteBlocksMap[noteId] ?? [])) {
+          _blocks.remove(blockId);
+        }
         _noteBlocksMap[noteId]?.clear();
       }
       
-      // Add all blocks to our maps
+      // Add all blocks to maps
       for (var block in blocksResult) {
         _blocks[block.id] = block;
-        
-        // Add to the noteBlocksMap if not already there
-        if (!(_noteBlocksMap[noteId]?.contains(block.id) ?? false)) {
+        if (_noteBlocksMap[noteId]?.contains(block.id) != null && !_noteBlocksMap[noteId]!.contains(block.id)) {
           _noteBlocksMap[noteId]!.add(block.id);
-        }
-        
-        // Subscribe to this block
-        if (!_webSocketService.isSubscribed('block', id: block.id)) {
-          _webSocketService.subscribe('block', id: block.id);
         }
       }
       
-      // Also subscribe to note's blocks as a collection
-      _webSocketService.subscribe('note:blocks', id: noteId);
+      // FIX: Properly set has_more based on returned count vs requested size
+      final bool hasMore = blocksResult.length >= pageSize;
+      _paginationState[noteId] = {
+        'page': page,
+        'page_size': pageSize,
+        'has_more': hasMore
+      };
       
       _isLoading = false;
       _updateCount++;
       notifyListeners();
       
-      _logger.debug('Total blocks loaded for note $noteId: ${getBlocksForNote(noteId).length}');
+      return blocksResult;
     } catch (error) {
-      _logger.error('Error fetching blocks for note $noteId', error);
       _isLoading = false;
       notifyListeners();
       rethrow;
@@ -471,29 +474,38 @@ class BlockProvider with ChangeNotifier {
     try {
       final block = _blocks[id];
       if (block == null) {
-        _logger.warning('Attempted to delete non-existent block: $id');
+        _logger.warning('Block $id already deleted, skipping');
         return;
       }
       
-      // Delete block on server
+      // Remove from local maps FIRST to prevent duplicate deletion attempts
+      final noteId = block.noteId;
+      
+      // Remove locally before server request
+      _blocks.remove(id);
+      if (_noteBlocksMap.containsKey(noteId)) {
+        _noteBlocksMap[noteId]?.remove(id);
+      }
+      
+      // Force UI update immediately
+      _updateCount++;
+      notifyListeners();
+      
+      // Then delete from server
       await _blockService.deleteBlock(id);
+      _logger.debug('Block $id successfully deleted');
       
-      // Unsubscribe from this block
-      _webSocketService.unsubscribe('block', id: id);
-      
-      _logger.debug('Deleted block, waiting for event');
     } catch (error) {
-      _logger.error('Error deleting block $id', error);
-      rethrow;
+      _logger.error('Error deleting block $id: $error');
     }
   }
 
-  // Update a block with debouncing
+  // Update a block with debouncing and timestamp checking
   void updateBlockContent(String id, dynamic content, {
     String? type, 
     int? order, 
     bool immediate = false,
-    bool updateLocalOnly = false // Restore this parameter
+    bool updateLocalOnly = false
   }) {
     // Cancel any existing timer for this block
     if (_saveTimers.containsKey(id)) {
@@ -506,6 +518,9 @@ class BlockProvider with ChangeNotifier {
       return;
     }
     
+    final existingBlock = _blocks[id]!;
+    final existingUpdatedAt = existingBlock.updatedAt;
+    
     // Process content to proper format
     Map<String, dynamic> contentMap;
     if (content is String) {
@@ -517,8 +532,20 @@ class BlockProvider with ChangeNotifier {
       return;
     }
     
+    // Check if content actually changed to avoid unnecessary updates
+    bool hasContentChanges = false;
+    if (existingBlock.content.toString() != contentMap.toString() ||
+        (type != null && type != existingBlock.type) ||
+        (order != null && order != existingBlock.order)) {
+      hasContentChanges = true;
+    }
+    
+    if (!hasContentChanges) {
+      _logger.debug('Block $id content unchanged, skipping update');
+      return;
+    }
+    
     // Update local block without waiting for server response
-    final existingBlock = _blocks[id]!;
     _blocks[id] = existingBlock.copyWith(
       content: contentMap,
       type: type ?? existingBlock.type,
@@ -530,7 +557,7 @@ class BlockProvider with ChangeNotifier {
     
     // If only updating locally, don't send to backend
     if (updateLocalOnly) {
-      return; // Restore this early return
+      return;
     }
     
     // For full updates, use debounced saving to reduce API calls
@@ -560,21 +587,11 @@ class BlockProvider with ChangeNotifier {
         order: order
       );
       
-      // Update local block with returned data to ensure consistency
-      // but do not notify listeners unless there's a significant change
-      final existingBlock = _blocks[id]!;
-      final bool hasSignificantChanges = 
-          existingBlock.type != updatedBlock.type || 
-          existingBlock.order != updatedBlock.order ||
-          existingBlock.content.toString() != updatedBlock.content.toString();
-      
+      // Update local block with returned data without notifying
       _blocks[id] = updatedBlock;
       
-      if (hasSignificantChanges) {
-        _enqueueNotification();
-      }
+      // No notification here to prevent freezing UI
       
-      _logger.debug('Block $id saved successfully');
     } catch (error) {
       _logger.error('Error saving block $id', error);
     }
@@ -662,23 +679,12 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Subscribe only to visible blocks
+  // Subscribe only to visible blocks - simplified to use only actual subscription patterns
   void subscribeToVisibleBlocks(String noteId, List<String> visibleBlockIds) {
-    // Get all blocks for this note
-    final allBlockIds = _noteBlocksMap[noteId] ?? [];
-    
-    // Unsubscribe from blocks that are no longer visible
-    for (final blockId in allBlockIds) {
-      if (!visibleBlockIds.contains(blockId) && _webSocketService.isSubscribed('block', id: blockId)) {
-        _logger.debug('Unsubscribing from non-visible block: $blockId');
-        _webSocketService.unsubscribe('block', id: blockId);
-      }
-    }
-    
-    // Subscribe to visible blocks
+    // Only subscribe to individual blocks that are visible
     for (final blockId in visibleBlockIds) {
       if (!_webSocketService.isSubscribed('block', id: blockId)) {
-        _logger.debug('Subscribing to visible block: $blockId');
+        _logger.debug('Subscribing to block: $blockId');
         _webSocketService.subscribe('block', id: blockId);
       }
     }

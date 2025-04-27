@@ -77,30 +77,26 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     });
   }
   
-  // Scroll listener to detect when we need to load more blocks
+  // Scroll listener to detect when we need to load more blocks - much simpler approach
   void _scrollListener() {
-    // Don't do anything if we're already loading or have a pending request
-    if (_loadingMoreBlocks || _scrollDebouncer?.isActive == true) return;
+    if (_loadingMoreBlocks) return;
+    if (!_scrollController.hasClients) return;
 
-    // Only trigger near the bottom of the scroll area
-    if (_scrollController.position.pixels > 
-        _scrollController.position.maxScrollExtent - 500) {
-      
-      // Debounce scroll events to prevent multiple rapid calls
-      _scrollDebouncer?.cancel();
-      _scrollDebouncer = Timer(const Duration(milliseconds: 150), () {
-        // Check if there are more blocks to load before attempting
-        final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-        if (blockProvider.hasMoreBlocks(widget.note.id)) {
-          _logger.info('Triggered load of page ${_currentPage + 1} from scroll');
-          _loadMoreBlocks();
-        } else {
-          _logger.debug('No more blocks available to load');
-        }
-      });
+    // Simple pixel-based threshold - trigger when within 500px of bottom
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    final remainingScroll = maxScroll - currentScroll;
+    
+    // Trigger loading much earlier (when within 500px of bottom)
+    if (remainingScroll < 500) {
+      _logger.info('Near bottom of scroll (${remainingScroll.toStringAsFixed(1)}px remaining), loading more blocks');
+      final blockProvider = Provider.of<BlockProvider>(context, listen: false);
+      if (blockProvider.hasMoreBlocks(widget.note.id)) {
+        _loadMoreBlocks();
+      }
     }
   }
-  
+
   void _initializeProviders() {
     if (_initialized) return;
     _initialized = true;
@@ -127,20 +123,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _notesProvider.activateNote(widget.note.id);
       _blockProvider.activateNote(widget.note.id);
       
-      // Subscribe to WebSocket events with standardized resource.action patterns
+      // Subscribe to WebSocket events with correct patterns
+      // Subscribe to the note itself
       _webSocketProvider.subscribe('note', id: widget.note.id);
       
-      // Enhanced block event subscriptions with standardized event names
-      _webSocketProvider.subscribe('block', id: null); // All blocks
-      _webSocketProvider.subscribe('note:blocks', id: widget.note.id); // Blocks for this note
-      _webSocketProvider.subscribe('block.created'); // Block creation events
-      _webSocketProvider.subscribe('block.updated'); // Block update events
-      _webSocketProvider.subscribe('block.deleted'); // Block deletion events
+      // Subscribe to block events - these are the actual event types
+      _webSocketProvider.subscribe('block.created');
+      _webSocketProvider.subscribe('block.updated');
+      _webSocketProvider.subscribe('block.deleted');
       
       // Set up event handlers for real-time block updates
       _setupBlockEventHandlers();
       
-      _logger.info('Subscribed to note ${widget.note.id} and its blocks');
+      _logger.info('Subscribed to note ${widget.note.id} and block events');
     });
     
     // Fetch blocks regardless of WebSocket status
@@ -151,18 +146,16 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   // Set up handlers for block-related WebSocket events
   void _setupBlockEventHandlers() {
-    // Handle block creation events
-    _webSocketProvider.on('block.created', (data) {
+    // FIXING THE EVENT HANDLERS - use event prefix for proper registration
+    _webSocketProvider.addEventListener('event', 'block.created', (data) {
       _handleBlockCreatedEvent(data);
     });
     
-    // Handle block update events
-    _webSocketProvider.on('block.updated', (data) {
+    _webSocketProvider.addEventListener('event', 'block.updated', (data) {
       _handleBlockUpdatedEvent(data);
     });
     
-    // Handle block deletion events
-    _webSocketProvider.on('block.deleted', (data) {
+    _webSocketProvider.addEventListener('event', 'block.deleted', (data) {
       _handleBlockDeletedEvent(data);
     });
   }
@@ -268,13 +261,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       
       // Check if this block is one we're tracking
       bool removedBlock = false;
-      _blocks.removeWhere((block) {
-        if (block.id == blockId) {
-          removedBlock = true;
-          return true;
-        }
-        return false;
-      });
+      _blocks.removeWhere((block) => block.id == blockId);
       
       if (removedBlock) {
         // Update the editor with the remaining blocks
@@ -396,77 +383,37 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
   
-  // Load more blocks when scrolling
+  // Load more blocks when scrolling - improved with better handling
   Future<void> _loadMoreBlocks() async {
-    // Safety check - if we're already loading, don't start another request
-    if (_loadingMoreBlocks) {
-      _logger.debug('Already loading blocks, ignoring request');
-      return;
-    }
+    if (_loadingMoreBlocks) return;
     
-    // Set loading flag immediately to prevent multiple calls
     _loadingMoreBlocks = true;
-    if (mounted) setState(() {});
+    setState(() {});
     
     try {
+      _logger.info('Loading more blocks from page ${_currentPage + 1}');
+      final blockCount = _blocks.length;
+      
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-      
-      // Double check if there are more blocks to load
-      if (!blockProvider.hasMoreBlocks(widget.note.id)) {
-        _logger.debug('No more blocks to load, cancelling request');
-        setState(() {
-          _loadingMoreBlocks = false;
-        });
-        return;
-      }
-      
-      // Log clear info about which page we're loading
-      final nextPage = _currentPage + 1;
-      _logger.info('Loading blocks page $nextPage of size $_batchSize');
-      
-      // Capture current scroll position
-      final scrollPosition = _scrollController.position.pixels;
-      
-      // Capture current selection/focus state 
-      final editorHasFocus = _editorProvider?.focusNode.hasFocus ?? false;
-      final currentSelection = _editorProvider?.composer.selection;
-      
-      // Load next page of blocks - notice we're using nextPage variable 
-      // and only incrementing _currentPage after successful load
-      await blockProvider.fetchBlocksForNote(widget.note.id,
-        page: nextPage,
+      final newBlocks = await blockProvider.fetchBlocksForNote(
+        widget.note.id,
+        page: _currentPage + 1,
         pageSize: _batchSize,
         append: true
       );
       
-      // Only update current page after successful fetch
-      _currentPage = nextPage;
-      
-      // Update blocks without disrupting the UI
-      _updateBlocksFromProvider(preserveFocus: editorHasFocus);
-      
-      if (mounted) {
-        setState(() {
-          _loadingMoreBlocks = false;
-        });
+      if (newBlocks.isNotEmpty) {
+        _currentPage++;
+        _logger.info('Loaded ${newBlocks.length} new blocks (total: ${blockCount + newBlocks.length})');
         
-        // Restore focus if needed
-        if (editorHasFocus && currentSelection != null && _editorProvider != null) {
-          Future.microtask(() {
-            _editorProvider!.restoreFocus(currentSelection);
-          });
-        }
-        
-        // Restore scroll position with a slight delay to ensure render is complete
-        Future.delayed(const Duration(milliseconds: 50), () {
-          if (_scrollController.hasClients && 
-              scrollPosition <= _scrollController.position.maxScrollExtent) {
-            _scrollController.jumpTo(scrollPosition);
-          }
-        });
+        // Update editor with focus preservation to avoid jumps
+        _updateBlocksFromProvider(preserveFocus: true);
+      } else {
+        _logger.info('No more blocks available');
       }
     } catch (e) {
-      _logger.error('Error loading more blocks', e);
+      _logger.error('Failed to load more blocks: $e');
+    } finally {
       if (mounted) {
         setState(() {
           _loadingMoreBlocks = false;
@@ -539,44 +486,65 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
   
-  // Create editor provider with our blocks
+  // Create editor provider with robust error handling
   void _createEditorProvider() {
     _logger.info('Creating editor provider with ${_blocks.length} blocks');
     
     // Dispose previous provider if it exists
     if (_editorProvider != null) {
-      _logger.debug('Disposing existing editor provider');
       _editorProvider!.dispose();
       _editorProvider = null;
     }
     
-    // Create new provider with necessary callbacks
-    _editorProvider = RichTextEditorProvider(
-      blocks: _blocks,
-      noteId: widget.note.id,  // Pass the note ID for block creation
-      onBlockContentChanged: (blockId, content) {
-        _updateBlockContent(blockId, content);
-      },
-      onBlockDeleted: (blockId) {
-        _handleBlockDeletion(blockId);
-      },
-      onFocusLost: () {
-        // Save title and all block content when focus is lost
-        _saveTitle();
-        _saveAllBlockContents();
-      },
-      blockProvider: Provider.of<BlockProvider>(context, listen: false), // Pass block provider
-    );
-    
-    // Activate the editor provider
-    _editorProvider!.activate();
-    
-    // Ensure UI is refreshed
-    if (mounted) {
-      setState(() {});
+    try {
+      // First make a safety check for empty content
+      for (int i = 0; i < _blocks.length; i++) {
+        // Fix any potentially problematic content
+        final block = _blocks[i];
+        var content = Map<String, dynamic>.from(block.content);
+        
+        // Ensure text field always exists and is not empty
+        if (!content.containsKey('text') || content['text'] == null || content['text'].toString().isEmpty) {
+          content['text'] = ' ';  // Space to prevent empty text errors
+          _blocks[i] = block.copyWith(content: content);
+        }
+      }
+      
+      // Create editor provider with the fixed blocks
+      _editorProvider = RichTextEditorProvider(
+        blocks: _blocks,
+        noteId: widget.note.id,
+        onBlockContentChanged: (blockId, content) {
+          _updateBlockContent(blockId, content);
+        },
+        onBlockDeleted: (blockId) {
+          _handleBlockDeletion(blockId);
+        },
+        onFocusLost: () {
+          _saveTitle();
+          _saveAllBlockContents();
+        },
+        blockProvider: Provider.of<BlockProvider>(context, listen: false),
+      );
+      
+      _editorProvider!.activate();
+    } catch (e) {
+      _logger.error('Failed to create editor provider: $e');
+      // Emergency fallback - display an empty paragraph
+      if (_blocks.isEmpty) {
+        _blocks.add(Block(
+          id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
+          noteId: widget.note.id,
+          type: 'text',
+          content: {'text': ' '},
+          order: 1,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ));
+      }
     }
   }
-  
+
   // Handle block deletion
   void _handleBlockDeletion(String blockId) {
     _logger.info('Handling block deletion for block: $blockId');
@@ -654,15 +622,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   // Update a specific block's content with optimized server sync
   void _updateBlockContent(String blockId, dynamic content) {
-    // Set flag to prevent external updates from messing with cursor position
     _ignoreBlockUpdates = true;
     
-    _logger.debug('Updating block $blockId with new content');
-    
-    // Find original block to preserve metadata and pass any needed fields
     final blockIndex = _blocks.indexWhere((block) => block.id == blockId);
     if (blockIndex < 0) {
-      _logger.warning('Tried to update non-existent block: $blockId');
       _ignoreBlockUpdates = false;
       return;
     }
@@ -670,29 +633,25 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final block = _blocks[blockIndex];
     final int order = blockIndex + 1;
     
-    // Only send the actual change to the server, not the entire block list
+    // Update directly with immediate=true to avoid accumulating debounced updates
     Provider.of<BlockProvider>(context, listen: false)
-        .updateBlockContent(blockId, content, order: order, updateLocalOnly: true);
+        .updateBlockContent(blockId, content, order: order, immediate: true);
     
-    // Also update our local block content immediately for better responsiveness
-    setState(() {
+    // Only update local UI, don't trigger full document rebuild
+    if (mounted) {
       if (content is Map) {
-        // For map content, we need to update the content field
-        // Cast the map to Map<String, dynamic> to satisfy type requirements
         _blocks[blockIndex] = block.copyWith(
           content: Map<String, dynamic>.from(content),
           order: order
         );
       } else if (content is String) {
-        // For string content, wrap in a map
         _blocks[blockIndex] = block.copyWith(
           content: {'text': content},
           order: order
         );
       }
-    });
+    }
     
-    // Reset the flag after a short delay
     Future.delayed(const Duration(milliseconds: 250), () {
       _ignoreBlockUpdates = false;
     });
@@ -705,14 +664,18 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
       
-      // Calculate the highest order value
-      int newOrder = 0;
+      // Calculate the highest order value - FIX: handle empty blocks safely
+      int newOrder = 1; // Default starting order
       if (_blocks.isNotEmpty) {
-        newOrder = _blocks.map((b) => b.order).reduce((a, b) => a > b ? a : b) + 1;
+        try {
+          newOrder = _blocks.fold(0, (max, block) => block.order > max ? block.order : max) + 1;
+        } catch (e) {
+          _logger.warning('Error calculating order: $e - using default order');
+        }
       }
       _logger.debug('New block will have order: $newOrder');
       
-      // Create initial content
+      // Create initial content with safe default text
       Map<String, dynamic> initialContent;
       
       switch (type) {
@@ -723,10 +686,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           initialContent = {'text': 'New item', 'checked': false};
           break;
         case 'code':
-          initialContent = {'text': '', 'language': 'plain'};
+          initialContent = {'text': ' ', 'language': 'plain'}; // Add space to prevent rendering errors
           break;
         default:
-          initialContent = {'text': ''};
+          initialContent = {'text': ' '}; // Add space to prevent rendering errors
           break;
       }
       
@@ -748,15 +711,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         }
       });
       
-      // Update the UI after a delay to ensure state has updated
-      Future.microtask(() {
-        if (mounted) {
-          // Update the editor with the new block
-          if (_editorProvider != null) {
-            _logger.debug('Updating editor provider with new block');
+      // Update the editor after a delay to ensure state has updated
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted && _editorProvider != null) {
+          _logger.debug('Updating editor provider with new block');
+          try {
             _editorProvider!.updateBlocks(_blocks);
-          } else {
-            _logger.debug('Creating new editor provider after block addition');
+          } catch (e) {
+            _logger.error('Error updating editor with new block: $e');
+            // Try recreating the provider if update fails
             _createEditorProvider();
           }
         }
@@ -835,12 +798,16 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _notesProvider.deactivateNote(widget.note.id);
         _blockProvider.deactivateNote(widget.note.id);
         
-        // Unsubscribe from standardized resource.action events
+        // Unsubscribe from actual implemented subscriptions
         _webSocketProvider.unsubscribe('note', id: widget.note.id);
-        _webSocketProvider.unsubscribe('note:blocks', id: widget.note.id);
-        _webSocketProvider.unsubscribe('block.created');
-        _webSocketProvider.unsubscribe('block.updated');
-        _webSocketProvider.unsubscribe('block.deleted');
+        _webSocketProvider.unsubscribeFromEvent('block.created');
+        _webSocketProvider.unsubscribeFromEvent('block.updated');
+        _webSocketProvider.unsubscribeFromEvent('block.deleted');
+        
+        // PROPERLY REMOVE EVENT LISTENERS
+        _webSocketProvider.removeEventListener('event', 'block.created');
+        _webSocketProvider.removeEventListener('event', 'block.updated');
+        _webSocketProvider.removeEventListener('event', 'block.deleted');
       } catch (e) {
         _logger.error('Error during disposal', e);
       }

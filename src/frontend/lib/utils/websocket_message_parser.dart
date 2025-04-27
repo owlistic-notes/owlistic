@@ -139,4 +139,46 @@ class WebSocketModelExtractor {
     
     return null;
   }
+
+  // Extract timestamp from event data
+  static DateTime? extractTimestamp(WebSocketMessage message) {
+    try {
+      final payload = message.payload;
+      if (payload == null) return null;
+      
+      // Try finding timestamp in various locations
+      String? timestampStr;
+      
+      // Option 1: Direct timestamp field
+      if (payload['timestamp'] != null) {
+        timestampStr = payload['timestamp'].toString();
+      } 
+      // Option 2: Updated_at field
+      else if (payload['updated_at'] != null) {
+        timestampStr = payload['updated_at'].toString();
+      }
+      // Option 3: Created_at field (fallback)
+      else if (payload['created_at'] != null) {
+        timestampStr = payload['created_at'].toString();
+      }
+      // Option 4: Event data may contain a model with timestamp
+      else if (payload['data'] is Map) {
+        final data = payload['data'] as Map;
+        if (data['updated_at'] != null) {
+          timestampStr = data['updated_at'].toString();
+        } else if (data['created_at'] != null) {
+          timestampStr = data['created_at'].toString();
+        }
+      }
+      
+      // Parse the timestamp if found
+      if (timestampStr != null) {
+        return DateTime.parse(timestampStr);
+      }
+      
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
 }

@@ -96,11 +96,35 @@ class WebSocketService {
       _channel?.stream.listen(
         (message) {
           try {
-            final data = jsonDecode(message);
-            
-            if (data is Map<String, dynamic>) {
-              _handleMessage(data);
-              _messageController.add(data);
+            // Handle empty or whitespace-only messages
+            if (message == null || (message is String && message.trim().isEmpty)) {
+              _logger.debug('Received empty message, ignoring');
+              return;
+            }
+
+            // Process message content - may be one or multiple concatenated JSON objects
+            if (message is String) {
+              // Split by newlines in case server sends multiple JSON objects
+              final messages = message.split('\n')
+                .where((m) => m.trim().isNotEmpty)
+                .toList();
+              
+              _logger.debug('Processing ${messages.length} message segments');
+              
+              for (final msgPart in messages) {
+                try {
+                  final data = jsonDecode(msgPart);
+                  if (data is Map<String, dynamic>) {
+                    _handleMessage(data);
+                    _messageController.add(data);
+                  }
+                } catch (e) {
+                  _logger.error('Error parsing JSON segment: $e');
+                  _logger.error('Problematic JSON: ${msgPart.substring(0, msgPart.length > 50 ? 50 : msgPart.length)}...');
+                }
+              }
+            } else {
+              _logger.warning('Received non-string message: $message');
             }
           } catch (e) {
             _logger.error('Error processing WebSocket message: $e');
