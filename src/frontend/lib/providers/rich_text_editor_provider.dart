@@ -14,6 +14,8 @@ class RichTextEditorProvider with ChangeNotifier {
   
   // Document mapper handles all SuperEditor document operations
   late DocumentBuilder _documentBuilder;
+  // Getter for document builder
+  DocumentBuilder get documentBuilder => _documentBuilder;
   
   // Callback when content changes for specific block
   final Function(String blockId, Map<String, dynamic> content)? onBlockContentChanged;

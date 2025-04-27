@@ -29,6 +29,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   List<Block> _blocks = [];
   bool _ignoreBlockUpdates = false;
   bool _initialized = false;
+  // Add a flag to track if the component is being disposed
+  bool _isDisposed = false;
   
   // Store provider references to use safely in dispose
   late WebSocketProvider _webSocketProvider;
@@ -63,6 +65,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // Store a set of modified block IDs
   final Set<String> _modifiedBlockIds = {};
 
+  // Add prefetching state variables
+  bool _isPrefetching = false;
+  int _prefetchThreshold = 3; // How many pages ahead to prefetch
+  bool _allBlocksLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -75,62 +82,111 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _updateVisibleBlocks();
     });
     
-    Timer(Duration.zero, () {
-      _initializeProviders();
+    // Use a microtask instead of a Timer.zero to ensure context is ready
+    Future.microtask(() {
+      if (mounted) {
+        _initializeProviders();
+      }
     });
   }
+
+  // ADDED: Override didChangeDependencies to safely get provider references
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Safely get provider references here when context is guaranteed to be valid
+    if (!_initialized && mounted) {
+      _notesProvider = Provider.of<NotesProvider>(context, listen: false);
+      _blockProvider = Provider.of<BlockProvider>(context, listen: false);
+      _webSocketProvider = Provider.of<WebSocketProvider>(context, listen: false);
+    }
+  }
   
-  // Scroll listener to detect when we need to load more blocks - much simpler approach
+  // Improved scroll listener with better bounds checking
   void _scrollListener() {
-    if (_loadingMoreBlocks) return;
+    // Safety check - don't proceed if widget is being disposed or blocks are loading
+    if (!mounted || _loadingMoreBlocks || _isPrefetching || _allBlocksLoaded) return;
     if (!_scrollController.hasClients) return;
 
-    // Simple pixel-based threshold - trigger when within 500px of bottom
+    // Simple pixel-based threshold - now trigger much earlier (1000px from bottom)
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.position.pixels;
     final remainingScroll = maxScroll - currentScroll;
     
-    // Trigger loading much earlier (when within 500px of bottom)
-    if (remainingScroll < 500) {
+    // Trigger loading much earlier (when within 1000px of bottom)
+    // This ensures we fetch blocks well before the user needs them
+    if (remainingScroll < 1000) {
       _logger.info('Near bottom of scroll (${remainingScroll.toStringAsFixed(1)}px remaining), loading more blocks');
-      final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-      if (blockProvider.hasMoreBlocks(widget.note.id)) {
-        _loadMoreBlocks();
+      
+      // Use local reference instead of looking up via Provider
+      if (_blockProvider.hasMoreBlocks(widget.note.id)) {
+        _prefetchNextBatches();
+      } else {
+        _allBlocksLoaded = true;
       }
     }
   }
 
+  // New prefetching method to load multiple batches ahead of time
+  Future<void> _prefetchNextBatches() async {
+    if (_isPrefetching || _allBlocksLoaded) return;
+    
+    _isPrefetching = true;
+    _logger.info('Prefetching next blocks batches');
+    
+    try {
+      // Fetch the next page first (most urgent)
+      await _loadMoreBlocks();
+      
+      // If we still have more blocks and the user isn't at the very end yet,
+      // fetch additional pages in the background
+      for (int i = 1; i < _prefetchThreshold; i++) {
+        if (!mounted) break;
+        
+        if (_blockProvider.hasMoreBlocks(widget.note.id)) {
+          _logger.debug('Prefetching additional batch $i of $_prefetchThreshold');
+          await _loadMoreBlocks(showIndicator: false);
+        } else {
+          _allBlocksLoaded = true;
+          break;
+        }
+      }
+    } catch (e) {
+      _logger.error('Error during block prefetching', e);
+    } finally {
+      if (mounted) {
+        _isPrefetching = false;
+      }
+    }
+  }
+
+
   void _initializeProviders() {
     if (_initialized) return;
+    
+    // Don't look up providers here - use the references from didChangeDependencies
+    if (_blockProvider == null || _notesProvider == null || _webSocketProvider == null) {
+      _logger.error('Provider references not initialized');
+      return;
+    }
+    
     _initialized = true;
     
-    // Store provider references directly
-    _notesProvider = Provider.of<NotesProvider>(context, listen: false);
-    _blockProvider = Provider.of<BlockProvider>(context, listen: false);
-    _webSocketProvider = Provider.of<WebSocketProvider>(context, listen: false);
-    
-    // Simple listener that only updates when the block provider's counter changes
-    _blockProvider.addListener(() {
-      if (!mounted) return;
-      
-      // Only update if there's actually a change in the update counter
-      if (_blockProvider.updateCount != _updateCounter) {
-        _logger.debug('Block provider update detected ($_updateCounter → ${_blockProvider.updateCount})');
-        _updateBlocksFromProvider();
-      }
-    });
+    // Use the named listener function so we can remove it later
+    _blockProvider.addListener(_blockProviderListener);
     
     // Ensure WebSocket is connected
     _webSocketProvider.ensureConnected().then((_) {
+      // Safety check to ensure widget is still mounted
+      if (!mounted) return;
+      
       // Activate the note
       _notesProvider.activateNote(widget.note.id);
       _blockProvider.activateNote(widget.note.id);
       
       // Subscribe to WebSocket events with correct patterns
-      // Subscribe to the note itself
       _webSocketProvider.subscribe('note', id: widget.note.id);
-      
-      // Subscribe to block events - these are the actual event types
       _webSocketProvider.subscribe('block.created');
       _webSocketProvider.subscribe('block.updated');
       _webSocketProvider.subscribe('block.deleted');
@@ -283,9 +339,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   // Fetch a specific block by ID with improved error handling and rendering
   Future<void> _fetchBlockById(String blockId) async {
-    // Don't fetch if we're already ignoring updates (prevents recursive updates)
-    if (_ignoreBlockUpdates) {
-      _logger.debug('Ignoring fetch request during local edit for block: $blockId');
+    if (!mounted || _blockProvider == null) {
+      _logger.warning('Cannot fetch block: widget not mounted or provider is null');
       return;
     }
     
@@ -387,46 +442,85 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
   
   // Load more blocks when scrolling - improved with better handling
-  Future<void> _loadMoreBlocks() async {
+  
+  // Load more blocks with improved safety checks and optional indicators
+  Future<void> _loadMoreBlocks({bool showIndicator = true}) async {
+    if (!mounted || _blockProvider == null) {
+      _logger.warning('Widget no longer mounted, skipping loading more blocks');
+      return;
+    }
+    
     if (_loadingMoreBlocks) return;
     
     _loadingMoreBlocks = true;
-    setState(() {});
+    if (showIndicator && mounted) {
+      setState(() {});
+    }
     
     try {
       _logger.info('Loading more blocks from page ${_currentPage + 1}');
       final blockCount = _blocks.length;
       
-      final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-      final newBlocks = await blockProvider.fetchBlocksForNote(
+      // Store blocks in a local variable first instead of immediately updating state
+      final newBlocks = await _blockProvider.fetchBlocksForNote(
         widget.note.id,
         page: _currentPage + 1,
         pageSize: _batchSize,
         append: true
       );
       
+      // Only continue if we're still mounted
+      if (!mounted) return;
+      
       if (newBlocks.isNotEmpty) {
         _currentPage++;
         _logger.info('Loaded ${newBlocks.length} new blocks (total: ${blockCount + newBlocks.length})');
         
-        // Update editor with focus preservation to avoid jumps
-        _updateBlocksFromProvider(preserveFocus: true);
+        // Merge blocks into our local cache first
+        final localBlocks = List<Block>.from(_blocks);
+        for (final block in newBlocks) {
+          if (!localBlocks.any((b) => b.id == block.id)) {
+            localBlocks.add(block);
+          }
+        }
+        
+        // Sort blocks consistently
+        localBlocks.sort((a, b) => a.order.compareTo(b.order));
+        
+        // Update local blocks cache
+        _blocks = localBlocks;
+        
+        // Update editor only if needed and mounted
+        if (mounted && _editorProvider != null && showIndicator) {
+          _editorProvider!.updateBlocks(_blocks, preserveFocus: true);
+          setState(() {});
+        }
       } else {
         _logger.info('No more blocks available');
+        _allBlocksLoaded = true;
       }
     } catch (e) {
       _logger.error('Failed to load more blocks: $e');
     } finally {
-      if (mounted) {
+      // Only update state if we should show loading indicator
+      if (mounted && showIndicator) {
         setState(() {
           _loadingMoreBlocks = false;
         });
+      } else if (mounted) {
+        _loadingMoreBlocks = false;
       }
     }
   }
 
-  // Update blocks from provider with focus preservation
+  // Update blocks from provider with focus preservation and better safety checks
   void _updateBlocksFromProvider({bool preserveFocus = false}) {
+    // Safety check to prevent accessing context when widget is disposed
+    if (!mounted) {
+      _logger.warning('Widget no longer mounted, skipping block updates');
+      return;
+    }
+    
     if (_ignoreBlockUpdates) {
       _logger.debug('Ignoring block updates due to local edit');
       return;
@@ -436,14 +530,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final hadFocus = preserveFocus ? _editorProvider?.focusNode.hasFocus ?? false : false;
     final selection = preserveFocus ? _editorProvider?.composer.selection : null;
     
-    final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-    final newBlocks = blockProvider.getBlocksForNote(widget.note.id);
+    if (_blockProvider == null) {
+      _logger.error('Block provider reference is null');
+      return;
+    }
+    
+    // Get blocks from stored provider reference
+    final newBlocks = _blockProvider.getBlocksForNote(widget.note.id);
     
     // Sort blocks by order
     newBlocks.sort((a, b) => a.order.compareTo(b.order));
     
     // Update our local update counter to match the provider
-    _updateCounter = blockProvider.updateCount;
+    _updateCounter = _blockProvider.updateCount;
     
     // Check if the blocks have actually changed
     bool needsUpdate = _blocks.length != newBlocks.length;
@@ -471,7 +570,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (needsUpdate) {
       _logger.info('Blocks changed, updating editor content');
       
-      // Update our blocks list
+      // Update our blocks list - make a deep copy to avoid reference issues
       _blocks = List.from(newBlocks);
       
       // Update editor provider if it exists
@@ -482,7 +581,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _createEditorProvider();
       }
       
-      // Update UI
+      // Update UI only if still mounted
       if (mounted) {
         setState(() {});
       }
@@ -513,6 +612,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         }
       }
       
+      // Use stored reference or be extra careful to check mounting
+      final blockProvider = mounted ? _blockProvider : null;
+      if (blockProvider == null) {
+        throw Exception('BlockProvider is null');
+      }
+      
       // Create editor provider with the fixed blocks
       _editorProvider = RichTextEditorProvider(
         blocks: _blocks,
@@ -527,7 +632,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           _saveTitle();
           _saveAllBlockContents();
         },
-        blockProvider: Provider.of<BlockProvider>(context, listen: false),
+        blockProvider: blockProvider,
       );
       
       _editorProvider!.activate();
@@ -550,6 +655,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   // Handle block deletion
   void _handleBlockDeletion(String blockId) {
+    if (!mounted || _blockProvider == null) {
+      _logger.warning('Cannot handle block deletion: widget not mounted or provider is null');
+      return;
+    }
+    
     _logger.info('Handling block deletion for block: $blockId');
     
     _ignoreBlockUpdates = true;
@@ -560,9 +670,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _blocks.removeWhere((block) => block.id == blockId);
       });
       
-      // Delete block on the server
+      // Delete block on the server using stored provider reference
       _logger.info('Deleted block: $blockId');
-      Provider.of<BlockProvider>(context, listen: false).deleteBlock(blockId);
+      _blockProvider.deleteBlock(blockId);
       
     } catch (e) {
       _logger.error('Error deleting block', e);
@@ -790,7 +900,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   // Add method to track visible blocks
   void _updateVisibleBlocks() {
-    if (!mounted || _scrollController.positions.isEmpty) return;
+    if (!mounted || _blockProvider == null || _scrollController.positions.isEmpty) return;
     
     // Get the visible range
     final visibleStart = _scrollController.offset;
@@ -812,9 +922,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   void dispose() {
+    _logger.debug('Disposing NoteEditorScreen');
+    
+    // Important: Remove the BlockProvider listener first to prevent callbacks after unmount
+    _blockProvider.removeListener(_blockProviderListener);
+    
     _scrollDebouncer?.cancel();
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    
     // Safely unsubscribe and clean up using stored provider references
     if (_initialized) {
       try {
@@ -848,6 +964,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _titleController.dispose();
     
     super.dispose();
+  }
+
+  // Add a named listener function that can be properly removed in dispose
+  void _blockProviderListener() {
+    // Safety check to prevent accessing disposed widget
+    if (!mounted) {
+      _logger.warning('Block provider update received but widget is not mounted - ignoring');
+      return;
+    }
+    
+    // Only update if there's actually a change in the update counter
+    if (_blockProvider.updateCount != _updateCounter) {
+      _logger.debug('Block provider update detected ($_updateCounter → ${_blockProvider.updateCount})');
+      _updateBlocksFromProvider();
+    }
   }
 
   @override
