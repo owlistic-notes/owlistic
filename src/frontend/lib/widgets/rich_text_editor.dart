@@ -6,13 +6,13 @@ import '../utils/logger.dart';
 /// Widget for displaying a full-page rich text editor
 class RichTextEditor extends StatelessWidget {
   final RichTextEditorProvider provider;
-  final ScrollController? scrollController; // Add scroll controller parameter
+  final ScrollController? scrollController;
   final Logger _logger = Logger('RichTextEditor');
   
   RichTextEditor({
     Key? key, 
     required this.provider,
-    this.scrollController, // Allow passing in a scroll controller
+    this.scrollController,
   }) : super(key: key);
 
   @override
@@ -21,10 +21,8 @@ class RichTextEditor extends StatelessWidget {
     
     return SuperEditor(
       editor: provider.editor,
-      document: provider.document,
-      composer: provider.composer,
       focusNode: provider.focusNode,
-      scrollController: scrollController, // Use the provided controller
+      scrollController: scrollController,
     );
   }
 }

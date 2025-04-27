@@ -60,6 +60,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // Add debounce timer for scroll events
   Timer? _scrollDebouncer;
 
+  // Store a set of modified block IDs
+  final Set<String> _modifiedBlockIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -637,6 +640,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     Provider.of<BlockProvider>(context, listen: false)
         .updateBlockContent(blockId, content, order: order, immediate: true);
     
+    // Track this block as modified
+    _modifiedBlockIds.add(blockId);
+    
     // Only update local UI, don't trigger full document rebuild
     if (mounted) {
       if (content is Map) {
@@ -735,9 +741,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
-  // Save content and sync with server
+  // Save content and sync with server - OPTIMIZED to only save modified blocks
   void _saveAllContent() {
-    _logger.info('Saving all content and syncing with server');
+    _logger.info('Saving content to server');
     
     // First save title
     _saveTitle();
@@ -747,16 +753,29 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       // First commit any pending edits in the editor 
       _editorProvider!.commitAllContent();
       
-      // Force immediate save for all modified blocks 
+      // Only update blocks that have actually been modified
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
-      for (final block in _blocks) {
-        blockProvider.updateBlockContent(
-          block.id, 
-          block.content,
-          order: block.order,
-          immediate: true, // Force immediate save to server
-          updateLocalOnly: false // Make sure to save to server
-        );
+      if (_modifiedBlockIds.isNotEmpty) {
+        _logger.info('Updating ${_modifiedBlockIds.length} modified blocks');
+        
+        for (final blockId in _modifiedBlockIds) {
+          final blockIndex = _blocks.indexWhere((block) => block.id == blockId);
+          if (blockIndex >= 0) {
+            final block = _blocks[blockIndex];
+            blockProvider.updateBlockContent(
+              blockId, 
+              block.content,
+              order: block.order,
+              immediate: true,
+              updateLocalOnly: false
+            );
+          }
+        }
+        
+        // Clear the modified blocks set after saving
+        _modifiedBlockIds.clear();
+      } else {
+        _logger.info('No blocks were modified, skipping content update');
       }
       
       // Then reconcile with server by comparing current blocks with initial blocks
