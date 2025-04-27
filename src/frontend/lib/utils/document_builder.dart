@@ -31,10 +31,19 @@ class DocumentBuilder {
   // Track locally modified blocks with timestamps to optimize server updates
   final Map<String, DateTime> _locallyModifiedBlocks = {};
   
+  // Track blocks that were explicitly modified by user (not just by server sync)
+  final Set<String> _userModifiedBlockIds = {};
+  
+  // Track blocks that have been fetched from the server
+  final Map<String, Block> _serverFetchedBlocks = {};
+  
   // Last known selection data for robust position restoration
   String? _lastKnownNodeId;
   int? _lastKnownOffset;
   DocumentSelection? _lastKnownSelection;
+  
+  // Get the set of blocks that were explicitly modified by user interaction
+  Set<String> get userModifiedBlockIds => Set.from(_userModifiedBlockIds);
   
   DocumentBuilder() {
     _initialize();
@@ -103,7 +112,7 @@ class DocumentBuilder {
   }
   
   // Convert blocks to document nodes and populate the document
-  void populateDocumentFromBlocks(List<Block> blocks) {
+  void populateDocumentFromBlocks(List<Block> blocks, {bool markAsModified = true}) {
     if (_updatingDocument) {
       _logger.debug('Already updating document, skipping');
       return;
@@ -182,10 +191,15 @@ class DocumentBuilder {
               // Map node ID to block ID
               nodeToBlockMap[node.id] = block.id;
               
-              // Also track the first node for each block
-              if (!blockToNodeMap.containsKey(block.id)) {
-                blockToNodeMap[block.id] = node.id;
+              // Register this block as from server
+              registerServerBlock(block);
+              
+              // Only mark blocks as modified if explicitly requested
+              // This allows us to differentiate between initial load and user edits
+              if (markAsModified) {
+                _locallyModifiedBlocks[block.id] = DateTime.now();
               }
+              
             } catch (e) {
               _logger.error('Error adding node to document: $e');
               // Continue with next node
@@ -473,13 +487,51 @@ class DocumentBuilder {
   // Mark a block as locally modified to optimize server updates
   void markBlockAsModified(String blockId) {
     _locallyModifiedBlocks[blockId] = DateTime.now();
+    _userModifiedBlockIds.add(blockId);
+    _logger.debug('Block $blockId marked as explicitly modified by user');
   }
   
-  // Check if block should be updated based on timestamps
+  /// Register a block as being fetched from the server
+  /// This helps track which blocks should be considered as "server source of truth"
+  void registerServerBlock(Block block) {
+    _serverFetchedBlocks[block.id] = block;
+    // If this block was previously marked as user-modified but is now
+    // being updated from the server with a newer timestamp, remove the user-modified flag
+    if (_userModifiedBlockIds.contains(block.id)) {
+      final modifiedAt = _locallyModifiedBlocks[block.id];
+      if (modifiedAt != null && block.updatedAt.isAfter(modifiedAt)) {
+        _userModifiedBlockIds.remove(block.id);
+        _locallyModifiedBlocks.remove(block.id);
+        _logger.debug('Block ${block.id} user modifications overridden by newer server version');
+      }
+    }
+  }
+
+  /// Check if this block should be updated from the server version
+  /// Returns true if the server version is newer than any local changes
+  bool shouldUpdateFromServer(String blockId, Block serverBlock) {
+    // If no local modifications, always update from server
+    if (!_locallyModifiedBlocks.containsKey(blockId)) {
+      return true;
+    }
+    
+    // Get local modification time
+    final localModTime = _locallyModifiedBlocks[blockId]!;
+    
+    // Compare with server timestamp - only update if server is newer
+    return serverBlock.updatedAt.isAfter(localModTime);
+  }
+  
+  /// Check if we should send a block update to the server
   bool shouldSendBlockUpdate(String blockId, Block serverBlock) {
-    // If not in locally modified list, no need to update
+    // If not modified locally, don't send update
     if (!_locallyModifiedBlocks.containsKey(blockId)) {
       return false;
+    }
+    
+    // If explicitly modified by user, always send update
+    if (_userModifiedBlockIds.contains(blockId)) {
+      return true;
     }
     
     // Get local modification time
@@ -501,6 +553,7 @@ class DocumentBuilder {
   // Clear modification tracking after successful update
   void clearModificationTracking(String blockId) {
     _locallyModifiedBlocks.remove(blockId);
+    _userModifiedBlockIds.remove(blockId);
   }
   
   // Extract content from a node in the format expected by the API
@@ -909,6 +962,52 @@ class DocumentBuilder {
     } catch (e) {
       _logger.error('Error creating safe selection copy: $e');
       return null;
+    }
+  }
+  
+  /// Check if the content of a node has changed compared to its corresponding block
+  bool hasNodeContentChanged(DocumentNode node, String blockId, Block block) {
+    final Map<String, dynamic> nodeContent = extractContentFromNode(node, blockId, block);
+    
+    // Compare the extracted content with the block's content
+    // This requires a deep comparison, not just toString()
+    if (block.content is Map && nodeContent is Map) {
+      // Compare important fields like 'text' and 'spans'
+      if (block.content['text'] != nodeContent['text']) {
+        return true;
+      }
+      
+      // Check if spans have changed (requires deeper comparison)
+      final blockSpans = block.content['spans'];
+      final nodeSpans = nodeContent['spans'];
+      
+      if ((blockSpans == null && nodeSpans != null && nodeSpans.isNotEmpty) ||
+          (blockSpans != null && blockSpans.isNotEmpty && nodeSpans == null) ||
+          (blockSpans != null && nodeSpans != null && 
+           blockSpans.toString() != nodeSpans.toString())) {
+        return true;
+      }
+      
+      // Check other type-specific fields
+      if (block.type == 'heading' && 
+          block.content['level'] != nodeContent['level']) {
+        return true;
+      }
+      
+      if (block.type == 'checklist' && 
+          block.content['checked'] != nodeContent['checked']) {
+        return true;
+      }
+      
+      if (block.type == 'code' && 
+          block.content['language'] != nodeContent['language']) {
+        return true;
+      }
+      
+      return false;
+    } else {
+      // Fall back to string comparison for simple content
+      return block.content.toString() != nodeContent.toString();
     }
   }
 }

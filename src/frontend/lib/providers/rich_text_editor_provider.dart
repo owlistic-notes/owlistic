@@ -391,6 +391,11 @@ class RichTextEditorProvider with ChangeNotifier {
       shouldUpdate = _documentBuilder.shouldSendBlockUpdate(blockId, serverBlock);
     }
     
+    // Also check if content has actually changed compared to the original
+    if (shouldUpdate && serverBlock != null) {
+      shouldUpdate = _documentBuilder.hasNodeContentChanged(node, blockId, serverBlock);
+    }
+    
     if (shouldUpdate) {
       // Send content update
       _logger.debug('Sending block content update for $blockId');
@@ -503,7 +508,8 @@ class RichTextEditorProvider with ChangeNotifier {
   // Update blocks and refresh the document
   void updateBlocks(List<Block> blocks, {
     bool preserveFocus = false,
-    DocumentSelection? savedSelection
+    DocumentSelection? savedSelection,
+    bool markAsModified = true // Add parameter to control if these blocks should be marked as modified
   }) {
     _logger.info('Updating blocks: received ${blocks.length}, current ${_blocks.length}');
     
@@ -524,6 +530,9 @@ class RichTextEditorProvider with ChangeNotifier {
     // Update server cache with latest blocks from server
     for (final block in blocks) {
       _serverBlockCache[block.id] = block;
+      
+      // Register this block in the document builder
+      _documentBuilder.registerServerBlock(block);
     }
     
     // Get current selection and focus state if preserving focus
@@ -614,7 +623,7 @@ class RichTextEditorProvider with ChangeNotifier {
       final safeSelection = _documentBuilder.createSafeSelectionCopy(currentSelection);
       
       // Use specialized document population with fail-safe focus restoration
-      _documentBuilder.populateDocumentFromBlocks(_blocks);
+      _documentBuilder.populateDocumentFromBlocks(_blocks, markAsModified: markAsModified);
       
       // Restore focus with correct reason and fail-safe mechanisms
       if (preserveFocus && hasFocus) {
@@ -734,6 +743,14 @@ class RichTextEditorProvider with ChangeNotifier {
       _logger.debug('Requesting focus for editor');
       _documentBuilder.focusNode.requestFocus();
     }
+  }
+  
+  // Add this property to expose user-modified blocks
+  Set<String> get userModifiedBlockIds => _documentBuilder.userModifiedBlockIds;
+  
+  // Mark a block as modified by the user
+  void markBlockAsModified(String blockId) {
+    _documentBuilder.markBlockAsModified(blockId);
   }
   
   /// Sets focus to a specific block by ID
