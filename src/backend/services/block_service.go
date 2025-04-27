@@ -66,24 +66,39 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, ErrInvalidInput
 	}
 
-	// Handle order value conversion from float64 to int
-	var order int
-	switch o := blockData["order"].(type) {
-	case float64:
-		// JSON numbers come as float64, convert to int
-		order = int(o)
-	case string:
-		// Handle case where order was sent as string
-		orderInt, err := strconv.Atoi(o)
-		if err != nil {
-			return models.Block{}, ErrInvalidInput
+	// Handle order value conversion from different types to float64
+	var orderValue float64
+	if orderInterface, exists := blockData["order"]; exists {
+		switch v := orderInterface.(type) {
+		case float64:
+			orderValue = v
+		case int:
+			orderValue = float64(v)
+		case int64:
+			orderValue = float64(v)
+		case string:
+			if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+				orderValue = parsed
+			} else {
+				orderValue = 0 // Default value if parsing fails
+			}
+		default:
+			orderValue = 0 // Default value for unknown types
 		}
-		order = orderInt
-	case int:
-		// Already an int
-		order = o
-	default:
-		return models.Block{}, ErrInvalidInput
+	} else {
+		// If no order provided, get the highest current order and add 1000
+		// This gives plenty of space for future inserts
+		var maxOrder float64
+		err := db.DB.Table("blocks").
+			Where("note_id = ?", noteIDStr).
+			Select("COALESCE(MAX(\"order\"), 0)").
+			Row().Scan(&maxOrder)
+
+		if err != nil {
+			tx.Rollback()
+			return models.Block{}, err
+		}
+		orderValue = maxOrder + 1000.0
 	}
 
 	// Process content based on input type
@@ -114,7 +129,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		Type:     models.BlockType(blockType),
 		Content:  content,
 		Metadata: metadata,
-		Order:    order,
+		Order:    orderValue, // Use the float order value
 	}
 
 	if err := tx.Create(&block).Error; err != nil {

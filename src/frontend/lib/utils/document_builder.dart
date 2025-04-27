@@ -408,32 +408,39 @@ class DocumentBuilder {
     return true;
   }
   
-  // Calculate a reasonable order value for a new node
-  Future<int> calculateOrderForNewNode(String nodeId, List<Block> blocks) async {
+  // Calculate a fractional index order for a new node using midpoint between adjacent blocks
+  Future<double> calculateOrderForNewNode(String nodeId, List<Block> blocks) async {
     // Get the position of this node in the document
     final nodeIndex = document.getNodeIndexById(nodeId);
-    if (nodeIndex == null) return 1000; // Fallback value
+    if (nodeIndex == null) return 1000.0; // Fallback value
+    
+    // If no blocks exist yet, use 1000 as starting point
+    if (blocks.isEmpty) {
+      return 1000.0;
+    }
     
     // Sort blocks by order to find neighbors
     final sortedBlocks = List.from(blocks)..sort((a, b) => a.order.compareTo(b.order));
     
-    // If this is the first node, put it at the beginning
+    // If this is the first node, put it before the first block
     if (nodeIndex == 0) {
-      return sortedBlocks.isEmpty ? 10 : sortedBlocks.first.order - 10;
+      final firstBlockOrder = sortedBlocks.first.order;
+      return firstBlockOrder - 10.0;
     }
     
-    // If this is the last node, put it at the end
+    // If this is the last node, put it after the last block
     if (nodeIndex >= document.length - 1) {
-      return sortedBlocks.isEmpty ? 10 : sortedBlocks.last.order + 10;
+      final lastBlockOrder = sortedBlocks.last.order;
+      return lastBlockOrder + 10.0;
     }
     
     // Otherwise, find the blocks before and after this node
-    // and place it between them
+    // and place it between them using fractional indexing
     final prevNodeId = document.getNodeAt(nodeIndex - 1)?.id;
     final nextNodeId = document.getNodeAt(nodeIndex + 1)?.id;
     
-    int prevOrder = 0;
-    int nextOrder = 1000;
+    double prevOrder = 0;
+    double nextOrder = 2000;
     
     // Find previous block's order
     if (prevNodeId != null) {
@@ -459,8 +466,8 @@ class DocumentBuilder {
       }
     }
     
-    // Calculate an order between the two
-    return prevOrder + ((nextOrder - prevOrder) ~/ 2);
+    // Calculate the midpoint for fractional indexing
+    return prevOrder + ((nextOrder - prevOrder) / 2);
   }
   
   // Mark a block as locally modified to optimize server updates

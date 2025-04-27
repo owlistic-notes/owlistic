@@ -71,7 +71,7 @@ type Block struct {
 	Content   BlockContent   `gorm:"type:jsonb;not null;default:'{}'::jsonb" json:"content"`
 	Metadata  BlockContent   `gorm:"type:jsonb;default:'{}'::jsonb" json:"metadata,omitempty"`
 	Tasks     []Task         `gorm:"foreignKey:BlockID" json:"tasks,omitempty"`
-	Order     int            `gorm:"not null" json:"order"`
+	Order     float64        `gorm:"not null" json:"order"` // Changed from int to float64
 	CreatedAt time.Time      `gorm:"not null;default:now()" json:"created_at"`
 	UpdatedAt time.Time      `gorm:"not null;default:now()" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`

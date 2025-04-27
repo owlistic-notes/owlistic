@@ -634,7 +634,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
     
     final block = _blocks[blockIndex];
-    final int order = blockIndex + 1;
+    final double order = blockIndex + 1.0;  // Changed from int to double
     
     // Update directly with immediate=true to avoid accumulating debounced updates
     Provider.of<BlockProvider>(context, listen: false)
@@ -663,22 +663,27 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     });
   }
 
-  // Add a new block with better error handling and more explicit UI updates
+  // Add a new block with better error handling and fractional indexing
   Future<void> _addBlock({String type = 'text'}) async {
     try {
       _logger.info('Adding new block of type: $type');
       
       final blockProvider = Provider.of<BlockProvider>(context, listen: false);
       
-      // Calculate the highest order value - FIX: handle empty blocks safely
-      int newOrder = 1; // Default starting order
-      if (_blocks.isNotEmpty) {
-        try {
-          newOrder = _blocks.fold(0, (max, block) => block.order > max ? block.order : max) + 1;
-        } catch (e) {
-          _logger.warning('Error calculating order: $e - using default order');
-        }
+      // Calculate appropriate order value using fractional indexing
+      double newOrder;
+      
+      if (_blocks.isEmpty) {
+        // If no blocks exist, use 1000 as the starting point
+        newOrder = 1000.0;
+      } else {
+        // Sort blocks by order
+        final sortedBlocks = List.from(_blocks)..sort((a, b) => a.order.compareTo(b.order));
+        
+        // For adding at the end, use last block's order + 10
+        newOrder = sortedBlocks.last.order + 10.0;
       }
+      
       _logger.debug('New block will have order: $newOrder');
       
       // Create initial content with safe default text

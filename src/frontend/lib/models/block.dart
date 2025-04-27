@@ -7,7 +7,7 @@ class Block {
   final String noteId;
   final dynamic content;
   final String type;
-  final int order;
+  final double order;  // Changed from int to double
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -23,8 +23,8 @@ class Block {
        this.updatedAt = updatedAt ?? DateTime.now();
 
   factory Block.fromJson(Map<String, dynamic> json) {
-    // Use DataConverter for parsing numeric values
-    final int orderValue = DataConverter.parseIntSafely(json['order']);
+    // Use DataConverter for parsing numeric values as double
+    final double orderValue = DataConverter.parseDoubleSafely(json['order']);
     
     // Parse datetime fields with appropriate fallback
     DateTime? createdAt;
@@ -124,7 +124,7 @@ class Block {
     String? userId,
     String? type,
     Map<String, dynamic>? content,
-    int? order,
+    double? order,  // Changed from int to double
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {

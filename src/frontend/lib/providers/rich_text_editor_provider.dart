@@ -225,10 +225,10 @@ class RichTextEditorProvider with ChangeNotifier {
       // Extract content from node using the mapper
       final Map<String, dynamic> content = _extractNodeContentForApi(node);
       
-      // Calculate a reasonable order value
-      int order = await _documentBuilder.calculateOrderForNewNode(nodeId, _blocks);
+      // Calculate a fractional order value using the document builder
+      double order = await _documentBuilder.calculateOrderForNewNode(nodeId, _blocks);
       
-      _logger.debug('Creating block of type $blockType with order $order');
+      _logger.debug('Creating block of type $blockType with fractional order $order');
       
       // Create block through BlockProvider
       final block = await _blockProvider.createBlock(

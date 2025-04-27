@@ -42,7 +42,7 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> createBlock(String noteId, dynamic content, String type, int order) async {
+  Future<Block> createBlock(String noteId, dynamic content, String type, double order) async {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
     
@@ -92,7 +92,7 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> updateBlock(String blockId, dynamic content, {String? type, int? order}) async {
+  Future<Block> updateBlock(String blockId, dynamic content, {String? type, double? order}) async {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
     

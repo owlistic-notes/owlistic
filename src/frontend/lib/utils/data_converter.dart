@@ -117,6 +117,25 @@ class DataConverter {
     }
   }
   
+  /// Parse a double value safely from various input types
+  static double parseDoubleSafely(dynamic value, {double defaultValue = 0.0}) {
+    if (value == null) return defaultValue;
+    
+    if (value is double) return value;
+    
+    if (value is int) return value.toDouble();
+    
+    if (value is String) {
+      try {
+        return double.parse(value);
+      } catch (e) {
+        return defaultValue;
+      }
+    }
+    
+    return defaultValue;
+  }
+
   /// Extract formatting spans from rich text content
   static List<Map<String, dynamic>>? extractSpans(dynamic content) {
     final Map<String, dynamic> contentMap = normalizeContent(content);

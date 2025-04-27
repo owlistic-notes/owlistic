@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -68,6 +69,21 @@ func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[stri
 		return models.Block{}, errors.New("note_id must be a string")
 	}
 
+	// Extract order value as float64
+	var orderValue float64 = 1.0
+	if order, exists := blockData["order"]; exists {
+		switch v := order.(type) {
+		case float64:
+			orderValue = v
+		case int:
+			orderValue = float64(v)
+		case string:
+			if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+				orderValue = parsed
+			}
+		}
+	}
+
 	// Handle different content formats while preserving the service interface
 	var blockContent models.BlockContent
 	switch c := content.(type) {
@@ -84,7 +100,7 @@ func (m *MockBlockService) CreateBlock(db *database.Database, blockData map[stri
 		NoteID:  uuid.Must(uuid.Parse(noteIDStr)),
 		Type:    models.TextBlock,
 		Content: blockContent,
-		Order:   1,
+		Order:   orderValue,
 	}, nil
 }
 

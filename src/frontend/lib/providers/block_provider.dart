@@ -448,8 +448,8 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Create a new block
-  Future<Block> createBlock(String noteId, dynamic content, String type, int order) async {
+  // Create a new block with float order value
+  Future<Block> createBlock(String noteId, dynamic content, String type, double order) async {
     try {
       // Get user ID from auth service directly
       final currentUser = await _authService.getUserProfile();
@@ -503,7 +503,7 @@ class BlockProvider with ChangeNotifier {
   // Update a block with debouncing and timestamp checking
   void updateBlockContent(String id, dynamic content, {
     String? type, 
-    int? order, 
+    double? order, 
     bool immediate = false,
     bool updateLocalOnly = false
   }) {
@@ -573,7 +573,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Method to persist block changes to backend
-  Future<void> _saveBlockToBackend(String id, dynamic content, {String? type, int? order}) async {
+  Future<void> _saveBlockToBackend(String id, dynamic content, {String? type, double? order}) async {
     if (!_blocks.containsKey(id)) return;
     
     try {
@@ -598,7 +598,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // For backward compatibility
-  Future<void> updateBlock(String id, String content, {String? type, int? order}) async {
+  Future<void> updateBlock(String id, String content, {String? type, double? order}) async {
     updateBlockContent(id, content, type: type, order: order, immediate: true);
   }
 
