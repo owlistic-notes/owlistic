@@ -8,13 +8,15 @@ import '../services/websocket_service.dart';
 import '../utils/logger.dart';
 import '../utils/websocket_message_parser.dart';
 import '../services/app_state_service.dart';
+import '../viewmodel/tasks_viewmodel.dart';
 
-class TasksProvider with ChangeNotifier {
+class TasksProvider with ChangeNotifier implements TasksViewModel {
   // Change to Map to prevent duplicates and enable O(1) lookups
   final Map<String, Task> _tasksMap = {};
   bool _isLoading = false;
   bool _isActive = false; // Add flag for active state
-  bool _initialized = false;
+  bool _isInitialized = false;  // Standardize the variable name
+  String? _errorMessage;
   
   // Services
   final TaskService _taskService;
@@ -30,19 +32,18 @@ class TasksProvider with ChangeNotifier {
   final _logger = Logger('TaskProvider');
 
   // Constructor with dependency injection
-  TasksProvider({TaskService? taskService, AuthService? authService})
-    : _taskService = taskService ?? ServiceLocator.get<TaskService>(),
-      _authService = authService ?? ServiceLocator.get<AuthService>() {
+  TasksProvider({
+    required TaskService taskService, 
+    required AuthService authService
+  }) : _taskService = taskService,
+       _authService = authService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
     });
     
-    // Initialize event handlers if not already initialized
-    if (!_initialized) {
-      _initializeEventListeners();
-      _initialized = true;
-    }
+    // Initialize event handlers
+    _initializeEventListeners();
     
     // Listen for connection state changes
     _connectionSubscription = _webSocketService.connectionStateStream.listen((connected) {
@@ -51,15 +52,19 @@ class TasksProvider with ChangeNotifier {
         _subscribeToEvents();
       }
     });
+    
+    // Mark initialization as complete
+    _isInitialized = true;
+    _logger.info('TasksProvider initialized');
   }
 
   // Initialize WebSocket event listeners
   void _initializeEventListeners() {
-    _webSocketService.addEventListener('event', 'task.updated', _handleTaskUpdate);
-    _webSocketService.addEventListener('event', 'task.created', _handleTaskCreate);
-    _webSocketService.addEventListener('event', 'task.deleted', _handleTaskDelete);
-    
-    _logger.info('TasksProvider registered event handlers');
+    _logger.info('Setting up tasks event listeners');
+    _webSocketService.addEventListener('event', 'task.created', _handleTaskCreated);
+    _webSocketService.addEventListener('event', 'task.updated', _handleTaskUpdated);
+    _webSocketService.addEventListener('event', 'task.deleted', _handleTaskDeleted);
+    _webSocketService.addEventListener('event', 'task.completed', _handleTaskCompleted);
   }
   
   // Subscribe to events
@@ -74,12 +79,34 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
-  // Update getters to use the map
-  List<Task> get tasks => _tasksMap.values.toList();
+  // BaseViewModel implementation
+  @override
   bool get isLoading => _isLoading;
+  
+  @override
+  bool get isInitialized => _isInitialized;
+  
+  @override
+  bool get isActive => _isActive;
+  
+  @override
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+  
+  // TasksPresenter implementation
+  @override
+  List<Task> get tasks => _tasksMap.values.toList();
+  
+  @override
   List<Task> get recentTasks => _tasksMap.values.take(3).toList();
   
   // Reset state on logout
+  @override
   void resetState() {
     _logger.info('Resetting TasksProvider state');
     _tasksMap.clear();
@@ -88,6 +115,7 @@ class TasksProvider with ChangeNotifier {
   }
   
   // Add activation/deactivation pattern
+  @override
   void activate() {
     _isActive = true;
     _logger.info('TasksProvider activated');
@@ -100,12 +128,13 @@ class TasksProvider with ChangeNotifier {
     fetchTasks(); // Load tasks on activation
   }
 
+  @override
   void deactivate() {
     _isActive = false;
     _logger.info('TasksProvider deactivated');
   }
 
-  void _handleTaskUpdate(Map<String, dynamic> message) {
+  void _handleTaskUpdated(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
     try {
@@ -123,7 +152,7 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
-  void _handleTaskCreate(Map<String, dynamic> message) {
+  void _handleTaskCreated(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
     try {
@@ -154,7 +183,7 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
-  void _handleTaskDelete(Map<String, dynamic> message) {
+  void _handleTaskDeleted(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
     try {
@@ -180,6 +209,10 @@ class TasksProvider with ChangeNotifier {
     } catch (e) {
       _logger.error('Error handling task delete: $e');
     }
+  }
+
+  void _handleTaskCompleted(Map<String, dynamic> message) {
+    // ...existing code...
   }
 
   String _extractTaskId(dynamic data) {
@@ -215,6 +248,7 @@ class TasksProvider with ChangeNotifier {
   }
 
   // Fetch tasks with proper user filtering
+  @override
   Future<void> fetchTasks({String? completed, String? noteId}) async {
     if (!_isActive) return; // Don't fetch if not active
     
@@ -256,6 +290,7 @@ class TasksProvider with ChangeNotifier {
   }
 
   // Create task - no optimistic updates
+  @override
   Future<void> createTask(String title, String noteId, {String? blockId}) async {
     try {
       // Create task on server
@@ -271,6 +306,7 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
+  @override
   Future<void> deleteTask(String id) async {
     try {
       // Delete task on server
@@ -283,6 +319,7 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
+  @override
   Future<void> updateTaskTitle(String id, String title) async {
     try {
       // Update task on server
@@ -295,6 +332,7 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
+  @override
   Future<void> toggleTaskCompletion(String id, bool isCompleted) async {
     try {
       // Update task on server
@@ -308,6 +346,7 @@ class TasksProvider with ChangeNotifier {
   }
 
   // Method to fetch a task from a WebSocket event
+  @override
   Future<void> fetchTaskFromEvent(String taskId) async {
     try {
       // Only fetch if we don't already have this task or if it's being updated
@@ -320,6 +359,7 @@ class TasksProvider with ChangeNotifier {
   }
 
   // Method to add a task from a WebSocket event
+  @override
   Future<void> addTaskFromEvent(String taskId) async {
     try {
       // Only fetch if we don't already have this task
@@ -334,6 +374,7 @@ class TasksProvider with ChangeNotifier {
   }
 
   // Method to handle task deletion events
+  @override
   void handleTaskDeleted(String taskId) {
     if (_tasksMap.containsKey(taskId)) {
       _tasksMap.remove(taskId);

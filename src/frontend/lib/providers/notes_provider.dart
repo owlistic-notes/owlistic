@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:thinkstack/viewmodel/notes_viewmodel.dart';
 import '../models/note.dart';
 import '../services/note_service.dart';
 import '../services/auth_service.dart';
@@ -10,12 +11,16 @@ import '../utils/logger.dart';
 import '../services/block_service.dart';
 import '../services/app_state_service.dart';
 
-class NotesProvider with ChangeNotifier {
+class NotesProvider with ChangeNotifier implements NotesViewModel {
   final Logger _logger = Logger('NotesProvider');
   // Use a Map instead of a List to prevent duplicates
   final Map<String, Note> _notesMap = {};
   bool _isLoading = false;
+  bool _isActive = false; // For lifecycle management
+  bool _isInitialized = false;
   final Set<String> _activeNoteIds = {};
+  String? _errorMessage;
+  int _updateCount = 0;
   
   // Services
   final NoteService _noteService;
@@ -48,6 +53,9 @@ class NotesProvider with ChangeNotifier {
         _subscribeToEvents();
       }
     });
+
+    // Mark initialization as complete
+    _isInitialized = true;
   }
 
   // Getters
@@ -61,7 +69,8 @@ class NotesProvider with ChangeNotifier {
     return notesList.take(5).toList();
   }
   
-  bool get isLoading => _isLoading;
+  bool get isEmpty => _notesMap.isEmpty;
+  int get updateCount => _updateCount;
   
   Note? getNoteById(String id) {
     try {
@@ -250,12 +259,19 @@ class NotesProvider with ChangeNotifier {
   }
 
   // Fetch notes with pagination and proper user filtering
-  Future<void> fetchNotes({required String notebookId, int page = 1, List<String>? excludeIds}) async {
+  // Updated to match interface signature
+  @override
+  Future<List<Note>> fetchNotes({
+    String? notebookId, 
+    int page = 1, 
+    int pageSize = 20,
+    List<String>? excludeIds
+  }) async {
     // Check if user is logged in
     final currentUser = await _authService.getUserProfile();
     if (currentUser == null) {
       _logger.warning('Cannot fetch notes: No authenticated user');
-      return;
+      return [];
     }
 
     _isLoading = true;
@@ -266,13 +282,14 @@ class NotesProvider with ChangeNotifier {
       final fetchedNotes = await _noteService.fetchNotes(
         notebookId: notebookId,
         page: page,
+        pageSize: pageSize
       );
       
       // Keep track of existing IDs if not starting fresh
       final existingIds = page > 1 ? _notesMap.keys.toSet() : <String>{};
       
       // Update the map without replacing existing notes if first page
-      if (page == 1) {
+      if (page == 1 && notebookId != null) {
         // Only clear notes associated with this notebook
         _notesMap.removeWhere((_, note) => note.notebookId == notebookId);
       }
@@ -294,11 +311,15 @@ class NotesProvider with ChangeNotifier {
       }
       
       _isLoading = false;
+      _updateCount++;
       notifyListeners();
+      return fetchedNotes;
     } catch (error) {
       _logger.error('Error fetching notes', error);
+      _errorMessage = 'Failed to load notes: ${error.toString()}';
       _isLoading = false;
       notifyListeners();
+      return [];
     }
   }
 
@@ -340,9 +361,14 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Create a new note - get user ID from auth service
-  Future<Note?> createNote(String notebookId, String title) async {
+  // Create a new note - updated to match interface signature
+  @override
+  Future<Note> createNote(String title, String? notebookId) async {
     try {
+      if (notebookId == null) {
+        throw Exception("Notebook ID is required to create a note");
+      }
+      
       // Create note on server via REST API
       final note = await _noteService.createNote(notebookId, title);
       
@@ -353,12 +379,15 @@ class NotesProvider with ChangeNotifier {
       _webSocketService.subscribe('note', id: note.id);
       
       // Notify listeners about the new note
+      _updateCount++;
       notifyListeners();
       
       _logger.info('Created note: $title with ID: ${note.id}');
       return note;
     } catch (error) {
       _logger.error('Error creating note: $error');
+      _errorMessage = 'Failed to create note: ${error.toString()}';
+      notifyListeners();
       rethrow;
     }
   }
@@ -387,19 +416,31 @@ class NotesProvider with ChangeNotifier {
     }
   }
 
-  // Update a note using API call
-  Future<Note?> updateNote(String id, String title) async {
+  // Update a note using API call - updated to use enhanced service method 
+  @override
+  Future<Note> updateNote(String id, String title, {String? notebookId}) async {
     try {
       _logger.info('Updating note $id title to: $title via API');
       
-      // Update note via REST API call
-      final updatedNote = await _noteService.updateNote(id, title);
+      // Build query parameters for tracking update operation
+      final queryParams = <String, dynamic>{};
+      if (notebookId != null) {
+        queryParams['notebook_id'] = notebookId;
+      }
+      
+      // Update note via REST API call with query parameters
+      final updatedNote = await _noteService.updateNote(
+        id, 
+        title,
+        queryParams: queryParams
+      );
       
       // Update local state if we have this note
       if (_notesMap.containsKey(id)) {
         _notesMap[id] = updatedNote;
         _logger.info('Updated note $id title to: $title');
         
+        _updateCount++;
         // Always notify listeners to update UI
         notifyListeners();
       }
@@ -407,12 +448,46 @@ class NotesProvider with ChangeNotifier {
       return updatedNote;
     } catch (error) {
       _logger.error('Error updating note: $error');
-      return null;
+      _errorMessage = 'Failed to update note: ${error.toString()}';
+      notifyListeners();
+      rethrow;
     }
   }
 
-  // Activate/deactivate provider state management
-  bool _isActive = false;
+  /// Move a note from one notebook to another by updating its notebook_id
+  @override
+  Future<void> moveNote(String noteId, String newNotebookId) async {
+    try {
+      _logger.info('Moving note $noteId to notebook $newNotebookId');
+      _isLoading = true;
+      notifyListeners();
+
+      // Use the note service to update the notebook_id via a PUT request
+      // Pass additional query parameters for tracking the move operation
+      final updatedNote = await _noteService.updateNote(
+        noteId, 
+        null,
+        notebookId: newNotebookId,
+      );
+      
+      // Update the note in our local state
+      if (_notesMap.containsKey(noteId)) {
+        _notesMap[noteId] = updatedNote;
+        _logger.info('Successfully moved note $noteId to notebook $newNotebookId');
+      }
+      
+      _updateCount++;
+      notifyListeners();
+    } catch (e) {
+      _logger.error('Error moving note', e);
+      _errorMessage = 'Failed to move note: ${e.toString()}';
+      notifyListeners();
+      throw e;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   void activate() {
     _isActive = true;
@@ -446,7 +521,7 @@ class NotesProvider with ChangeNotifier {
       _logger.info('Note $noteId not found in local state, nothing to remove');
     }
   }
-
+  
   @override
   void dispose() {
     _resetSubscription?.cancel();
@@ -458,5 +533,26 @@ class NotesProvider with ChangeNotifier {
     _webSocketService.removeEventListener('event', 'note.deleted');
     
     super.dispose();
+  }
+
+  // BaseViewModel implementation  
+  @override
+  bool get isLoading => _isLoading;
+  
+  @override
+  bool get isInitialized => _isInitialized;
+  
+  @override
+  bool get isActive => _isActive;
+  
+  @override
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    if (_errorMessage != null) {
+      _errorMessage = null;
+      notifyListeners();
+    }
   }
 }

@@ -9,14 +9,17 @@ import '../services/websocket_service.dart';
 import '../utils/logger.dart';
 import '../utils/websocket_message_parser.dart';
 import '../services/app_state_service.dart';
+import '../viewmodel/trash_viewmodel.dart';
 
-class TrashProvider with ChangeNotifier {
+class TrashProvider with ChangeNotifier implements TrashViewModel {
   final Logger _logger = Logger('TrashProvider');
   
   List<Note> _trashedNotes = [];
   List<Notebook> _trashedNotebooks = [];
   bool _isLoading = false;
   bool _isActive = false;
+  bool _isInitialized = false;
+  String? _errorMessage;
   
   // Services
   final TrashService _trashService;
@@ -30,10 +33,10 @@ class TrashProvider with ChangeNotifier {
   
   // Constructor with dependency injection
   TrashProvider({
-    TrashService? trashService,
-    AuthService? authService
-  }) : _trashService = trashService ?? ServiceLocator.get<TrashService>(),
-       _authService = authService ?? ServiceLocator.get<AuthService>() {
+    required TrashService trashService,
+    required AuthService authService
+  }) : _trashService = trashService,
+       _authService = authService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
@@ -49,6 +52,8 @@ class TrashProvider with ChangeNotifier {
         _subscribeToEvents();
       }
     });
+    
+    _isInitialized = true;
   }
   
   // Initialize WebSocket event listeners
@@ -67,12 +72,34 @@ class TrashProvider with ChangeNotifier {
     _webSocketService.subscribeToEvent('notebook.restored');
   }
   
-  // Getters
-  List<Note> get trashedNotes => _trashedNotes;
-  List<Notebook> get trashedNotebooks => _trashedNotebooks;
+  // BaseViewModel implementation
+  @override
   bool get isLoading => _isLoading;
   
+  @override
+  bool get isInitialized => _isInitialized;
+  
+  @override
+  bool get isActive => _isActive;
+  
+  @override
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+  
+  // TrashPresenter implementation
+  @override
+  List<Note> get trashedNotes => _trashedNotes;
+  
+  @override
+  List<Notebook> get trashedNotebooks => _trashedNotebooks;
+  
   // Reset state on logout
+  @override
   void resetState() {
     _logger.info('Resetting TrashProvider state');
     _trashedNotes = [];
@@ -82,6 +109,7 @@ class TrashProvider with ChangeNotifier {
   }
   
   // Activate/deactivate pattern to manage resource usage
+  @override
   void activate() {
     _isActive = true;
     _logger.info('TrashProvider activated');
@@ -94,6 +122,7 @@ class TrashProvider with ChangeNotifier {
     fetchTrashedItems(); // Load data when activated
   }
   
+  @override
   void deactivate() {
     _isActive = false;
     _logger.info('TrashProvider deactivated');
@@ -149,6 +178,7 @@ class TrashProvider with ChangeNotifier {
   }
   
   // Fetch all trashed items with user filtering
+  @override
   Future<void> fetchTrashedItems() async {
     if (!_isActive) return;
     
@@ -182,6 +212,7 @@ class TrashProvider with ChangeNotifier {
   }
   
   // Restore an item from trash
+  @override
   Future<void> restoreItem(String type, String id) async {
     try {
       // Get current user ID for the API request
@@ -210,6 +241,7 @@ class TrashProvider with ChangeNotifier {
   }
   
   // Permanently delete an item from trash
+  @override
   Future<void> permanentlyDeleteItem(String type, String id) async {
     try {
       // Get current user ID for the API request
@@ -238,6 +270,7 @@ class TrashProvider with ChangeNotifier {
   }
   
   // Empty the entire trash
+  @override
   Future<void> emptyTrash() async {
     try {
       // Get current user ID for the API request

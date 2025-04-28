@@ -3,13 +3,12 @@ import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
-import '../providers/notes_provider.dart';
-import '../providers/tasks_provider.dart';
-import '../providers/websocket_provider.dart'; // Added WebSocket provider import
+import '../viewmodel/tasks_viewmodel.dart';
+import '../viewmodel/websocket_viewmodel.dart';
 import '../models/task.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
-import '../utils/logger.dart'; // Added logger import
+import '../utils/logger.dart';
 
 class TasksScreen extends StatefulWidget {
   @override
@@ -20,6 +19,9 @@ class _TasksScreenState extends State<TasksScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
   final Logger _logger = Logger('TasksScreen');
+  
+  late TasksViewModel _tasksViewModel;
+  late WebSocketViewModel _wsViewModel;
   
   @override
   void didChangeDependencies() {
@@ -33,40 +35,34 @@ class _TasksScreenState extends State<TasksScreen> {
   
   Future<void> _initializeData() async {
     try {
-      // Get providers
-      final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
-      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
+      _tasksViewModel = context.read<TasksViewModel>();
+      _wsViewModel = context.read<WebSocketViewModel>();
       
-      // Ensure WebSocket is connected
-      await wsProvider.ensureConnected();
+      await _wsViewModel.ensureConnected();
       
-      // Register for task-related events
-      wsProvider.addEventListener('event', 'task.created', (data) {
+      _wsViewModel.addEventListener('event', 'task.created', (data) {
         _logger.info('Task created event received');
         _refreshTasks();
       });
       
-      wsProvider.addEventListener('event', 'task.updated', (data) {
+      _wsViewModel.addEventListener('event', 'task.updated', (data) {
         _logger.info('Task updated event received');
         _refreshTasks();
       });
       
-      wsProvider.addEventListener('event', 'task.deleted', (data) {
+      _wsViewModel.addEventListener('event', 'task.deleted', (data) {
         _logger.info('Task deleted event received');
         _refreshTasks();
       });
       
-      // Subscribe to WebSocket events
-      wsProvider.subscribe('task');
-      wsProvider.subscribe('task.created');
-      wsProvider.subscribe('task.updated');
-      wsProvider.subscribe('task.deleted');
+      _wsViewModel.subscribe('task');
+      _wsViewModel.subscribeToEvent('task.created');
+      _wsViewModel.subscribeToEvent('task.updated');
+      _wsViewModel.subscribeToEvent('task.deleted');
       
-      // Activate provider - add this explicitly
-      tasksProvider.activate();
+      _tasksViewModel.activate();
       
-      // Fetch tasks data
-      await tasksProvider.fetchTasks();
+      await _tasksViewModel.fetchTasks();
     } catch (e) {
       _logger.error('Error initializing tasks screen', e);
     }
@@ -76,7 +72,7 @@ class _TasksScreenState extends State<TasksScreen> {
     if (!mounted) return;
     
     try {
-      await Provider.of<TasksProvider>(context, listen: false).fetchTasks();
+      await _tasksViewModel.fetchTasks();
     } catch (e) {
       _logger.error('Error refreshing tasks', e);
     }
@@ -102,7 +98,6 @@ class _TasksScreenState extends State<TasksScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Note selector dropdown would go here
             const SizedBox(height: 16),
             TextField(
               controller: _titleController,
@@ -123,8 +118,7 @@ class _TasksScreenState extends State<TasksScreen> {
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
                 try {
-                  final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
-                  await tasksProvider.createTask(_titleController.text, selectedNoteId ?? '');
+                  await _tasksViewModel.createTask(_titleController.text, selectedNoteId ?? '');
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -174,8 +168,7 @@ class _TasksScreenState extends State<TasksScreen> {
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
                 try {
-                  final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
-                  await tasksProvider.updateTaskTitle(task.id, _titleController.text);
+                  await _tasksViewModel.updateTaskTitle(task.id, _titleController.text);
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -207,8 +200,7 @@ class _TasksScreenState extends State<TasksScreen> {
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
-                await tasksProvider.deleteTask(task.id);
+                await _tasksViewModel.deleteTask(task.id);
               } catch (error) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Failed to delete task')),
@@ -238,13 +230,13 @@ class _TasksScreenState extends State<TasksScreen> {
         },
       ),
       drawer: const AppDrawer(),
-      body: Consumer<TasksProvider>(
-        builder: (ctx, tasksProvider, _) {
-          if (tasksProvider.isLoading) {
+      body: Consumer<TasksViewModel>(
+        builder: (ctx, tasksViewModel, _) {
+          if (tasksViewModel.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
           
-          if (tasksProvider.tasks.isEmpty) {
+          if (tasksViewModel.tasks.isEmpty) {
             return EmptyState(
               title: 'No tasks yet',
               message: 'Create your first task to stay organized',
@@ -255,13 +247,13 @@ class _TasksScreenState extends State<TasksScreen> {
           }
           
           return RefreshIndicator(
-            onRefresh: () => tasksProvider.fetchTasks(),
+            onRefresh: () => tasksViewModel.fetchTasks(),
             color: Theme.of(context).primaryColor,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: tasksProvider.tasks.length,
+              itemCount: tasksViewModel.tasks.length,
               itemBuilder: (context, index) {
-                final task = tasksProvider.tasks[index];
+                final task = tasksViewModel.tasks[index];
                 return CardContainer(
                   leading: Transform.scale(
                     scale: 1.2,
@@ -270,7 +262,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                       onChanged: (bool? value) async {
                         try {
-                          await tasksProvider.toggleTaskCompletion(
+                          await tasksViewModel.toggleTaskCompletion(
                             task.id,
                             value ?? false,
                           );
@@ -327,21 +319,16 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void dispose() {
     if (_isInitialized) {
-      // Clean up event listeners
-      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
-      wsProvider.removeEventListener('event', 'task.created');
-      wsProvider.removeEventListener('event', 'task.updated');
-      wsProvider.removeEventListener('event', 'task.deleted');
+      _wsViewModel.removeEventListener('event', 'task.created');
+      _wsViewModel.removeEventListener('event', 'task.updated');
+      _wsViewModel.removeEventListener('event', 'task.deleted');
       
-      // Unsubscribe
-      wsProvider.unsubscribe('task');
-      wsProvider.unsubscribe('task.created');
-      wsProvider.unsubscribe('task.updated');
-      wsProvider.unsubscribe('task.deleted');
+      _wsViewModel.unsubscribe('task');
+      _wsViewModel.unsubscribeFromEvent('task.created');
+      _wsViewModel.unsubscribeFromEvent('task.updated');
+      _wsViewModel.unsubscribeFromEvent('task.deleted');
       
-      // Add deactivate call for proper cleanup
-      final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
-      tasksProvider.deactivate();
+      _tasksViewModel.deactivate();
     }
     
     super.dispose();

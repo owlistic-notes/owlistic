@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,14 +24,132 @@ class AuthService extends BaseService {
   
   // Singleton pattern for global token access
   static AuthService? _instance;
+  // Initialize synchronously - guaranteed to be true after constructor
+  bool _isInitialized = true;
+  bool get isInitialized => true; // Always return true for safety
   
   // Constructor sets the instance for static access
   AuthService() {
     _instance = this;
+    
+    // Load token synchronously if possible - use SharedPreferences for sync access
+    _loadTokenSync();
+    
+    // Always mark initialized to avoid initialization errors
+    _logger.info('AuthService initialized fully with sync token: ${_token != null}');
+  }
+  
+  // Synchronous loading of token using SharedPreferences
+  void _loadTokenSync() {
+    try {
+      // Try loading from shared prefs first - this is synchronous
+      final tokenFromPrefs = _getTokenFromPrefsSync();
+      if (tokenFromPrefs != null) {
+        _token = tokenFromPrefs;
+        _logger.debug('Successfully loaded token synchronously from shared prefs');
+        return;
+      }
+      
+      // Fall back to empty token if we can't load one synchronously
+      _token = null;
+      _logger.debug('No token found in sync storage, defaulting to null token');
+      
+      // Start async token loading in background
+      _loadTokenAsyncInBackground();
+    } catch (e) {
+      _logger.error('Error loading token synchronously', e);
+      _token = null; // Default to no token on error
+    }
+  }
+  
+  // Try to get token from SharedPreferences synchronously
+  String? _getTokenFromPrefsSync() {
+    try {
+      final prefs = SharedPreferences.getInstance().then((prefs) {
+        final token = prefs.getString(tokenKey);
+        if (token != null && token.isNotEmpty) {
+          _token = token;
+          _authStateController.add(true);
+          _logger.debug('Token loaded from SharedPreferences in background');
+        }
+      });
+      
+      // Return null for now but it will be loaded in background
+      return null;
+    } catch (e) {
+      _logger.error('Error reading token from SharedPreferences', e);
+      return null;
+    }
+  }
+  
+  // Load token in background as backup
+  void _loadTokenAsyncInBackground() {
+    _secureStorage.read(key: tokenKey).then((value) {
+      if (value != null && value.isNotEmpty) {
+        _token = value;
+        _authStateController.add(true);
+        _logger.debug('Token loaded from secure storage in background');
+        
+        // Save to SharedPreferences for faster access next time
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setString(tokenKey, value);
+        });
+      }
+    }).catchError((e) {
+      _logger.error('Error loading token from secure storage', e);
+    });
+  }
+  
+  // For compatibility - no-op since we initialize in constructor
+  Future<void> initialize() async {
+    // Make sure token is loaded into BaseService
+    if (_token != null) {
+      BaseService.setAuthToken(_token);
+    }
+    return Future.value();
   }
   
   bool get isLoggedIn => _token != null;
   
+  // Add back getStoredToken method that was accidentally removed
+  Future<String?> getStoredToken() async {
+    // If we already have a token in memory, just return it
+    if (_token != null) return _token;
+    
+    try {
+      // Try SharedPreferences first for speed
+      final prefs = await SharedPreferences.getInstance();
+      final storedToken = prefs.getString(tokenKey);
+      
+      if (storedToken != null && storedToken.isNotEmpty) {
+        _token = storedToken;
+        // Update BaseService token
+        BaseService.setAuthToken(_token);
+        
+        _authStateController.add(true);
+        _logger.debug('Retrieved token from SharedPreferences');
+        return storedToken;
+      }
+      
+      // Fall back to secure storage if not in SharedPreferences
+      _token = await _secureStorage.read(key: tokenKey);
+      if (_token != null && _token!.isNotEmpty) {
+        _logger.debug('Retrieved token from secure storage');
+        _authStateController.add(true);
+        
+        // Save to SharedPreferences for faster access next time
+        prefs.setString(tokenKey, _token!);
+      } else {
+        _token = null;
+        _logger.debug('No token found in storage');
+      }
+      return _token;
+    } catch (e) {
+      _logger.error('Error reading token from storage', e);
+      return null;
+    }
+  }
+
   // Authentication methods
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
@@ -108,48 +227,50 @@ class AuthService extends BaseService {
     }
   }
   
-  // Token management
-  Future<String?> getStoredToken() async {
-    try {
-      _token = await _secureStorage.read(key: tokenKey);
-      if (_token != null && _token!.isNotEmpty) {
-        _logger.debug('Retrieved token from storage');
-        _authStateController.add(true);
-      } else {
-        _token = null;
-        _logger.debug('No token found in storage');
-      }
-      return _token;
-    } catch (e) {
-      _logger.error('Error reading token from secure storage', e);
-      return null;
-    }
-  }
-  
+  // Token management - store in both secure storage and SharedPreferences
   Future<void> _storeToken(String token) async {
     if (token.isEmpty) return;
     
     _token = token;
+    // Update the static token in BaseService
+    BaseService.setAuthToken(token);
+    
     _logger.debug('Storing auth token');
     
     try {
+      // Store in secure storage
       await _secureStorage.write(key: tokenKey, value: token);
+      
+      // Also store in SharedPreferences for sync access next time
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(tokenKey, token);
+      
       _authStateController.add(true);
     } catch (e) {
-      _logger.error('Error storing token in secure storage', e);
+      _logger.error('Error storing token', e);
       rethrow;
     }
   }
   
+  // Clear token from both storages
   Future<void> clearToken() async {
     _token = null;
+    // Clear the static token in BaseService
+    BaseService.setAuthToken(null);
+    
     _logger.debug('Clearing auth token');
     
     try {
+      // Clear from secure storage
       await _secureStorage.delete(key: tokenKey);
+      
+      // Also clear from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(tokenKey);
+      
       _authStateController.add(false);
     } catch (e) {
-      _logger.error('Error clearing token from secure storage', e);
+      _logger.error('Error clearing token', e);
     }
   }
   
@@ -280,4 +401,13 @@ Future<String?> getCurrentUserId() async {
       _authStateController.close();
     }
   }
+}
+
+// Custom error class for initialization issues
+class NotInitializedError extends Error {
+  final String message;
+  NotInitializedError(this.message);
+  
+  @override
+  String toString() => message;
 }

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:thinkstack/models/subscription.dart';
+import '../models/subscription.dart';
 import '../models/notebook.dart';
 import '../models/note.dart';
 import '../services/notebook_service.dart';
@@ -11,15 +11,17 @@ import '../services/websocket_service.dart';
 import '../utils/logger.dart';
 import '../utils/websocket_message_parser.dart';
 import '../services/app_state_service.dart';
+import '../viewmodel/notebooks_viewmodel.dart';
 
-class NotebooksProvider with ChangeNotifier {
+class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
   final Logger _logger = Logger('NotebooksProvider');
   
   // Using a map for O(1) lookups by ID
   final Map<String, Notebook> _notebooksMap = {};
   bool _isLoading = false;
   bool _isActive = false; // For lifecycle management
-  String? _error;
+  bool _isInitialized = false;
+  String? _errorMessage;
   
   // Services
   final NotebookService _notebookService;
@@ -34,13 +36,13 @@ class NotebooksProvider with ChangeNotifier {
   
   // Constructor with dependency injection
   NotebooksProvider({
-    NotebookService? notebookService, 
-    NoteService? noteService,
-    AuthService? authService
+    required NotebookService notebookService, 
+    required NoteService noteService,
+    required AuthService authService
   }) : 
-    _notebookService = notebookService ?? ServiceLocator.get<NotebookService>(),
-    _noteService = noteService ?? ServiceLocator.get<NoteService>(),
-    _authService = authService ?? ServiceLocator.get<AuthService>() {
+    _notebookService = notebookService,
+    _noteService = noteService,
+    _authService = authService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
@@ -58,13 +60,16 @@ class NotebooksProvider with ChangeNotifier {
         _subscribeToExistingNotebooks();
       }
     });
+    
+    _isInitialized = true;
   }
   
   // Initialize WebSocket event listeners
   void _initializeEventListeners() {
-    _webSocketService.addEventListener('event', 'notebook.updated', _handleNotebookUpdate);
-    _webSocketService.addEventListener('event', 'notebook.created', _handleNotebookCreate);
-    _webSocketService.addEventListener('event', 'notebook.deleted', _handleNotebookDelete);
+    _logger.info('Setting up notebooks event listeners');
+    _webSocketService.addEventListener('event', 'notebook.created', _handleNotebookCreated);
+    _webSocketService.addEventListener('event', 'notebook.updated', _handleNotebookUpdated);
+    _webSocketService.addEventListener('event', 'notebook.deleted', _handleNotebookDeleted);
     _webSocketService.addEventListener('event', 'note.created', _handleNoteCreate);
     _webSocketService.addEventListener('event', 'note.updated', _handleNoteUpdate);
     _webSocketService.addEventListener('event', 'note.deleted', _handleNoteDelete);
@@ -104,21 +109,41 @@ class NotebooksProvider with ChangeNotifier {
     }
   }
   
-  // Getters
-  List<Notebook> get notebooks => _notebooksMap.values.toList();
+  // BaseViewModel implementation
+  @override
   bool get isLoading => _isLoading;
-  String? get error => _error;
+  
+  @override
+  bool get isInitialized => _isInitialized;
+  
+  @override
+  bool get isActive => _isActive;
+  
+  @override
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+  
+  // NotebooksPresenter implementation
+  @override
+  List<Notebook> get notebooks => _notebooksMap.values.toList();
   
   // Clear state on logout
+  @override
   void resetState() {
     _logger.info('Resetting NotebooksProvider state');
     _notebooksMap.clear();
-    _error = null;
+    _errorMessage = null;
     _isActive = false;
     notifyListeners();
   }
   
   // Fetch notebooks with proper user filtering - updated to fetch notes for each notebook
+  @override
   Future<void> fetchNotebooks({
     String? name, 
     int page = 1, 
@@ -193,19 +218,20 @@ class NotebooksProvider with ChangeNotifier {
       }
       
       _isLoading = false;
-      _error = null;
+      _errorMessage = null;
       notifyListeners();
       
       _logger.info('Fetched ${fetchedNotebooks.length} notebooks with their notes');
     } catch (e) {
       _logger.error('Error fetching notebooks', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
     }
   }
   
   // Create a new notebook
+  @override
   Future<Notebook?> createNotebook(String name, String description) async {
     try {
       // Get user ID from the auth service directly
@@ -226,13 +252,14 @@ class NotebooksProvider with ChangeNotifier {
       return notebook;
     } catch (e) {
       _logger.error('Error creating notebook', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       notifyListeners();
       throw e;
     }
   }
   
   // Add a note to a notebook
+  @override
   Future<Note?> addNoteToNotebook(String notebookId, String title) async {
     try {
       // Create the note via API
@@ -260,13 +287,14 @@ class NotebooksProvider with ChangeNotifier {
       return note;
     } catch (e) {
       _logger.error('Error adding note to notebook', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       notifyListeners();
       throw e;
     }
   }
   
   // Fetch a notebook by ID with its notes
+  @override
   Future<Notebook?> fetchNotebookById(String id, {
     List<String>? excludeIds,
     bool addToExistingList = false,
@@ -309,6 +337,7 @@ class NotebooksProvider with ChangeNotifier {
   }
   
   // Update a notebook
+  @override
   Future<Notebook?> updateNotebook(String id, String name, String description) async {
     try {
       final notebook = await _notebookService.updateNotebook(id, name, description);
@@ -320,13 +349,14 @@ class NotebooksProvider with ChangeNotifier {
       return notebook;
     } catch (e) {
       _logger.error('Error updating notebook', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       notifyListeners();
       throw e;
     }
   }
   
   // Delete a notebook
+  @override
   Future<void> deleteNotebook(String id) async {
     try {
       await _notebookService.deleteNotebook(id);
@@ -340,13 +370,14 @@ class NotebooksProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _logger.error('Error deleting notebook', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       notifyListeners();
       throw e;
     }
   }
   
   // Delete a note from a notebook
+  @override
   Future<void> deleteNote(String notebookId, String noteId) async {
     try {
       // First find the notebook
@@ -373,18 +404,20 @@ class NotebooksProvider with ChangeNotifier {
       }
     } catch (e) {
       _logger.error('Error deleting note $noteId from notebook $notebookId', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       notifyListeners();
       throw e;
     }
   }
   
   // Get a notebook by ID from cache or fetch if not available
+  @override
   Notebook? getNotebook(String id) {
     return _notebooksMap[id];
   }
   
   // Activate/deactivate pattern for lifecycle management
+  @override
   void activate() {
     _isActive = true;
     _logger.info('NotebooksProvider activated');
@@ -398,13 +431,14 @@ class NotebooksProvider with ChangeNotifier {
     fetchNotebooks(); // Load notebooks on activation
   }
   
+  @override
   void deactivate() {
     _isActive = false;
     _logger.info('NotebooksProvider deactivated');
   }
   
   // WebSocket event handlers
-  void _handleNotebookUpdate(Map<String, dynamic> message) {
+  void _handleNotebookUpdated(Map<String, dynamic> message) {
     _logger.info('Notebook update event received');
     
     // Only process if provider is active
@@ -429,7 +463,7 @@ class NotebooksProvider with ChangeNotifier {
     }
   }
   
-  void _handleNotebookCreate(Map<String, dynamic> message) {
+  void _handleNotebookCreated(Map<String, dynamic> message) {
     _logger.info('Notebook created event received');
     
     // Only process if provider is active
@@ -454,7 +488,7 @@ class NotebooksProvider with ChangeNotifier {
     }
   }
   
-  void _handleNotebookDelete(Map<String, dynamic> message) {
+  void _handleNotebookDeleted(Map<String, dynamic> message) {
     _logger.info('Notebook deleted event received');
     
     // Only process if provider is active
@@ -591,6 +625,7 @@ class NotebooksProvider with ChangeNotifier {
   }
   
   // Update the notebooks list directly (useful for deletions)
+  @override
   void updateNotebooksList(List<Notebook> updatedNotebooks) {
     _notebooksMap.clear();
     for (var notebook in updatedNotebooks) {
@@ -601,6 +636,7 @@ class NotebooksProvider with ChangeNotifier {
   }
 
   // Update just the notes collection of a specific notebook
+  @override
   void updateNotebookNotes(String notebookId, List<Note> updatedNotes) {
     _logger.info('Updating notes for notebook: $notebookId');
   
@@ -621,6 +657,7 @@ class NotebooksProvider with ChangeNotifier {
   }
 
   // Remove a notebook by ID
+  @override
   void removeNotebookById(String notebookId) {
     _logger.info('Removing notebook with ID: $notebookId');
   

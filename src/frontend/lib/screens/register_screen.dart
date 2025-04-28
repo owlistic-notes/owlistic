@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
-import '../core/theme.dart';
+import 'package:provider/provider.dart';
+import '../viewmodel/auth_viewmodel.dart';
 import '../utils/logger.dart';
 
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({Key? key}) : super(key: key);
+  
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
@@ -18,21 +19,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
-
+  
+  @override
+  void initState() {
+    super.initState();
+    
+    // Activate the AuthViewModel
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthViewModel>().activate();
+    });
+  }
+  
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    
+    // Deactivate the AuthViewModel
+    context.read<AuthViewModel>().deactivate();
     super.dispose();
   }
 
   Future<void> _register() async {
     if (_formKey.currentState!.validate()) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      
       try {
-        final success = await authProvider.register(
+        final success = await context.read<AuthViewModel>().register(
           _emailController.text.trim(), 
           _passwordController.text
         );
@@ -45,7 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(authProvider.error ?? 'Registration failed. Please try again.'),
+                content: Text(context.read<AuthViewModel>().errorMessage ?? 'Registration failed. Please try again.'),
                 backgroundColor: Colors.red,
               ),
             );
@@ -69,7 +81,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
-    final authProvider = Provider.of<AuthProvider>(context);
+    
+    // Watch the AuthViewModel for changes
+    final authViewModel = context.watch<AuthViewModel>();
+    final isLoading = authViewModel.isLoading;
     
     return Scaffold(
       appBar: AppBar(
@@ -203,16 +218,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 24),
                     
-                    // Register button
+                    // Register button with reactive loading state
                     ElevatedButton(
-                      onPressed: authProvider.isLoading ? null : _register,
+                      onPressed: isLoading ? null : _register,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: authProvider.isLoading
+                      child: isLoading
                         ? SizedBox(
                             height: 20,
                             width: 20,
@@ -231,9 +246,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     
                     // Login link
                     TextButton(
-                      onPressed: () {
-                        context.go('/login');
-                      },
+                      onPressed: () => context.go('/login'),
                       child: const Text('Already have an account? Log In'),
                     ),
                   ],

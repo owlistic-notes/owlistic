@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../models/note.dart';
-import '../providers/websocket_provider.dart';
-import '../providers/notes_provider.dart';
-import '../providers/notebooks_provider.dart';
-import '../utils/provider_extensions.dart';
+import '../viewmodel/websocket_viewmodel.dart';
+import '../viewmodel/notes_viewmodel.dart';
+import '../viewmodel/notebooks_viewmodel.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_bar_common.dart';
 
-/// NotesScreen acts as the View in MVP pattern
 class NotesScreen extends StatefulWidget {
   @override
   _NotesScreenState createState() => _NotesScreenState();
@@ -29,20 +28,18 @@ class _NotesScreenState extends State<NotesScreen> {
   int _currentPage = 1;
   bool _hasMoreData = true;
   bool _isLoadingMore = false;
-  Set<String> _loadedNoteIds = {}; // Track loaded note IDs to prevent duplicates
-  bool _isRefreshing = false; // Track refresh state to avoid multiple refreshes
-  String? _selectedNotebookId; // Track the selected notebook ID for filtering
+  Set<String> _loadedNoteIds = {};
+  bool _isRefreshing = false;
+  String? _selectedNotebookId;
 
-  // NotesProvider acts as the Presenter
-  late NotesProvider _presenter;
-  late WebSocketProvider _wsProvider;
-  late NotebooksProvider _notebooksProvider;
+  // ViewModels - defined as late fields
+  late NotesViewModel _notesViewModel;
+  late WebSocketViewModel _wsViewModel;
+  late NotebooksViewModel _notebooksViewModel;
 
   @override
   void initState() {
     super.initState();
-
-    // Add scroll listener for pagination
     _scrollController.addListener(_scrollListener);
   }
 
@@ -53,64 +50,102 @@ class _NotesScreenState extends State<NotesScreen> {
     if (!_isInitialized) {
       _isInitialized = true;
 
-      // Get presenters
-      _presenter = context.notesPresenter();
-      _wsProvider = context.webSocketProvider();
-      _notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
+      // Get ViewModels directly from provider
+      _notesViewModel = context.read<NotesViewModel>();
+      _wsViewModel = context.read<WebSocketViewModel>();
+      _notebooksViewModel = context.read<NotebooksViewModel>();
 
-      // Initialize WebSocket and fetch data
+      // Initialize data
       _initializeData();
     }
   }
 
   Future<void> _initializeData() async {
     // Ensure WebSocket is connected
-    await _wsProvider.ensureConnected();
+    await _wsViewModel.ensureConnected();
 
     // Register handlers for automatic refresh on events
     _registerEventHandlers();
 
-    // Subscribe to events with a more consistent pattern
-    _wsProvider.subscribe('note');
-    _wsProvider.subscribe('note.created');
-    _wsProvider.subscribe('note.updated');
-    _wsProvider.subscribe('note.deleted');
+    // Subscribe to events with a consistent pattern
+    _wsViewModel.subscribe('note');
+    _wsViewModel.subscribeToEvent('note.created');
+    _wsViewModel.subscribeToEvent('note.updated');
+    _wsViewModel.subscribeToEvent('note.deleted');
 
-    // Activate the presenter
-    _presenter.activate();
+    // Activate the ViewModels
+    _notesViewModel.activate();
+    _notebooksViewModel.activate();
 
     // Fetch notebooks first to populate the dropdown
-    await _notebooksProvider.fetchNotebooks();
+    await _notebooksViewModel.fetchNotebooks();
     
     // Set the default selected notebook if available
-    if (_notebooksProvider.notebooks.isNotEmpty) {
-      _selectedNotebookId = _notebooksProvider.notebooks.first.id;
+    if (_notebooksViewModel.notebooks.isNotEmpty) {
+      _selectedNotebookId = _notebooksViewModel.notebooks.first.id;
     }
 
-    // Fetch initial data for all notebooks
+    // Fetch initial data
     await _refreshNotes();
   }
 
   void _registerEventHandlers() {
-    // Track specific events with their appropriate handlers
-    _wsProvider.addEventListener('event', 'note.created', (message) {
-      _logger.info('Received note.created event in UI handler');
-      _handleNoteEvent();
+    _logger.info('Registering event handlers for note-related events');
+    
+    _wsViewModel.addEventListener('event', 'note.created', (data) {
+      _logger.info('Received note.created event');
+      _handleNoteCreatedEvent(data);
     });
 
-    // For updates, use a direct approach
-    _wsProvider.addEventListener('event', 'note.updated', (message) {
-      _logger.info('Received note.updated event in UI handler');
-      _handleNoteEvent();
+    _wsViewModel.addEventListener('event', 'note.updated', (data) {
+      _logger.info('Received note.updated event');
+      _handleNoteUpdatedEvent(data);
     });
 
-    // For deletes, handle specifically to ensure UI is updated properly
-    _wsProvider.addEventListener('event', 'note.deleted', (message) {
-      _logger.info('Received note.deleted event in UI handler');
-      _handleNoteEvent();
+    _wsViewModel.addEventListener('event', 'note.deleted', (data) {
+      _logger.info('Received note.deleted event');
+      _handleNoteDeletedEvent(data);
     });
-
-    _logger.info('Registered event handlers for automatic refresh');
+  }
+  
+  void _handleNoteCreatedEvent(dynamic data) {
+    try {
+      final parsedMessage = WebSocketMessage.fromJson(data);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      
+      if (noteId != null) {
+        _handleNewNote(noteId);
+      }
+    } catch (e) {
+      _logger.error('Error handling note created event', e);
+    }
+  }
+  
+  void _handleNoteUpdatedEvent(dynamic data) {
+    try {
+      final parsedMessage = WebSocketMessage.fromJson(data);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      
+      if (noteId != null) {
+        _refreshNotes();
+      }
+    } catch (e) {
+      _logger.error('Error handling note updated event', e);
+    }
+  }
+  
+  void _handleNoteDeletedEvent(dynamic data) {
+    try {
+      final parsedMessage = WebSocketMessage.fromJson(data);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
+      
+      if (noteId != null) {
+        // Let presenter handle the deletion
+        _notesViewModel.handleNoteDeleted(noteId);
+      }
+    } catch (e) {
+      _logger.error('Error handling note deleted event', e);
+    }
   }
 
   void _handleNoteEvent() {
@@ -122,9 +157,6 @@ class _NotesScreenState extends State<NotesScreen> {
       Future.delayed(const Duration(milliseconds: 300), () {
         _refreshNotes().then((_) {
           _isRefreshing = false;
-        }).catchError((e) {
-          _isRefreshing = false;
-          _logger.error('Error refreshing notes after event', e);
         });
       });
     }
@@ -135,18 +167,18 @@ class _NotesScreenState extends State<NotesScreen> {
     _logger.info('Refreshing notes data');
     _currentPage = 1;
     
-    if (_notebooksProvider.notebooks.isEmpty) {
+    if (_notebooksViewModel.notebooks.isEmpty) {
       _logger.warning('No notebooks available to fetch notes');
       return;
     }
     
     // If we have a selected notebook, fetch notes only for that notebook
     if (_selectedNotebookId != null) {
-      await _presenter.fetchNotes(notebookId: _selectedNotebookId!);
+      await _notesViewModel.fetchNotes(notebookId: _selectedNotebookId!);
     } else {
       // Otherwise fetch notes for all notebooks
-      for (final notebook in _notebooksProvider.notebooks) {
-        await _presenter.fetchNotes(notebookId: notebook.id);
+      for (final notebook in _notebooksViewModel.notebooks) {
+        await _notesViewModel.fetchNotes(notebookId: notebook.id);
       }
     }
     
@@ -156,7 +188,7 @@ class _NotesScreenState extends State<NotesScreen> {
   // Update loaded note IDs to track what we've already loaded
   void _updateLoadedNoteIds() {
     setState(() {
-      _loadedNoteIds = _presenter.notes.map((note) => note.id).toSet();
+      _loadedNoteIds = _notesViewModel.notes.map((note) => note.id).toSet();
     });
   }
 
@@ -173,7 +205,7 @@ class _NotesScreenState extends State<NotesScreen> {
     // Add a slight delay to ensure the note is available in the database
     Future.delayed(Duration(milliseconds: 500), () {
       // Fetch just this one note and add it to the list
-      _presenter.fetchNoteById(noteId).then((note) {
+      _notesViewModel.fetchNoteById(noteId).then((note) {
         // Only add to the list if the note is not deleted and we got a valid note
         if (note != null && note.deletedAt == null) {
           _logger.info('Successfully fetched and added note: ${note.title}');
@@ -205,20 +237,20 @@ class _NotesScreenState extends State<NotesScreen> {
     });
 
     _currentPage++;
-    final currentCount = _presenter.notes.length;
-    final currentIds = _presenter.notes.map((note) => note.id).toSet();
+    final currentCount = _notesViewModel.notes.length;
+    final currentIds = _notesViewModel.notes.map((note) => note.id).toSet();
 
     if (_selectedNotebookId != null) {
       // Load more notes for the selected notebook
-      await _presenter.fetchNotes(
+      await _notesViewModel.fetchNotes(
         notebookId: _selectedNotebookId!,
         page: _currentPage,
         excludeIds: currentIds.toList(),
       );
-    } else if (_notebooksProvider.notebooks.isNotEmpty) {
+    } else if (_notebooksViewModel.notebooks.isNotEmpty) {
       // Load more notes from all notebooks
-      for (final notebook in _notebooksProvider.notebooks) {
-        await _presenter.fetchNotes(
+      for (final notebook in _notebooksViewModel.notebooks) {
+        await _notesViewModel.fetchNotes(
           notebookId: notebook.id,
           page: _currentPage,
           excludeIds: currentIds.toList(),
@@ -227,7 +259,7 @@ class _NotesScreenState extends State<NotesScreen> {
     }
 
     // Check if we got new data
-    final hasNewData = _presenter.notes.length > currentCount;
+    final hasNewData = _notesViewModel.notes.length > currentCount;
 
     setState(() {
       _hasMoreData = hasNewData;
@@ -256,13 +288,14 @@ class _NotesScreenState extends State<NotesScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Add notebook dropdown
-            Consumer<NotebooksProvider>(
-              builder: (context, notebooksProvider, _) {
-                final notebooks = notebooksProvider.notebooks;
+            // Replace Consumer with proper extension usage
+            Builder(
+              builder: (context) {
+                final notebooksViewModel = context.watch<NotebooksViewModel>();
+                final notebooks = notebooksViewModel.notebooks;
 
                 // Show loading if notebooks aren't loaded yet
-                if (notebooksProvider.isLoading) {
+                if (notebooksViewModel.isLoading) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.0),
                     child: Center(
@@ -306,7 +339,7 @@ class _NotesScreenState extends State<NotesScreen> {
                     selectedNotebookId = value;
                   },
                 );
-              },
+              }
             ),
             const SizedBox(height: 16),
             TextField(
@@ -331,8 +364,8 @@ class _NotesScreenState extends State<NotesScreen> {
                 try {
                   _logger.info('Creating note: ${_titleController.text} in notebook: $selectedNotebookId');
                   
-                  final notebooksProvider = Provider.of<NotebooksProvider>(context, listen: false);
-                  await notebooksProvider.addNoteToNotebook(
+                  final notebooksViewModel = context.read<NotebooksViewModel>();
+                  await notebooksViewModel.addNoteToNotebook(
                     selectedNotebookId!,
                     _titleController.text,
                   );
@@ -396,10 +429,10 @@ class _NotesScreenState extends State<NotesScreen> {
                 _logger.info('Deleting note: $noteId');
                 
                 // First remove from UI for immediate feedback
-                _presenter.handleNoteDeleted(noteId);
+                _notesViewModel.handleNoteDeleted(noteId);
                 
                 // Then delete from server
-                await _presenter.deleteNote(noteId);
+                await _notesViewModel.deleteNote(noteId);
                 
                 // Update tracking set
                 setState(() {
@@ -424,76 +457,19 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Listen to presenters for updates
-    final notesPresenter = context.notesPresenter(listen: true);
-    final notebooksProvider = Provider.of<NotebooksProvider>(context);
-
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBarCommon(
-        title: 'Notes',
-        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onBackPressed: () {
-          if (Navigator.canPop(context)) {
-            Navigator.of(context).pop();
-          }
-        },
-        additionalActions: [
-          // Add notebook filter dropdown
-          if (notebooksProvider.notebooks.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: DropdownButton<String?>(
-                hint: const Text("All Notebooks"),
-                value: _selectedNotebookId,
-                underline: Container(),
-                icon: const Icon(Icons.filter_list),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _selectedNotebookId = newValue;
-                    _refreshNotes(); // Refresh when selection changes
-                  });
-                },
-                items: [
-                  // Add "All Notebooks" option
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text("All Notebooks"),
-                  ),
-                  // Add individual notebooks
-                  ...notebooksProvider.notebooks.map((notebook) {
-                    return DropdownMenuItem<String?>(
-                      value: notebook.id,
-                      child: Text(notebook.name),
-                    );
-                  }).toList(),
-                ],
-              ),
-            ),
-        ],
-      ),
-      drawer: const AppDrawer(),
-      body: _buildBody(notesPresenter),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddNoteDialog(context),
-        child: const Icon(Icons.add),
-        tooltip: 'Add Note',
-      ),
-    );
+  // Format date for display - Add this method
+  String _formatDate(DateTime? date) {
+    if (date == null) return '';
+    return DateFormat('MMM d, yyyy').format(date);
   }
 
-  Widget _buildBody(NotesProvider presenter) {
-    if (presenter.isLoading && presenter.notes.isEmpty) {
+  Widget _buildBody(NotesViewModel notesViewModel) {
+    if (notesViewModel.isLoading && notesViewModel.notes.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
     
-    // Get notes based on selected notebook
-    List<Note> notesToDisplay = _selectedNotebookId != null 
-        ? presenter.getNotesByNotebookId(_selectedNotebookId!)
-        : presenter.notes;
+    // Get all notes, remove the notebook filtering
+    List<Note> notesToDisplay = notesViewModel.notes;
 
     if (notesToDisplay.isEmpty) {
       return EmptyState(
@@ -524,6 +500,10 @@ class _NotesScreenState extends State<NotesScreen> {
           }
 
           final note = notesToDisplay[index];
+          // Get notebook name
+          final notebookName = _getNotebookName(note.notebookId);
+          final lastEdited = note.updatedAt ?? note.createdAt;
+          
           return CardContainer(
             key: ValueKey('note_${note.id}'),
             onTap: () => _navigateToNoteEditor(note),
@@ -540,17 +520,42 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
             ),
             title: note.title,
-            subtitle: note.notebookId,
-            trailing: IconButton(
-              icon: Icon(
-                Icons.delete_outline,
-                color: AppTheme.dangerColor,
-              ),
-              onPressed: () => _showDeleteConfirmation(
-                context,
-                note.id,
-                note.title,
-              ),
+            subtitle: '${notebookName ?? "Unknown notebook"} · ${_formatDate(lastEdited)}',
+            trailing: PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'delete') {
+                  _showDeleteConfirmation(
+                    context,
+                    note.id,
+                    note.title,
+                  );
+                } else if (value == 'move') {
+                  _showMoveNoteDialog(context, note);
+                }
+              },
+              itemBuilder: (BuildContext context) => [
+                const PopupMenuItem<String>(
+                  value: 'move',
+                  child: ListTile(
+                    leading: Icon(Icons.drive_file_move),
+                    title: Text('Move'),
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline, color: Colors.red),
+                    title: Text('Delete', style: TextStyle(color: Colors.red)),
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
             ),
             child: note.blocks.isEmpty
                 ? const Text('Empty note',
@@ -568,6 +573,116 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Helper to get notebook name - Add this method
+  String? _getNotebookName(String notebookId) {
+    final notebook = _notebooksViewModel.getNotebook(notebookId);
+    return notebook?.name;
+  }
+
+  // Show dialog to move note to another notebook - Add this method
+  void _showMoveNoteDialog(BuildContext context, Note note) {
+    String? selectedNotebookId;
+    
+    // Get list of notebooks excluding current one
+    final notebooks = _notebooksViewModel.notebooks
+        .where((nb) => nb.id != note.notebookId)
+        .toList();
+        
+    if (notebooks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No other notebooks available to move to'))
+      );
+      return;
+    }
+    
+    // Default to first notebook
+    selectedNotebookId = notebooks.first.id;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Move Note'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Select a notebook to move "${note.title}" to:'),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Destination Notebook',
+                prefixIcon: Icon(Icons.folder),
+              ),
+              value: selectedNotebookId,
+              items: notebooks.map((notebook) {
+                return DropdownMenuItem<String>(
+                  value: notebook.id,
+                  child: Text(notebook.name),
+                );
+              }).toList(),
+              onChanged: (value) {
+                selectedNotebookId = value;
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (selectedNotebookId != null) {
+                try {
+                  Navigator.of(ctx).pop();
+                  await _notesViewModel.moveNote(note.id, selectedNotebookId!);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Note moved successfully')),
+                  );
+                } catch (e) {
+                  _logger.error('Error moving note', e);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error moving note: ${e.toString()}')),
+                  );
+                }
+              }
+            },
+            child: const Text('Move'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBarCommon(
+        title: 'Notes',
+        // Ensure this is properly connecting to the scaffold key
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        onBackPressed: () {
+          if (Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        },
+      ),
+      drawer: const AppDrawer(),
+      body: Consumer<NotesViewModel>(
+        builder: (context, notesViewModel, _) {
+          return _buildBody(notesViewModel);
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddNoteDialog(context),
+        child: const Icon(Icons.add),
+        tooltip: 'Add Note',
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _scrollController.removeListener(_scrollListener);
@@ -575,18 +690,19 @@ class _NotesScreenState extends State<NotesScreen> {
 
     // Clean up WebSocket listeners
     if (_isInitialized) {
-      _wsProvider.removeEventListener('event', 'note.created');
-      _wsProvider.removeEventListener('event', 'note.updated');
-      _wsProvider.removeEventListener('event', 'note.deleted');
+      _wsViewModel.removeEventListener('event', 'note.created');
+      _wsViewModel.removeEventListener('event', 'note.updated');
+      _wsViewModel.removeEventListener('event', 'note.deleted');
 
-      _wsProvider.unsubscribe('note');
-      _wsProvider.unsubscribe('note.created');
-      _wsProvider.unsubscribe('note.updated');
-      _wsProvider.unsubscribe('note.deleted');
+      _wsViewModel.unsubscribeFromEvent('note.created');
+      _wsViewModel.unsubscribeFromEvent('note.updated');
+      _wsViewModel.unsubscribeFromEvent('note.deleted');
+      _wsViewModel.unsubscribe('note');
+
+      // Deactivate the ViewModels
+      _notesViewModel.deactivate();
+      _notebooksViewModel.deactivate();
     }
-
-    // Deactivate the presenter when the view is disposed
-    _presenter.deactivate();
 
     super.dispose();
   }

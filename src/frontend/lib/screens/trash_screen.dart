@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:thinkstack/viewmodel/trash_viewmodel.dart';
+import 'package:thinkstack/viewmodel/websocket_viewmodel.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
-import '../providers/trash_provider.dart';
-import '../providers/websocket_provider.dart';
-import '../utils/provider_extensions.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_bar_common.dart';
 import '../widgets/card_container.dart';
@@ -24,9 +23,9 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
   bool _isInitialized = false;
   final Logger _logger = Logger('TrashScreen'); // Added logger instance
   
-  // Presenters
-  late TrashProvider _presenter;
-  late WebSocketProvider _wsProvider;
+  // Use viewModel instead of presenter to follow MVVM terminology
+  late TrashViewModel _trashViewModel;
+  late WebSocketViewModel _wsViewModel;
 
   @override
   void initState() {
@@ -41,9 +40,9 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     if (!_isInitialized) {
       _isInitialized = true;
       
-      // Get presenters
-      _presenter = Provider.of<TrashProvider>(context, listen: false);
-      _wsProvider = context.webSocketProvider();
+      // Get ViewModels using proper provider access
+      _trashViewModel = context.read<TrashViewModel>();
+      _wsViewModel = context.read<WebSocketViewModel>();
       
       // Initialize
       _initializeData();
@@ -52,30 +51,29 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
   
   Future<void> _initializeData() async {
     // Ensure WebSocket is connected
-    await _wsProvider.ensureConnected();
+    await _wsViewModel.ensureConnected();
     
     // Register event handlers for trash updates
-    _wsProvider.addEventListener('event', 'trash.restored', (message) {
+    _wsViewModel.addEventListener('event', 'trash.restored', (message) {
       _refreshTrash();
     });
     
-    _wsProvider.addEventListener('event', 'trash.deleted', (message) {
+    _wsViewModel.addEventListener('event', 'trash.deleted', (message) {
       _refreshTrash();
     });
     
     // Set WebSocket provider and activate
-    _presenter.activate();
+    _trashViewModel.activate();
     
     // Initial fetch
-    await _presenter.fetchTrashedItems();
+    await _trashViewModel.fetchTrashedItems();
   }
   
   Future<void> _refreshTrash() async {
     if (!mounted) return;
     
     try {
-      await _presenter.fetchTrashedItems();
-      setState(() {});
+      await _trashViewModel.fetchTrashedItems();
     } catch (e) {
       _logger.error('Error refreshing trash items', e);
     }
@@ -98,7 +96,7 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                await _presenter.emptyTrash();
+                await _trashViewModel.emptyTrash();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Trash emptied successfully')),
                 );
@@ -138,14 +136,15 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
   }
   
   Widget _buildBody() {
-    return Consumer<TrashProvider>(
-      builder: (context, trashProvider, _) {
-        if (trashProvider.isLoading) {
+    // Use context.watch to react to TrashViewModel changes
+    return Consumer<TrashViewModel>(
+      builder: (context, trashViewModel, _) {
+        if (trashViewModel.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
         
-        final hasNotes = trashProvider.trashedNotes.isNotEmpty;
-        final hasNotebooks = trashProvider.trashedNotebooks.isNotEmpty;
+        final hasNotes = trashViewModel.trashedNotes.isNotEmpty;
+        final hasNotebooks = trashViewModel.trashedNotebooks.isNotEmpty;
         
         if (!hasNotes && !hasNotebooks) {
           return const EmptyState(
@@ -164,11 +163,11 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
               tabs: [
                 Tab(
                   icon: const Icon(Icons.description_outlined),
-                  text: 'Notes (${trashProvider.trashedNotes.length})',
+                  text: 'Notes (${trashViewModel.trashedNotes.length})',
                 ),
                 Tab(
                   icon: const Icon(Icons.folder_outlined),
-                  text: 'Notebooks (${trashProvider.trashedNotebooks.length})',
+                  text: 'Notebooks (${trashViewModel.trashedNotebooks.length})',
                 ),
               ],
             ),
@@ -177,10 +176,10 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
                 controller: _tabController,
                 children: [
                   // Notes Tab
-                  _buildNotesTab(trashProvider),
+                  _buildNotesTab(trashViewModel),
                   
                   // Notebooks Tab
-                  _buildNotebooksTab(trashProvider),
+                  _buildNotebooksTab(trashViewModel),
                 ],
               ),
             ),
@@ -190,8 +189,8 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     );
   }
   
-  Widget _buildNotesTab(TrashProvider trashProvider) {
-    final notes = trashProvider.trashedNotes;
+  Widget _buildNotesTab(TrashViewModel trashViewModel) {
+    final notes = trashViewModel.trashedNotes;
     
     if (notes.isEmpty) {
       return const EmptyState(
@@ -202,7 +201,7 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     }
     
     return RefreshIndicator(
-      onRefresh: () => trashProvider.fetchTrashedItems(),
+      onRefresh: () => trashViewModel.fetchTrashedItems(),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: notes.length,
@@ -214,8 +213,8 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     );
   }
   
-  Widget _buildNotebooksTab(TrashProvider trashProvider) {
-    final notebooks = trashProvider.trashedNotebooks;
+  Widget _buildNotebooksTab(TrashViewModel trashViewModel) {
+    final notebooks = trashViewModel.trashedNotebooks;
     
     if (notebooks.isEmpty) {
       return const EmptyState(
@@ -226,7 +225,7 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     }
     
     return RefreshIndicator(
-      onRefresh: () => trashProvider.fetchTrashedItems(),
+      onRefresh: () => trashViewModel.fetchTrashedItems(),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: notebooks.length,
@@ -274,7 +273,7 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
               label: const Text('Restore'),
               onPressed: () async {
                 try {
-                  await _presenter.restoreItem('note', note.id);
+                  await _trashViewModel.restoreItem('note', note.id);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Note restored')),
                   );
@@ -353,7 +352,7 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
                   label: const Text('Restore'),
                   onPressed: () async {
                     try {
-                      await _presenter.restoreItem('notebook', notebook.id);
+                      await _trashViewModel.restoreItem('notebook', notebook.id);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Notebook restored')),
                       );
@@ -405,7 +404,7 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                await _presenter.permanentlyDeleteItem(type, id);
+                await _trashViewModel.permanentlyDeleteItem(type, id);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('$typeTitle permanently deleted')),
                 );
@@ -439,10 +438,10 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
     
     if (_isInitialized) {
       // Remove event listeners
-      _wsProvider.removeEventListener('event', 'trash.restored');
-      _wsProvider.removeEventListener('event', 'trash.deleted');
+      _wsViewModel.removeEventListener('event', 'trash.restored');
+      _wsViewModel.removeEventListener('event', 'trash.deleted');
       
-      _presenter.deactivate();
+      _trashViewModel.deactivate();
     }
     
     super.dispose();

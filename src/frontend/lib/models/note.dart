@@ -7,6 +7,7 @@ class Note {
   final String userId;
   final List<Block> blocks;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
   final DateTime? deletedAt;
 
   const Note({
@@ -16,6 +17,7 @@ class Note {
     required this.userId,
     this.blocks = const [],
     this.createdAt,
+    this.updatedAt,
     this.deletedAt,
   });
 
@@ -44,13 +46,22 @@ class Note {
       }
     }
     
-    // Parse createdAt and deletedAt
+    // Parse dates
     DateTime? createdAt;
     if (json['created_at'] != null) {
       try {
         createdAt = DateTime.parse(json['created_at']);
       } catch (e) {
         print('Error parsing created_at: $e');
+      }
+    }
+
+    DateTime? updatedAt;
+    if (json['updated_at'] != null) {
+      try {
+        updatedAt = DateTime.parse(json['updated_at']);
+      } catch (e) {
+        print('Error parsing updated_at: $e');
       }
     }
 
@@ -70,6 +81,7 @@ class Note {
       userId: json['user_id']?.toString() ?? '',
       blocks: blocksList,
       createdAt: createdAt,
+      updatedAt: updatedAt,
       deletedAt: deletedAt,
     );
   }
@@ -82,6 +94,7 @@ class Note {
       'user_id': userId,
       'blocks': blocks.map((block) => block.toJson()).toList(),
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
       if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
     };
   }
@@ -94,6 +107,7 @@ class Note {
     String? userId,
     List<Block>? blocks,
     DateTime? createdAt,
+    DateTime? updatedAt,
     DateTime? deletedAt,
   }) {
     return Note(
@@ -103,6 +117,7 @@ class Note {
       userId: userId ?? this.userId,
       blocks: blocks ?? this.blocks,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
     );
   }

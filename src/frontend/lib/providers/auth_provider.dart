@@ -2,44 +2,90 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:thinkstack/services/websocket_service.dart';
+import 'package:provider/provider.dart';
+import '../core/providers.dart';
+import '../services/websocket_service.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../utils/logger.dart';
 import '../services/app_state_service.dart';
+import '../viewmodel/auth_viewmodel.dart';
 
-class AuthProvider with ChangeNotifier {
+class AuthProvider with ChangeNotifier implements AuthViewModel {
   String? _token;
   bool _isLoggedIn = false;
   bool _isLoading = false;
+  bool _isActive = false;
   User? _currentUser;
-  String? _error;
+  bool _isInitialized = false;
+  String? _errorMessage;
   
   final Logger _logger = Logger('AuthProvider');
   final AuthService _authService;
-  final AppStateService _appStateService = AppStateService();
+  final AppStateService _appStateService;
+  
+  // Add stream controller for auth state changes
+  final StreamController<bool> _authStateController = StreamController<bool>.broadcast();
+  
+  // Expose the stream
+  @override
+  Stream<bool> get authStateChanges => _authStateController.stream;
+  
+  @override
+  String? get token => _token;
   
   // Constructor with dependency injection
-  AuthProvider({required AuthService authService}) 
-    : _authService = authService {
+  AuthProvider({
+    required AuthService authService,
+    AppStateService? appStateService
+  }) : _authService = authService,
+       _appStateService = appStateService ?? AppStateService() {
     try {
       _initializeAuthState();
+      _isInitialized = true;
     } catch (e) {
       _logger.error('Error initializing auth state', e);
+      _errorMessage = 'Failed to initialize: ${e.toString()}';
     }
   }
   
-  // Getters
-  bool get isLoggedIn => _isLoggedIn;
+  // BaseViewModel implementation
+  @override
   bool get isLoading => _isLoading;
+  
+  @override
+  bool get isInitialized => _isInitialized;
+  
+  @override
+  bool get isActive => _isActive;
+  
+  @override
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+  
+  // AuthViewModel implementation
+  @override
+  bool get isLoggedIn => _isLoggedIn;
+  
+  @override
   User? get currentUser => _currentUser;
-  String? get error => _error;
   
   Future<void> _initializeAuthState() async {
     _isLoading = true;
     notifyListeners();
     
     try {
+      // Ensure AuthService is initialized
+      if (!_authService.isInitialized) {
+        _logger.info('Waiting for AuthService initialization');
+        await (_authService as dynamic).initialize();
+      }
+      
       // Load token from secure storage
       _token = await _authService.getStoredToken();
       
@@ -60,9 +106,26 @@ class AuthProvider with ChangeNotifier {
         _isLoggedIn = false;
         _logger.info('Auth initialized with no token');
       }
+      
+      // Emit initial auth state after determining isLoggedIn
+      // Add try/catch to handle any potential errors
+      try {
+        _authStateController.add(_isLoggedIn);
+      } catch (e) {
+        _logger.error('Error emitting initial auth state', e);
+      }
+      
     } catch (e) {
       _logger.error('Error initializing auth state', e);
       _isLoggedIn = false;
+      _errorMessage = e.toString();
+      
+      // Still emit initial auth state even after error
+      try {
+        _authStateController.add(false);
+      } catch (e) {
+        _logger.error('Error emitting initial auth state after error', e);
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -73,6 +136,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Check if token is valid (not expired)
+  @override
   bool isTokenValid(String token) {
     try {
       // Check if token is expired
@@ -84,12 +148,19 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Use AuthService for all authentication operations
+  @override
   Future<bool> login(String email, String password, bool rememberMe) async {
     _isLoading = true;
-    _error = null;
+    _errorMessage = null;
     notifyListeners();
     
     try {
+      // Ensure AuthService is initialized before login
+      if (!_authService.isInitialized) {
+        _logger.info('Initializing AuthService before login');
+        await (_authService as dynamic).initialize();
+      }
+      
       final response = await _authService.login(email, password);
       
       if (response['success'] ?? true) {
@@ -104,7 +175,7 @@ class AuthProvider with ChangeNotifier {
         // Broadcast auth state change via service
         _appStateService.setAuthState(_isLoggedIn);
         
-        // Set auth token for WebSocket service after successful login
+        // Get WebSocketService from ServiceLocator directly
         final webSocketService = WebSocketService();
         webSocketService.setAuthToken(_token); // Set token first - primary authentication method
         
@@ -113,16 +184,23 @@ class AuthProvider with ChangeNotifier {
           webSocketService.setUserId(_currentUser!.id);
         }
         
+        // Emit auth state change with error handling
+        try {
+          _authStateController.add(true);
+        } catch (e) {
+          _logger.error('Error emitting auth state change on login', e);
+        }
+        
         return true;
       } else {
-        _error = "Invalid email or password";
+        _errorMessage = "Invalid email or password";
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
       _logger.error('Login error', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       _isLoggedIn = false;
       _isLoading = false;
       notifyListeners();
@@ -130,9 +208,10 @@ class AuthProvider with ChangeNotifier {
     }
   }
   
+  @override
   Future<bool> register(String email, String password) async {
     _isLoading = true;
-    _error = null;
+    _errorMessage = null;
     notifyListeners();
     
     try {
@@ -142,13 +221,14 @@ class AuthProvider with ChangeNotifier {
       return success;
     } catch (e) {
       _logger.error('Registration error', e);
-      _error = e.toString();
+      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
   
+  @override
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
@@ -165,7 +245,7 @@ class AuthProvider with ChangeNotifier {
       _isLoggedIn = false;
       _currentUser = null;
       
-      // Clear WebSocket state
+      // Get WebSocketService directly 
       final webSocketService = WebSocketService();
       webSocketService.clearState();
       
@@ -182,16 +262,43 @@ class AuthProvider with ChangeNotifier {
       
       // Broadcast auth state change via service
       _appStateService.setAuthState(false);
+      
+      // Emit auth state change
+      _authStateController.add(false);
     }
   }
   
-  void clearError() {
-    _error = null;
+  // BaseViewModel implementation
+  @override
+  void activate() {
+    _isActive = true;
+    _logger.info('AuthProvider activated');
+    notifyListeners();
+  }
+  
+  @override
+  void deactivate() {
+    _isActive = false;
+    _logger.info('AuthProvider deactivated');
+    notifyListeners();
+  }
+  
+  @override
+  void resetState() {
+    _token = null;
+    _isLoggedIn = false;
+    _currentUser = null;
+    _errorMessage = null;
     notifyListeners();
   }
   
   @override
   void dispose() {
+    try {
+      _authStateController.close();
+    } catch (e) {
+      _logger.error('Error closing auth state controller', e);
+    }
     super.dispose();
   }
 }

@@ -16,6 +16,7 @@ class WebSocketService {
   String? _userId;
   bool _isConnected = false;
   bool _isConnecting = false;
+  bool _isInitialized = false; // Track initialization state
   
   // Subscription tracking
   final Set<String> _confirmedSubscriptions = {};
@@ -36,7 +37,7 @@ class WebSocketService {
   
   // Private constructor
   WebSocketService._internal() {
-    _logger.info('WebSocketService initialized');
+    _logger.info('WebSocketService instance created - waiting for initialization');
   }
   
   // Factory constructor for singleton
@@ -44,10 +45,18 @@ class WebSocketService {
     return _instance;
   }
   
+  // Explicit initialization method to be called in main.dart before any providers
+  void initialize() {
+    if (_isInitialized) return;
+    _isInitialized = true;
+    _logger.info('WebSocketService explicitly initialized');
+  }
+  
   // Getters
   bool get isConnected => _isConnected;
   bool get isConnecting => _isConnecting;
   String? get connectionState => _isConnected ? 'connected' : (_isConnecting ? 'connecting' : 'disconnected');
+  bool get isInitialized => _isInitialized;
   
   // Set authentication information
   void setAuthToken(String? token) {
@@ -60,6 +69,12 @@ class WebSocketService {
   
   // Connect to WebSocket with authentication
   Future<bool> connect() async {
+    // Ensure we're initialized first
+    if (!_isInitialized) {
+      _logger.warning('Cannot connect WebSocket: Service not initialized');
+      return false;
+    }
+
     if (_isConnected) {
       _logger.debug('Already connected to WebSocket');
       return true;

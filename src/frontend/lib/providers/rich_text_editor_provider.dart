@@ -4,35 +4,46 @@ import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import '../models/block.dart';
 import '../utils/logger.dart';
-import '../services/base_service.dart';
-import '../providers/block_provider.dart';
+import '../services/block_service.dart';
 import '../utils/document_builder.dart';
+import '../viewmodel/rich_text_editor_viewmodel.dart';
 
 /// Provider for managing the state of a full-page rich text editor that combines multiple blocks
-class RichTextEditorProvider with ChangeNotifier {
+class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewModel {
   final Logger _logger = Logger('RichTextEditorProvider');
-  
+  String? _errorMessage;
+  bool _isLoading = false;
+  bool _isInitialized = false;
+  bool _isActive = false;
+  String? _noteId;
+
   // Document mapper handles all SuperEditor document operations
   late DocumentBuilder _documentBuilder;
   // Getter for document builder
+  @override
   DocumentBuilder get documentBuilder => _documentBuilder;
   
-  // Callback when content changes for specific block
-  final Function(String blockId, Map<String, dynamic> content)? onBlockContentChanged;
-  // Callback when content is deleted across multiple blocks
-  final Function(List<String> blockIds)? onMultiBlockOperation;
-  // Callback when a block should be deleted
-  final Function(String blockId)? onBlockDeleted;
-  // Callback when blocks should be merged
-  final Function(String sourceBlockId, String targetBlockId, Map<String, dynamic> mergedContent)? onBlocksMerged;
-  // Callback when focus is lost
-  final Function()? onFocusLost;
+  // Callbacks for various events
+  void Function(String blockId, dynamic content)? _onBlockContentChanged;
+  void Function(List<String> blockIds)? _onMultiBlockOperation;
+  void Function(String blockId)? _onBlockDeleted;
+  void Function()? _onFocusLost;
   
   // Add current note ID to track which note blocks belong to
-  final String noteId;
+  @override
+  String? get noteId => _noteId;
   
-  // Add direct reference to BlockProvider for creating blocks
-  final BlockProvider _blockProvider;
+  @override
+  set noteId(String? value) {
+    _noteId = value;
+    notifyListeners();
+  }
+  
+  // Use BlockService directly instead of BlockProvider
+  final BlockService _blockService;
+  
+  // Function to create document builder instances
+  final DocumentBuilder Function() _documentBuilderFactory;
 
   // Get the mapping between document node IDs and block IDs
   getNodeToBlockMapping() {
@@ -53,9 +64,6 @@ class RichTextEditorProvider with ChangeNotifier {
   // Keep track of original blocks at initialization for reconciliation
   final List<Block> _originalBlocks = [];
   
-  // Add active state tracking
-  bool _isActive = false;
-  
   // Content update debouncer
   DateTime _lastEdit = DateTime.now();
   String? _currentEditingBlockId;
@@ -66,37 +74,95 @@ class RichTextEditorProvider with ChangeNotifier {
   // Cache of server blocks for timestamp comparison
   final Map<String, Block> _serverBlockCache = {};
   
-  // Standard constructor with callback parameters
+  // Constructor with service-based dependency injection
   RichTextEditorProvider({
-    required List<Block> blocks,
-    required this.noteId,
-    this.onBlockContentChanged,
-    this.onMultiBlockOperation,
-    this.onBlockDeleted,
-    this.onBlocksMerged,
-    this.onFocusLost,
-    BlockProvider? blockProvider,
-  }) : _blockProvider = blockProvider ?? ServiceLocator.get<BlockProvider>() {
+    required BlockService blockService,
+    required DocumentBuilder Function() documentBuilderFactory,
+    String? noteId,
+    List<Block>? initialBlocks,
+    void Function(String blockId, dynamic content)? onBlockContentChanged,
+    void Function(List<String> blockIds)? onMultiBlockOperation,
+    void Function(String blockId)? onBlockDeleted,
+    void Function()? onFocusLost,
+  }) : _blockService = blockService,
+       _documentBuilderFactory = documentBuilderFactory,
+       _noteId = noteId {
+    
+    _documentBuilder = _documentBuilderFactory();
+    _onBlockContentChanged = onBlockContentChanged;
+    _onMultiBlockOperation = onMultiBlockOperation;
+    _onBlockDeleted = onBlockDeleted;
+    _onFocusLost = onFocusLost;
+    
+    if (initialBlocks != null) {
+      setBlocks(initialBlocks);
+    }
+    
+    _isInitialized = true;
+  }
+  
+  // Method to set blocks and initialize properly
+  @override
+  void setBlocks(List<Block> blocks) {
+    if (blocks.isEmpty) return;
+    
     _blocks = List.from(blocks);
-    // Store original blocks for later comparison
+    _originalBlocks.clear();
     _originalBlocks.addAll(blocks);
     
     // Initialize server block cache
+    _serverBlockCache.clear();
     for (final block in blocks) {
       _serverBlockCache[block.id] = block;
     }
     
-    _initialize();
+    // Set note ID if not already set
+    if (noteId == null && blocks.isNotEmpty) {
+      noteId = blocks.first.noteId;
+    }
+    
+    // Initialize document if we have blocks
+    if (!_isActive) {
+      _initialize();
+    } else {
+      // Update existing document
+      _documentBuilder.populateDocumentFromBlocks(_blocks);
+    }
+  }
+  
+  // Update block cache manually without depending on BlockProvider
+  @override
+  void updateBlockCache(List<Block> blocks) {
+    if (noteId == null) return;
+    
+    // Filter blocks for current note
+    final noteBlocks = blocks.where((block) => block.noteId == noteId).toList();
+    
+    // Update server cache with these blocks
+    for (final block in noteBlocks) {
+      _serverBlockCache[block.id] = block;
+      registerServerBlock(block);
+    }
+  }
+  
+  // Register a server block in the document builder
+  void registerServerBlock(Block block) {
+    _documentBuilder.registerServerBlock(block);
   }
   
   // Convenience getters that access document mapper properties
   MutableDocument get document => _documentBuilder.document;
   MutableDocumentComposer get composer => _documentBuilder.composer;
   Editor get editor => _documentBuilder.editor;
+  
+  @override
   FocusNode get focusNode => _documentBuilder.focusNode;
+  
+  @override
   List<Block> get blocks => List.unmodifiable(_blocks);
   
   // Standardized activate/deactivate methods
+  @override
   void activate() {
     _isActive = true;
     _logger.info('RichTextEditorProvider activated');
@@ -105,6 +171,7 @@ class RichTextEditorProvider with ChangeNotifier {
     _documentBuilder.addDocumentStructureListener(_documentStructureChangeListener);
   }
 
+  @override
   void deactivate() {
     _isActive = false;
     _logger.info('RichTextEditorProvider deactivated');
@@ -117,6 +184,7 @@ class RichTextEditorProvider with ChangeNotifier {
   }
   
   // Add resetState for consistency
+  @override
   void resetState() {
     _logger.info('Resetting RichTextEditorProvider state');
     // Clear blocks
@@ -124,6 +192,7 @@ class RichTextEditorProvider with ChangeNotifier {
     _originalBlocks.clear();
     _serverBlockCache.clear();
     _isActive = false;
+    _errorMessage = null;
     notifyListeners();
   }
   
@@ -198,11 +267,11 @@ class RichTextEditorProvider with ChangeNotifier {
     _serverBlockCache.remove(blockId);
     
     // Call the deletion handler to delete on server
-    if (onBlockDeleted != null) {
-      onBlockDeleted!(blockId);
+    if (_onBlockDeleted != null) {
+      _onBlockDeleted!(blockId);
     } else {
       // If no handler, try to delete directly
-      _blockProvider.deleteBlock(blockId);
+      _blockService.deleteBlock(blockId);
     }
   }
   
@@ -210,6 +279,11 @@ class RichTextEditorProvider with ChangeNotifier {
   Future<void> _createBlockForNode(String nodeId, DocumentNode node) async {
     try {
       _logger.info('Creating block for new node $nodeId');
+      
+      if (noteId == null) {
+        _logger.error('Cannot create block: noteId is null');
+        return;
+      }
       
       // Determine block type based on node
       String blockType = 'text';
@@ -232,9 +306,9 @@ class RichTextEditorProvider with ChangeNotifier {
       
       _logger.debug('Creating block of type $blockType with fractional order $order');
       
-      // Create block through BlockProvider
-      final block = await _blockProvider.createBlock(
-        noteId, 
+      // Create block through BlockService directly
+      final block = await _blockService.createBlock(
+        noteId!, 
         content,
         blockType,
         order
@@ -329,7 +403,7 @@ class RichTextEditorProvider with ChangeNotifier {
       _logger.info('Processing multi-block operation affecting ${_affectedBlockIds.length} blocks');
       
       // Notify about multi-block operation
-      onMultiBlockOperation?.call(_affectedBlockIds.toList());
+      _onMultiBlockOperation?.call(_affectedBlockIds.toList());
       
       // Clear affected blocks after handling
       _affectedBlockIds.clear();
@@ -374,7 +448,7 @@ class RichTextEditorProvider with ChangeNotifier {
           (b) => b.id == blockId, 
           orElse: () => Block(
             id: blockId,
-            noteId: noteId,
+            noteId: noteId!,
             type: 'text',
             content: {'text': ''},
             order: 0
@@ -401,7 +475,7 @@ class RichTextEditorProvider with ChangeNotifier {
     if (shouldUpdate) {
       // Send content update
       _logger.debug('Sending block content update for $blockId');
-      onBlockContentChanged?.call(blockId, content);
+      _onBlockContentChanged?.call(blockId, content);
       
       // After successful update, update server cache with estimated new version
       // The actual updated block will come from server later
@@ -421,6 +495,7 @@ class RichTextEditorProvider with ChangeNotifier {
   }
   
   // Delete a block
+  @override
   void deleteBlock(String blockId) {
     _logger.info('Deleting block: $blockId');
     
@@ -453,7 +528,7 @@ class RichTextEditorProvider with ChangeNotifier {
     _serverBlockCache.remove(blockId);
     
     // Notify callback
-    onBlockDeleted?.call(blockId);
+    _onBlockDeleted?.call(blockId);
     
     // Notify listeners
     notifyListeners();
@@ -481,7 +556,7 @@ class RichTextEditorProvider with ChangeNotifier {
         _commitContentForBlock(blockId);
       }
       
-      onFocusLost?.call();
+      _onFocusLost?.call();
     }
     notifyListeners();
   }
@@ -506,12 +581,13 @@ class RichTextEditorProvider with ChangeNotifier {
       _commitBlockContentChange(nodeId);
     }
   }
-  
+
   // Update blocks and refresh the document
+  @override
   void updateBlocks(List<Block> blocks, {
     bool preserveFocus = false,
-    DocumentSelection? savedSelection,
-    bool markAsModified = true // Add parameter to control if these blocks should be marked as modified
+    dynamic savedSelection,
+    bool markAsModified = true
   }) {
     _logger.info('Updating blocks: received ${blocks.length}, current ${_blocks.length}');
     
@@ -534,7 +610,7 @@ class RichTextEditorProvider with ChangeNotifier {
       _serverBlockCache[block.id] = block;
       
       // Register this block in the document builder
-      _documentBuilder.registerServerBlock(block);
+      registerServerBlock(block);
     }
     
     // Get current selection and focus state if preserving focus
@@ -696,6 +772,7 @@ class RichTextEditorProvider with ChangeNotifier {
   }
   
   // Force immediate content commit for all blocks
+  @override
   void commitAllContent() {
     _logger.debug('Committing content for all blocks');
     
@@ -723,7 +800,7 @@ class RichTextEditorProvider with ChangeNotifier {
       if (!currentBlocksMap.containsKey(originalBlock.id)) {
         // This block was deleted
         _logger.info('Block was deleted during editing: ${originalBlock.id}');
-        onBlockDeleted?.call(originalBlock.id);
+        _onBlockDeleted?.call(originalBlock.id);
         
         // Remove from server cache
         _serverBlockCache.remove(originalBlock.id);
@@ -740,6 +817,7 @@ class RichTextEditorProvider with ChangeNotifier {
   }
   
   // Request focus on the editor
+  @override
   void requestFocus() {
     if (!_documentBuilder.focusNode.hasFocus) {
       _logger.debug('Requesting focus for editor');
@@ -748,14 +826,17 @@ class RichTextEditorProvider with ChangeNotifier {
   }
   
   // Add this property to expose user-modified blocks
+  @override
   Set<String> get userModifiedBlockIds => _documentBuilder.userModifiedBlockIds;
   
   // Mark a block as modified by the user
+  @override
   void markBlockAsModified(String blockId) {
     _documentBuilder.markBlockAsModified(blockId);
   }
   
   /// Sets focus to a specific block by ID
+  @override
   void setFocusToBlock(String blockId) {
     // Find the block index
     final int blockIndex = blocks.indexWhere((block) => block.id == blockId);
@@ -770,10 +851,65 @@ class RichTextEditorProvider with ChangeNotifier {
   String? _focusRequestedBlockId;
 
   /// Gets the ID of the block that should receive focus, then clears it
+  @override
   String? consumeFocusRequest() {
     final String? blockId = _focusRequestedBlockId;
     _focusRequestedBlockId = null; // Clear after consumption
     return blockId;
+  }
+  
+  // Create a new block
+  @override
+  Future<Block> createBlock(String type) async {
+    _logger.info('Creating new block of type: $type');
+    
+    if (_noteId == null) {
+      throw Exception('Cannot create block: noteId is null');
+    }
+    
+    // Calculate order for new block 
+    double order = 1.0;
+    if (_blocks.isNotEmpty) {
+      // Place it at the end by default
+      order = _blocks.map((b) => b.order).reduce((a, b) => a > b ? a : b) + 1.0;
+    }
+    
+    // Initial content based on type
+    Map<String, dynamic> content = {'text': ''};
+    if (type == 'heading') {
+      content['level'] = 1;
+    } else if (type == 'checklist') {
+      content['checked'] = false;
+    }
+    
+    // Create block on server
+    final block = await _blockService.createBlock(
+      _noteId!,
+      content,
+      type,
+      order
+    );
+    
+    // Add to local state
+    _blocks.add(block);
+    
+    // Add to server cache
+    _serverBlockCache[block.id] = block;
+    
+    // Update document with new block
+    _updatingDocument = true;
+    try {
+      final nodes = _documentBuilder.createNodesFromBlock(block);
+      for (final node in nodes) {
+        document.add(node);
+        _documentBuilder.nodeToBlockMap[node.id] = block.id;
+      }
+    } finally {
+      _updatingDocument = false;
+    }
+    
+    notifyListeners();
+    return block;
   }
       
   @override
@@ -793,4 +929,41 @@ class RichTextEditorProvider with ChangeNotifier {
     _documentBuilder.dispose();
     super.dispose();
   }
+
+  // BasePresenter implementation
+  bool get isLoading => _isLoading;
+  
+  bool get isInitialized => _isInitialized;
+  
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+  
+  // Interface setter implementations
+  @override
+  set onBlockContentChanged(void Function(String blockId, dynamic content)? callback) {
+    _onBlockContentChanged = callback;
+  }
+  
+  @override
+  set onBlockDeleted(void Function(String blockId)? callback) {
+    _onBlockDeleted = callback;
+  }
+  
+  @override
+  set onMultiBlockOperation(void Function(List<String> blockIds)? callback) {
+    _onMultiBlockOperation = callback;
+  }
+  
+  @override
+  set onFocusLost(void Function()? callback) {
+    _onFocusLost = callback;
+  }
+
+  @override
+  bool get isActive => _isActive;
 }

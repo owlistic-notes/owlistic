@@ -8,25 +8,28 @@ import '../services/websocket_service.dart';
 import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
 import '../services/app_state_service.dart';
+import '../viewmodel/block_viewmodel.dart';
 
-class BlockProvider with ChangeNotifier {
+class BlockProvider with ChangeNotifier implements BlockViewModel {
   final Logger _logger = Logger('BlockProvider');
   final Map<String, Block> _blocks = {};
   final Map<String, List<String>> _noteBlocksMap = {}; // Maps note ID to list of block IDs
   bool _isLoading = false;
+  bool _isActive = false;
   int _updateCount = 0;
+  bool _isInitialized = false;
+  String? _errorMessage;
   
   // Services
   final BlockService _blockService;
   final AuthService _authService;
-  final WebSocketService _webSocketService = WebSocketService();
+  final WebSocketService _webSocketService;
   
   // Active notes and debouncing
   final Set<String> _activeNoteIds = {};
   final Map<String, Timer> _saveTimers = {};
   Timer? _notificationDebouncer;
   bool _hasPendingNotification = false;
-  bool _isActive = false;
 
   // Add subscription for app state changes
   StreamSubscription? _resetSubscription;
@@ -37,9 +40,13 @@ class BlockProvider with ChangeNotifier {
   final Map<String, Map<String, dynamic>> _paginationState = {};
 
   // Constructor with dependency injection
-  BlockProvider({BlockService? blockService, AuthService? authService})
-    : _blockService = blockService ?? ServiceLocator.get<BlockService>(),
-      _authService = authService ?? ServiceLocator.get<AuthService>() {
+  BlockProvider({
+    required BlockService blockService, 
+    required AuthService authService,
+    required WebSocketService webSocketService
+  }) : _blockService = blockService,
+       _authService = authService,
+       _webSocketService = webSocketService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
@@ -55,17 +62,42 @@ class BlockProvider with ChangeNotifier {
         _subscribeToEvents();
       }
     });
+    
+    _isInitialized = true;
   }
       
   // Getters
+  @override
   bool get isLoading => _isLoading;
+  
+  @override
+  bool get isInitialized => _isInitialized;
+  
+  @override
+  bool get isActive => _isActive;
+  
+  @override
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+  
+  @override
   List<Block> get allBlocks => _blocks.values.toList();
+  
+  @override
   int get updateCount => _updateCount;
+  
+  @override
   Block? getBlock(String id) => _blocks[id];
   
   // Initialize WebSocket event listeners
   void _initializeEventListeners() {
     _logger.info('Registering event listeners for resource.action events');
+    // Register internal handlers to WebSocketService
     _webSocketService.addEventListener('event', 'block.updated', _handleBlockUpdate);
     _webSocketService.addEventListener('event', 'block.created', _handleBlockCreate);
     _webSocketService.addEventListener('event', 'block.deleted', _handleBlockDelete);
@@ -99,6 +131,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
   
+  @override
   List<Block> getBlocksForNote(String noteId) {
     // Get block IDs for this note
     final blockIds = _noteBlocksMap[noteId] ?? [];
@@ -115,6 +148,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Add activation/deactivation pattern
+  @override
   void activate() {
     _isActive = true;
     _logger.info('BlockProvider activated');
@@ -125,6 +159,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
+  @override
   void deactivate() {
     _isActive = false;
     _logger.info('BlockProvider deactivated');
@@ -138,32 +173,64 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Mark a note as active/inactive
+  @override
   void activateNote(String noteId) {
     _activeNoteIds.add(noteId);
     
-    // Subscribe to the note itself
+    // Register note and automatically subscribe
     if (_webSocketService.isConnected) {
+      // Subscribe to the note itself
       _webSocketService.subscribe('note', id: noteId);
       
+      // Subscribe to events we need for this domain
+      _webSocketService.subscribeToEvent('block.created');
+      _webSocketService.subscribeToEvent('block.updated');
+      _webSocketService.subscribeToEvent('block.deleted');
+      
       // Also subscribe to any blocks we already have for this note
-      final blockIds = _noteBlocksMap[noteId] ?? [];
-      for (final blockId in blockIds) {
-        _webSocketService.subscribe('block', id: blockId);
+      final List<String>? blockIds = _noteBlocksMap[noteId];
+      if (blockIds != null) {
+        for (final String blockId in blockIds) {
+          _webSocketService.subscribe('block', id: blockId);
+        }
       }
     }
     
     _logger.debug('Note $noteId activated');
   }
   
+  @override
   void deactivateNote(String noteId) {
     _activeNoteIds.remove(noteId);
     
     // Cancel any pending save timers for blocks in this note
     final blocksForNote = getBlocksForNote(noteId);
     for (final block in blocksForNote) {
-      if (_saveTimers.containsKey(block.id)) {
-        _saveTimers[block.id]?.cancel();
+      final Timer? timer = _saveTimers[block.id];
+      if (timer != null) {
+        timer.cancel();
         _saveTimers.remove(block.id);
+      }
+    }
+
+    // Unsubscribe from resources
+    if (_webSocketService.isConnected) {
+      _webSocketService.unsubscribe('note', id: noteId);
+      
+      // Unsubscribe from blocks
+      final List<String>? blockIds = _noteBlocksMap[noteId];
+      if (blockIds != null) {
+        for (final String blockId in blockIds) {
+          _webSocketService.unsubscribe('block', id: blockId);
+        }
+      }
+      
+      // Check if this is the last active note
+      if (_activeNoteIds.isEmpty) {
+        // Unsubscribe from events since we don't need them anymore
+        _webSocketService.unsubscribeFromEvent('block.created');
+        _webSocketService.unsubscribeFromEvent('block.updated');
+        _webSocketService.unsubscribeFromEvent('block.deleted');
       }
     }
     
@@ -195,7 +262,7 @@ class BlockProvider with ChangeNotifier {
     _hasPendingNotification = false;
   }
 
-  // Handle block update events with timestamp checking
+  // Handle block update events with timestamp checking & screen functionality
   void _handleBlockUpdate(Map<String, dynamic> message) {
     try {
       // Use the message parser
@@ -227,7 +294,12 @@ class BlockProvider with ChangeNotifier {
         }
         
         if (shouldUpdate) {
-          _fetchBlockById(blockId);
+          _fetchBlockById(blockId).then((block) {
+            // After fetching, notify listeners so the UI can update
+            if (block != null) {
+              _enqueueNotification();
+            }
+          });
         }
       }
     } catch (e) {
@@ -235,7 +307,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Handle block creation events
+  // Handle block creation events with enhanced functionality from screens
   void _handleBlockCreate(Map<String, dynamic> message) {
     _logger.debug('Received block.created event');
     
@@ -259,7 +331,12 @@ class BlockProvider with ChangeNotifier {
           // Add a delay to ensure the database transaction is complete
           Future.delayed(const Duration(milliseconds: 500), () {
             // Fetch the new block
-            _fetchBlockById(blockId);
+            _fetchBlockById(blockId).then((block) {
+              // After fetching, if this is a new block not already in our cache, notify
+              if (block != null && !_blocks.containsKey(blockId)) {
+                _enqueueNotification();
+              }
+            });
           });
         } else {
           _logger.debug('Note $noteId is not active, ignoring block creation');
@@ -272,32 +349,49 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Handle block delete events
+  // Handle block delete events with enhanced functionality
   void _handleBlockDelete(Map<String, dynamic> message) {
     try {
       // Use the message parser
       final parsedMessage = WebSocketMessage.fromJson(message);
       final String? blockId = WebSocketModelExtractor.extractBlockId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
       if (blockId != null) {
         _logger.debug('Received block.deleted event for block ID $blockId');
-        if (_blocks.containsKey(blockId)) {
-          final block = _blocks[blockId]!;
-          final noteId = block.noteId;
-          
-          // Remove from blocks map
-          _blocks.remove(blockId);
-          
-          // Remove from note blocks map
-          if (_noteBlocksMap.containsKey(noteId)) {
-            _noteBlocksMap[noteId]?.remove(blockId);
+        
+        // Check if block is in our cache or belongs to an active note
+        bool shouldProcess = _blocks.containsKey(blockId);
+        if (!shouldProcess && noteId != null) {
+          shouldProcess = _activeNoteIds.contains(noteId);
+        }
+        
+        if (shouldProcess) {
+          // If we have the block, handle its removal properly
+          if (_blocks.containsKey(blockId)) {
+            final block = _blocks[blockId]!;
+            final noteId = block.noteId;
+            
+            // Remove from blocks map
+            _blocks.remove(blockId);
+            
+            // Remove from note blocks map
+            if (_noteBlocksMap.containsKey(noteId)) {
+              _noteBlocksMap[noteId]?.remove(blockId);
+            }
+            
+            // Unsubscribe from this block
+            _webSocketService.unsubscribe('block', id: blockId);
+            
+            // Use debounced notification
+            _enqueueNotification();
+            
+            _logger.info('Successfully removed block $blockId');
+          } else {
+            _logger.debug('Block $blockId not found locally, may have been deleted already');
           }
-          
-          // Unsubscribe from this block
-          _webSocketService.unsubscribe('block', id: blockId);
-          
-          // Use debounced notification
-          _enqueueNotification();
+        } else {
+          _logger.debug('Block $blockId is not relevant for active notes, ignoring delete event');
         }
       }
     } catch (e) {
@@ -322,6 +416,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Fetch blocks for a specific note with pagination
+  @override
   Future<List<Block>> fetchBlocksForNote(String noteId, {
     int page = 1, 
     int pageSize = 100,
@@ -404,6 +499,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Fetch a single block by ID
+  @override
   Future<Block?> fetchBlockById(String blockId) async {
     try {
       _logger.debug('Public fetchBlockById for $blockId');
@@ -420,7 +516,12 @@ class BlockProvider with ChangeNotifier {
       _logger.debug('Fetching block with ID $blockId');
       
       // Use BlockService to get the block
-      final block = await _blockService.getBlock(blockId);
+      final Block? block = await _blockService.getBlock(blockId);
+      
+      if (block == null) {
+        _logger.warning('Block $blockId not found on server');
+        return null;
+      }
       
       // Log the retrieved block details
       _logger.debug('Successfully retrieved block: ID=${block.id}, Type=${block.type}, NoteID=${block.noteId}');
@@ -429,7 +530,7 @@ class BlockProvider with ChangeNotifier {
       _blocks[blockId] = block;
       
       // Update note blocks map
-      final noteId = block.noteId;
+      final String noteId = block.noteId;
       _noteBlocksMap[noteId] ??= [];
       if (!_noteBlocksMap[noteId]!.contains(blockId)) {
         _noteBlocksMap[noteId]!.add(blockId);
@@ -501,6 +602,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Update a block with debouncing and timestamp checking
+  @override
   void updateBlockContent(String id, dynamic content, {
     String? type, 
     double? order, 
@@ -508,8 +610,9 @@ class BlockProvider with ChangeNotifier {
     bool updateLocalOnly = false
   }) {
     // Cancel any existing timer for this block
-    if (_saveTimers.containsKey(id)) {
-      _saveTimers[id]?.cancel();
+    final Timer? timer = _saveTimers[id];
+    if (timer != null) {
+      timer.cancel();
     }
     
     // If the block doesn't exist, exit
@@ -518,8 +621,8 @@ class BlockProvider with ChangeNotifier {
       return;
     }
     
-    final existingBlock = _blocks[id]!;
-    final existingUpdatedAt = existingBlock.updatedAt;
+    final Block existingBlock = _blocks[id]!;
+    final DateTime existingUpdatedAt = existingBlock.updatedAt;
     
     // Process content to proper format
     Map<String, dynamic> contentMap;
@@ -603,7 +706,7 @@ class BlockProvider with ChangeNotifier {
   }
 
   // Method to handle block creation events
-  Future<void> addBlockFromEvent(String blockId) async {
+  Future<void> _addBlockFromEvent(String blockId) async {
     try {
       _logger.debug('Adding block from event: $blockId');
       final block = await _blockService.getBlock(blockId);
@@ -634,8 +737,8 @@ class BlockProvider with ChangeNotifier {
     }
   }
   
-  // Method to fetch a block from a WebSocket event
-  Future<void> fetchBlockFromEvent(String blockId) async {
+  // Method to fetch a block from a WebSocket event - make private
+  Future<void> _fetchBlockFromEvent(String blockId) async {
     try {
       _logger.debug('Fetching block from event: $blockId');
       
@@ -651,7 +754,7 @@ class BlockProvider with ChangeNotifier {
   }
   
   // Method to handle block deletion events
-  void handleBlockDeleted(String blockId) {
+  void _handleBlockDeleted(String blockId) {
     _logger.debug('Handling block deletion: $blockId');
     
     // Find the block to get its note ID
@@ -678,7 +781,18 @@ class BlockProvider with ChangeNotifier {
       _logger.debug('Block $blockId not found, nothing to remove');
     }
   }
+  
+  // Remove from interface since it's an implementation detail
+  @override
+  Future<void> addBlockFromEvent(String blockId) async {
+    await _addBlockFromEvent(blockId);
+  }
 
+  @override
+  Future<void> fetchBlockFromEvent(String blockId) async {
+    await _fetchBlockFromEvent(blockId);
+  }
+  
   // Subscribe only to visible blocks - simplified to use only actual subscription patterns
   void subscribeToVisibleBlocks(String noteId, List<String> visibleBlockIds) {
     // Only subscribe to individual blocks that are visible
@@ -690,7 +804,7 @@ class BlockProvider with ChangeNotifier {
     }
   }
 
-  // Reset state on logout
+  @override
   void resetState() {
     _logger.info('Resetting BlockProvider state');
     

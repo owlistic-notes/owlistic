@@ -13,6 +13,9 @@ class DocumentBuilder {
   late Editor editor;
   late FocusNode focusNode;
   
+  // Document layout key for accessing the document layout
+  final GlobalKey documentLayoutKey = GlobalKey();
+  
   // Mapping between document node IDs and block IDs
   final Map<String, String> nodeToBlockMap = {};
   
@@ -1008,6 +1011,38 @@ class DocumentBuilder {
     } else {
       // Fall back to string comparison for simple content
       return block.content.toString() != nodeContent.toString();
+    }
+  }
+
+  /// Gets the position information for a node from a document layout
+  /// Returns the vertical offset of the node which can be used for scrolling
+  double? getNodePosition(String nodeId) {
+    try {
+      final documentLayoutEditable = editor.context.find<DocumentLayoutEditable>(Editor.layoutKey);
+      final documentLayout = documentLayoutEditable.documentLayout;
+      
+      final node = document.getNodeById(nodeId);
+      if (node == null) {
+        return null;
+      }
+      
+      // Create a document position at the beginning of the node
+      final documentPosition = DocumentPosition(
+        nodeId: nodeId,
+        nodePosition: node.beginningPosition,
+      );
+      
+      // Get the rect for this position
+      final rect = documentLayout.getRectForPosition(documentPosition);
+      if (rect == null) {
+        return null;
+      }
+      
+      // Return the top offset of the rect
+      return rect.top;
+    } catch (e) {
+      _logger.error('Error getting node position for $nodeId: $e');
+      return null;
     }
   }
 }

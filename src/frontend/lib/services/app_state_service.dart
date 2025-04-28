@@ -10,14 +10,16 @@ class AppStateService {
   final StreamController<void> _resetStateController = StreamController<void>.broadcast();
   final StreamController<bool> _authStateController = StreamController<bool>.broadcast();
 
-  // Private constructor
-  AppStateService._internal();
+  // Private constructor - initialize everything here
+  AppStateService._internal() {
+    _logger.info('AppStateService initialized immediately in constructor');
+  }
   
   // Factory constructor to return the same instance
   factory AppStateService() {
     return _instance;
   }
-  
+    
   // Streams that providers can listen to
   Stream<void> get onResetState => _resetStateController.stream;
   Stream<bool> get onAuthStateChanged => _authStateController.stream;

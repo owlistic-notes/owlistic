@@ -140,19 +140,40 @@ class NoteService extends BaseService {
     }
   }
 
-  Future<Note> updateNote(String id, String title) async {
-    final response = await authenticatedPut(
-      '/api/v1/notes/$id',
-      {
-        'title': title
+  Future<Note> updateNote(
+    String id, 
+    String? title, 
+    {String? notebookId, Map<String, dynamic>? queryParams}
+  ) async {
+    try {
+      _logger.info('Updating note $id with title: $title, notebookId: $notebookId');
+      
+      // Build payload with only the fields that should be updated
+      final Map<String, dynamic> payload = {};
+      if (title != null) {
+        payload['title'] = title;
       }
-    );
+      if (notebookId != null) {
+        payload['notebook_id'] = notebookId;
+      }
+      
+      // Perform the PUT request with query parameters if provided
+      final response = await authenticatedPut(
+        '/api/v1/notes/$id',
+        payload,
+        queryParameters: queryParams
+      );
 
-    if (response.statusCode == 200) {
-      return Note.fromJson(json.decode(response.body));
-    } else {
-      _logger.error('Update note failed: ${response.statusCode}\nBody: ${response.body}');
-      throw Exception('Failed to update note: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        _logger.info('Note updated successfully');
+        return Note.fromJson(json.decode(response.body));
+      } else {
+        _logger.error('Update note failed: ${response.statusCode}\nBody: ${response.body}');
+        throw Exception('Failed to update note: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in updateNote', e);
+      throw e;
     }
   }
 

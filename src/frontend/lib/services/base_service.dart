@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../utils/logger.dart';
-import 'auth_service.dart';
 
 // Base service class with minimal responsibilities
 abstract class BaseService {
@@ -11,6 +10,17 @@ abstract class BaseService {
   
   // Base URL from environment variables
   static String get _baseUrl => dotenv.env['API_URL'] ?? 'http://localhost:8080';
+  
+  // Static token accessor that can be set by AuthService
+  static String? _authToken;
+  
+  // Setter for the auth token that AuthService can call
+  static void setAuthToken(String? token) {
+    _authToken = token;
+  }
+  
+  // Getter for the auth token
+  static String? get authToken => _authToken;
   
   // Create URI helper
   Uri createUri(String path, {Map<String, dynamic>? queryParameters}) {
@@ -44,14 +54,13 @@ abstract class BaseService {
     };
   }
   
-  // Get auth headers - centralized implementation that gets token from AuthService
+  // Get auth headers without direct dependency on AuthService
   Map<String, String> getAuthHeaders() {
     final headers = getBaseHeaders();
     
-    // Get token from AuthService singleton
-    final token = AuthService.token;
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
+    // Get token from static field instead of AuthService
+    if (_authToken != null) {
+      headers['Authorization'] = 'Bearer $_authToken';
     }
     
     return headers;
@@ -158,12 +167,26 @@ abstract class BaseService {
 // ServiceLocator for DI support
 class ServiceLocator {
   static final Map<Type, Object> _services = {};
+  static bool _initialized = false;
+  
+  // Initialize core services
+  static void initialize() {
+    if (_initialized) return;
+    
+    _initialized = true;
+    final logger = Logger('ServiceLocator');
+    logger.info('ServiceLocator initialized');
+  }
   
   static void register<T>(T service) {
     _services[T] = service!;
   }
   
   static T get<T>() {
+    if (!_initialized) {
+      initialize();
+    }
+    
     if (_services.containsKey(T)) {
       return _services[T] as T;
     }

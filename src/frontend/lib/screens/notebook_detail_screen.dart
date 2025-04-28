@@ -2,22 +2,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:thinkstack/providers/notes_provider.dart';
-import 'package:thinkstack/utils/websocket_message_parser.dart';
+import '../viewmodel/notebooks_viewmodel.dart';
+import '../viewmodel/notes_viewmodel.dart';
+import '../viewmodel/websocket_viewmodel.dart';
+import '../utils/websocket_message_parser.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
-import '../providers/notebooks_provider.dart';
-import '../providers/websocket_provider.dart';
-import '../utils/provider_extensions.dart';
 import '../utils/logger.dart';
-import '../core/theme.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_bar_common.dart';
 
-/// NotebookDetailScreen acts as the View in MVP pattern
 class NotebookDetailScreen extends StatefulWidget {
   final String notebookId;
 
@@ -33,9 +30,10 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   bool _isInitialized = false;
   bool _isLoading = true;
   
-  // NotebooksProvider acts as the Presenter
-  late NotebooksProvider _presenter;
-  late WebSocketProvider _webSocketProvider;
+  // ViewModels
+  late NotebooksViewModel _notebooksViewModel;
+  late NotesViewModel _notesViewModel;
+  late WebSocketViewModel _wsViewModel;
 
   @override
   void didChangeDependencies() {
@@ -44,9 +42,10 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     if (!_isInitialized) {
       _isInitialized = true;
       
-      // Get presenters
-      _presenter = context.notebooksPresenter();
-      _webSocketProvider = context.webSocketProvider();
+      // Get ViewModels
+      _notebooksViewModel = context.read<NotebooksViewModel>();
+      _notesViewModel = context.read<NotesViewModel>();
+      _wsViewModel = context.read<WebSocketViewModel>();
       
       // Initialize data
       _initializeData();
@@ -60,26 +59,27 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     
     try {
       // Ensure WebSocket connection first
-      await _webSocketProvider.ensureConnected();
+      await _wsViewModel.ensureConnected();
       
-      // Activate the presenter
-      _presenter.activate();
+      // Activate the ViewModels
+      _notebooksViewModel.activate();
+      _notesViewModel.activate();
       
       // Subscribe to the notebook and note events
-      _webSocketProvider.subscribe('notebook', id: widget.notebookId);
+      _wsViewModel.subscribe('notebook', id: widget.notebookId);
       
       // Also subscribe to note events for real-time updates
-      _webSocketProvider.subscribeToEvent('note.created');
-      _webSocketProvider.subscribeToEvent('note.updated');
-      _webSocketProvider.subscribeToEvent('note.deleted');
-      _webSocketProvider.subscribeToEvent('notebook.updated');
-      _webSocketProvider.subscribeToEvent('notebook.deleted');
+      _wsViewModel.subscribeToEvent('note.created');
+      _wsViewModel.subscribeToEvent('note.updated');
+      _wsViewModel.subscribeToEvent('note.deleted');
+      _wsViewModel.subscribeToEvent('notebook.updated');
+      _wsViewModel.subscribeToEvent('notebook.deleted');
       
       // Set up event handlers for automatic updates
       _setupEventHandlers();
       
       // Fetch notebook data with its notes
-      await _presenter.fetchNotebookById(widget.notebookId);
+      await _notebooksViewModel.fetchNotebookById(widget.notebookId);
       
       _logger.info('Initialized with notebook ID ${widget.notebookId}');
     } catch (e) {
@@ -100,28 +100,28 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   
   void _setupEventHandlers() {
     // Set up event handlers for real-time updates using the same pattern as other screens
-    _webSocketProvider.on('note.created', (data) {
+    _wsViewModel.on('note.created', (data) {
       _logger.info('Note created event received');
       _refreshNotebook();
     });
     
-    _webSocketProvider.on('note.updated', (data) {
+    _wsViewModel.on('note.updated', (data) {
       _logger.info('Note updated event received');
       _refreshNotebook();
     });
     
-    _webSocketProvider.on('note.deleted', (data) {
+    _wsViewModel.on('note.deleted', (data) {
       _logger.info('Note deleted event received');
       _refreshNotebook();
     });
     
-    _webSocketProvider.on('notebook.updated', (data) {
+    _wsViewModel.on('notebook.updated', (data) {
       _logger.info('Notebook updated event received');
       _refreshNotebook();
     });
     
     // Handle notebook deletion specially to navigate away if current notebook is deleted
-    _webSocketProvider.on('notebook.deleted', (data) {
+    _wsViewModel.on('notebook.deleted', (data) {
       _logger.info('Notebook deleted event received');
       
       try {
@@ -151,7 +151,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     if (!mounted) return;
     
     try {
-      await _presenter.fetchNotebookById(widget.notebookId);
+      await _notebooksViewModel.fetchNotebookById(widget.notebookId);
     } catch (e) {
       _logger.error('Error refreshing notebook', e);
     }
@@ -191,7 +191,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
                 try {
-                  await _presenter.addNoteToNotebook(
+                  await _notebooksViewModel.addNoteToNotebook(
                     notebookId,
                     _titleController.text,
                   );
@@ -276,37 +276,48 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to notebooks provider for data updates
-    final notebooksPresenter = context.notebooksPresenter(listen: true);
-    
-    // Find the current notebook
-    final notebookIndex = notebooksPresenter.notebooks
-        .indexWhere((nb) => nb.id == widget.notebookId);
-    
-    final hasNotebook = notebookIndex != -1;
-    final notebook = hasNotebook 
-        ? notebooksPresenter.notebooks[notebookIndex]
-        : null;
-    
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBarCommon(
-        title: hasNotebook ? notebook!.name : 'Notebook',
-        onBackPressed: () => context.go('/notebooks'), // Go back to notebooks list
+      // Use Consumer for reactive UI updates based on ViewModel changes
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Consumer<NotebooksViewModel>(
+          builder: (context, notebooksViewModel, _) {
+            // Find the current notebook
+            final notebook = notebooksViewModel.notebooks
+                .where((nb) => nb.id == widget.notebookId)
+                .firstOrNull;    
+            return AppBarCommon(
+              title: notebook?.name ?? 'Notebook',
+              onBackPressed: () => context.go('/notebooks'),
+              // Add this line to make hamburger menu clickable
+              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            );
+          }
+        ),
       ),
       drawer: const AppDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : !hasNotebook
-              ? EmptyState(
-                  title: 'Notebook not found',
-                  message: 'This notebook may have been deleted or you don\'t have access to it.',
-                  icon: Icons.folder_off,
-                  onAction: () => context.go('/notebooks'),
-                  actionLabel: 'Back to Notebooks',
-                )
-              : _buildNotebookContent(context, notebook!),
+          : Consumer<NotebooksViewModel>(
+              builder: (context, notebooksViewModel, _) {
+                // Find the current notebook
+                final notebook = notebooksViewModel.getNotebook(widget.notebookId);
+                
+                if (notebook == null) {
+                  return EmptyState(
+                    title: 'Notebook not found',
+                    message: 'This notebook may have been deleted or you don\'t have access to it.',
+                    icon: Icons.folder_off,
+                    onAction: () => context.go('/notebooks'),
+                    actionLabel: 'Back to Notebooks',
+                  );
+                }
+                
+                return _buildNotebookContent(context, notebook);
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddNoteDialog(context, widget.notebookId),
         tooltip: 'Add Note',
@@ -315,7 +326,8 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     );
   }
   
-  Widget _buildNotebookContent(BuildContext context, dynamic notebook) {
+  Widget _buildNotebookContent(BuildContext context, Notebook notebook) {
+    // Change dynamic type to proper Notebook type
     if (notebook.notes.isEmpty) {
       return EmptyState(
         title: 'No notes yet',
@@ -373,14 +385,26 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
                   onSelected: (value) {
                     if (value == 'delete') {
                       _showDeleteConfirmation(context, note);
+                    } else if (value == 'move') {
+                      _showMoveNoteDialog(context, note);
                     }
                   },
                   itemBuilder: (BuildContext context) => [
                     const PopupMenuItem<String>(
+                      value: 'move',
+                      child: ListTile(
+                        leading: Icon(Icons.drive_file_move),
+                        title: Text('Move'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
                       value: 'delete',
                       child: ListTile(
-                        leading: Icon(Icons.delete),
-                        title: Text('Delete'),
+                        leading: Icon(Icons.delete, color: Colors.red),
+                        title: Text('Delete', style: TextStyle(color: Colors.red)),
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
@@ -420,9 +444,12 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
             ),
             onPressed: () async {
               try {
-                // Fix the method call to use the proper method
-                await _presenter.deleteNote(widget.notebookId, note.id);
+                // Use _notesViewModel instead of _notebooksViewModel
+                await _notesViewModel.deleteNote(note.id);
                 Navigator.of(ctx).pop();
+                
+                // Also refresh the notebook to update the UI
+                await _notebooksViewModel.fetchNotebookById(widget.notebookId);
               } catch (error) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Failed to delete note')),
@@ -436,27 +463,104 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     );
   }
   
+  // Add this new method to handle moving notes between notebooks
+  void _showMoveNoteDialog(BuildContext context, Note note) {
+    String? selectedNotebookId;
+    
+    // Get list of notebooks excluding current one
+    final notebooks = _notebooksViewModel.notebooks
+        .where((nb) => nb.id != widget.notebookId)
+        .toList();
+        
+    if (notebooks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No other notebooks available to move to'))
+      );
+      return;
+    }
+    
+    // Default to first notebook
+    selectedNotebookId = notebooks.first.id;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Move Note'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Select a notebook to move "${note.title}" to:'),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Destination Notebook',
+                prefixIcon: Icon(Icons.folder),
+              ),
+              value: selectedNotebookId,
+              items: notebooks.map((notebook) {
+                return DropdownMenuItem<String>(
+                  value: notebook.id,
+                  child: Text(notebook.name),
+                );
+              }).toList(),
+              onChanged: (value) {
+                selectedNotebookId = value;
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (selectedNotebookId != null) {
+                try {
+                  Navigator.of(ctx).pop();
+                  // Use _notesViewModel instead of _notebooksViewModel
+                  await _notesViewModel.moveNote(note.id, selectedNotebookId!);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Note moved successfully')),
+                  );
+                } catch (e) {
+                  _logger.error('Error moving note', e);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error moving note: ${e.toString()}')),
+                  );
+                }
+              }
+            },
+            child: const Text('Move'),
+          ),
+        ],
+      ),
+    );
+  }
+  
   @override
   void dispose() {
     // Unsubscribe and deactivate when the view is disposed
     if (_isInitialized) {
       // Remove event listeners with the correct pattern
-      _webSocketProvider.off('note.created');
-      _webSocketProvider.off('note.updated');
-      _webSocketProvider.off('note.deleted');
-      _webSocketProvider.off('notebook.updated');
-      _webSocketProvider.off('notebook.deleted');
+      _wsViewModel.off('note.created');
+      _wsViewModel.off('note.updated');
+      _wsViewModel.off('note.deleted');
+      _wsViewModel.off('notebook.updated');
+      _wsViewModel.off('notebook.deleted');
       
       // Unsubscribe from event types
-      _webSocketProvider.unsubscribe('notebook', id: widget.notebookId);
-      _webSocketProvider.unsubscribe('note.created');
-      _webSocketProvider.unsubscribe('note.updated'); 
-      _webSocketProvider.unsubscribe('note.deleted');
-      _webSocketProvider.unsubscribe('notebook.updated');
-      _webSocketProvider.unsubscribe('notebook.deleted');
+      _wsViewModel.unsubscribe('notebook', id: widget.notebookId);
+      _wsViewModel.unsubscribeFromEvent('note.created');
+      _wsViewModel.unsubscribeFromEvent('note.updated'); 
+      _wsViewModel.unsubscribeFromEvent('note.deleted');
+      _wsViewModel.unsubscribeFromEvent('notebook.updated');
+      _wsViewModel.unsubscribeFromEvent('notebook.deleted');
       
-      // Deactivate the presenter
-      _presenter.deactivate();
+      // Deactivate the ViewModels
+      _notebooksViewModel.deactivate();
+      _notesViewModel.deactivate();
     }
     
     super.dispose();

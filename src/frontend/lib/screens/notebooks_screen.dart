@@ -1,42 +1,26 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:thinkstack/utils/websocket_message_parser.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/card_container.dart';
-import '../widgets/empty_state.dart';
-import '../providers/notebooks_provider.dart';
-import '../utils/provider_extensions.dart';
+import 'package:provider/provider.dart';
+import '../models/notebook.dart';
 import '../utils/logger.dart';
-import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
+import '../widgets/app_drawer.dart';
+import '../widgets/empty_state.dart';
+import '../viewmodel/notebooks_viewmodel.dart';
 
-/// NotebooksScreen acts as the View in MVP pattern
 class NotebooksScreen extends StatefulWidget {
+  const NotebooksScreen({Key? key}) : super(key: key);
+
   @override
-  _NotebooksScreenState createState() => _NotebooksScreenState();
+  State<NotebooksScreen> createState() => _NotebooksScreenState();
 }
 
 class _NotebooksScreenState extends State<NotebooksScreen> {
   final Logger _logger = Logger('NotebooksScreen');
-  final ScrollController _scrollController = ScrollController();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  int _currentPage = 1;
-  bool _isLoadingMore = false;
-  bool _hasMoreData = true;
   bool _isInitialized = false;
-  Set<String> _loadedNotebookIds = {}; // Track loaded notebook IDs
-  
-  // NotebooksProvider acts as the Presenter
-  late NotebooksProvider _presenter;
-  
-  @override
-  void initState() {
-    super.initState();
-    
-    // Add scroll listener for pagination
-    _scrollController.addListener(_scrollListener);
-  }
+  late NotebooksViewModel _notebooksViewModel;
+  // Add scaffold key for drawer control
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   
   @override
   void didChangeDependencies() {
@@ -45,218 +29,199 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     if (!_isInitialized) {
       _isInitialized = true;
       
-      // Get the presenter
-      _presenter = context.notebooksPresenter();
+      // Get ViewModel
+      _notebooksViewModel = context.read<NotebooksViewModel>();
       
-      // Initialize data
-      _initializeData();
-    }
-  }
-  
-  Future<void> _initializeData() async {
-    final wsProvider = context.webSocketProvider();
-    
-    // Ensure WebSocket is connected first
-    await wsProvider.ensureConnected();
-    
-    // Replace the previous event handlers with more efficient ones
-    wsProvider.addEventListener('event', 'notebook.created', (message) {
-      _logger.info('Notebook created event received');
-      // Extract notebook ID from message
-      try {
-        // Use the standardized parser
-        final parsedMessage = WebSocketMessage.fromJson(message);
-        final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
-        
-        if (notebookId != null && notebookId.isNotEmpty) {
-          // Only fetch the specific notebook without triggering a full refresh
-          _refreshNotebookById(notebookId);
-        } else {
-          _logger.warning('Could not extract notebook_id from message');
-        }
-      } catch (e) {
-        _logger.error('Error handling notebook create event', e);
-      }
-    });
-
-    wsProvider.addEventListener('event', 'notebook.updated', (message) {
-      _logger.info('Notebook updated event received');
-      try {
-        // Use the standardized parser
-        final parsedMessage = WebSocketMessage.fromJson(message);
-        final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
-        
-        if (notebookId != null && notebookId.isNotEmpty) {
-          // Only update the specific notebook
-          if (_loadedNotebookIds.contains(notebookId)) {
-            _refreshNotebookById(notebookId);
-          }
-        } else {
-          _logger.warning('Could not extract notebook_id from message');
-        }
-      } catch (e) {
-        _logger.error('Error handling notebook update event', e);
-      }
-    });
-
-    wsProvider.addEventListener('event', 'notebook.deleted', (message) {
-      _logger.info('Notebook deleted event received');
-      try {
-        // Use the standardized parser
-        final parsedMessage = WebSocketMessage.fromJson(message);
-        final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
-        
-        if (notebookId != null && notebookId.isNotEmpty) {
-          // Remove the notebook locally without making a network request
-          if (_loadedNotebookIds.contains(notebookId)) {
-            _presenter.removeNotebookById(notebookId);
-            // Update tracking list
-            setState(() {
-              _loadedNotebookIds.remove(notebookId);
-            });
-          }
-        } else {
-          _logger.warning('Could not extract notebook_id from message');
-        }
-      } catch (e) {
-        _logger.error('Error handling notebook delete event', e);
-      }
-    });
-    
-    // Activate the presenter
-    _presenter.activate();
-    
-    // Then fetch notebooks
-    await _presenter.fetchNotebooks();
-    
-    // Initialize loaded notebook IDs
-    _updateLoadedIds();
-    
-    // Subscribe to events
-    wsProvider.subscribe('notebook');
-    wsProvider.subscribe('note');
-  }
-
-  // Refresh all notebooks data 
-  Future<void> _refreshNotebooks() async {
-    if (!mounted) return;
-    
-    try {
-      await _presenter.fetchNotebooks();
-      _updateLoadedIds();
-    } catch (e) {
-      _logger.error('Error refreshing notebooks', e);
+      // Activate ViewModel and fetch data
+      _notebooksViewModel.activate();
+      _notebooksViewModel.fetchNotebooks();
+      
+      _logger.info('NotebooksViewModel activated and initial data fetched');
     }
   }
 
-  // Refresh a specific notebook by ID
-  Future<void> _refreshNotebookById(String notebookId) async {
-    // Check if this notebook is already loaded
-    if (_loadedNotebookIds.contains(notebookId)) {
-      _logger.debug('Notebook $notebookId already loaded, updating');
-      // Update existing notebook
-      _presenter.fetchNotebookById(notebookId).then((_) {
-        // Update our tracking set after successful fetch
-        if (mounted) setState(() {});
-      }).catchError((error) {
-        _logger.error('Error updating notebook by id', error);
-      });
-      return;
-    }
-    
-    _logger.info('Adding new notebook $notebookId from WebSocket event');
-    
-    // Fetch just this one notebook and add it to the list without refreshing
-    _presenter.fetchNotebookById(notebookId).then((_) {
-      // Update our tracking set after successful fetch
-      if (mounted) {
-        setState(() {
-          _loadedNotebookIds.add(notebookId);
-        });
-      }
-    }).catchError((error) {
-      _logger.error('Error fetching notebook by id', error);
-    });
-  }
-
-  // Update the set of loaded IDs
-  void _updateLoadedIds() {
-    setState(() {
-      _loadedNotebookIds = _presenter.notebooks.map((nb) => nb.id).toSet();
-    });
-  }
-  
-  // Scroll listener for infinite scrolling
-  void _scrollListener() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8 &&
-        !_isLoadingMore && _hasMoreData) {
-      _loadMoreData();
-    }
-  }
-  
-  // Load next page of data
-  Future<void> _loadMoreData() async {
-    if (_isLoadingMore) return;
-    
-    setState(() {
-      _isLoadingMore = true;
-    });
-    
-    _currentPage++;
-    
-    // Get current notebook count to compare after fetch
-    final currentCount = _presenter.notebooks.length;
-    final currentIds = _presenter.notebooks.map((nb) => nb.id).toSet();
-    
-    // Pass currently loaded IDs to avoid duplicates
-    await _presenter.fetchNotebooks(
-      page: _currentPage,
-      pageSize: 20,
-      excludeIds: currentIds.toList(),
+  @override
+  Widget build(BuildContext context) {
+    // Use Consumer for reactive UI updates
+    return Scaffold(
+      key: _scaffoldKey, // Add scaffold key
+      appBar: AppBarCommon(
+        title: 'Notebooks',
+        showBackButton: true,
+        // Add onMenuPressed to make hamburger menu clickable
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+      ),
+      drawer: const AppDrawer(),
+      body: Consumer<NotebooksViewModel>(
+        builder: (context, viewModel, _) {
+          return _buildContent(context, viewModel);
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddNotebookDialog(context),
+        tooltip: 'Add Notebook',
+        child: const Icon(Icons.add),
+      ),
     );
-    
-    // Check if we got new data
-    _hasMoreData = _presenter.notebooks.length > currentCount;
-    
-    setState(() {
-      _isLoadingMore = false;
-    });
   }
 
-  void _showAddNotebookDialog() {
-    final _nameController = TextEditingController();
-    final _descriptionController = TextEditingController();
+  Widget _buildContent(BuildContext context, NotebooksViewModel viewModel) {
+    // Observe isLoading and notebooks property
+    final isLoading = viewModel.isLoading;
+    final notebooks = viewModel.notebooks;
+    final errorMessage = viewModel.errorMessage;
+
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Error: $errorMessage'),
+            ElevatedButton(
+              onPressed: () => viewModel.fetchNotebooks(),
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (notebooks.isEmpty) {
+      return EmptyState(
+        icon: Icons.book,
+        title: 'No Notebooks',
+        message: 'Create your first notebook to start organizing your notes.',
+        actionLabel: 'Create Notebook',
+        onAction: () => _showAddNotebookDialog(context),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => viewModel.fetchNotebooks(),
+      child: ListView.builder(
+        itemCount: notebooks.length,
+        padding: const EdgeInsets.all(8.0),
+        itemBuilder: (context, index) {
+          final notebook = notebooks[index];
+          return _buildNotebookCard(context, notebook);
+        },
+      ),
+    );
+  }
+
+  Widget _buildNotebookCard(BuildContext context, Notebook notebook) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      elevation: 2.0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        leading: const CircleAvatar(
+          child: Icon(Icons.book),
+        ),
+        title: Text(notebook.name),
+        subtitle: Text(
+          'Notes: ${notebook.notes.length} · Created: ${_formatDate(notebook.createdAt!)}',
+        ),
+        onTap: () => context.go('/notebooks/${notebook.id}'),
+        trailing: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            if (value == 'edit') {
+              _showEditNotebookDialog(context, notebook);
+            } else if (value == 'delete') {
+              _confirmDeleteNotebook(context, notebook);
+            }
+          },
+          itemBuilder: (BuildContext context) => [
+            const PopupMenuItem<String>(
+              value: 'edit',
+              child: ListTile(
+                leading: Icon(Icons.edit),
+                title: Text('Edit'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const PopupMenuItem<String>(
+              value: 'delete',
+              child: ListTile(
+                leading: Icon(Icons.delete, color: Colors.red),
+                title: Text('Delete', style: TextStyle(color: Colors.red)),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showNotebookOptions(BuildContext context, Notebook notebook) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Edit Notebook'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditNotebookDialog(context, notebook);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete Notebook', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmDeleteNotebook(context, notebook);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddNotebookDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.folder, color: Theme.of(context).primaryColor),
-            const SizedBox(width: 8),
-            const Text('Add Notebook'),
-          ],
-        ),
+      builder: (context) => AlertDialog(
+        title: const Text('Create Notebook'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _nameController,
+              controller: nameController,
               decoration: const InputDecoration(
                 labelText: 'Name',
-                prefixIcon: Icon(Icons.drive_file_rename_outline),
+                hintText: 'Enter notebook name',
               ),
               autofocus: true,
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _descriptionController,
+              controller: descriptionController,
               decoration: const InputDecoration(
-                labelText: 'Description',
-                prefixIcon: Icon(Icons.subject),
+                labelText: 'Description (optional)',
+                hintText: 'Enter notebook description',
               ),
               maxLines: 3,
             ),
@@ -264,53 +229,158 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_nameController.text.isNotEmpty) {
-                try {
-                  await _presenter.createNotebook(_nameController.text, _descriptionController.text);
-                  Navigator.of(ctx).pop();
-                } catch (error) {
+              final name = nameController.text.trim();
+              final description = descriptionController.text.trim();
+              
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Name is required')),
+                );
+                return;
+              }
+              
+              Navigator.pop(context);
+              
+              try {
+                final viewModel = context.read<NotebooksViewModel>();
+                await viewModel.createNotebook(name, description);
+                
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to create notebook')),
+                    const SnackBar(content: Text('Notebook created')),
+                  );
+                }
+              } catch (e) {
+                _logger.error('Error creating notebook', e);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: ${e.toString()}')),
                   );
                 }
               }
             },
             child: const Text('Create'),
-            style: AppTheme.getSuccessButtonStyle(),
           ),
         ],
       ),
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context, String notebookId, String notebookName) {
+  void _showEditNotebookDialog(BuildContext context, Notebook notebook) {
+    final nameController = TextEditingController(text: notebook.name);
+    final descriptionController = TextEditingController(text: notebook.description);
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Notebook'),
-        content: Text('Are you sure you want to delete "$notebookName"?'),
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Notebook'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                hintText: 'Enter notebook name',
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+                hintText: 'Enter notebook description',
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.of(ctx).pop();
-              try {
-                await _presenter.deleteNotebook(notebookId);
-              } catch (error) {
+              final name = nameController.text.trim();
+              final description = descriptionController.text.trim();
+              
+              if (name.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Failed to delete notebook')),
+                  const SnackBar(content: Text('Name is required')),
                 );
+                return;
+              }
+              
+              Navigator.pop(context);
+              
+              try {
+                final viewModel = context.read<NotebooksViewModel>();
+                await viewModel.updateNotebook(notebook.id, name, description);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Notebook updated')),
+                  );
+                }
+              } catch (e) {
+                _logger.error('Error updating notebook', e);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: ${e.toString()}')),
+                  );
+                }
               }
             },
-            style: AppTheme.getDangerButtonStyle(),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteNotebook(BuildContext context, Notebook notebook) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Notebook?'),
+        content: Text(
+          'Are you sure you want to delete "${notebook.name}"? This action cannot be undone and will delete all notes in this notebook.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              try {
+                final viewModel = context.read<NotebooksViewModel>();
+                await viewModel.deleteNotebook(notebook.id);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Notebook deleted')),
+                  );
+                }
+              } catch (e) {
+                _logger.error('Error deleting notebook', e);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: ${e.toString()}')),
+                  );
+                }
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
           ),
         ],
@@ -318,118 +388,14 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Listen to notebooks provider for data updates
-    final notebooksPresenter = context.notebooksPresenter(listen: true);
-    
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBarCommon(
-        title: 'Notebooks',
-        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onBackPressed: () {
-          if (Navigator.canPop(context)) {
-            Navigator.of(context).pop();
-          }
-        },
-      ),
-      drawer: const AppDrawer(),
-      body: _buildBody(notebooksPresenter),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddNotebookDialog,
-        tooltip: 'Add Notebook',
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-  
-  Widget _buildBody(NotebooksProvider presenter) {
-    if (presenter.isLoading && _currentPage == 1) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (presenter.notebooks.isEmpty) {
-      return EmptyState(
-        title: 'No notebooks found',
-        message: 'Create your first notebook to get started',
-        icon: Icons.folder_outlined,
-        onAction: _showAddNotebookDialog,
-        actionLabel: 'Create Notebook',
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _refreshNotebooks,
-      color: Theme.of(context).primaryColor,
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: presenter.notebooks.length + (_isLoadingMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          // Show loading indicator at the end
-          if (index == presenter.notebooks.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(8.0),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            );
-          }
-          
-          final notebook = presenter.notebooks[index];
-          return CardContainer(
-            key: ValueKey('notebook_${notebook.id}'),
-            onTap: () => context.go('/notebooks/${notebook.id}'),
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.folder,
-                color: Theme.of(context).primaryColor,
-                size: 24,
-              ),
-            ),
-            title: notebook.name,
-            subtitle: '${notebook.notes.length} notes',
-            trailing: IconButton(
-              icon: Icon(
-                Icons.delete_outline,
-                color: AppTheme.dangerColor,
-              ),
-              onPressed: () => _showDeleteConfirmation(
-                context, 
-                notebook.id, 
-                notebook.name,
-              ),
-            ),
-            child: notebook.description.isEmpty
-                ? const SizedBox.shrink()
-                : Text(
-                    notebook.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-          );
-        },
-      ),
-    );
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
   
   @override
   void dispose() {
-    _scrollController.removeListener(_scrollListener);
-    _scrollController.dispose();
-    
-    // Deactivate the presenter when the view is disposed
-    _presenter.deactivate();
-    
+    // Deactivate the ViewModel
+    _notebooksViewModel.deactivate();
     super.dispose();
   }
 }

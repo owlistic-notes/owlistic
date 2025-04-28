@@ -5,8 +5,10 @@ import '../services/websocket_service.dart';
 import '../services/auth_service.dart';
 import '../utils/logger.dart';
 import '../models/user.dart';
+import '../viewmodel/websocket_viewmodel.dart';
+import '../services/base_service.dart';
 
-class WebSocketProvider with ChangeNotifier {
+class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
   // Singleton WebSocket service
   final Logger _logger = Logger('WebSocketProvider');
   final WebSocketService _webSocketService;
@@ -24,9 +26,12 @@ class WebSocketProvider with ChangeNotifier {
   DateTime? _lastEventTime;
   int _messageCount = 0;
   bool _initialized = false;
+  bool _isLoading = false;
+  bool _isActive = false;
   
   // Current user from auth service
   User? _currentUser;
+  String? _errorMessage;
   
   // Enhanced subscription tracking
   final Set<String> _pendingSubscriptions = {};
@@ -40,9 +45,6 @@ class WebSocketProvider with ChangeNotifier {
   final StreamController<Map<String, dynamic>> _messageController = 
       StreamController<Map<String, dynamic>>.broadcast();
   
-  // Get the stream of messages
-  Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
-
   // Standard constructor with required dependencies
   WebSocketProvider({
     required WebSocketService webSocketService,
@@ -51,20 +53,59 @@ class WebSocketProvider with ChangeNotifier {
        _authService = authService {
     _initializeWebSocketListener();
     _setupAuthListeners();
+    _initialized = true;
+    _logger.info('WebSocketProvider initialized with pre-initialized WebSocketService');
   }
 
-  // Getters for connection state and debug info
+  // Getters
+  @override
   bool get isConnected => _isConnected;
+  
+  @override
   String get lastEventType => _lastEventType;
+  
+  @override
   String get lastEventAction => _lastEventAction;
+  
+  @override
   DateTime? get lastEventTime => _lastEventTime;
+  
+  @override
   int get messageCount => _messageCount;
+  
+  @override
   User? get currentUser => _currentUser;
   
+  @override
+  bool get isLoading => _isLoading;
+  
+  @override
+  bool get isActive => _isActive;
+  
+  @override
+  bool get isInitialized => _initialized;
+  
+  @override
+  String? get errorMessage => _errorMessage;
+  
+  @override
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+  
   // Getters for subscription debugging
+  @override
   Set<String> get confirmedSubscriptions => Set.from(_confirmedSubscriptions);
+  
+  @override
   Set<String> get pendingSubscriptions => Set.from(_pendingSubscriptions);
+  
+  @override
   int get totalSubscriptions => _confirmedSubscriptions.length + _pendingSubscriptions.length;
+  
+  @override
+  Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
 
   // Setup auth listeners for improved auth state synchronization
   void _setupAuthListeners() {
@@ -205,6 +246,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Ensure connection is established
+  @override
   Future<bool> ensureConnected() async {
     // Get the token directly from AuthService to ensure it's current
     final token = AuthService.token;
@@ -247,6 +289,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Clear all subscriptions
+  @override
   void clearAllSubscriptions() {
     _logger.info('Clearing all WebSocket subscriptions');
     
@@ -361,6 +404,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Register event handler with improved logging and duplicate prevention
+  @override
   void addEventListener(String type, String event, Function(Map<String, dynamic>) handler) {
     final String key = '$type:$event';
     
@@ -384,6 +428,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Remove event listener with improved consistency
+  @override
   void removeEventListener(String type, String event) {
     final String key = '$type:$event';
     if (_eventHandlers.containsKey(key)) {
@@ -393,12 +438,14 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Register an event listener
+  @override
   void on(String eventName, Function(dynamic) callback) {
     _eventListeners[eventName] ??= [];
     _eventListeners[eventName]!.add(callback);
   }
 
   // Remove an event listener
+  @override
   void off(String eventName, [Function(dynamic)? callback]) {
     if (callback == null) {
       _eventListeners.remove(eventName);
@@ -432,6 +479,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Subscribe to a resource - with duplicate subscription prevention
+  @override
   Future<void> subscribe(String resource, {String? id}) async {
     // Check if user is authenticated
     if (_currentUser == null) {
@@ -474,6 +522,7 @@ class WebSocketProvider with ChangeNotifier {
   }
   
   // Subscribe to an event type (like block.created)
+  @override
   Future<void> subscribeToEvent(String eventType) async {
     // Check if user is authenticated
     if (_currentUser == null) {
@@ -516,6 +565,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Check if subscribed to a resource
+  @override
   bool isSubscribed(String resource, {String? id}) {
     final subscriptionKey = id != null && id.isNotEmpty ? '$resource:$id' : resource;
     return _confirmedSubscriptions.contains(subscriptionKey) || 
@@ -523,6 +573,7 @@ class WebSocketProvider with ChangeNotifier {
   }
   
   // Check if subscribed to an event
+  @override
   bool isSubscribedToEvent(String eventType) {
     final subscriptionKey = 'event:$eventType';
     return _confirmedSubscriptions.contains(subscriptionKey) || 
@@ -530,6 +581,7 @@ class WebSocketProvider with ChangeNotifier {
   }
   
   // Unsubscribe from an event
+  @override
   void unsubscribeFromEvent(String eventType) {
     final subscriptionKey = 'event:$eventType';
     
@@ -544,6 +596,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Batch subscribe to multiple resources simultaneously, with duplicate prevention
+  @override
   Future<void> batchSubscribe(List<Subscription> subscriptions) async {
     // Check if user is authenticated
     if (_currentUser == null) {
@@ -606,6 +659,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Unsubscribe from a resource
+  @override
   void unsubscribe(String resource, {String? id}) {
     final subscriptionKey = id != null ? '$resource:$id' : resource;
     
@@ -617,6 +671,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Force reconnection with better subscription handling
+  @override
   Future<bool> reconnect() async {
     _logger.info('Forcing WebSocket reconnection');
     
@@ -678,6 +733,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Disconnect the WebSocket connection
+  @override
   void disconnect() {
     _logger.info('Disconnecting WebSocket');
     _webSocketService.disconnect();
@@ -686,6 +742,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Clean up WebSocket state on logout
+  @override
   void clearOnLogout() {
     _logger.info('Cleaning up WebSocket provider state on logout');
     
@@ -708,6 +765,7 @@ class WebSocketProvider with ChangeNotifier {
   }
 
   // Debug info method
+  @override
   Map<String, dynamic> getDebugInfo() {
     return {
       'isConnected': _isConnected,
@@ -721,6 +779,37 @@ class WebSocketProvider with ChangeNotifier {
       'hasUser': _currentUser != null,
     };
   }
+  
+  // MVP Pattern implementation
+  @override
+  void activate() {
+    _isActive = true;
+    _logger.info('WebSocketProvider activated');
+    
+    // Ensure connection when activated
+    ensureConnected();
+    
+    notifyListeners();
+  }
+  
+  @override
+  void deactivate() {
+    _isActive = false;
+    _logger.info('WebSocketProvider deactivated');
+    notifyListeners();
+  }
+  
+  @override
+  void resetState() {
+    _logger.info('Resetting WebSocketProvider state');
+    clearAllSubscriptions();
+    _lastEventType = '';
+    _lastEventAction = '';
+    _lastEventTime = null;
+    _messageCount = 0;
+    _currentUser = null;
+    notifyListeners();
+  }
 
   // Cleanup
   @override
@@ -728,7 +817,7 @@ class WebSocketProvider with ChangeNotifier {
     _subscription?.cancel();
     _authSubscription?.cancel();
     _eventHandlers.clear();
-    _webSocketService.dispose();
+    _messageController.close();
     super.dispose();
   }
 }

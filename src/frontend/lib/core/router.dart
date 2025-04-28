@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../viewmodel/auth_viewmodel.dart';
 import '../providers/auth_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/notebooks_screen.dart';
@@ -20,7 +21,7 @@ class AppRouter {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   
   // Create router with redirection logic
-  static GoRouter createRouter(AuthProvider authProvider) {
+  static GoRouter createRouter(AuthViewModel authViewModel) {
     return GoRouter(
       navigatorKey: navigatorKey,
       initialLocation: '/',
@@ -33,8 +34,8 @@ class AppRouter {
         final isPublicRoute = publicRoutes.contains(state.matchedLocation);
         
         // Auth state
-        final isLoggedIn = authProvider.isLoggedIn;
-        final isInitializing = authProvider.isLoading;
+        final isLoggedIn = authViewModel.isLoggedIn;
+        final isInitializing = authViewModel.isLoading;
         
         _logger.info('Route check: ${state.matchedLocation} - Auth state: $isLoggedIn');
         
@@ -97,7 +98,7 @@ class AppRouter {
           builder: (context, state) => RegisterScreen(),
         ),
               ],
-      refreshListenable: authProvider,
+      refreshListenable: authViewModel,
     );
   }
 }

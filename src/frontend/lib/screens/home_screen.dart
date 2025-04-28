@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:thinkstack/models/note.dart';
+import '../models/note.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
-import '../providers/notes_provider.dart';
-import '../providers/tasks_provider.dart';
-import '../providers/notebooks_provider.dart';
-import '../providers/websocket_provider.dart';
-import '../providers/theme_provider.dart';
-import '../providers/auth_provider.dart';
+import '../viewmodel/notes_viewmodel.dart';
+import '../viewmodel/tasks_viewmodel.dart';
+import '../viewmodel/notebooks_viewmodel.dart';
+import '../viewmodel/websocket_viewmodel.dart';
+import '../viewmodel/theme_viewmodel.dart';
+import '../viewmodel/auth_viewmodel.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
@@ -29,207 +30,59 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
+    // Initialize our screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeViewModels();
+    });
+  }
 
-    if (!_isInitialized) {
-      _isInitialized = true;
-      _logger.info('Initializing home screen');
+  void _initializeViewModels() {
+    // Activate all necessary ViewModels
+    context.read<WebSocketViewModel>().activate();
+    context.read<NotesViewModel>().activate();
+    context.read<NotebooksViewModel>().activate();
+    context.read<TasksViewModel>().activate();
+    context.read<ThemeViewModel>().activate();
+    
+    // Initialize data
+    _initializeData();
+  }
 
-      // Get providers
-      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
-      final notesProvider = Provider.of<NotesProvider>(context, listen: false);
-      final notebooksProvider =
-          Provider.of<NotebooksProvider>(context, listen: false);
+  Future<void> _initializeData() async {
+    // Ensure WebSocket is connected
+    await context.read<WebSocketViewModel>().ensureConnected();
 
-      // Ensure WebSocket is connected
-      wsProvider.ensureConnected();
-
-      // Set up event listeners
-      _setupEventListeners(wsProvider);
-
-      // Fetch data from providers
-      Future.microtask(() async {
-        try {
-          // First activate providers
-          notesProvider.activate();
-          notebooksProvider.activate();
-
-          // Fetch notebooks first
-          await notebooksProvider.fetchNotebooks();
-          
-          // For each notebook, fetch its notes
-          for (final notebook in notebooksProvider.notebooks) {
-            await notesProvider.fetchNotes(notebookId: notebook.id);
-          }
-
-          Provider.of<TasksProvider>(context, listen: false).fetchTasks();
-        } catch (e) {
-          _logger.error('Error loading initial data: $e');
-        }
+    // Fetch data from ViewModels
+    try {
+      // Fetch notebooks first
+      await context.read<NotebooksViewModel>().fetchNotebooks();
+      
+      // Fetch recent notes - Add this line
+      await context.read<NotesViewModel>().fetchNotes();
+      
+      // Fetch tasks
+      await context.read<TasksViewModel>().fetchTasks();
+      
+      // Mark as initialized
+      setState(() {
+        _isInitialized = true;
       });
-    }
-  }
-
-  void _setupEventListeners(WebSocketProvider wsProvider) {
-    // Subscribe to notebook events
-    wsProvider.subscribeToEvent('notebook.created');
-    wsProvider.subscribeToEvent('notebook.updated');
-    wsProvider.subscribeToEvent('notebook.deleted');
-
-    // Subscribe to note events to update notebooks when notes change
-    wsProvider.subscribeToEvent('note.created');
-    wsProvider.subscribeToEvent('note.updated');
-    wsProvider.subscribeToEvent('note.deleted');
-
-    // Add event handlers
-    wsProvider.addEventListener(
-        'event', 'notebook.created', _handleNotebookEvent);
-    wsProvider.addEventListener(
-        'event', 'notebook.updated', _handleNotebookEvent);
-    wsProvider.addEventListener(
-        'event', 'notebook.deleted', _handleNotebookEvent);
-    wsProvider.addEventListener('event', 'note.created', _handleNoteEvent);
-    wsProvider.addEventListener('event', 'note.updated', _handleNoteEvent);
-    wsProvider.addEventListener('event', 'note.deleted', _handleNoteEvent);
-  }
-
-  void _handleNotebookEvent(Map<String, dynamic> message) {
-    _logger.info('Notebook event received, processing efficiently');
-    try {
-      final payload = message['payload'];
-      final eventType = message['event'];
-
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-
-        // Get the notebook ID and check if it's a valid event
-        final notebookId = data['id']?.toString();
-        if (notebookId == null) {
-          _logger.error('Invalid notebook event: missing notebook ID');
-          return;
-        }
-
-        final notebooksProvider =
-            Provider.of<NotebooksProvider>(context, listen: false);
-
-        if (eventType == 'notebook.created') {
-          _logger.info('Adding new notebook directly from event: $notebookId');
-          // Fetch only the new notebook and force UI refresh
-          notebooksProvider.fetchNotebookById(notebookId).then((_) {
-            // Force a UI refresh by calling setState if context is still valid
-            if (mounted) setState(() {});
-          });
-        } else if (eventType == 'notebook.updated') {
-          _logger.info('Updating existing notebook from event: $notebookId');
-          // Update only the changed notebook and force UI refresh
-          notebooksProvider.fetchNotebookById(notebookId).then((_) {
-            if (mounted) setState(() {});
-          });
-        } else if (eventType == 'notebook.deleted') {
-          _logger.info('Removing deleted notebook from list: $notebookId');
-          // Remove the notebook from the map
-          notebooksProvider.removeNotebookById(notebookId);
-          // Force UI refresh
-          if (mounted) setState(() {});
-        }
-      }
     } catch (e) {
-      _logger.error('Error handling notebook event', e);
-    }
-  }
-
-  void _handleNoteEvent(Map<String, dynamic> message) {
-    _logger.info('Note event received, processing efficiently');
-    try {
-      final payload = message['payload'];
-      final eventType = message['event'];
-
-      if (payload != null && payload['data'] != null) {
-        final data = payload['data'];
-        final noteId = data['id']?.toString();
-        final notebookId = data['notebook_id']?.toString();
-
-        if (noteId == null || notebookId == null) {
-          _logger.error('Invalid note event: missing note ID or notebook ID');
-          return;
-        }
-
-        final notesProvider =
-            Provider.of<NotesProvider>(context, listen: false);
-        final notebooksProvider =
-            Provider.of<NotebooksProvider>(context, listen: false);
-
-        if (eventType == 'note.created') {
-          _logger.info(
-              'Adding new note directly from event: $noteId to notebook: $notebookId');
-
-          // Start a state update batch to avoid multiple redraws
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Fetch both the note and update the notebook
-            Future.wait([
-              notesProvider.fetchNoteById(noteId),
-              notebooksProvider.fetchNotebookById(notebookId)
-            ]).then((_) {
-              // Force UI refresh after both operations complete
-              if (mounted) setState(() {});
-            });
-          });
-        } else if (eventType == 'note.updated') {
-          _logger.info(
-              'Updating existing note from event: $noteId in notebook: $notebookId');
-
-          // Start a state update batch
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Fetch both the note and update the notebook
-            Future.wait([
-              notesProvider.fetchNoteById(noteId),
-              notebooksProvider.fetchNotebookById(notebookId)
-            ]).then((_) {
-              // Force UI refresh after both operations complete
-              if (mounted) setState(() {});
-            });
-          });
-        } else if (eventType == 'note.deleted') {
-          _logger.info('Removing deleted note from notebook: $noteId');
-
-          // For note deletion, we need to update the notebook's notes list
-          final notebook = notebooksProvider.getNotebook(notebookId);
-          if (notebook != null) {
-            // Filter out the deleted note
-            final updatedNotes =
-                notebook.notes.where((note) => note.id != noteId).toList();
-            notebooksProvider.updateNotebookNotes(notebookId, updatedNotes);
-          }
-
-          // Also remove from notes provider
-          notesProvider.handleNoteDeleted(noteId);
-
-          // Force UI refresh
-          if (mounted) setState(() {});
-        }
-      }
-    } catch (e) {
-      _logger.error('Error handling note event', e);
+      _logger.error('Error loading initial data: $e');
     }
   }
 
   @override
   void dispose() {
-    // Clean up event listeners
-    if (_isInitialized) {
-      final wsProvider = Provider.of<WebSocketProvider>(context, listen: false);
-      wsProvider.removeEventListener('event', 'notebook.created');
-      wsProvider.removeEventListener('event', 'notebook.updated');
-      wsProvider.removeEventListener('event', 'notebook.deleted');
-      wsProvider.removeEventListener('event', 'note.created');
-      wsProvider.removeEventListener('event', 'note.updated');
-      wsProvider.removeEventListener('event', 'note.deleted');
-    }
-
-    // Deactivate providers
-    Provider.of<NotesProvider>(context, listen: false).deactivate();
-
+    // Deactivate ViewModels when screen is disposed
+    context.read<WebSocketViewModel>().deactivate();
+    context.read<NotesViewModel>().deactivate();
+    context.read<NotebooksViewModel>().deactivate();
+    context.read<TasksViewModel>().deactivate();
+    context.read<ThemeViewModel>().deactivate();
+    
     _searchController.dispose();
     super.dispose();
   }
@@ -249,25 +102,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showThemeMenu(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-
     showMenu(
       context: context,
-      position:
-          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
       items: [
         PopupMenuItem(
           value: ThemeMode.light,
           child: Row(
             children: [
-              Icon(Icons.wb_sunny,
-                  color: themeProvider.themeMode == ThemeMode.light
-                      ? Theme.of(context).primaryColor
-                      : null),
+              Icon(Icons.light_mode, 
+                   color: Theme.of(context).brightness == Brightness.light ? 
+                   Theme.of(context).colorScheme.primary : null),
               const SizedBox(width: 8),
               const Text('Light Mode'),
-              if (themeProvider.themeMode == ThemeMode.light)
-                Icon(Icons.check, color: Theme.of(context).primaryColor),
             ],
           ),
         ),
@@ -275,85 +122,40 @@ class _HomeScreenState extends State<HomeScreen> {
           value: ThemeMode.dark,
           child: Row(
             children: [
-              Icon(Icons.nightlight_round,
-                  color: themeProvider.themeMode == ThemeMode.dark
-                      ? Theme.of(context).primaryColor
-                      : null),
+              Icon(Icons.dark_mode, 
+                   color: Theme.of(context).brightness == Brightness.dark ? 
+                   Theme.of(context).colorScheme.primary : null),
               const SizedBox(width: 8),
               const Text('Dark Mode'),
-              if (themeProvider.themeMode == ThemeMode.dark)
-                Icon(Icons.check, color: Theme.of(context).primaryColor),
             ],
           ),
         ),
       ],
     ).then((value) {
       if (value != null) {
-        themeProvider.setThemeMode(value);
+        // Use ViewModel to change theme
+        context.read<ThemeViewModel>().setThemeMode(value);
       }
     });
   }
 
-  void _showNotificationsMenu(BuildContext context) {
-    showMenu(
-      context: context,
-      position:
-          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
-      items: [
-        const PopupMenuItem(
-          enabled: false,
-          child: ListTile(
-            title: Text('Notifications',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ),
-        const PopupMenuItem(
-          child: ListTile(
-            leading: Icon(Icons.notifications_active),
-            title: Text('Welcome to ThinkStack!'),
-            subtitle: Text('Get started by creating your first notebook'),
-          ),
-        ),
-        const PopupMenuItem(
-          child: ListTile(
-            leading: Icon(Icons.update),
-            title: Text('App updated to latest version'),
-            subtitle: Text('See what\'s new'),
-          ),
-        ),
-        PopupMenuItem(
-          child: Center(
-            child: TextButton(
-              child: const Text('View All Notifications'),
-              onPressed: () {
-                Navigator.pop(context);
-                // Navigate to notifications page
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   void _showProfileMenu(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
+    // Use AuthViewModel for user data
+    final authViewModel = context.read<AuthViewModel>();
+    
     showMenu<String>(
       context: context,
-      position:
-          RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
+      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           value: 'profile_header',
           child: ListTile(
             leading: CircleAvatar(
-              child: const Icon(Icons.person),
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              child: Icon(Icons.person, color: Theme.of(context).primaryColor),
             ),
-            title:
-                Text(authProvider.currentUser?.email?.split('@')[0] ?? 'User'),
-            subtitle: Text(authProvider.currentUser?.email ?? 'No email'),
+            title: Text(authViewModel.currentUser?.email?.split('@')[0] ?? 'User'),
+            subtitle: Text(authViewModel.currentUser?.email ?? 'No email'),
           ),
         ),
         const PopupMenuItem<String>(
@@ -370,13 +172,6 @@ class _HomeScreenState extends State<HomeScreen> {
             title: Text('Settings'),
           ),
         ),
-        const PopupMenuItem<String>(
-          value: 'admin',
-          child: ListTile(
-            leading: Icon(Icons.admin_panel_settings),
-            title: Text('Admin Panel'),
-          ),
-        ),
         const PopupMenuDivider(),
         PopupMenuItem<String>(
           value: 'logout',
@@ -388,8 +183,8 @@ class _HomeScreenState extends State<HomeScreen> {
             // Wait a moment for the menu to close
             await Future.delayed(Duration.zero);
             if (context.mounted) {
-              await authProvider.logout();
-              // Navigation will be handled by GoRouter
+              // Call logout through ViewModel
+              await context.read<AuthViewModel>().logout();
             }
           },
         ),
@@ -399,8 +194,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBarCommon(
@@ -409,24 +202,27 @@ class _HomeScreenState extends State<HomeScreen> {
         title: 'ThinkStack', // Set explicit title for home screen
       ),
       drawer: const AppDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildWelcomeCard(context, authProvider),
-            _buildSectionHeader(
-                context, 'Recent Notebooks', Icons.folder_outlined),
-            _buildRecentNotebooks(),
-            _buildSectionHeader(context, 'Recent Notes', Icons.note_outlined),
-            _buildRecentNotes(),
-            _buildSectionHeader(
-                context, 'Recent Tasks', Icons.assignment_outlined),
-            _buildRecentTasks(),
-            const SizedBox(height: 80), // Space for FAB
-          ],
-        ),
-      ),
+      body: !_isInitialized
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _initializeData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildWelcomeCard(context),
+                    _buildSectionHeader(context, 'Recent Notebooks', Icons.folder_outlined),
+                    _buildRecentNotebooks(),
+                    _buildSectionHeader(context, 'Recent Notes', Icons.note_outlined),
+                    _buildRecentNotes(),
+                    _buildSectionHeader(context, 'Recent Tasks', Icons.assignment_outlined),
+                    _buildRecentTasks(context),
+                    const SizedBox(height: 80), // Space for FAB
+                  ],
+                ),
+              ),
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showQuickCreateMenu(context),
         child: const Icon(Icons.add),
@@ -435,7 +231,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildWelcomeCard(BuildContext context, AuthProvider authProvider) {
+  Widget _buildWelcomeCard(BuildContext context) {
+    // Watch AuthViewModel to get current user
+    final authViewModel = context.watch<AuthViewModel>();
+    final userName = authViewModel.currentUser?.email?.split('@')[0] ?? 'User';
+    
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
@@ -457,20 +257,19 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Welcome back${authProvider.currentUser != null ? ', ${authProvider.currentUser!.email.split('@')[0]}' : ''}!',
+                  'Welcome, $userName!',
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Organize your thoughts and ideas all in one place.',
+                  'Create notes, manage tasks, and stay organized.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.white,
-                    height: 1.4,
                   ),
                 ),
               ],
@@ -484,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(35),
             ),
             child: const Icon(
-              Icons.psychology, // Brain icon for "ThinkStack"
+              Icons.lightbulb_outline,
               color: Colors.white,
               size: 32,
             ),
@@ -494,8 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSectionHeader(
-      BuildContext context, String title, IconData icon) {
+  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
@@ -509,7 +307,6 @@ class _HomeScreenState extends State<HomeScreen> {
           const Spacer(),
           TextButton(
             onPressed: () {
-              // Navigate to section
               if (title.contains('Notebooks')) context.go('/notebooks');
               if (title.contains('Notes')) context.go('/notes');
               if (title.contains('Tasks')) context.go('/tasks');
@@ -522,19 +319,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentNotebooks() {
-    return Consumer<NotebooksProvider>(
-      builder: (ctx, notebooksProvider, _) {
-        if (notebooksProvider.isLoading) {
+    // Watch the NotebooksViewModel for changes
+    return Consumer<NotebooksViewModel>(
+      builder: (ctx, notebooksViewModel, _) {
+        if (notebooksViewModel.isLoading) {
           return const SizedBox(
             height: 160,
             child: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final notebooks = notebooksProvider.notebooks.take(5).toList();
+        final notebooks = notebooksViewModel.notebooks.take(5).toList();
 
         if (notebooks.isEmpty) {
-          // Return EmptyState without fixed height constraint
           return EmptyState(
             title: 'No notebooks yet',
             message: 'Create your first notebook to organize your notes.',
@@ -544,7 +341,6 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        // Use fixed height only when showing notebooks
         return SizedBox(
           height: 160,
           child: ListView.builder(
@@ -553,49 +349,54 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: notebooks.length,
             itemBuilder: (context, index) {
               final notebook = notebooks[index];
-
-              // Get the note count safely
-              int noteCount = notebook.notes.length;
-              _logger.debug('Notebook ${notebook.name} has $noteCount notes');
-
-              return SizedBox(
+              return Container(
                 width: 160,
-                child: CardContainer(
-                  onTap: () => context.go('/notebooks/${notebook.id}'),
-                  padding: const EdgeInsets.all(0),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.all(8),
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => context.go('/notebooks/${notebook.id}'),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(24),
-                          ),
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          height: 80,
+                          width: double.infinity,
                           child: Icon(
-                            Icons.folder_outlined,
+                            Icons.folder,
+                            size: 40,
                             color: Theme.of(context).primaryColor,
-                            size: 24,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          notebook.name,
-                          style: Theme.of(context).textTheme.titleMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '$noteCount notes',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          textAlign: TextAlign.center,
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                notebook.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${notebook.notes.length} notes',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -610,23 +411,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentNotes() {
-    return Consumer<NotesProvider>(
-      builder: (ctx, notesProvider, _) {
-        if (notesProvider.isLoading) {
+    // Watch the NotesViewModel for changes
+    return Consumer<NotesViewModel>(
+      builder: (ctx, notesViewModel, _) {
+        if (notesViewModel.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Use the recent notes getter that returns notes from all notebooks
-        if (notesProvider.recentNotes.isEmpty) {
-          // Check if notebooks exist before showing the create note button
-          final notebooksProvider =
-              Provider.of<NotebooksProvider>(context, listen: false);
-          final hasNotebooks = notebooksProvider.notebooks.isNotEmpty;
+        // Get recent notes from ViewModel
+        if (notesViewModel.recentNotes.isEmpty) {
+          // Check notebooks before showing create note button
+          final notebooksViewModel = context.watch<NotebooksViewModel>();
+          final hasNotebooks = notebooksViewModel.notebooks.isNotEmpty;
 
           return EmptyState(
             title: 'No notes yet',
             message: hasNotebooks
-                ? 'Create your first note to get started.'
+                ? 'Create your first note to capture your thoughts.'
                 : 'Create a notebook first, then add notes to it.',
             icon: Icons.note_outlined,
             onAction: () => hasNotebooks
@@ -639,107 +440,101 @@ class _HomeScreenState extends State<HomeScreen> {
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: notesProvider.recentNotes.take(3).length,
+          itemCount: notesViewModel.recentNotes.take(3).length,
           itemBuilder: (context, index) {
-            final note = notesProvider.recentNotes[index];
+            final note = notesViewModel.recentNotes[index];
+            // Get notebook name if available
+            final notebookName = _getNotebookName(note.notebookId);
+            final lastEdited = note.updatedAt ?? note.createdAt;
             return CardContainer(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+              child: ListTile(
+                title: Text(
+                  note.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                child: Icon(
-                  Icons.note_outlined,
-                  color: Theme.of(context).primaryColor,
+                subtitle: Text(
+                  '${notebookName ?? 'Unknown notebook'} · ${_formatDate(lastEdited)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                leading: const Icon(Icons.note),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NoteEditorScreen(noteId: note.id),
+                    ),
+                  );
+                },
               ),
-              title: note.title,
-              subtitle: note.notebookId,
-              onTap: () {
-                // Navigate to the note editor screen
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => NoteEditorScreen(note: note),
-                  ),
-                );
-              },
-              child: note.blocks.isNotEmpty
-                  ? Text(
-                      note.blocks.first.getTextContent(),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    )
-                  : const SizedBox.shrink(), // Don't show anything if no blocks
             );
           },
         );
       },
     );
   }
+  
+  // Helper to get notebook name - Add this method
+  String? _getNotebookName(String notebookId) {
+    final notebook = context.read<NotebooksViewModel>().getNotebook(notebookId);
+    return notebook?.name;
+  }
 
-  Widget _buildRecentTasks() {
-    return Consumer<TasksProvider>(
-      builder: (ctx, tasksProvider, _) {
-        if (tasksProvider.isLoading) {
+  // Format date for recent notes display - Add this method
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Unknown date';
+    return DateFormat('MMM d, yyyy').format(date);
+  }
+
+  Widget _buildRecentTasks(BuildContext context) {
+    // Watch the TasksViewModel for changes
+    return Consumer<TasksViewModel>(
+      builder: (ctx, tasksViewModel, _) {
+        if (tasksViewModel.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (tasksProvider.recentTasks.isEmpty) {
+        if (tasksViewModel.recentTasks.isEmpty) {
           return EmptyState(
             title: 'No tasks yet',
             message: 'Create tasks to stay organized and boost productivity.',
-            icon: Icons.check_circle_outline, // Check circle for tasks
+            icon: Icons.check_circle_outline,
             onAction: () => _showAddTaskDialog(context),
             actionLabel: 'Create Task',
           );
         }
 
-        // Card wrapping all tasks
         return CardContainer(
           padding: EdgeInsets.zero,
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: tasksProvider.recentTasks.length,
+            itemCount: tasksViewModel.recentTasks.length,
             separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
             itemBuilder: (context, index) {
-              final task = tasksProvider.recentTasks[index];
+              final task = tasksViewModel.recentTasks[index];
               return ListTile(
-                leading: Transform.scale(
-                  scale: 1.2,
-                  child: Checkbox(
-                    value: task.isCompleted,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4)),
-                    onChanged: (bool? value) async {
-                      try {
-                        await tasksProvider.toggleTaskCompletion(
-                          task.id,
-                          value ?? false,
-                        );
-                      } catch (error) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Failed to update task status')),
-                        );
-                      }
-                    },
-                  ),
-                ),
                 title: Text(
                   task.title,
                   style: TextStyle(
-                    decoration:
-                        task.isCompleted ? TextDecoration.lineThrough : null,
-                    color: task.isCompleted
-                        ? Theme.of(context).textTheme.bodySmall?.color
-                        : Theme.of(context).textTheme.bodyLarge?.color,
+                    decoration: task.isCompleted
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
                   ),
                 ),
+                leading: Checkbox(
+                  value: task.isCompleted,
+                  onChanged: (value) {
+                    // Use ViewModel to toggle completion
+                    tasksViewModel.toggleTaskCompletion(task.id, value ?? false);
+                  },
+                ),
+                onTap: () {
+                  // Use ViewModel to toggle completion
+                  tasksViewModel.toggleTaskCompletion(task.id, !task.isCompleted);
+                },
               );
             },
           ),
@@ -761,13 +556,13 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
                   blurRadius: 10,
+                  offset: const Offset(0, -5),
                 ),
               ],
             ),
@@ -775,17 +570,6 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
                 Text(
                   'Create New',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -794,21 +578,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 20),
                 _buildQuickCreateItem(
                   context,
-                  icon: Icons.note_add,
-                  title: 'New Note',
-                  description: 'Create a blank note',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Show notebook selector and note creation dialog
-                    _showAddNoteDialog(context);
-                  },
-                ),
-                const Divider(),
-                _buildQuickCreateItem(
-                  context,
                   icon: Icons.folder,
-                  title: 'New Notebook',
-                  description: 'Create a collection of notes',
+                  title: 'Notebook',
+                  description: 'Create a new notebook to organize notes',
                   onTap: () {
                     Navigator.pop(context);
                     _showAddNotebookDialog(context);
@@ -817,15 +589,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 const Divider(),
                 _buildQuickCreateItem(
                   context,
-                  icon: Icons.check_circle_outline,
-                  title: 'New Task',
-                  description: 'Add a to-do item',
+                  icon: Icons.note,
+                  title: 'Note',
+                  description: 'Create a new note to capture your thoughts',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showAddNoteDialog(context);
+                  },
+                ),
+                const Divider(),
+                _buildQuickCreateItem(
+                  context,
+                  icon: Icons.check_circle,
+                  title: 'Task',
+                  description: 'Create a new task to track your to-dos',
                   onTap: () {
                     Navigator.pop(context);
                     _showAddTaskDialog(context);
                   },
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -870,11 +653,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final _titleController = TextEditingController();
     String? selectedNotebookId;
 
-    // Get notebooks provider to check if notebooks exist
-    final notebooksProvider =
-        Provider.of<NotebooksProvider>(context, listen: false);
+    // Use NotebooksViewModel to get notebooks
+    final notebooksViewModel = context.read<NotebooksViewModel>();
+    
     // If no notebooks exist, show notebook creation dialog first
-    if (notebooksProvider.notebooks.isEmpty) {
+    if (notebooksViewModel.notebooks.isEmpty) {
       _showAddNotebookDialog(context, showNoteDialogAfter: true);
       return;
     }
@@ -884,8 +667,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.note_add_outlined,
-                color: Theme.of(context).primaryColor),
+            Icon(Icons.note_add, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Note'),
           ],
@@ -896,74 +678,70 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Add notebook dropdown
-            Consumer<NotebooksProvider>(
-              builder: (context, notebooksProvider, _) {
-                final notebooks = notebooksProvider.notebooks;
-
-                // Set the initial value if not set
-                if (selectedNotebookId == null && notebooks.isNotEmpty) {
-                  selectedNotebookId = notebooks.first.id;
-                }
-
-                return DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Notebook',
-                    prefixIcon: Icon(Icons.folder_outlined),
-                  ),
-                  value: selectedNotebookId,
-                  isExpanded: true,
-                  items: notebooks.map((notebook) {
-                    return DropdownMenuItem<String>(
-                      value: notebook.id,
-                      child: Text(
-                        notebook.name,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    selectedNotebookId = value;
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: _titleController,
               decoration: const InputDecoration(
-                labelText: 'Title',
+                labelText: 'Note Title',
                 prefixIcon: Icon(Icons.title),
               ),
               autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Notebook',
+                prefixIcon: Icon(Icons.folder),
+              ),
+              items: notebooksViewModel.notebooks.map((notebook) {
+                return DropdownMenuItem(
+                  value: notebook.id,
+                  child: Text(notebook.name),
+                );
+              }).toList(),
+              value: selectedNotebookId,
+              hint: const Text('Select Notebook'),
+              onChanged: (value) {
+                selectedNotebookId = value;
+              },
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              Navigator.pop(context);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty &&
-                  selectedNotebookId != null) {
+              if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
+                // Create note through NotesViewModel
+                final notesViewModel = context.read<NotesViewModel>();
                 try {
-                  final notebooksProvider =
-                      Provider.of<NotebooksProvider>(context, listen: false);
-                  await notebooksProvider.addNoteToNotebook(
-                    selectedNotebookId!,
+                  final note = await notesViewModel.createNote(
                     _titleController.text,
+                    selectedNotebookId!,
                   );
-                  Navigator.of(ctx).pop();
-                } catch (error) {
+                  
+                  Navigator.pop(context);
+                  
+                  // Navigate to the new note
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NoteEditorScreen(noteId: note.id),
+                    ),
+                  );
+                } catch (e) {
+                  _logger.error('Error creating note', e);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to create note')),
+                    SnackBar(content: Text('Error creating note: ${e.toString()}')),
                   );
+                  Navigator.pop(context);
                 }
               }
             },
-            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
@@ -979,7 +757,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.add_task, color: Theme.of(context).primaryColor),
+            Icon(Icons.check_circle_outline, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Task'),
           ],
@@ -997,25 +775,28 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              Navigator.pop(context);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
+                // Create task through TasksViewModel
+                final tasksViewModel = context.read<TasksViewModel>();
                 try {
-                  final tasksProvider =
-                      Provider.of<TasksProvider>(context, listen: false);
-                  await tasksProvider.createTask(_titleController.text, '');
-                  Navigator.of(ctx).pop();
-                } catch (error) {
+                  await tasksViewModel.createTask(_titleController.text, 'general');
+                  Navigator.pop(context);
+                } catch (e) {
+                  _logger.error('Error creating task', e);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to create task')),
+                    SnackBar(content: Text('Error creating task: ${e.toString()}')),
                   );
+                  Navigator.pop(context);
                 }
               }
             },
-            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
@@ -1023,8 +804,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showAddNotebookDialog(BuildContext context,
-      {bool showNoteDialogAfter = false}) {
+  void _showAddNotebookDialog(BuildContext context, {bool showNoteDialogAfter = false}) {
     final _nameController = TextEditingController();
     final _descriptionController = TextEditingController();
 
@@ -1036,9 +816,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         title: Row(
           children: [
-            Icon(Icons.folder_outlined,
-                color:
-                    Theme.of(context).primaryColor), // Folder icon for notebook
+            Icon(Icons.create_new_folder, color: Theme.of(context).primaryColor),
             const SizedBox(width: 8),
             const Text('Add Notebook'),
           ],
@@ -1049,9 +827,8 @@ class _HomeScreenState extends State<HomeScreen> {
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
-                labelText: 'Name',
-                prefixIcon: Icon(Icons
-                    .drive_file_rename_outline), // Rename icon for name field
+                labelText: 'Notebook Name',
+                prefixIcon: Icon(Icons.folder),
               ),
               autofocus: true,
             ),
@@ -1059,45 +836,48 @@ class _HomeScreenState extends State<HomeScreen> {
             TextField(
               controller: _descriptionController,
               decoration: const InputDecoration(
-                labelText: 'Description',
-                prefixIcon:
-                    Icon(Icons.description_outlined), // Description icon
+                labelText: 'Description (Optional)',
+                prefixIcon: Icon(Icons.description),
               ),
-              maxLines: 3,
+              maxLines: 2,
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              Navigator.pop(context);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (_nameController.text.isNotEmpty) {
+                // Create notebook through NotebooksViewModel
+                final notebooksViewModel = context.read<NotebooksViewModel>();
                 try {
-                  final notebooksProvider =
-                      Provider.of<NotebooksProvider>(context, listen: false);
-                  await notebooksProvider.createNotebook(
+                  await notebooksViewModel.createNotebook(
                     _nameController.text,
                     _descriptionController.text,
                   );
-                  Navigator.of(ctx).pop();
-                  // If showNoteDialogAfter is true, show the note dialog after notebook creation
+                  
+                  Navigator.pop(context);
+                  
+                  // Show note dialog after if requested
                   if (showNoteDialogAfter) {
-                    // Add a short delay to allow the notebooks list to update
-                    Future.delayed(Duration(milliseconds: 300), () {
+                    Future.delayed(const Duration(milliseconds: 300), () {
                       _showAddNoteDialog(context);
                     });
                   }
-                } catch (error) {
+                } catch (e) {
+                  _logger.error('Error creating notebook', e);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to create notebook')),
+                    SnackBar(content: Text('Error creating notebook: ${e.toString()}')),
                   );
+                  Navigator.pop(context);
                 }
               }
             },
-            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
