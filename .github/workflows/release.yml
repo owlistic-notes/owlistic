@@ -41,7 +41,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
-          context: .
+          context: src/backend
           platforms: linux/amd64
           file: src/backend/Dockerfile
           tags: thinkstack:latest-amd64,thinkstack:${{ github.ref_name }}-amd64
@@ -113,7 +113,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
-          context: .
+          context: src/frontend
           platforms: linux/amd64
           file: src/frontend/Dockerfile
           tags: thinkstack-ui:latest-amd64,thinkstack-ui:${{ github.ref_name }}-amd64
