@@ -73,7 +73,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
       _initialize();
     });
   }
-  
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -85,7 +85,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
       initWebSocketSubscriptions();
     }
   }
-  
+
   Future<void> _initialize() async {
     // Get ViewModels
     _notesViewModel = context.read<NotesViewModel>();
@@ -96,6 +96,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
     _notesViewModel.activate();
     _blockViewModel.activate();
     _richTextEditorViewModel.activate();
+    
+    // Add specific update listener to force refresh when blocks are updated
+    // This ensures we catch the update notifications from _handleBlockCreate
+    _blockViewModel.addListener(_handleBlockViewModelUpdated);
     
     // Setup WebSocket subscriptions after providers are available
     if (_noteId != null) {
@@ -161,6 +165,27 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
         _isLoading = false;
         _errorMessage = 'Error loading note: ${e.toString()}';
       });
+    }
+  }
+
+  // Add a handler for BlockViewModel updates
+  void _handleBlockViewModelUpdated() {
+    if (!mounted || _noteId == null) return;
+    
+    // When the BlockViewModel notifies listeners (e.g., after a block.created event),
+    // check if new blocks are available that we don't have yet
+    _logger.debug('BlockViewModel updated, checking for new blocks');
+    
+    final currentBlocks = _richTextEditorViewModel.blocks;
+    final updatedBlocks = _blockViewModel.getBlocksForNote(_noteId!);
+    
+    // Find any blocks that exist in the updated list but not in our current list
+    final currentBlockIds = currentBlocks.map((block) => block.id).toSet();
+    final newBlocks = updatedBlocks.where((block) => !currentBlockIds.contains(block.id)).toList();
+    
+    if (newBlocks.isNotEmpty) {
+      _logger.info('Found ${newBlocks.length} new blocks to add to editor');
+      _richTextEditorViewModel.addBlocks(newBlocks);
     }
   }
 
@@ -250,6 +275,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
     _titleFocusNode.removeListener(_handleTitleFocusChange);
     _titleFocusNode.dispose();
     _titleController.dispose();
+    
+    // Remove our specific listener
+    _blockViewModel.removeListener(_handleBlockViewModelUpdated);
+    
     context.read<NotesViewModel>().deactivate();
     context.read<BlockViewModel>().deactivate();
     context.read<RichTextEditorViewModel>().deactivate();

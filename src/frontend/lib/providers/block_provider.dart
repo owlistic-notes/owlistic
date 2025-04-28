@@ -312,7 +312,7 @@ class BlockProvider with ChangeNotifier implements BlockViewModel {
     _logger.debug('Received block.created event');
     
     try {
-      // Parse message using the standard parser
+      // Use the message parser
       final parsedMessage = WebSocketMessage.fromJson(message);
       
       // Extract block_id and note_id using the extractor
@@ -333,8 +333,21 @@ class BlockProvider with ChangeNotifier implements BlockViewModel {
             // Fetch the new block
             _fetchBlockById(blockId).then((block) {
               // After fetching, if this is a new block not already in our cache, notify
-              if (block != null && !_blocks.containsKey(blockId)) {
+              if (block != null) {
+                // Always call _enqueueNotification regardless of whether the block was previously in cache
                 _enqueueNotification();
+                
+                // Make sure the noteBlocksMap is up to date
+                if (!_noteBlocksMap[noteId]!.contains(blockId)) {
+                  _noteBlocksMap[noteId]!.add(blockId);
+                  _logger.debug('Added block $blockId to note $noteId mapping');
+                }
+                
+                // Force immediate notification to ensure UI updates promptly
+                _updateCount++;
+                notifyListeners();
+                _hasPendingNotification = false;
+                _logger.debug('Forced immediate UI update for new block');
               }
             });
           });
