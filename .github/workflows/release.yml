@@ -40,8 +40,8 @@ jobs:
       - name: Build Backend Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: src/backend
-          file: Dockerfile
+          context: .
+          file: src/backend/Dockerfile
           push: true
           platforms: linux/amd64
           target: thinkstack
@@ -113,8 +113,8 @@ jobs:
       - name: Build Frontend Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: src/frontend
-          file: Dockerfile
+          context: 
+          file: src/frontend/Dockerfile
           push: true
           platforms: linux/amd64
           target: thinkstack-ui
