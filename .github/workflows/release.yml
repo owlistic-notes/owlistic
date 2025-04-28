@@ -40,13 +40,12 @@ jobs:
       - name: Build Backend Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: src/backend/Dockerfile
           push: true
+          context: .
           platforms: linux/amd64
-          target: thinkstack
-          tags: ${{ github.ref_name }}-amd64
-          cache-from: type=registry,ref=${{ github.ref_name }}-amd64
+          file: src/backend/Dockerfile
+          tags: thinkstack:latest-amd64,thinkstack:${{ github.ref_name }}-amd64
+          cache-from: type=registry,ref=thinkstack:${{ github.ref_name }}-amd64
 
   frontend:
     name: Frontend Build and Push
@@ -113,10 +112,9 @@ jobs:
       - name: Build Frontend Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: 
-          file: src/frontend/Dockerfile
           push: true
+          context: .
           platforms: linux/amd64
-          target: thinkstack-ui
-          tags: ${{ github.ref_name }}-amd64
+          file: src/frontend/Dockerfile
+          tags: thinkstack-ui:latest-amd64,thinkstack-ui:${{ github.ref_name }}-amd64
           cache-from: type=registry,ref=${{ github.ref_name }}-amd64
