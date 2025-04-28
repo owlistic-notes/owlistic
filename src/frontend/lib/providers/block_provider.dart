@@ -706,8 +706,8 @@ class BlockProvider with ChangeNotifier implements BlockViewModel {
       // Update local block with returned data without notifying
       _blocks[id] = updatedBlock;
       
-      // No notification here to prevent freezing UI
-      
+      // Use debounced notification
+      _enqueueNotification();
     } catch (error) {
       _logger.error('Error saving block $id', error);
     }

@@ -2,10 +2,9 @@ import 'package:provider/provider.dart';
 
 // Import ViewModels
 import '../viewmodel/auth_viewmodel.dart';
-import '../viewmodel/block_viewmodel.dart';
 import '../viewmodel/notebooks_viewmodel.dart';
 import '../viewmodel/notes_viewmodel.dart';
-import '../viewmodel/rich_text_editor_viewmodel.dart';
+import '../viewmodel/note_editor_viewmodel.dart';  // New unified viewmodel
 import '../viewmodel/tasks_viewmodel.dart';
 import '../viewmodel/theme_viewmodel.dart';
 import '../viewmodel/trash_viewmodel.dart';
@@ -13,10 +12,9 @@ import '../viewmodel/websocket_viewmodel.dart';
 
 // ViewModels implementations
 import '../providers/auth_provider.dart';
-import '../providers/block_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/notes_provider.dart';
-import '../providers/rich_text_editor_provider.dart';
+import '../providers/note_editor_provider.dart';  // New unified provider
 import '../providers/tasks_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/trash_provider.dart';
@@ -100,12 +98,14 @@ final List<SingleChildWidget> appProviders = [
     ),
   ),
   
-  // Block view model
-  ChangeNotifierProvider<BlockViewModel>(
-    create: (context) => BlockProvider(
+  // Note Editor view model
+  ChangeNotifierProvider<NoteEditorViewModel>(
+    create: (context) => NoteEditorProvider(
       blockService: ServiceLocator.get<BlockService>(),
       authService: ServiceLocator.get<AuthService>(),
-      webSocketService: ServiceLocator.get<WebSocketService>()
+      webSocketService: ServiceLocator.get<WebSocketService>(),
+      noteService: ServiceLocator.get<NoteService>(),
+      documentBuilderFactory: () => DocumentBuilder()
     ),
   ),
   
@@ -114,14 +114,6 @@ final List<SingleChildWidget> appProviders = [
     create: (context) => TrashProvider(
       trashService: ServiceLocator.get<TrashService>(),
       authService: ServiceLocator.get<AuthService>()
-    ),
-  ),
-  
-  // RichTextEditor view model
-  ChangeNotifierProvider<RichTextEditorViewModel>(
-    create: (context) => RichTextEditorProvider(
-      blockService: ServiceLocator.get<BlockService>(),
-      documentBuilderFactory: () => DocumentBuilder()
     ),
   ),
 ];
