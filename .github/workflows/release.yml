@@ -46,7 +46,7 @@ jobs:
           platforms: linux/amd64
           target: thinkstack
           tags: ${{ github.ref_name }}-amd64
-          cache-from: type=registry,ref=${{IMAGE_NAME}}-amd64
+          cache-from: type=registry,ref=${{ github.ref_name }}-amd64
 
   frontend:
     name: Frontend Build and Push
@@ -119,4 +119,4 @@ jobs:
           platforms: linux/amd64
           target: thinkstack-ui
           tags: ${{ github.ref_name }}-amd64
-          cache-from: type=registry,ref=${{IMAGE_NAME}}-amd64
+          cache-from: type=registry,ref=${{ github.ref_name }}-amd64
