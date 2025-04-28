@@ -36,32 +36,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Create tag variables
-      - name: Create Tag Variables
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          IMAGE_NAME=thinkstack
-          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
-          echo "VERSION_TAG=${IMAGE_NAME}:${TAG}" >> $GITHUB_ENV
-          echo "LATEST_TAG=${IMAGE_NAME}:latest" >> $GITHUB_ENV
-
       # Build Docker Image
       - name: Build Backend Docker Image
-        run: |
-          cd src/backend
-          docker build \
-            --build-arg TARGETARCH=$(uname -m) \
-            --build-arg TARGETOS=$(uname -s) \
-            -t thinkstack:${{ github.ref_name }} \
-            -t thinkstack:latest \
-            .
-
-      # Push Docker Image
-      - name: Push Backend Docker Image
-        run: |
-          docker push thinkstack:${{ github.ref_name }}
-          docker push thinkstack:latest 
+        uses: docker/build-push-action@v5
+        with:
+          context: src/backend
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64
+          target: thinkstack
+          tags: ${{ github.ref_name }}-amd64
+          cache-from: type=registry,ref=${{IMAGE_NAME}}-amd64
 
   frontend:
     name: Frontend Build and Push
@@ -93,20 +78,20 @@ jobs:
           cd src/frontend
 
           # Configure Flutter for web
-          flutter config --enable-web --enable-android 
-          # --enable-ios --enable-macos-desktop  --enable-linux-desktop --enable-linux-desktop
+          flutter config --enable-web
+          # --enable-android --enable-ios --enable-macos-desktop  --enable-linux-desktop --enable-linux-desktop
 
           # Get Flutter packages
           flutter pub get
 
           # Initialize web project (creates index.html if missing)
-          flutter create --platforms=web,android . #,ios,macos,linux
+          flutter create --platforms=web . #,android,ios,macos,linux
           
           # Build web app
           flutter build web --release
 
           # Build Android app
-          flutter build apk --release
+          # flutter build apk --release
 
           # Build iOS app
           # flutter build ios --release
@@ -124,27 +109,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Create tag variables
-      - name: Create Tag Variables
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          IMAGE_NAME=thinkstack-ui
-          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
-          echo "VERSION_TAG=${IMAGE_NAME}:${TAG}" >> $GITHUB_ENV
-          echo "LATEST_TAG=${IMAGE_NAME}:latest" >> $GITHUB_ENV
-
       # Build Docker Image
       - name: Build Frontend Docker Image
-        run: |
-          cd src/frontend
-          docker build \
-            -t  thinkstack:${{ github.ref_name }} \
-            -t  thinkstack:latest \
-            .
-
-      # Push Docker Image
-      - name: Push Frontend Docker Image
-        run: |
-          docker push thinkstack:${{ github.ref_name }}
-          docker push thinkstack:latest
+        uses: docker/build-push-action@v5
+        with:
+          context: src/frontend
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64
+          target: thinkstack-ui
+          tags: ${{ github.ref_name }}-amd64
+          cache-from: type=registry,ref=${{IMAGE_NAME}}-amd64
