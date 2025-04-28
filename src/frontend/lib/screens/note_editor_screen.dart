@@ -26,6 +26,7 @@ class NoteEditorScreen extends StatefulWidget {
 class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubscriptionMixin {
   final Logger _logger = Logger('NoteEditorScreen');
   bool _isLoading = true;
+  bool _isLoadingMoreBlocks = false;
   String? _errorMessage;
   Note? _note;
   Timer? _autoSaveTimer;
@@ -136,8 +137,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
       // Set the note ID in the rich text editor
       _richTextEditorViewModel.noteId = _noteId;
       
-      // Load blocks for the note using ViewModel
-      final blocks = await _blockViewModel.fetchBlocksForNote(_noteId!);
+      // Load initial blocks for the note using ViewModel - use smaller page size for faster initial rendering
+      final blocks = await _blockViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 20);
       
       // Set blocks in rich text editor
       _richTextEditorViewModel.setBlocks(blocks);
@@ -151,12 +152,94 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
       setState(() {
         _isLoading = false;
       });
+      
+      // Load more blocks in the background if available
+      _loadMoreBlocksInBackground();
     } catch (e) {
       _logger.error('Error initializing note editor', e);
       setState(() {
         _isLoading = false;
         _errorMessage = 'Error loading note: ${e.toString()}';
       });
+    }
+  }
+
+  // New method for loading more blocks in the background
+  Future<void> _loadMoreBlocksInBackground() async {
+    // Guard against concurrent loading operations
+    if (_isLoadingMoreBlocks) return;
+    
+    try {
+      if (_noteId == null || !mounted) return;
+      
+      setState(() {
+        _isLoadingMoreBlocks = true;
+      });
+
+      // If we have more blocks to load
+      if (_blockViewModel.hasMoreBlocks(_noteId!)) {
+        _logger.info('Loading more blocks in background');
+        
+        // Get current pagination state
+        final paginationInfo = _blockViewModel.getPaginationInfo(_noteId!);
+        
+        // Safely access the page number with null check and fallback
+        final currentPage = paginationInfo['page'] ?? 1;
+        if (currentPage is! int) {
+          _logger.error('Invalid page number in pagination info: $currentPage');
+          return;
+        }
+        
+        final nextPage = currentPage + 1;
+        
+        // Fetch the next page with append=true to keep existing blocks
+        final moreBlocks = await _blockViewModel.fetchBlocksForNote(
+          _noteId!,
+          page: nextPage,
+          pageSize: 20,
+          append: true
+        );
+        
+        // Check if we got fewer blocks than requested, which means we've reached the end
+        final reachedEnd = moreBlocks.length < 20;
+        
+        if (moreBlocks.isNotEmpty && mounted) {
+          // Add these blocks to the editor
+          _richTextEditorViewModel.addBlocks(moreBlocks);
+          _logger.info('Added ${moreBlocks.length} more blocks to editor');
+        }
+        
+        if (mounted) {
+          setState(() {
+            _isLoadingMoreBlocks = false;
+          });
+        }
+        
+        // Only continue loading if we have more blocks AND we didn't reach the end
+        // AND we're still mounted AND the user still needs more blocks
+        if (!reachedEnd && mounted && _blockViewModel.hasMoreBlocks(_noteId!) && moreBlocks.isNotEmpty) {
+          // Add a short delay before loading more to prevent UI freezing
+          await Future.delayed(const Duration(milliseconds: 500));
+          // Start another load cycle, but only if we're still mounted
+          if (mounted) {
+            _loadMoreBlocksInBackground();
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingMoreBlocks = false;
+          });
+        }
+        _logger.info('No more blocks to load');
+      }
+    } catch (e) {
+      _logger.error('Error loading more blocks', e);
+      if (mounted) {
+        setState(() {
+          _isLoadingMoreBlocks = false;
+        });
+      }
     }
   }
 
@@ -167,24 +250,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
     _titleFocusNode.removeListener(_handleTitleFocusChange);
     _titleFocusNode.dispose();
     _titleController.dispose();
-    _scrollController.dispose();
-    
-    // Commit any pending changes
-    _autoSaveTitleIfNeeded();
-    
-    // Commit any pending block changes
-    context.read<RichTextEditorViewModel>().commitAllContent();
-    
-    // Deactivate ViewModels
-    if (_noteId != null) {
-      context.read<NotesViewModel>().deactivateNote(_noteId!);
-      context.read<BlockViewModel>().deactivateNote(_noteId!);
-    }
-    
     context.read<NotesViewModel>().deactivate();
     context.read<BlockViewModel>().deactivate();
     context.read<RichTextEditorViewModel>().deactivate();
-    
+    _autoSaveTitleIfNeeded();
     // WebSocketSubscriptionMixin handles subscription cleanup in its dispose method
     super.dispose();
   }
@@ -206,13 +275,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
   // Save title
   void _saveTitle() async {
     if (_note == null || !_titleEdited) return;
-    
     final newTitle = _titleController.text.trim();
     if (newTitle.isEmpty || newTitle == _note!.title) {
       _titleEdited = false;
       return;
     }
-    
     try {
       await context.read<NotesViewModel>().updateNote(_note!.id, newTitle);
       _titleEdited = false;
@@ -222,18 +289,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
     }
   }
 
-  // Handle block content changed
+  // Handle block content changed - ensure immediate sync with server
   void _handleBlockContentChanged(String blockId, dynamic content) {
     if (!mounted) return;
-    
-    // Make sure method name matches ViewModel interface
-    context.read<BlockViewModel>().updateBlockContent(blockId, content);
+    // Use immediate flag to force immediate sync with server
+    context.read<BlockViewModel>().updateBlockContent(
+      blockId,
+      content,
+      immediate: true,
+    );
   }
 
-  // Handle block deleted
+  // Handle block deleted - ensure proper server sync
   void _handleBlockDeleted(String blockId) {
     if (!mounted) return;
-    
+    // Make sure the delete is processed and sent to server immediately
     context.read<BlockViewModel>().deleteBlock(blockId);
   }
 
@@ -253,7 +323,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
       
       // If we found the node, scroll to it
       if (targetNodeId != null) {
-        final verticalOffset = _richTextEditorViewModel.documentBuilder.getNodePosition(targetNodeId!);;
+        final verticalOffset = _richTextEditorViewModel.documentBuilder.getNodePosition(targetNodeId!);
         if (verticalOffset != null) {
           // Scroll to the node position with some padding
           _scrollController.animateTo(
@@ -270,17 +340,27 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
   Widget _buildRichTextEditor(RichTextEditorViewModel viewModel) {
     // Access the document builder from the provider
     final documentBuilder = viewModel.documentBuilder;
-    
-    return SuperEditor(
-      editor: documentBuilder.editor,
-      documentLayoutKey: documentBuilder.documentLayoutKey,
-      focusNode: documentBuilder.focusNode,
-      scrollController: _scrollController,
-      gestureMode: DocumentGestureMode.mouse,
-      stylesheet: defaultStylesheet.copyWith(
-        documentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-        // paragraphStyles: defaultStylesheet.paragraphStyles,
-        // textStyleRules: defaultStylesheet.textStyleRules,
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification scrollInfo) {
+        // Check if we're near the bottom of the scroll view to trigger loading more blocks
+        if (!_isLoadingMoreBlocks && // Only if we're not already loading
+            scrollInfo.metrics.pixels > scrollInfo.metrics.maxScrollExtent * 0.8) {
+          // Make sure we don't trigger multiple loading operations
+          if (_noteId != null && _blockViewModel.hasMoreBlocks(_noteId!)) {
+            _loadMoreBlocksInBackground();
+          }
+        }
+        return false;
+      },
+      child: SuperEditor(
+        editor: documentBuilder.editor,
+        documentLayoutKey: documentBuilder.documentLayoutKey,
+        focusNode: documentBuilder.focusNode,
+        scrollController: _scrollController,
+        gestureMode: DocumentGestureMode.mouse,
+        stylesheet: defaultStylesheet.copyWith(
+          documentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        ),
       ),
     );
   }
@@ -306,13 +386,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
                 if (errorMessage != null) {
                   return Center(child: Text('Error: $errorMessage', style: TextStyle(color: Colors.red)));
                 }
-                
+
                 // Check for specific block focus requests
                 final focusBlockId = richTextEditorViewModel.consumeFocusRequest();
                 if (focusBlockId != null) {
                   _scrollToBlock(focusBlockId);
                 }
-                
+
                 return Column(
                   children: [
                     // Title field - now functions as the "app bar" content
@@ -348,14 +428,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
                       ),
                     ),
                     const Divider(),
-                    
                     // Rich text editor
                     Expanded(
                       child: Stack(
                         children: [
                           // Editor content - using direct integration
                           _buildRichTextEditor(richTextEditorViewModel),
-                          
                           // Loading overlay
                           if (isContentLoading)
                             const Center(child: CircularProgressIndicator()),
@@ -425,10 +503,16 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
 
   Future<void> _createBlock(String blockType) async {
     try {
+      // Make sure we wait for the block to actually be created on the server
       final block = await context.read<RichTextEditorViewModel>().createBlock(blockType);
-      context.read<RichTextEditorViewModel>().requestFocus();
       
-      _logger.info('Block created: ${block.id} of type $blockType');
+      // Request focus after the block is fully created
+      if (block != null) {
+        context.read<RichTextEditorViewModel>().setFocusToBlock(block.id);
+        _logger.info('Block created: ${block.id} of type $blockType');
+      } else {
+        _logger.error('Block creation returned null');
+      }
     } catch (e) {
       _logger.error('Error creating block', e);
     }

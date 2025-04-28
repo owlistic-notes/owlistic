@@ -966,4 +966,67 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
 
   @override
   bool get isActive => _isActive;
+
+  // Implement addBlocks method required by the interface
+  @override
+  void addBlocks(List<Block> blocks) {
+    _logger.info('Adding blocks: received ${blocks.length} new blocks');
+    
+    if (blocks.isEmpty) return;
+    
+    // Update server cache with new blocks
+    for (final block in blocks) {
+      _serverBlockCache[block.id] = block;
+      registerServerBlock(block);
+    }
+    
+    // Get current selection and focus state to preserve during update
+    final currentSelection = composer.selection;
+    final hasFocus = focusNode.hasFocus;
+    
+    // Create map for efficient lookups
+    final Map<String, Block> existingBlocksMap = {
+      for (var block in _blocks) block.id: block
+    };
+    
+    // Filter out blocks that we already have
+    final List<Block> newBlocks = blocks
+        .where((block) => !existingBlocksMap.containsKey(block.id))
+        .toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+    
+    if (newBlocks.isEmpty) {
+      _logger.debug('No new blocks to add, skipping update');
+      return;
+    }
+    
+    // Add the new blocks to our list
+    _blocks.addAll(newBlocks);
+    
+    // Sort blocks by order
+    _blocks.sort((a, b) => a.order.compareTo(b.order));
+    
+    // Create nodes for these blocks and add them to the document
+    _updatingDocument = true;
+    try {
+      for (final block in newBlocks) {
+        final nodes = _documentBuilder.createNodesFromBlock(block);
+        for (final node in nodes) {
+          document.add(node);
+          _documentBuilder.nodeToBlockMap[node.id] = block.id;
+        }
+      }
+    } finally {
+      _updatingDocument = false;
+    }
+    
+    // Restore focus if needed
+    if (hasFocus && currentSelection != null) {
+      Future.microtask(() {
+        restoreFocus(currentSelection);
+      });
+    }
+    
+    notifyListeners();
+  }
 }

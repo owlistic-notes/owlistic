@@ -22,6 +22,7 @@ abstract class RichTextEditorViewModel extends BaseViewModel {
     dynamic savedSelection,
     bool markAsModified = true
   });
+  void addBlocks(List<Block> blocks);
   
   // Server sync methods
   void updateBlockCache(List<Block> blocks);
