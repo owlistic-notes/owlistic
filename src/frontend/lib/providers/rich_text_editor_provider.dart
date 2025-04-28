@@ -288,7 +288,7 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
       // Determine block type based on node
       String blockType = 'text';
       if (node is ParagraphNode) {
-        final blockTypeAttr = node.metadata['blockType'];
+        final blockTypeAttr = node.metadata?['blockType'];
         if (blockTypeAttr == 'heading') {
           blockType = 'heading';
         } else if (blockTypeAttr == 'code') {
@@ -298,15 +298,30 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
         blockType = 'checklist';
       }
       
-      // Extract content from node using the mapper
-      final Map<String, dynamic> content = _extractNodeContentForApi(node);
+      // Extract content and metadata from node
+      final extractedData = _extractNodeContentForApi(node);
+      final content = extractedData['content'] as Map<String, dynamic>;
+      final metadata = extractedData['metadata'] as Map<String, dynamic>?;
       
       // Calculate a fractional order value using the document builder
       double order = await _documentBuilder.calculateOrderForNewNode(nodeId, _blocks);
       
       _logger.debug('Creating block of type $blockType with fractional order $order');
       
-      // Create block through BlockService directly
+      // Create request body with content and metadata
+      final Map<String, dynamic> requestBody = {
+        'note_id': noteId!,
+        'content': content,
+        'type': blockType,
+        'order': order,
+      };
+      
+      // Add metadata if available
+      if (metadata != null && metadata.isNotEmpty) {
+        requestBody['metadata'] = metadata;
+      }
+      
+      // Create block through BlockService
       final block = await _blockService.createBlock(
         noteId!, 
         content,
@@ -334,6 +349,7 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
   // Extract content from a node in the format expected by the API
   Map<String, dynamic> _extractNodeContentForApi(DocumentNode node) {
     Map<String, dynamic> content = {};
+    Map<String, dynamic> metadata = {};
     
     if (node is ParagraphNode) {
       // Basic text content
@@ -345,15 +361,24 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
         content['spans'] = spans;
       }
       
-      // Add type-specific properties
-      if (node.metadata['blockType'] == 'heading') {
-        content['level'] = node.metadata['headingLevel'] ?? 1;
-      } else if (node.metadata['blockType'] == 'code') {
-        content['language'] = 'plain';
+      // Add metadata based on node.metadata
+      if (node.metadata != null && node.metadata!.isNotEmpty) {
+        final blockType = node.metadata!['blockType'];
+        if (blockType != null) {
+          metadata['blockType'] = blockType;
+          
+          // Add type-specific properties
+          if (blockType == 'heading') {
+            content['level'] = node.metadata!['headingLevel'] ?? 1;
+          } else if (blockType == 'code') {
+            content['language'] = node.metadata!['language'] ?? 'plain';
+          }
+        }
       }
     } else if (node is ListItemNode) {
       content['text'] = node.text.toPlainText();
       content['checked'] = node.type == ListItemType.ordered;
+      metadata['blockType'] = 'listItem';
       
       // Extract spans for list items as well
       final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
@@ -362,7 +387,10 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
       }
     }
     
-    return content;
+    return {
+      'content': content,
+      'metadata': metadata.isEmpty ? null : metadata
+    };
   }
   
   // DocumentChangeListener implementation for content changes
@@ -456,8 +484,22 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
         )
     );
     
-    // Extract content based on node type using the mapper
-    Map<String, dynamic> content = _documentBuilder.extractContentFromNode(node, blockId, originalBlock);
+    // Extract content and metadata based on node type
+    final extractedData = _extractNodeContentForApi(node);
+    final updatedContent = extractedData['content'] as Map<String, dynamic>;
+    final updatedMetadata = extractedData['metadata'] as Map<String, dynamic>?;
+    
+    // Merge with existing metadata if available
+    Map<String, dynamic>? combinedMetadata;
+    if (originalBlock.metadata != null || updatedMetadata != null) {
+      combinedMetadata = {};
+      if (originalBlock.metadata != null) {
+        combinedMetadata.addAll(originalBlock.metadata!);
+      }
+      if (updatedMetadata != null) {
+        combinedMetadata.addAll(updatedMetadata);
+      }
+    }
     
     // Check if this content should be sent to the server (timestamp-based)
     final serverBlock = _serverBlockCache[blockId];
@@ -475,12 +517,23 @@ class RichTextEditorProvider with ChangeNotifier implements RichTextEditorViewMo
     if (shouldUpdate) {
       // Send content update
       _logger.debug('Sending block content update for $blockId');
-      _onBlockContentChanged?.call(blockId, content);
+      
+      // Create update request with both content and metadata
+      final updateData = {
+        'content': updatedContent,
+      };
+      
+      // Only include metadata if it has values
+      if (combinedMetadata != null && combinedMetadata.isNotEmpty) {
+        updateData['metadata'] = combinedMetadata;
+      }
+      
+      _onBlockContentChanged?.call(blockId, updateData);
       
       // After successful update, update server cache with estimated new version
-      // The actual updated block will come from server later
       final updatedBlock = originalBlock.copyWith(
-        content: content,
+        content: updatedContent,
+        metadata: combinedMetadata,
         updatedAt: DateTime.now()
       );
       _serverBlockCache[blockId] = updatedBlock;

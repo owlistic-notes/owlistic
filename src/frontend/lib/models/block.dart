@@ -10,6 +10,7 @@ class Block {
   final double order;  // Changed from int to double
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Map<String, dynamic>? metadata;
 
   Block({
     required this.id,
@@ -17,6 +18,7 @@ class Block {
     required this.content,
     required this.type,
     required this.order,
+    this.metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : this.createdAt = createdAt ?? DateTime.now(),
@@ -45,12 +47,21 @@ class Block {
       }
     }
     
+    // Parse metadata if available
+    Map<String, dynamic>? metadata;
+    if (json['metadata'] != null) {
+      metadata = json['metadata'] is Map 
+          ? Map<String, dynamic>.from(json['metadata']) 
+          : null;
+    }
+    
     return Block(
       id: json['id'] ?? '',
       content: json['content'], // Store as-is, will handle conversion when accessing
       type: json['type'] ?? 'text',
       noteId: json['note_id'] ?? '',
       order: orderValue,
+      metadata: metadata,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -62,6 +73,7 @@ class Block {
       'note_id': noteId,
       'content': content is String ? content : jsonEncode(content),
       'type': type,
+      'metadata': metadata,
       'order': order,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -117,6 +129,57 @@ class Block {
     return DataConverter.extractSpans(content);
   }
 
+  /// Get the document blockType for rendering
+  String getBlockType() {
+    // First check metadata if it contains blockType
+    if (metadata != null && metadata!.containsKey('blockType')) {
+      return metadata!['blockType'].toString();
+    }
+    
+    // Fallback to inferring from block type
+    switch (type) {
+      case 'heading':
+        final level = getHeadingLevel();
+        return 'heading$level';
+      case 'checklist':
+        return 'listItem';
+      case 'code':
+        return 'codeBlock';
+      case 'text':
+      default:
+        return 'paragraph';
+    }
+  }
+  
+  /// Get raw markdown if available
+  String? getRawMarkdown() {
+    // First check metadata (preferred location)
+    if (metadata != null && metadata!.containsKey('raw_markdown')) {
+      return metadata!['raw_markdown']?.toString();
+    }
+    
+    // Fallback to checking content for backward compatibility
+    final contentMap = getContentMap();
+    return contentMap['raw_markdown']?.toString();
+  }
+
+  /// Get inline styles for text formatting
+  List<Map<String, dynamic>>? getInlineStyles() {
+    final contentMap = getContentMap();
+    
+    // Try to get styles from spans in content
+    if (contentMap.containsKey('spans')) {
+      final spans = contentMap['spans'];
+      if (spans is List) {
+        return List<Map<String, dynamic>>.from(
+          spans.map((span) => span is Map ? Map<String, dynamic>.from(span) : {})
+        );
+      }
+    }
+    
+    return null;
+  }
+
   // Add a copyWith method to make local updates easier
   Block copyWith({
     String? id,
@@ -124,6 +187,7 @@ class Block {
     String? userId,
     String? type,
     Map<String, dynamic>? content,
+    Map<String, dynamic>? metadata,
     double? order,  // Changed from int to double
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -133,6 +197,7 @@ class Block {
       noteId: noteId ?? this.noteId,
       type: type ?? this.type,
       content: content ?? this.content,
+      metadata: metadata ?? this.metadata,
       order: order ?? this.order,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

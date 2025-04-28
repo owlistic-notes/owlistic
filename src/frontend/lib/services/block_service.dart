@@ -45,6 +45,7 @@ class BlockService extends BaseService {
   Future<Block> createBlock(String noteId, dynamic content, String type, double order) async {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
+    Map<String, dynamic> metadata = {};
     
     if (content is String) {
       try {
@@ -54,20 +55,38 @@ class BlockService extends BaseService {
       }
     } else if (content is Map) {
       contentMap = Map<String, dynamic>.from(content);
+      
+      // Check for metadata or styling elements that need to be extracted
+      if (contentMap.containsKey('blockType')) {
+        metadata['blockType'] = contentMap['blockType'];
+        contentMap.remove('blockType');
+      }
+      
+      if (contentMap.containsKey('raw_markdown')) {
+        metadata['raw_markdown'] = contentMap['raw_markdown'];
+        contentMap.remove('raw_markdown');
+      }
     } else {
       throw ArgumentError('Content must be a String or Map');
     }
     
     _logger.debug('Creating block for note: $noteId');
     
+    final Map<String, dynamic> requestBody = {
+      'note_id': noteId,
+      'content': contentMap,
+      'type': type,
+      'order': order,
+    };
+    
+    // Add metadata if we have any
+    if (metadata.isNotEmpty) {
+      requestBody['metadata'] = metadata;
+    }
+    
     final response = await authenticatedPost(
       '/api/v1/blocks',
-      {
-        'note_id': noteId,
-        'content': contentMap,
-        'type': type,
-        'order': order,
-      }
+      requestBody
     );
     
     if (response.statusCode == 201) {
@@ -95,6 +114,7 @@ class BlockService extends BaseService {
   Future<Block> updateBlock(String blockId, dynamic content, {String? type, double? order}) async {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
+    Map<String, dynamic> metadata = {};
     
     if (content is String) {
       try {
@@ -103,7 +123,28 @@ class BlockService extends BaseService {
         contentMap = {'text': content};
       }
     } else if (content is Map) {
-      contentMap = Map<String, dynamic>.from(content);
+      // Check if this is already structured with content & metadata
+      if (content.containsKey('content')) {
+        contentMap = Map<String, dynamic>.from(content['content']);
+        
+        // If metadata is included, extract it
+        if (content.containsKey('metadata') && content['metadata'] != null) {
+          metadata = Map<String, dynamic>.from(content['metadata']);
+        }
+      } else {
+        contentMap = Map<String, dynamic>.from(content);
+        
+        // Extract metadata fields if they exist directly
+        if (contentMap.containsKey('blockType')) {
+          metadata['blockType'] = contentMap['blockType'];
+          contentMap.remove('blockType');
+        }
+        
+        if (contentMap.containsKey('raw_markdown')) {
+          metadata['raw_markdown'] = contentMap['raw_markdown'];
+          contentMap.remove('raw_markdown');
+        }
+      }
     } else {
       throw ArgumentError('Content must be a String or Map');
     }
@@ -111,6 +152,11 @@ class BlockService extends BaseService {
     final Map<String, dynamic> body = {
       'content': contentMap,
     };
+    
+    // Add metadata if we have any
+    if (metadata.isNotEmpty) {
+      body['metadata'] = metadata;
+    }
     
     if (type != null) {
       body['type'] = type;

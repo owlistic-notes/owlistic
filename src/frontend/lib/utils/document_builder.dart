@@ -605,6 +605,7 @@ class DocumentBuilder {
   // Creates nodes from a block
   List<DocumentNode> createNodesFromBlock(Block block) {
     final content = block.content;
+    final String blockType = block.getBlockType();
     
     // Create node based on block type
     switch (block.type) {
@@ -647,10 +648,18 @@ class DocumentBuilder {
       case 'text':
       default:
         final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
+        
+        // Get blockType from metadata if available
+        Map<String, dynamic>? metadata;
+        if (block.metadata != null && block.metadata!.containsKey('blockType')) {
+          metadata = {'blockType': block.metadata!['blockType']};
+        }
+        
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
             text: createAttributedTextFromContent(text, content),
+            metadata: metadata,
           ),
         ];
     }
@@ -666,63 +675,69 @@ class DocumentBuilder {
     final attributedText = AttributedText(text);
     
     try {
-      // Process spans if available
-      if (content is Map && content.containsKey('spans')) {
-        final spans = content['spans'];
-        if (spans is List) {
-          for (final span in spans) {
-            if (span is Map && 
-                span.containsKey('start') && 
-                span.containsKey('end') && 
-                span.containsKey('type')) {
-              try {
-                final start = span['start'] as int? ?? 0;
-                final end = span['end'] as int? ?? 0;
-                final type = span['type'] as String? ?? '';
-                
-                // Validate span range to avoid errors
-                if (start >= 0 && end > start && end <= text.length) {
-                  // Apply different attributes based on span type
-                  switch (type) {
-                    case 'bold':
+      // Process spans if available (handle both 'spans' and 'inlineStyles' keys for compatibility)
+      List? spans;
+      if (content is Map) {
+        if (content.containsKey('spans')) {
+          spans = content['spans'] as List?;
+        } else if (content.containsKey('inlineStyles')) {
+          spans = content['inlineStyles'] as List?;
+        }
+      }
+      
+      if (spans != null && spans is List) {
+        for (final span in spans) {
+          if (span is Map && 
+              span.containsKey('start') && 
+              span.containsKey('end') && 
+              span.containsKey('type')) {
+            try {
+              final start = span['start'] as int? ?? 0;
+              final end = span['end'] as int? ?? 0;
+              final type = span['type'] as String? ?? '';
+              
+              // Validate span range to avoid errors
+              if (start >= 0 && end > start && end <= text.length) {
+                // Apply different attributes based on span type
+                switch (type) {
+                  case 'bold':
+                    attributedText.addAttribution(
+                      const NamedAttribution('bold'), 
+                      SpanRange(start, end)
+                    );
+                    break;
+                  case 'italic':
+                    attributedText.addAttribution(
+                      const NamedAttribution('italic'), 
+                      SpanRange(start, end)
+                    );
+                    break;
+                  case 'link':
+                    final href = span['href'] as String?;
+                    if (href != null) {
                       attributedText.addAttribution(
-                        const NamedAttribution('bold'), 
+                        LinkAttribution(href), 
                         SpanRange(start, end)
                       );
-                      break;
-                    case 'italic':
-                      attributedText.addAttribution(
-                        const NamedAttribution('italic'), 
-                        SpanRange(start, end)
-                      );
-                      break;
-                    case 'link':
-                      final href = span['href'] as String?;
-                      if (href != null) {
-                        attributedText.addAttribution(
-                          LinkAttribution(href), 
-                          SpanRange(start, end)
-                        );
-                      }
-                      break;
-                    case 'underline':
-                      attributedText.addAttribution(
-                        const NamedAttribution('underline'), 
-                        SpanRange(start, end)
-                      );
-                      break;
-                    case 'strikethrough':
-                      attributedText.addAttribution(
-                        const NamedAttribution('strikethrough'), 
-                        SpanRange(start, end)
-                      );
-                      break;
-                  }
+                    }
+                    break;
+                  case 'underline':
+                    attributedText.addAttribution(
+                      const NamedAttribution('underline'), 
+                      SpanRange(start, end)
+                    );
+                    break;
+                  case 'strikethrough':
+                    attributedText.addAttribution(
+                      const NamedAttribution('strikethrough'), 
+                      SpanRange(start, end)
+                    );
+                    break;
                 }
-              } catch (e) {
-                _logger.warning('Error processing span: $e');
-                // Continue with next span
               }
+            } catch (e) {
+              _logger.warning('Error processing span: $e');
+              // Continue with next span
             }
           }
         }
@@ -784,6 +799,7 @@ class DocumentBuilder {
       }
     }
     
+    // When storing, unify to 'spans' for consistency
     return _mergeAdjacentSpans(spans);
   }
   
