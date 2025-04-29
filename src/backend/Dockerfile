@@ -28,7 +28,7 @@ COPY . .
 # Build the application with proper linking flags for librdkafka
 # Adding -tags musl and removing -m64 flag via CGO_CFLAGS
 RUN CGO_ENABLED=1 GO111MODULE=on CGO_LDFLAGS="-lsasl2" \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=aarch64-linux-gnu-gcc \
     go build -v -tags musl -ldflags "-w -s" \
     -o /app/thinkstack ./cmd/main.go
 
