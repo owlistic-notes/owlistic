@@ -573,9 +573,8 @@ class DocumentBuilder {
       
       // Extract spans/formatting information
       final spans = extractSpansFromAttributedText(node.text);
-      if (spans.isNotEmpty) {
-        content['spans'] = spans;
-      }
+      // Always include spans field to maintain formatting consistency
+      content['spans'] = spans;
       
       // Preserve block-specific metadata
       if (originalBlock.type == 'heading') {
@@ -591,9 +590,8 @@ class DocumentBuilder {
       
       // Extract spans for list items as well
       final spans = extractSpansFromAttributedText(node.text);
-      if (spans.isNotEmpty) {
-        content['spans'] = spans;
-      }
+      // Always include spans field to maintain formatting consistency
+      content['spans'] = spans;
     }
     
     // Mark this block as modified with current timestamp
@@ -601,7 +599,105 @@ class DocumentBuilder {
     
     return content;
   }
+
+  // Extract spans (formatting information) from AttributedText with better handling
+  List<Map<String, dynamic>> extractSpansFromAttributedText(AttributedText attributedText) {
+    final List<Map<String, dynamic>> spans = [];
+    final text = attributedText.text;
+    
+    // If text is empty, return empty spans
+    if (text.isEmpty) {
+      return [];
+    }
+    
+    // Use the same attribution types that SuperEditor uses in defaultStyleBuilder
+    final attributions = [
+      const NamedAttribution('bold'),
+      const NamedAttribution('italic'),
+      const NamedAttribution('underline'),
+      const NamedAttribution('strikethrough')
+    ];
+    
+    // Extract spans for each standard attribution type
+    for (final attribution in attributions) {
+      final attributionSpans = attributedText.getAttributionSpans({attribution});
+      for (final span in attributionSpans) {
+        // Ensure span bounds are valid
+        if (span.start >= 0 && span.end <= text.length && span.end > span.start) {
+          spans.add({
+            'start': span.start,
+            'end': span.end,
+            'type': attribution.id,
+          });
+        }
+      }
+    }
+    
+    // Handle links separately as they're a different type of attribution
+    for (int i = 0; i < text.length; i++) {
+      final attributionsAtPosition = attributedText.getAllAttributionsAt(i);
+      for (final attribution in attributionsAtPosition) {
+        if (attribution is LinkAttribution) {
+          int end = i;
+          while (end < text.length && 
+                attributedText.getAllAttributionsAt(end).contains(attribution)) {
+            end++;
+          }
+          
+          // Only add if span bounds are valid
+          if (i >= 0 && end <= text.length && end > i) {
+            spans.add({
+              'start': i,
+              'end': end,
+              'type': 'link',
+              'href': attribution.url,
+            });
+          }
+          
+          i = end - 1;
+          break;
+        }
+      }
+    }
+    
+    // Merge adjacent spans of the same type to optimize storage
+    return _mergeAdjacentSpans(spans);
+  }
   
+  // Improved helper method to merge adjacent spans of the same type
+  List<Map<String, dynamic>> _mergeAdjacentSpans(List<Map<String, dynamic>> spans) {
+    if (spans.isEmpty) return [];
+    
+    // Sort spans by start position for easier processing
+    spans.sort((a, b) => a['start'].compareTo(b['start']));
+    
+    final List<Map<String, dynamic>> mergedSpans = [];
+    Map<String, dynamic>? currentSpan;
+    
+    for (final span in spans) {
+      if (currentSpan == null) {
+        currentSpan = Map<String, dynamic>.from(span);
+      } else if (currentSpan['end'] >= span['start'] && 
+                 currentSpan['type'] == span['type'] &&
+                 // For links, only merge if they have the same href
+                 (span['type'] != 'link' || currentSpan['href'] == span['href'])) {
+        // Merge by extending the end of the current span
+        currentSpan['end'] = span['end'] > currentSpan['end'] ? span['end'] : currentSpan['end'];
+      } else {
+        // Different type or non-adjacent spans, add current and start a new one
+        mergedSpans.add(currentSpan);
+        currentSpan = Map<String, dynamic>.from(span);
+      }
+    }
+    
+    // Add the last span if it exists
+    if (currentSpan != null) {
+      mergedSpans.add(currentSpan);
+    }
+    
+    return mergedSpans;
+  }
+
   // Creates nodes from a block
   List<DocumentNode> createNodesFromBlock(Block block) {
     final content = block.content;
@@ -675,7 +771,8 @@ class DocumentBuilder {
     final attributedText = AttributedText(text);
     
     try {
-      // Process spans if available (handle both 'spans' and 'inlineStyles' keys for compatibility)
+      // Process spans if available - support both 'spans' and 'inlineStyles' keys
+      // to match SuperEditor's handling
       List? spans;
       if (content is Map) {
         if (content.containsKey('spans')) {
@@ -692,13 +789,13 @@ class DocumentBuilder {
               span.containsKey('end') && 
               span.containsKey('type')) {
             try {
-              final start = span['start'] as int? ?? 0;
-              final end = span['end'] as int? ?? 0;
+              final start = span['start'] is int ? span['start'] : int.tryParse(span['start'].toString()) ?? 0;
+              final end = span['end'] is int ? span['end'] : int.tryParse(span['end'].toString()) ?? 0;
               final type = span['type'] as String? ?? '';
               
               // Validate span range to avoid errors
               if (start >= 0 && end > start && end <= text.length) {
-                // Apply different attributes based on span type
+                // Apply attributions based on the type - following SuperEditor's defaults
                 switch (type) {
                   case 'bold':
                     attributedText.addAttribution(
@@ -733,6 +830,13 @@ class DocumentBuilder {
                       SpanRange(start, end)
                     );
                     break;
+                  // Support for SuperEditor's color attributions could be added here
+                  case 'color':
+                    if (span.containsKey('color')) {
+                      // Would need to parse color from the span data
+                      // This is left as a TODO for future implementation
+                    }
+                    break;
                 }
               }
             } catch (e) {
@@ -748,88 +852,6 @@ class DocumentBuilder {
     }
     
     return attributedText;
-  }
-  
-  // Extract spans (formatting information) from AttributedText
-  List<Map<String, dynamic>> extractSpansFromAttributedText(AttributedText attributedText) {
-    final List<Map<String, dynamic>> spans = [];
-    final text = attributedText.text;
-    
-    // Get all attribution types
-    final attributions = [
-      const NamedAttribution('bold'),
-      const NamedAttribution('italic'),
-      const NamedAttribution('underline'),
-      const NamedAttribution('strikethrough')
-    ];
-    
-    // Extract spans for each attribution type
-    for (final attribution in attributions) {
-      final attributionSpans = attributedText.getAttributionSpans({attribution});
-      for (final span in attributionSpans) {
-        spans.add({
-          'start': span.start,
-          'end': span.end,
-          'type': attribution.id,
-        });
-      }
-    }
-    
-    // Handle links separately
-    for (int i = 0; i < text.length; i++) {
-      final attributionsAtPosition = attributedText.getAllAttributionsAt(i);
-      for (final attribution in attributionsAtPosition) {
-        if (attribution is LinkAttribution) {
-          int end = i;
-          while (end < text.length && 
-                attributedText.getAllAttributionsAt(end).contains(attribution)) {
-            end++;
-          }
-          
-          spans.add({
-            'start': i,
-            'end': end,
-            'type': 'link',
-            'href': attribution.url,
-          });
-          
-          i = end - 1;
-          break;
-        }
-      }
-    }
-    
-    // When storing, unify to 'spans' for consistency
-    return _mergeAdjacentSpans(spans);
-  }
-  
-  // Helper method to merge adjacent spans of the same type
-  List<Map<String, dynamic>> _mergeAdjacentSpans(List<Map<String, dynamic>> spans) {
-    if (spans.isEmpty) return [];
-    
-    spans.sort((a, b) => a['start'].compareTo(b['start']));
-    
-    final List<Map<String, dynamic>> mergedSpans = [];
-    Map<String, dynamic>? currentSpan;
-    
-    for (final span in spans) {
-      if (currentSpan == null) {
-        currentSpan = Map<String, dynamic>.from(span);
-      } else if (currentSpan['end'] >= span['start'] && 
-                 currentSpan['type'] == span['type'] &&
-                 (span['type'] != 'link' || currentSpan['href'] == span['href'])) {
-        currentSpan['end'] = span['end'] > currentSpan['end'] ? span['end'] : currentSpan['end'];
-      } else {
-        mergedSpans.add(currentSpan);
-        currentSpan = Map<String, dynamic>.from(span);
-      }
-    }
-    
-    if (currentSpan != null) {
-      mergedSpans.add(currentSpan);
-    }
-    
-    return mergedSpans;
   }
   
   // Find the best node to place cursor at when restoring selection fails

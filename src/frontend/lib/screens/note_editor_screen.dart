@@ -8,7 +8,7 @@ import '../models/block.dart';
 import '../utils/logger.dart';
 import '../widgets/app_bar_common.dart';
 import '../viewmodel/note_editor_viewmodel.dart';  // Only reference NoteEditorViewModel
-import '../utils/websocket_subscription_manager.dart';
+import '../services/websocket_service.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 
 class NoteEditorScreen extends StatefulWidget {
@@ -21,7 +21,7 @@ class NoteEditorScreen extends StatefulWidget {
   _NoteEditorScreenState createState() => _NoteEditorScreenState();
 }
 
-class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubscriptionMixin {
+class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final Logger _logger = Logger('NoteEditorScreen');
   bool _isLoading = true;
   bool _isLoadingMoreBlocks = false;
@@ -39,8 +39,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
   // Only use NoteEditorViewModel
   late NoteEditorViewModel _noteEditorViewModel;
   
+  // WebSocketService for explicit subscription management
+  late WebSocketService _webSocketService;
+  
   // Flag to track initialization
   bool _isInitialized = false;
+  
+  // Set to track blocks we've already received via WebSocket to prevent duplicates
+  final Set<String> _receivedBlockIds = {};
 
   @override
   void initState() {
@@ -73,28 +79,95 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
   void didChangeDependencies() {
     super.didChangeDependencies();
     
-    // Only initialize WebSocket subscriptions after dependencies are available
-    // and if not already initialized
+    // Only initialize dependencies once
     if (!_isInitialized) {
-      // Safe to initialize WebSocket subscriptions now
-      initWebSocketSubscriptions();
+      // Get ViewModels and services
+      _noteEditorViewModel = context.read<NoteEditorViewModel>();
+      _webSocketService = WebSocketService();
+      
+      // Register WebSocket event handlers
+      _initializeEventListeners();
+      
+      _isInitialized = true;
+    }
+  }
+  
+  // Initialize WebSocket event listeners - following the pattern in notebooks_provider.dart
+  void _initializeEventListeners() {
+    _logger.info('Setting up note editor event listeners');
+    
+    // Use addEventListener like in notebooks_provider.dart
+    _webSocketService.addEventListener('event', 'block.created', _handleBlockCreated);
+    _webSocketService.addEventListener('event', 'block.updated', _handleBlockUpdated);
+    _webSocketService.addEventListener('event', 'block.deleted', _handleBlockDeleted);
+  }
+  
+  // Subscribe to events and resources - following the pattern in notebooks_provider.dart
+  void _subscribeToEvents() {
+    _logger.info('Subscribing to note and block events');
+    
+    // Subscribe to event types
+    _webSocketService.subscribeToEvent('block.created');
+    _webSocketService.subscribeToEvent('block.updated');
+    _webSocketService.subscribeToEvent('block.deleted');
+    
+    // Subscribe to the specific note if we have an ID
+    if (_noteId != null && _noteId!.isNotEmpty) {
+      _webSocketService.subscribe('note', id: _noteId);
     }
   }
 
+  // WebSocket event handlers - similar to those in notebooks_provider.dart
+  void _handleBlockCreated(Map<String, dynamic> message) {
+    try {
+      // Parse event data
+      final data = message['data'];
+      if (data != null && data.containsKey('id')) {
+        final String blockId = data['id'];
+        
+        // If we've already processed this block ID, don't process it again
+        if (_receivedBlockIds.contains(blockId)) {
+          _logger.debug('Skipping duplicate block.created event for block: $blockId');
+          return;
+        }
+        
+        // Add to tracking set and fetch
+        _receivedBlockIds.add(blockId);
+        _noteEditorViewModel.fetchBlockFromEvent(blockId);
+      }
+    } catch (e) {
+      _logger.error('Error handling block created event', e);
+    }
+  }
+  
+  void _handleBlockUpdated(Map<String, dynamic> message) {
+    try {
+      // Parse event data
+      final data = message['data'];
+      if (data != null && data.containsKey('id')) {
+        final String blockId = data['id'];
+        
+        // Only update if this wasn't a block we just modified locally
+        if (!_noteEditorViewModel.userModifiedBlockIds.contains(blockId)) {
+          _noteEditorViewModel.fetchBlockFromEvent(blockId);
+        }
+      }
+    } catch (e) {
+      _logger.error('Error handling block updated event', e);
+    }
+  }
+  
+  void _handleBlockDeleted(Map<String, dynamic> message) {
+    // This is handled by the provider directly since it requires document manipulation
+    // The event is already subscribed to in _subscribeToEvents()
+  }
+
   Future<void> _initialize() async {
-    // Get ViewModels
-    _noteEditorViewModel = context.read<NoteEditorViewModel>();
-    
     // Activate ViewModels
     _noteEditorViewModel.activate();
     
-    // Setup WebSocket subscriptions after providers are available
-    if (_noteId != null) {
-      subscribe('note', id: _noteId);
-      subscribeToEvent('block.created');
-      subscribeToEvent('block.updated');
-      subscribeToEvent('block.deleted');
-    }
+    // Subscribe to events
+    _subscribeToEvents();
     
     try {
       if (_noteId == null || _noteId!.isEmpty) {
@@ -128,9 +201,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
       _noteEditorViewModel.noteId = _noteId;
       
       // Load initial blocks for the note using ViewModel - use smaller page size for faster initial rendering
-      final blocks = await _noteEditorViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 20);
-      
-      _isInitialized = true;
+      await _noteEditorViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 20);
       
       setState(() {
         _isLoading = false;
@@ -147,72 +218,47 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
     }
   }
 
-  // Fixed method for loading more blocks in the background
+  // Simplified method for loading more blocks in the background
   Future<void> _loadMoreBlocksInBackground() async {
     // Guard against concurrent loading operations
-    if (_isLoadingMoreBlocks) return;
+    if (_isLoadingMoreBlocks || _noteId == null || !mounted) return;
     
     try {
-      if (_noteId == null || !mounted) return;
-      
       setState(() {
         _isLoadingMoreBlocks = true;
       });
 
-      // If we have more blocks to load
-      if (_noteEditorViewModel.hasMoreBlocks(_noteId!)) {
-        _logger.info('Loading more blocks in background');
-        
-        // Get current pagination state
-        final paginationInfo = _noteEditorViewModel.getPaginationInfo(_noteId!);
-        
-        // Safely access the page number with null check and fallback
-        final currentPage = paginationInfo['page'] ?? 1;
-        if (currentPage is! int) {
-          _logger.error('Invalid page number in pagination info: $currentPage');
-          setState(() {
-            _isLoadingMoreBlocks = false;
-          });
-          return;
-        }
-        
-        final nextPage = currentPage + 1;
-        
-        // Fetch the next page with append=true to keep existing blocks
-        final moreBlocks = await _noteEditorViewModel.fetchBlocksForNote(
-          _noteId!,
-          page: nextPage,
-          pageSize: 20,
-          append: true
-        );
-        
-        // Complete the loading operation
-        setState(() {
-          _isLoadingMoreBlocks = false;
-        });
-        
-        // IMPORTANT FIX: If we received empty response, mark as end of data
-        if (moreBlocks.isEmpty) {
-          _logger.info('No more blocks returned from API, ending pagination');
-          return;
-        }
-
-        // Check if we got fewer blocks than requested, which means we've reached the end
-        if (_noteEditorViewModel.hasMoreBlocks(_noteId!)) {
-          // Add a short delay before loading more to prevent UI freezing
-          await Future.delayed(const Duration(milliseconds: 500));
-          // Start another load cycle, but only if we're still mounted
-          if (mounted) {
-            _loadMoreBlocksInBackground();
-          }
-        } else {
-          _logger.info('Finished loading blocks. Total blocks loaded ${moreBlocks.length}');
+      // Get current pagination state
+      final paginationInfo = _noteEditorViewModel.getPaginationInfo(_noteId!);
+      final currentPage = paginationInfo['page'] as int? ?? 1;
+      final nextPage = currentPage + 1;
+      
+      _logger.info('Loading more blocks in background (page: $nextPage)');
+      
+      // Fetch the next page with append=true to keep existing blocks
+      final List<Block> moreBlocks = await _noteEditorViewModel.fetchBlocksForNote(
+        _noteId!,
+        page: nextPage,
+        pageSize: 20,
+        append: true
+      );
+      
+      // Log the result for debugging
+      _logger.debug('Received ${moreBlocks.length} blocks for page $nextPage');
+      
+      // Complete the loading operation
+      setState(() {
+        _isLoadingMoreBlocks = false;
+      });
+      
+      // Simple check - if ViewModel says there are more blocks, load them after a short delay
+      if (moreBlocks.isNotEmpty && _noteEditorViewModel.hasMoreBlocks(_noteId!)) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          _loadMoreBlocksInBackground();
         }
       } else {
-        setState(() {
-          _isLoadingMoreBlocks = false;
-        });
-        _logger.info('No more blocks to load according to pagination info');
+        _logger.info('Finished loading all blocks');
       }
     } catch (e) {
       _logger.error('Error loading more blocks', e);
@@ -231,11 +277,36 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
     _titleController.dispose();
     _scrollController.dispose();
     
-    _noteEditorViewModel.deactivate();
+    // Save any pending changes
     _autoSaveTitleIfNeeded();
     
-    // WebSocketSubscriptionMixin handles subscription cleanup in its dispose method
+    // Unsubscribe from WebSocket events
+    _cleanupEventListeners();
+    
+    // Deactivate ViewModel
+    _noteEditorViewModel.deactivate();
+    
     super.dispose();
+  }
+  
+  // Clean up event listeners - similar to cleanup in notebooks_provider.dart
+  void _cleanupEventListeners() {
+    _logger.info('Cleaning up note editor event listeners');
+    
+    // Unsubscribe from events
+    _webSocketService.unsubscribeFromEvent('block.created');
+    _webSocketService.unsubscribeFromEvent('block.updated');
+    _webSocketService.unsubscribeFromEvent('block.deleted');
+    
+    // Unsubscribe from note
+    if (_noteId != null && _noteId!.isNotEmpty) {
+      _webSocketService.unsubscribe('note', id: _noteId);
+    }
+    
+    // Remove event handlers
+    _webSocketService.removeEventListener('event', 'block.created');
+    _webSocketService.removeEventListener('event', 'block.updated');
+    _webSocketService.removeEventListener('event', 'block.deleted');
   }
 
   // Handle title focus change
@@ -308,11 +379,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
       onNotification: (ScrollNotification scrollInfo) {
         // Check if we're near the bottom of the scroll view to trigger loading more blocks
         if (!_isLoadingMoreBlocks && // Only if we're not already loading
+            _noteId != null &&
+            viewModel.hasMoreBlocks(_noteId!) &&
             scrollInfo.metrics.pixels > scrollInfo.metrics.maxScrollExtent * 0.8) {
-          // Make sure we don't trigger multiple loading operations
-          if (_noteId != null && _noteEditorViewModel.hasMoreBlocks(_noteId!)) {
-            _loadMoreBlocksInBackground();
-          }
+          // Simplified trigger for loading more blocks
+          _loadMoreBlocksInBackground();
         }
         return false;
       },
@@ -324,7 +395,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WebSocketSubsc
         gestureMode: DocumentGestureMode.mouse,
         stylesheet: defaultStylesheet.copyWith(
           documentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          // Apply text styling based on SuperEditor's default implementation
+          inlineTextStyler: defaultInlineTextStyler,
         ),
+        componentBuilders: [
+          ...defaultComponentBuilders,
+        ],
       ),
     );
   }

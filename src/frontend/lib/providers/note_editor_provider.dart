@@ -552,10 +552,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     final block = getBlock(blockId);
     if (block == null) return;
     
-    // Extract content from node
+    // Extract content from node with proper formatting
     final content = _documentBuilder.extractContentFromNode(node, blockId, block);
     
-    // Send content update
+    // Send content update with formats included
     updateBlockContent(blockId, content, immediate: true);
   }
   
@@ -1055,12 +1055,24 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       return;
     }
     
+    // Always include spans field in content update to preserve formatting
+    // If spans aren't in the new content but are in the existing block, preserve them
+    if (!contentMap.containsKey('spans') && existingBlock.content is Map) {
+      final existingContent = existingBlock.content as Map;
+      if (existingContent.containsKey('spans')) {
+        contentMap['spans'] = existingContent['spans'];
+      }
+    }
+    
     // Update local block without waiting for server response
     _blocks[id] = existingBlock.copyWith(
       content: contentMap,
       type: type ?? existingBlock.type,
       order: order ?? existingBlock.order
     );
+    
+    // Track this as a user modification
+    _documentBuilder.markBlockAsModified(id);
     
     // Notify listeners for UI responsiveness
     _enqueueNotification();
