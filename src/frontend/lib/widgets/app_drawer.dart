@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
-import '../viewmodel/auth_viewmodel.dart'; // Use the interface instead of the implementation
+import '../viewmodel/home_viewmodel.dart';
 import '../utils/logger.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -12,87 +12,102 @@ class AppDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final logger = Logger('AppDrawer');
     
-    // Use AuthViewModel interface instead of concrete AuthProvider class
-    final authViewModel = context.watch<AuthViewModel>();
-    final user = authViewModel.currentUser;
+    // Use HomeViewModel interface instead of concrete AuthProvider class
+    final homeViewModel = context.watch<HomeViewModel>();
+    final user = homeViewModel.currentUser;
     
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          UserAccountsDrawerHeader(
-            accountName: Text(user?.email?.split('@')[0] ?? 'User'),
-            accountEmail: Text(user?.email ?? 'No Email'),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              child: Text(
-                (user?.email?.isEmpty ?? true) ? 'U' : user!.email[0].toUpperCase(),
-                style: const TextStyle(fontSize: 24.0),
-              ),
-            ),
+      child: Column(
+        children: [
+          // Drawer header with app logo/name
+          DrawerHeader(
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
             ),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.psychology,
+                    size: 36,
+                    color: Colors.white,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'ThinkStack',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
+          // Drawer items
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Home'),
             onTap: () {
-              context.go('/');
+              Navigator.pop(context);
+              GoRouter.of(context).go('/');
             },
           ),
           ListTile(
             leading: const Icon(Icons.folder),
             title: const Text('Notebooks'),
             onTap: () {
-              logger.debug('Navigating to notebooks');
-              Navigator.pop(context); // Close drawer
-              context.go('/notebooks');
+              Navigator.pop(context);
+              GoRouter.of(context).go('/notebooks');
             },
           ),
           ListTile(
             leading: const Icon(Icons.note),
-            title: const Text('Notes'),
+            title: const Text('Recent Notes'),
             onTap: () {
-              logger.debug('Navigating to notes');
-              Navigator.pop(context); // Close drawer
-              context.go('/notes');
+              Navigator.pop(context);
+              GoRouter.of(context).go('/notes');
             },
           ),
           ListTile(
-            leading: const Icon(Icons.check_circle_outline),
+            leading: const Icon(Icons.task),
             title: const Text('Tasks'),
             onTap: () {
-              logger.debug('Navigating to tasks');
-              Navigator.pop(context); // Close drawer
-              context.go('/tasks');
+              Navigator.pop(context);
+              GoRouter.of(context).go('/tasks');
             },
           ),
-          const Divider(),
           ListTile(
-            leading: const Icon(Icons.delete_outline),
+            leading: const Icon(Icons.delete),
             title: const Text('Trash'),
             onTap: () {
-              logger.debug('Navigating to trash');
-              Navigator.pop(context); // Close drawer
-              context.go('/trash');
+              Navigator.pop(context);
+              GoRouter.of(context).go('/trash');
             },
           ),
-          const Divider(),
+          Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Settings'),
             onTap: () {
-              logger.debug('Navigating to settings');
-              Navigator.pop(context); // Close drawer
-              // TODO: Navigate to settings
+              Navigator.pop(context);
+              GoRouter.of(context).go('/settings');
             },
           ),
+          const Spacer(),
+          Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
-            onTap: () => _showLogoutConfirmation(context),
+            onTap: () async {
+              Navigator.pop(context);
+              // Use HomeViewModel for logout
+              await context.read<HomeViewModel>().logout();
+            },
           ),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -121,9 +136,8 @@ class AppDrawer extends StatelessWidget {
               Navigator.pop(ctx); // Close dialog
               Navigator.pop(context); // Close drawer
               
-              // Use the AuthViewModel for logout
-              final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
-              await authViewModel.logout();
+              // Use the HomeViewModel for logout
+              await context.read<HomeViewModel>().logout();
               
               // Navigation will be handled by GoRouter redirect
             },

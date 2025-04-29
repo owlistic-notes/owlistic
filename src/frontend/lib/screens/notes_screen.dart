@@ -661,13 +661,8 @@ class _NotesScreenState extends State<NotesScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBarCommon(
         title: 'Notes',
-        // Ensure this is properly connecting to the scaffold key
+        showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        onBackPressed: () {
-          if (Navigator.canPop(context)) {
-            Navigator.of(context).pop();
-          }
-        },
       ),
       drawer: const AppDrawer(),
       body: Consumer<NotesViewModel>(

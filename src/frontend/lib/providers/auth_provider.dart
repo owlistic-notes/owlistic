@@ -68,7 +68,6 @@ class AuthProvider with ChangeNotifier implements AuthViewModel {
     notifyListeners();
   }
   
-  // AuthViewModel implementation
   @override
   bool get isLoggedIn => _isLoggedIn;
   

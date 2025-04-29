@@ -121,8 +121,9 @@ class _TrashScreenState extends State<TrashScreen> with TickerProviderStateMixin
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBarCommon(
         title: 'Trash',
+        showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        additionalActions: [
+        actions: [
           IconButton(
             icon: const Icon(Icons.delete_forever),
             tooltip: 'Empty trash',

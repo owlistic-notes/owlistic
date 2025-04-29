@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../viewmodel/auth_viewmodel.dart';
+import '../viewmodel/login_viewmodel.dart';
 import '../utils/logger.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -23,41 +22,53 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     
-    // Activate the AuthViewModel
+    // Activate the LoginViewModel
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthViewModel>().activate();
+      context.read<LoginViewModel>().activate();
+      _loadSavedEmail();
     });
+  }
+  
+  Future<void> _loadSavedEmail() async {
+    final savedEmail = await context.read<LoginViewModel>().getSavedEmail();
+    if (savedEmail != null && savedEmail.isNotEmpty) {
+      _emailController.text = savedEmail;
+    }
   }
   
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    // Deactivate the AuthViewModel
-    context.read<AuthViewModel>().deactivate();
+    // Deactivate the LoginViewModel
+    context.read<LoginViewModel>().deactivate();
     super.dispose();
   }
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       try {
-        final authViewModel = context.read<AuthViewModel>();
+        final loginViewModel = context.read<LoginViewModel>();
         
-        final success = await authViewModel.login(
+        final success = await loginViewModel.login(
           _emailController.text.trim(), 
           _passwordController.text,
           _rememberMe
         );
         
-        if (!success && mounted) {
+        if (success) {
+          // Use the new navigation method after successful login
+          if (mounted) {
+            loginViewModel.onLoginSuccess(context);
+          }
+        } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(authViewModel.errorMessage ?? 'Login failed'),
+              content: Text(loginViewModel.errorMessage ?? 'Login failed'),
               backgroundColor: Colors.red,
             ),
           );
         }
-        // Navigation is handled by GoRouter redirect
       } catch (e) {
         _logger.error('Error during login', e);
         if (mounted) {
@@ -75,11 +86,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
     
-    // Watch the AuthViewModel to react to changes
-    final authViewModel = context.watch<AuthViewModel>();
-    final isLoading = authViewModel.isLoading;
+    // Watch the LoginViewModel to react to changes
+    final loginViewModel = context.watch<LoginViewModel>();
+    final isLoading = loginViewModel.isLoading;
     
     return Scaffold(
       body: Center(
@@ -190,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Register link
                   TextButton(
                     onPressed: () {
-                      context.go('/register');
+                      loginViewModel.navigateToRegister(context);
                     },
                     child: const Text('Don\'t have an account? Register now'),
                   ),

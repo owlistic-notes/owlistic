@@ -1,63 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../viewmodel/auth_viewmodel.dart';
-import '../providers/auth_provider.dart';
+import 'package:provider/provider.dart';
+
+// Replace AuthViewModel with LoginViewModel
+import '../viewmodel/login_viewmodel.dart';
 import '../screens/home_screen.dart';
+import '../screens/login_screen.dart';
+import '../screens/register_screen.dart';
 import '../screens/notebooks_screen.dart';
 import '../screens/notebook_detail_screen.dart';
 import '../screens/notes_screen.dart';
+import '../screens/note_editor_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../screens/trash_screen.dart';
-import '../screens/login_screen.dart';
-import '../screens/register_screen.dart';
 import '../utils/logger.dart';
 
-/// App Router definition using GoRouter
 class AppRouter {
-  // Use logging to aid debugging
-  static final Logger _logger = Logger('AppRouter');
+  final Logger _logger = Logger('AppRouter');
   
-  // Create a navigator key to access the current context
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-  
-  // Create router with redirection logic
-  static GoRouter createRouter(AuthViewModel authViewModel) {
-    return GoRouter(
-      navigatorKey: navigatorKey,
-      initialLocation: '/',
-      debugLogDiagnostics: true,
-      redirect: (context, state) {
-        // Non-auth routes that don't require authentication
-        final publicRoutes = ['/login', '/register'];
-        final isLoggingIn = state.matchedLocation == '/login';
-        final isRegistering = state.matchedLocation == '/register';
-        final isPublicRoute = publicRoutes.contains(state.matchedLocation);
-        
-        // Auth state
-        final isLoggedIn = authViewModel.isLoggedIn;
-        final isInitializing = authViewModel.isLoading;
-        
-        _logger.info('Route check: ${state.matchedLocation} - Auth state: $isLoggedIn');
-        
-        // If we're still initializing auth, don't redirect
-        if (isInitializing && !isPublicRoute) {
-          _logger.info('Auth is initializing, holding at current route');
-          return null;
-        }
+  late final GoRouter router;
 
-        // If not logged in and trying to access a protected route, redirect to login
-        if (!isLoggedIn && !isPublicRoute) {
-          _logger.info('Not authenticated, redirecting to login from ${state.matchedLocation}');
+  AppRouter(BuildContext context) {
+    router = GoRouter(
+      refreshListenable: GoRouterRefreshStream(),
+      debugLogDiagnostics: true,
+      initialLocation: '/',
+      redirect: (BuildContext context, GoRouterState state) {
+        // Use LoginViewModel for isLoggedIn check
+        final loginViewModel = Provider.of<LoginViewModel>(context, listen: false);
+        final bool isLoggedIn = loginViewModel.isLoggedIn;
+        final bool isLoggingIn = state.fullPath == '/login';
+        final bool isRegistering = state.fullPath == '/register';
+        
+        _logger.debug('GoRouter redirect: isLoggedIn=$isLoggedIn, currentPath=${state.fullPath}');
+        
+        // If not logged in and not on login or register page, redirect to login
+        if (!isLoggedIn && !isLoggingIn && !isRegistering) {
           return '/login';
         }
         
-        // If logged in and trying to access login or register, redirect to home
-        if (isLoggedIn && isPublicRoute) {
-          _logger.info('Already authenticated, redirecting to home from ${state.matchedLocation}');
+        // If logged in and on login or register page, redirect to home
+        if (isLoggedIn && (isLoggingIn || isRegistering)) {
           return '/';
         }
         
-        // No redirect needed
+        // No redirection needed
         return null;
       },
       routes: [
@@ -97,8 +84,12 @@ class AppRouter {
           path: '/register',
           builder: (context, state) => RegisterScreen(),
         ),
-              ],
-      refreshListenable: authViewModel,
+      ],
     );
   }
+}
+
+// Helper class to convert Stream to Listenable for GoRouter
+class GoRouterRefreshStream extends ChangeNotifier {
+  // ...existing code...
 }

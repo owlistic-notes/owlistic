@@ -2,19 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../models/note.dart';
+import '../models/user.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
-import '../viewmodel/notes_viewmodel.dart';
-import '../viewmodel/tasks_viewmodel.dart';
-import '../viewmodel/notebooks_viewmodel.dart';
-import '../viewmodel/websocket_viewmodel.dart';
-import '../viewmodel/theme_viewmodel.dart';
-import '../viewmodel/auth_viewmodel.dart';
+import '../viewmodel/home_viewmodel.dart';
 import '../utils/logger.dart';
-import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -34,36 +28,35 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     // Initialize our screen
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeViewModels();
+      _initializeViewModel();
     });
   }
 
-  void _initializeViewModels() {
-    // Activate all necessary ViewModels
-    context.read<WebSocketViewModel>().activate();
-    context.read<NotesViewModel>().activate();
-    context.read<NotebooksViewModel>().activate();
-    context.read<TasksViewModel>().activate();
-    context.read<ThemeViewModel>().activate();
+  void _initializeViewModel() {
+    // Activate just the HomeViewModel
+    final homeViewModel = context.read<HomeViewModel>();
+    homeViewModel.activate();
     
     // Initialize data
     _initializeData();
   }
 
   Future<void> _initializeData() async {
+    final homeViewModel = context.read<HomeViewModel>();
+    
     // Ensure WebSocket is connected
-    await context.read<WebSocketViewModel>().ensureConnected();
+    await homeViewModel.ensureConnected();
 
-    // Fetch data from ViewModels
+    // Fetch data from HomeViewModel
     try {
       // Fetch notebooks first
-      await context.read<NotebooksViewModel>().fetchNotebooks();
+      await homeViewModel.fetchRecentNotebooks();
       
-      // Fetch recent notes - Add this line
-      await context.read<NotesViewModel>().fetchNotes();
+      // Fetch recent notes
+      await homeViewModel.fetchRecentNotes();
       
       // Fetch tasks
-      await context.read<TasksViewModel>().fetchTasks();
+      await homeViewModel.fetchRecentTasks();
       
       // Mark as initialized
       setState(() {
@@ -76,13 +69,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    // Deactivate ViewModels when screen is disposed
-    context.read<WebSocketViewModel>().deactivate();
-    context.read<NotesViewModel>().deactivate();
-    context.read<NotebooksViewModel>().deactivate();
-    context.read<TasksViewModel>().deactivate();
-    context.read<ThemeViewModel>().deactivate();
-    
+    // Deactivate ViewModel when screen is disposed
+    context.read<HomeViewModel>().deactivate();
     _searchController.dispose();
     super.dispose();
   }
@@ -133,15 +121,16 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     ).then((value) {
       if (value != null) {
-        // Use ViewModel to change theme
-        context.read<ThemeViewModel>().setThemeMode(value);
+        // Use HomeViewModel for changing theme
+        context.read<HomeViewModel>().setThemeMode(value);
       }
     });
   }
 
-  void _showProfileMenu(BuildContext context) {
-    // Use AuthViewModel for user data
-    final authViewModel = context.read<AuthViewModel>();
+  void _showProfileMenu(BuildContext context) async {
+    // Use await to properly get currentUser
+    final homeViewModel = context.read<HomeViewModel>();
+    final currentUser = await homeViewModel.currentUser;
     
     showMenu<String>(
       context: context,
@@ -154,8 +143,8 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
               child: Icon(Icons.person, color: Theme.of(context).primaryColor),
             ),
-            title: Text(authViewModel.currentUser?.email?.split('@')[0] ?? 'User'),
-            subtitle: Text(authViewModel.currentUser?.email ?? 'No email'),
+            title: Text(currentUser?.email?.split('@')[0] ?? 'User'),
+            subtitle: Text(currentUser?.email ?? 'No email'),
           ),
         ),
         const PopupMenuItem<String>(
@@ -183,8 +172,8 @@ class _HomeScreenState extends State<HomeScreen> {
             // Wait a moment for the menu to close
             await Future.delayed(Duration.zero);
             if (context.mounted) {
-              // Call logout through ViewModel
-              await context.read<AuthViewModel>().logout();
+              // Use HomeViewModel for logout
+              await context.read<HomeViewModel>().logout();
             }
           },
         ),
@@ -232,64 +221,68 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildWelcomeCard(BuildContext context) {
-    // Watch AuthViewModel to get current user
-    final authViewModel = context.watch<AuthViewModel>();
-    final userName = authViewModel.currentUser?.email?.split('@')[0] ?? 'User';
-    
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).primaryColor.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    // Use FutureBuilder to handle async user data
+    return FutureBuilder<User?>(
+      future: context.read<HomeViewModel>().currentUser,
+      builder: (context, snapshot) {
+        final userName = snapshot.data?.email?.split('@')[0] ?? 'User';
+        
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).primaryColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).primaryColor.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome, $userName!',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome, $userName!',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Create notes, manage tasks, and stay organized.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Create notes, manage tasks, and stay organized.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white,
-                  ),
+              ),
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(35),
                 ),
-              ],
-            ),
+                child: const Icon(
+                  Icons.lightbulb_outline,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+            ],
           ),
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(35),
-            ),
-            child: const Icon(
-              Icons.lightbulb_outline,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ],
-      ),
+        );
+      }
     );
   }
 
@@ -319,17 +312,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentNotebooks() {
-    // Watch the NotebooksViewModel for changes
-    return Consumer<NotebooksViewModel>(
-      builder: (ctx, notebooksViewModel, _) {
-        if (notebooksViewModel.isLoading) {
+    // Use HomeViewModel for notebooks data
+    return Consumer<HomeViewModel>(
+      builder: (ctx, homeViewModel, _) {
+        if (homeViewModel.isLoading) {
           return const SizedBox(
             height: 160,
             child: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final notebooks = notebooksViewModel.notebooks.take(5).toList();
+        final notebooks = homeViewModel.recentNotebooks;
 
         if (notebooks.isEmpty) {
           return EmptyState(
@@ -349,6 +342,11 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: notebooks.length,
             itemBuilder: (context, index) {
               final notebook = notebooks[index];
+              // Get actual note count for this notebook
+              final noteCount = homeViewModel.recentNotes
+                  .where((note) => note.notebookId == notebook.id)
+                  .length;
+              
               return Container(
                 width: 160,
                 margin: const EdgeInsets.all(8),
@@ -389,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${notebook.notes.length} notes',
+                                '$noteCount notes',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
@@ -411,18 +409,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentNotes() {
-    // Watch the NotesViewModel for changes
-    return Consumer<NotesViewModel>(
-      builder: (ctx, notesViewModel, _) {
-        if (notesViewModel.isLoading) {
+    // Use HomeViewModel for notes data
+    return Consumer<HomeViewModel>(
+      builder: (ctx, homeViewModel, _) {
+        if (homeViewModel.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Get recent notes from ViewModel
-        if (notesViewModel.recentNotes.isEmpty) {
+        // Get recent notes from HomeViewModel
+        if (homeViewModel.recentNotes.isEmpty) {
           // Check notebooks before showing create note button
-          final notebooksViewModel = context.watch<NotebooksViewModel>();
-          final hasNotebooks = notebooksViewModel.notebooks.isNotEmpty;
+          final hasNotebooks = homeViewModel.hasNotebooks;
 
           return EmptyState(
             title: 'No notes yet',
@@ -440,9 +437,9 @@ class _HomeScreenState extends State<HomeScreen> {
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: notesViewModel.recentNotes.take(3).length,
+          itemCount: homeViewModel.recentNotes.take(3).length,
           itemBuilder: (context, index) {
-            final note = notesViewModel.recentNotes[index];
+            final note = homeViewModel.recentNotes[index];
             // Get notebook name if available
             final notebookName = _getNotebookName(note.notebookId);
             final lastEdited = note.updatedAt ?? note.createdAt;
@@ -476,27 +473,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   
-  // Helper to get notebook name - Add this method
+  // Helper to get notebook name using HomeViewModel
   String? _getNotebookName(String notebookId) {
-    final notebook = context.read<NotebooksViewModel>().getNotebook(notebookId);
+    final notebook = context.read<HomeViewModel>().getNotebook(notebookId);
     return notebook?.name;
   }
 
-  // Format date for recent notes display - Add this method
+  // Format date for recent notes display
   String _formatDate(DateTime? date) {
     if (date == null) return 'Unknown date';
     return DateFormat('MMM d, yyyy').format(date);
   }
 
   Widget _buildRecentTasks(BuildContext context) {
-    // Watch the TasksViewModel for changes
-    return Consumer<TasksViewModel>(
-      builder: (ctx, tasksViewModel, _) {
-        if (tasksViewModel.isLoading) {
+    // Use HomeViewModel for tasks data
+    return Consumer<HomeViewModel>(
+      builder: (ctx, homeViewModel, _) {
+        if (homeViewModel.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (tasksViewModel.recentTasks.isEmpty) {
+        if (homeViewModel.recentTasks.isEmpty) {
           return EmptyState(
             title: 'No tasks yet',
             message: 'Create tasks to stay organized and boost productivity.',
@@ -511,10 +508,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: tasksViewModel.recentTasks.length,
+            itemCount: homeViewModel.recentTasks.length,
             separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
             itemBuilder: (context, index) {
-              final task = tasksViewModel.recentTasks[index];
+              final task = homeViewModel.recentTasks[index];
               return ListTile(
                 title: Text(
                   task.title,
@@ -527,13 +524,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 leading: Checkbox(
                   value: task.isCompleted,
                   onChanged: (value) {
-                    // Use ViewModel to toggle completion
-                    tasksViewModel.toggleTaskCompletion(task.id, value ?? false);
+                    // Use HomeViewModel to toggle completion
+                    homeViewModel.toggleTaskCompletion(task.id, value ?? false);
                   },
                 ),
                 onTap: () {
-                  // Use ViewModel to toggle completion
-                  tasksViewModel.toggleTaskCompletion(task.id, !task.isCompleted);
+                  // Use HomeViewModel to toggle completion
+                  homeViewModel.toggleTaskCompletion(task.id, !task.isCompleted);
                 },
               );
             },
@@ -653,11 +650,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final _titleController = TextEditingController();
     String? selectedNotebookId;
 
-    // Use NotebooksViewModel to get notebooks
-    final notebooksViewModel = context.read<NotebooksViewModel>();
+    // Use HomeViewModel for notebooks
+    final homeViewModel = context.read<HomeViewModel>();
+    final notebooks = homeViewModel.recentNotebooks;
     
     // If no notebooks exist, show notebook creation dialog first
-    if (notebooksViewModel.notebooks.isEmpty) {
+    if (notebooks.isEmpty) {
       _showAddNotebookDialog(context, showNoteDialogAfter: true);
       return;
     }
@@ -692,7 +690,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 labelText: 'Notebook',
                 prefixIcon: Icon(Icons.folder),
               ),
-              items: notebooksViewModel.notebooks.map((notebook) {
+              items: notebooks.map((notebook) {
                 return DropdownMenuItem(
                   value: notebook.id,
                   child: Text(notebook.name),
@@ -716,23 +714,24 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
-                // Create note through NotesViewModel
-                final notesViewModel = context.read<NotesViewModel>();
+                // Create note through HomeViewModel
                 try {
-                  final note = await notesViewModel.createNote(
+                  final note = await homeViewModel.createNote(
                     _titleController.text,
                     selectedNotebookId!,
                   );
                   
                   Navigator.pop(context);
                   
-                  // Navigate to the new note
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => NoteEditorScreen(noteId: note.id),
-                    ),
-                  );
+                  if (note != null) {
+                    // Navigate to the new note
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NoteEditorScreen(noteId: note.id),
+                      ),
+                    );
+                  }
                 } catch (e) {
                   _logger.error('Error creating note', e);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -783,10 +782,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_titleController.text.isNotEmpty) {
-                // Create task through TasksViewModel
-                final tasksViewModel = context.read<TasksViewModel>();
+                // Create task through HomeViewModel
+                final homeViewModel = context.read<HomeViewModel>();
                 try {
-                  await tasksViewModel.createTask(_titleController.text, 'general');
+                  await homeViewModel.createTask(_titleController.text, 'general');
                   Navigator.pop(context);
                 } catch (e) {
                   _logger.error('Error creating task', e);
@@ -853,10 +852,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_nameController.text.isNotEmpty) {
-                // Create notebook through NotebooksViewModel
-                final notebooksViewModel = context.read<NotebooksViewModel>();
+                // Create notebook through HomeViewModel
+                final homeViewModel = context.read<HomeViewModel>();
                 try {
-                  await notebooksViewModel.createNotebook(
+                  await homeViewModel.createNotebook(
                     _nameController.text,
                     _descriptionController.text,
                   );

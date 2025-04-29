@@ -222,6 +222,7 @@ class _TasksScreenState extends State<TasksScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBarCommon(
         title: 'Tasks',
+        showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         onBackPressed: () {
           if (Navigator.canPop(context)) {

@@ -19,7 +19,6 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
   final Logger _logger = Logger('NotebooksScreen');
   bool _isInitialized = false;
   late NotebooksViewModel _notebooksViewModel;
-  // Add scaffold key for drawer control
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   
   @override
@@ -44,11 +43,10 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
   Widget build(BuildContext context) {
     // Use Consumer for reactive UI updates
     return Scaffold(
-      key: _scaffoldKey, // Add scaffold key
+      key: _scaffoldKey, 
       appBar: AppBarCommon(
         title: 'Notebooks',
-        showBackButton: true,
-        // Add onMenuPressed to make hamburger menu clickable
+        showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
       ),
       drawer: const AppDrawer(),

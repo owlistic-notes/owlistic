@@ -1,191 +1,162 @@
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:nested/nested.dart';
+import 'package:thinkstack/services/trash_service.dart';
+import '../services/auth_service.dart';
+import '../services/note_service.dart';
+import '../services/notebook_service.dart';
+import '../services/task_service.dart';
+import '../services/theme_service.dart';
+import '../services/websocket_service.dart';
+import '../services/app_state_service.dart';
+import '../services/block_service.dart';
+import '../utils/document_builder.dart';
 
 // Import ViewModels
-import '../viewmodel/auth_viewmodel.dart';
 import '../viewmodel/notebooks_viewmodel.dart';
 import '../viewmodel/notes_viewmodel.dart';
-import '../viewmodel/note_editor_viewmodel.dart';  // New unified viewmodel
+import '../viewmodel/note_editor_viewmodel.dart';
 import '../viewmodel/tasks_viewmodel.dart';
 import '../viewmodel/theme_viewmodel.dart';
 import '../viewmodel/trash_viewmodel.dart';
 import '../viewmodel/websocket_viewmodel.dart';
+import '../viewmodel/login_viewmodel.dart';
+import '../viewmodel/register_viewmodel.dart';
+import '../viewmodel/home_viewmodel.dart';
 
 // ViewModels implementations
-import '../providers/auth_provider.dart';
 import '../providers/notebooks_provider.dart';
 import '../providers/notes_provider.dart';
-import '../providers/note_editor_provider.dart';  // New unified provider
+import '../providers/note_editor_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/trash_provider.dart';
 import '../providers/websocket_provider.dart';
+import '../providers/login_provider.dart';
+import '../providers/register_provider.dart';
+import '../providers/home_provider.dart';
 
-// Services - these remain the same in MVVM
-import '../services/auth_service.dart';
-import '../services/block_service.dart';
-import '../services/app_state_service.dart';
-import '../services/note_service.dart';
-import '../services/notebook_service.dart';
-import '../services/task_service.dart';
-import '../services/trash_service.dart';
-import '../services/websocket_service.dart';
-
-// Import utilities
-import '../utils/logger.dart';
-import '../utils/document_builder.dart';
-import 'package:provider/single_child_widget.dart';
-
-/// List of all app providers with proper dependency injection
-/// Following MVVM pattern, ViewModels depend on services, not other ViewModels
-final List<SingleChildWidget> appProviders = [
-  // First provide the services directly
-  Provider<WebSocketService>(
-    create: (_) => WebSocketService(),
-  ),
-  
-  Provider<AuthService>(
-    create: (_) => AuthService(),
-  ),
-  
-  Provider<AppStateService>(
-    create: (_) => AppStateService(),
-  ),
-  
-  // Then create the providers that depend on services
-  ChangeNotifierProvider<AuthViewModel>(
-    create: (context) => AuthProvider(
-      authService: context.read<AuthService>(),
-      appStateService: context.read<AppStateService>(),
-    ),
-  ),
-  
-  // Theme view model
-  ChangeNotifierProvider<ThemeViewModel>(
-    create: (context) => ThemeProvider(),
-  ),
-  
-  // WebSocket view model with dependencies
-  ChangeNotifierProvider<WebSocketViewModel>(
-    create: (context) => WebSocketProvider(
-      webSocketService: ServiceLocator.get<WebSocketService>(),
-      authService: context.read<AuthService>()
-    ),
-  ),
-  
-  // Notes view model
-  ChangeNotifierProvider<NotesViewModel>(
-    create: (context) => NotesProvider(
-      noteService: ServiceLocator.get<NoteService>(),
-      authService: ServiceLocator.get<AuthService>(),
-      blockService: ServiceLocator.get<BlockService>()
-    ),
-  ),
-  
-  // Notebooks view model
-  ChangeNotifierProvider<NotebooksViewModel>(
-    create: (context) => NotebooksProvider(
-      notebookService: ServiceLocator.get<NotebookService>(),
-      noteService: ServiceLocator.get<NoteService>(),
-      authService: ServiceLocator.get<AuthService>()
-    ),
-  ),
-  
-  // Tasks view model
-  ChangeNotifierProvider<TasksViewModel>(
-    create: (context) => TasksProvider(
-      taskService: ServiceLocator.get<TaskService>(),
-      authService: ServiceLocator.get<AuthService>()
-    ),
-  ),
-  
-  // Note Editor view model
-  ChangeNotifierProvider<NoteEditorViewModel>(
-    create: (context) => NoteEditorProvider(
-      blockService: ServiceLocator.get<BlockService>(),
-      authService: ServiceLocator.get<AuthService>(),
-      webSocketService: ServiceLocator.get<WebSocketService>(),
-      noteService: ServiceLocator.get<NoteService>(),
-      documentBuilderFactory: () => DocumentBuilder()
-    ),
-  ),
-  
-  // Trash view model
-  ChangeNotifierProvider<TrashViewModel>(
-    create: (context) => TrashProvider(
-      trashService: ServiceLocator.get<TrashService>(),
-      authService: ServiceLocator.get<AuthService>()
-    ),
-  ),
-];
-
-
-/// Service locator pattern implementation for dependency injection
+/// ServiceLocator for dependency injection
 class ServiceLocator {
   static final Map<Type, dynamic> _services = {};
-  static final Logger _logger = Logger('ServiceLocator');
-  static bool _isInitialized = false;
 
-  /// Get a service instance by type
-  static T get<T>() {
-    if (!_isInitialized) {
-      _logger.error('ServiceLocator not initialized before accessing ${T.toString()}');
-      throw Exception('ServiceLocator not initialized');
-    }
-    
-    if (!_services.containsKey(T)) {
-      _logger.error('Service of type $T not registered');
-      throw Exception('Service not found: $T');
-    }
-    return _services[T] as T;
-  }
-
-  /// Check if a service type is registered
-  static bool isRegistered<T>() {
-    return _services.containsKey(T);
-  }
-  
-  /// Check if ServiceLocator has been initialized
-  static bool isInitialized() {
-    return _isInitialized;
-  }
-
-  /// Register a service instance
   static void register<T>(T service) {
-    _logger.debug('Registering service: ${T.toString()}');
     _services[T] = service;
   }
 
-  /// Initialize all services
-  static Future<void> initialize() async {
-    if (_isInitialized) {
-      _logger.info('ServiceLocator already initialized, skipping');
-      return;
+  static T get<T>() {
+    final service = _services[T];
+    if (service == null) {
+      throw Exception('Service $T not registered');
     }
-
-    _logger.info('Initializing services...');
-    
-    try {
-      // Register all services
-      register<AppStateService>(AppStateService());
-      register<AuthService>(AuthService());
-      register<WebSocketService>(WebSocketService());
-      register<NotebookService>(NotebookService());
-      register<NoteService>(NoteService());
-      register<BlockService>(BlockService());
-      register<TaskService>(TaskService());
-      register<TrashService>(TrashService());
-      
-      // Initialize AuthService, which will set the token in BaseService
-      final authService = _services[AuthService] as AuthService;
-      await authService.getStoredToken(); // This will load the token
-      _logger.info('AuthService token loaded');
-      
-      // Mark as initialized now that core services are ready
-      _isInitialized = true;
-      _logger.info('All services initialized successfully');
-    } catch (e) {
-      _logger.error('Error initializing services: $e');
-      throw Exception('Failed to initialize services: $e');
-    }
+    return service as T;
   }
 }
+
+/// Initialize all services for the app
+void setupServices() {
+  // Set up core services first
+  final authService = AuthService();
+  final webSocketService = WebSocketService();
+  final noteService = NoteService();
+  final notebookService = NotebookService();
+  final taskService = TaskService();
+  final themeService = ThemeService();
+  final blockService = BlockService();
+  final appStateService = AppStateService();
+  final trashService = TrashService();
+
+  // Initialize authService explicitly
+  authService.initialize();
+
+  // Register services in the locator
+  ServiceLocator.register<AuthService>(authService);
+  ServiceLocator.register<WebSocketService>(webSocketService);
+  ServiceLocator.register<NoteService>(noteService);
+  ServiceLocator.register<NotebookService>(notebookService);
+  ServiceLocator.register<TaskService>(taskService);
+  ServiceLocator.register<ThemeService>(themeService);
+  ServiceLocator.register<BlockService>(blockService);
+  ServiceLocator.register<AppStateService>(appStateService);
+  ServiceLocator.register<TrashService>(trashService);
+}
+
+/// List of all app providers with proper dependency injection
+final List<SingleChildWidget> appProviders = [
+  // Services
+  Provider<AuthService>(create: (_) => ServiceLocator.get<AuthService>()),
+  Provider<WebSocketService>(create: (_) => ServiceLocator.get<WebSocketService>()),
+  Provider<NoteService>(create: (_) => ServiceLocator.get<NoteService>()),
+  Provider<NotebookService>(create: (_) => ServiceLocator.get<NotebookService>()),
+  Provider<TaskService>(create: (_) => ServiceLocator.get<TaskService>()),
+  Provider<ThemeService>(create: (_) => ServiceLocator.get<ThemeService>()),
+  Provider<BlockService>(create: (_) => ServiceLocator.get<BlockService>()),
+  Provider<AppStateService>(create: (_) => ServiceLocator.get<AppStateService>()),
+  Provider<TrashService>(create: (_) => ServiceLocator.get<TrashService>()),
+  
+  // ViewModels
+  ChangeNotifierProvider<ThemeViewModel>(
+    create: (context) => ThemeProvider(),
+  ),
+  ChangeNotifierProvider<WebSocketViewModel>(
+    create: (context) => WebSocketProvider(
+      authService: context.read<AuthService>(),
+      webSocketService: context.read<WebSocketService>(),
+    ),
+  ),
+  ChangeNotifierProvider<RegisterViewModel>(
+    create: (context) => RegisterProvider(
+      authService: context.read<AuthService>(),
+    ),
+  ),
+  ChangeNotifierProvider<LoginViewModel>(
+    create: (context) => LoginProvider(
+      authService: context.read<AuthService>(),
+    ),
+  ),
+  ChangeNotifierProvider<HomeViewModel>(
+    create: (context) => HomeProvider(
+      authService: context.read<AuthService>(),
+      noteService: context.read<NoteService>(),
+      notebookService: context.read<NotebookService>(),
+      taskService: context.read<TaskService>(),
+      themeService: context.read<ThemeService>(),
+      webSocketService: context.read<WebSocketService>(),
+    ),
+  ),
+  ChangeNotifierProvider<NotebooksViewModel>(
+    create: (context) => NotebooksProvider(
+      notebookService: context.read<NotebookService>(),
+      noteService: context.read<NoteService>(),
+      authService: context.read<AuthService>(),
+    ),
+  ),
+  ChangeNotifierProvider<NotesViewModel>(
+    create: (context) => NotesProvider(
+      noteService: context.read<NoteService>(),
+      authService: context.read<AuthService>(),
+      blockService: context.read<BlockService>(),
+    ),
+  ),
+  ChangeNotifierProvider<TasksViewModel>(
+    create: (context) => TasksProvider(
+      taskService: context.read<TaskService>(),
+      authService: context.read<AuthService>(),
+    ),
+  ),
+  ChangeNotifierProvider<TrashViewModel>(
+    create: (context) => TrashProvider(
+      authService: context.read<AuthService>(),
+      trashService: context.read<TrashService>(),
+    ),
+  ),
+  ChangeNotifierProvider<NoteEditorViewModel>(
+    create: (context) => NoteEditorProvider(
+      blockService: context.read<BlockService>(),
+      authService: context.read<AuthService>(),
+      webSocketService: context.read<WebSocketService>(),
+      noteService: context.read<NoteService>(),
+      documentBuilderFactory: () => DocumentBuilder(),
+    ),
+  ),
+];

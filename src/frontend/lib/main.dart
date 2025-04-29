@@ -28,7 +28,9 @@ import 'screens/tasks_screen.dart';
 import 'screens/trash_screen.dart';
 
 import 'utils/logger.dart';
-import 'viewmodel/auth_viewmodel.dart';
+import 'viewmodel/login_viewmodel.dart';
+import 'viewmodel/register_viewmodel.dart';
+import 'viewmodel/home_viewmodel.dart';
 import 'viewmodel/theme_viewmodel.dart';
 
 void main() async {
@@ -44,7 +46,7 @@ void main() async {
     logger.info('Environment variables loaded successfully');
     
     // Initialize ServiceLocator explicitly before creating any providers
-    await ServiceLocator.initialize();
+    setupServices();
     logger.info('ServiceLocator initialized successfully');
 
     // Initialize core services in correct order before providers
@@ -117,13 +119,13 @@ class _ThinkStackAppWithProvidersState extends State<ThinkStackAppWithProviders>
   void _initializeRouter() {
     _router = GoRouter(
       refreshListenable: GoRouterRefreshStream(
-        context.read<AuthViewModel>().authStateChanges,
+        context.read<LoginViewModel>().authStateChanges,
       ),
       debugLogDiagnostics: true,
       initialLocation: '/',
       redirect: (BuildContext context, GoRouterState state) {
-        final authViewModel = context.read<AuthViewModel>();
-        final bool isLoggedIn = authViewModel.isLoggedIn;
+        final loginViewModel = context.read<LoginViewModel>();
+        final bool isLoggedIn = loginViewModel.isLoggedIn;
         final bool isLoggingIn = state.fullPath == '/login';
         final bool isRegistering = state.fullPath == '/register';
         

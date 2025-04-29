@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../viewmodel/auth_viewmodel.dart';
+import '../viewmodel/register_viewmodel.dart';
 import '../utils/logger.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -24,9 +23,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
     
-    // Activate the AuthViewModel
+    // Activate the RegisterViewModel
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthViewModel>().activate();
+      context.read<RegisterViewModel>().activate();
     });
   }
   
@@ -36,32 +35,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     
-    // Deactivate the AuthViewModel
-    context.read<AuthViewModel>().deactivate();
+    // Deactivate the RegisterViewModel
+    context.read<RegisterViewModel>().deactivate();
     super.dispose();
   }
 
   Future<void> _register() async {
     if (_formKey.currentState!.validate()) {
       try {
-        final success = await context.read<AuthViewModel>().register(
+        final registerViewModel = context.read<RegisterViewModel>();
+        
+        final success = await registerViewModel.register(
           _emailController.text.trim(), 
           _passwordController.text
         );
         
         if (success) {
-          _logger.info('Registration successful, user authenticated');
-          // Navigation is handled by GoRouter redirect
-        } else {
-          // Show error message
+          // Use the new navigation method after successful registration
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(context.read<AuthViewModel>().errorMessage ?? 'Registration failed. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            registerViewModel.onRegistrationSuccess(context);
           }
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(registerViewModel.errorMessage ?? 'Registration failed. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       } catch (e) {
         _logger.error('Error during registration', e);
@@ -80,18 +80,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
     
-    // Watch the AuthViewModel for changes
-    final authViewModel = context.watch<AuthViewModel>();
-    final isLoading = authViewModel.isLoading;
+    // Watch the RegisterViewModel for changes
+    final registerViewModel = context.watch<RegisterViewModel>();
+    final isLoading = registerViewModel.isLoading;
     
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Account'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/login'),
+          onPressed: () => registerViewModel.navigateToLogin(context),
         ),
       ),
       body: Center(
@@ -140,7 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your email';
                         }
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                        if (!registerViewModel.isValidEmail(value)) {
                           return 'Please enter a valid email';
                         }
                         return null;
@@ -175,7 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter a password';
                         }
-                        if (value.length < 6) {
+                        if (!registerViewModel.isValidPassword(value)) {
                           return 'Password must be at least 6 characters';
                         }
                         return null;
@@ -210,7 +209,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Please confirm your password';
                         }
-                        if (value != _passwordController.text) {
+                        if (!registerViewModel.doPasswordsMatch(_passwordController.text, value)) {
                           return 'Passwords do not match';
                         }
                         return null;
@@ -246,7 +245,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     
                     // Login link
                     TextButton(
-                      onPressed: () => context.go('/login'),
+                      onPressed: () => registerViewModel.navigateToLogin(context),
                       child: const Text('Already have an account? Log In'),
                     ),
                   ],
