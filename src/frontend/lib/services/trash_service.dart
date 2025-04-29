@@ -4,7 +4,6 @@ import '../models/note.dart';
 import '../models/notebook.dart';
 import '../utils/logger.dart';
 import 'base_service.dart';
-import '../providers/auth_provider.dart';
 
 class TrashService extends BaseService {
   final Logger _logger = Logger('TrashService');

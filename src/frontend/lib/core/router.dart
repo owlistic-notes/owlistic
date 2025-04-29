@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-// Replace AuthViewModel with LoginViewModel
 import '../viewmodel/login_viewmodel.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
