@@ -5,7 +5,7 @@ import '../utils/logger.dart';
 
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
-  final Logger _logger = Logger('SuperEditorDocumentMapper');
+  final Logger _logger = Logger('DocumentBuilder');
   
   // Document components
   late MutableDocument document;
@@ -114,6 +114,31 @@ class DocumentBuilder {
     document.removeListener(listener);
   }
   
+  // Insert a new node into the document
+  void insertNode(DocumentNode node) {
+    try {
+      document.add(node);
+      _logger.info('Node ${node.id} inserted into the document');
+    } catch (e) {
+      _logger.error('Error inserting node ${node.id}: $e');
+    }
+  }
+
+  // Delete a node from the document by its ID
+  void deleteNode(String nodeId) {
+    try {
+      final node = document.getNodeById(nodeId);
+      if (node != null) {
+        document.deleteNode(node.id);
+        _logger.info('Node $nodeId deleted from the document');
+      } else {
+        _logger.warning('Node $nodeId not found for deletion');
+      }
+    } catch (e) {
+      _logger.error('Error deleting node $nodeId: $e');
+    }
+  }
+
   // Convert blocks to document nodes and populate the document
   void populateDocumentFromBlocks(List<Block> blocks, {bool markAsModified = true}) {
     if (_updatingDocument) {
@@ -165,7 +190,10 @@ class DocumentBuilder {
       
       // Clear document and mapping with error handling
       try {
-        document.clear();
+        final nodeIds = document.map((node) => node.id).toList();
+        for (final nodeId in nodeIds) {
+          deleteNode(nodeId);
+        }
         nodeToBlockMap.clear();
       } catch (e) {
         _logger.error('Error clearing document: $e');
@@ -190,9 +218,10 @@ class DocumentBuilder {
           // Add all nodes to document
           for (final node in nodes) {
             try {
-              document.add(node);
+              insertNode(node);
               // Map node ID to block ID
               nodeToBlockMap[node.id] = block.id;
+              blockToNodeMap[block.id] = node.id;
               
               // Register this block as from server
               registerServerBlock(block);
@@ -223,7 +252,7 @@ class DocumentBuilder {
             id: Editor.createNodeId(),
             text: AttributedText('')
           );
-          document.add(defaultNode);
+          insertNode(defaultNode);
         } catch (e) {
           _logger.error('Error adding default node: $e');
         }
@@ -336,10 +365,11 @@ class DocumentBuilder {
       // If overall population fails, try to ensure document isn't empty
       if (document.isEmpty) {
         try {
-          document.add(ParagraphNode(
+          final fallbackNode = ParagraphNode(
             id: Editor.createNodeId(),
             text: AttributedText('')
-          ));
+          );
+          insertNode(fallbackNode);
         } catch (e) {
           _logger.error('Error adding fallback node: $e');
         }
