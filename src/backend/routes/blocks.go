@@ -156,6 +156,9 @@ func UpdateBlock(c *gin.Context, db *database.Database, blockService services.Bl
 		return
 	}
 
+	// Note: blockData may contain metadata field with styling information
+	// which will be properly handled by the UpdateBlock service method
+
 	block, err := blockService.UpdateBlock(db, id, blockData, params)
 	if err != nil {
 		if errors.Is(err, services.ErrBlockNotFound) {

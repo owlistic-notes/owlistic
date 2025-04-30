@@ -243,9 +243,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         append: true
       );
       
-      // Log the result for debugging
-      _logger.debug('Received ${moreBlocks.length} blocks for page $nextPage');
-      
       // Complete the loading operation
       setState(() {
         _isLoadingMoreBlocks = false;
@@ -257,8 +254,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         if (mounted) {
           _loadMoreBlocksInBackground();
         }
-      } else {
-        _logger.info('Finished loading all blocks');
       }
     } catch (e) {
       _logger.error('Error loading more blocks', e);
@@ -279,11 +274,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     
     // Save any pending changes
     _autoSaveTitleIfNeeded();
+    _noteEditorViewModel.commitAllContent();
     
     // Unsubscribe from WebSocket events
     _cleanupEventListeners();
     
-    // Deactivate ViewModel
+    // Deactivate ViewModels
+    if (_noteId != null) {
+      _noteEditorViewModel.deactivateNote(_noteId!);
+    }
     _noteEditorViewModel.deactivate();
     
     super.dispose();
@@ -345,36 +344,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // Helper method to scroll to a specific block when needed
   void _scrollToBlock(String blockId) {
     if (_scrollController.hasClients) {
-      // Get the node ID associated with this block ID
-      final nodeToBlockMap = _noteEditorViewModel.documentBuilder.nodeToBlockMap;
-      String? targetNodeId;
-      
-      // Find the node ID for this block
-      nodeToBlockMap.forEach((nodeId, mappedBlockId) {
-        if (mappedBlockId == blockId) {
-          targetNodeId = nodeId;
-        }
-      });
-      
-      // If we found the node, scroll to it
-      if (targetNodeId != null) {
-        final verticalOffset = _noteEditorViewModel.documentBuilder.getNodePosition(targetNodeId!);
-        if (verticalOffset != null) {
-          // Scroll to the node position with some padding
-          _scrollController.animateTo(
-            verticalOffset - 16.0, // Add some padding at the top
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        }
+      // Get document position directly from the ViewModel
+      final verticalOffset = _noteEditorViewModel.documentBuilder.getNodePosition(blockId);
+      if (verticalOffset != null) {
+        // Scroll to the node position with some padding
+        _scrollController.animateTo(
+          verticalOffset - 16.0, // Add some padding at the top
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
       }
     }
   }
 
   // Build the rich text editor directly, without using a separate widget
   Widget _buildRichTextEditor(NoteEditorViewModel viewModel) {
-    // Access the document builder from the provider
-    final documentBuilder = viewModel.documentBuilder;
     return NotificationListener<ScrollNotification>(
       onNotification: (ScrollNotification scrollInfo) {
         // Check if we're near the bottom of the scroll view to trigger loading more blocks
@@ -387,20 +371,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         }
         return false;
       },
-      child: SuperEditor(
-        editor: documentBuilder.editor,
-        documentLayoutKey: documentBuilder.documentLayoutKey,
-        focusNode: documentBuilder.focusNode,
+      // Use DocumentBuilder's createSuperEditor method
+      child: viewModel.documentBuilder.createSuperEditor(
+        readOnly: false,
         scrollController: _scrollController,
-        gestureMode: DocumentGestureMode.mouse,
-        stylesheet: defaultStylesheet.copyWith(
-          documentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          // Apply text styling based on SuperEditor's default implementation
-          inlineTextStyler: defaultInlineTextStyler,
-        ),
-        componentBuilders: [
-          ...defaultComponentBuilders,
-        ],
       ),
     );
   }

@@ -111,10 +111,9 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> updateBlock(String blockId, dynamic content, {String? type, double? order}) async {
+  Future<Block> updateBlock(String blockId, dynamic content, {String? type, double? order, Map<String, dynamic>? metadata}) async {
     // Convert content to proper format for API
     Map<String, dynamic> contentMap;
-    Map<String, dynamic> metadata = {};
     
     if (content is String) {
       try {
@@ -123,40 +122,23 @@ class BlockService extends BaseService {
         contentMap = {'text': content};
       }
     } else if (content is Map) {
-      // Check if this is already structured with content & metadata
-      if (content.containsKey('content')) {
-        contentMap = Map<String, dynamic>.from(content['content']);
-        
-        // If metadata is included, extract it
-        if (content.containsKey('metadata') && content['metadata'] != null) {
-          metadata = Map<String, dynamic>.from(content['metadata']);
-        }
-      } else {
-        contentMap = Map<String, dynamic>.from(content);
-        
-        // Extract metadata fields if they exist directly
-        if (contentMap.containsKey('blockType')) {
-          metadata['blockType'] = contentMap['blockType'];
-          contentMap.remove('blockType');
-        }
-        
-        if (contentMap.containsKey('raw_markdown')) {
-          metadata['raw_markdown'] = contentMap['raw_markdown'];
-          contentMap.remove('raw_markdown');
-        }
-      }
+      contentMap = Map<String, dynamic>.from(content);
+      
+      // Ensure there are no non-serializable objects
+      contentMap = _ensureJsonSerializable(contentMap);
     } else {
       throw ArgumentError('Content must be a String or Map');
+    }
+    
+    // If metadata is provided separately, sanitize and add it to the content object
+    if (metadata != null && metadata.isNotEmpty) {
+      Map<String, dynamic> sanitizedMetadata = _ensureJsonSerializable(metadata);
+      contentMap['metadata'] = sanitizedMetadata;
     }
     
     final Map<String, dynamic> body = {
       'content': contentMap,
     };
-    
-    // Add metadata if we have any
-    if (metadata.isNotEmpty) {
-      body['metadata'] = metadata;
-    }
     
     if (type != null) {
       body['type'] = type;
@@ -165,6 +147,8 @@ class BlockService extends BaseService {
     if (order != null) {
       body['order'] = order;
     }
+    
+    _logger.debug('Sending block update: $body');
     
     final response = await authenticatedPut(
       '/api/v1/blocks/$blockId',
@@ -176,6 +160,40 @@ class BlockService extends BaseService {
     } else {
       throw Exception('Failed to update block: ${response.statusCode}');
     }
+  }
+  
+  // Helper method to ensure all data is JSON serializable
+  Map<String, dynamic> _ensureJsonSerializable(Map<String, dynamic> data) {
+    Map<String, dynamic> result = {};
+    
+    data.forEach((key, value) {
+      if (value == null || value is String || value is num || value is bool) {
+        // These types are already JSON serializable
+        result[key] = value;
+      } else if (value is List) {
+        // Convert list items to JSON serializable forms
+        List sanitizedList = [];
+        for (var item in value) {
+          if (item == null || item is String || item is num || item is bool) {
+            sanitizedList.add(item);
+          } else if (item is Map) {
+            sanitizedList.add(_ensureJsonSerializable(Map<String, dynamic>.from(item)));
+          } else {
+            // Convert unknown types to string
+            sanitizedList.add(item.toString());
+          }
+        }
+        result[key] = sanitizedList;
+      } else if (value is Map) {
+        // Recursively sanitize nested maps
+        result[key] = _ensureJsonSerializable(Map<String, dynamic>.from(value));
+      } else {
+        // Convert anything else to string
+        result[key] = value.toString();
+      }
+    });
+    
+    return result;
   }
 
   Future<Block> getBlock(String id) async {
