@@ -203,4 +203,18 @@ class Block {
       updatedAt: updatedAt ?? DateTime.now(),
     );
   }
+
+  // Add a method to handle style metadata
+  List<Map<String, dynamic>>? getStyleSpans() {
+    // First try to get from metadata (preferred location)
+    if (metadata != null && 
+        metadata!.containsKey('styling') && 
+        metadata!['styling'] is Map &&
+        metadata!['styling']['spans'] is List) {
+      return List<Map<String, dynamic>>.from(metadata!['styling']['spans']);
+    }
+    
+    // Fallback to content spans
+    return getSpans();
+  }
 }

@@ -37,6 +37,9 @@ abstract class NoteEditorViewModel extends BaseViewModel {
     bool updateLocalOnly = false
   });
   
+  // New method - Move a block to a new position in the order
+  Future<void> moveBlock(String blockId, double newOrder);
+  
   // Document builder access
   DocumentBuilder get documentBuilder;
   FocusNode get focusNode;

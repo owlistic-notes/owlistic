@@ -43,7 +43,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 
 	// Extract user_id from params for permission check
 	userIDStr, ok := params["user_id"].(string)
-	if !ok {
+	if (!ok) {
 		tx.Rollback()
 		return models.Block{}, errors.New("user_id must be provided in parameters")
 	}
@@ -254,6 +254,19 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 		// Set the processed content to both blockData and eventData
 		eventData["content"] = updatedContent
 		blockData["content"] = updatedContent
+	}
+
+	// If there's a separate metadata field, merge it into content.metadata
+	if metadataInterface, exists := blockData["metadata"]; exists && blockData["content"] != nil {
+		contentMap, ok := blockData["content"].(models.BlockContent)
+		if ok {
+			// Add metadata to content object
+			contentMap["metadata"] = metadataInterface
+			blockData["content"] = contentMap
+			
+			// Remove separate metadata field
+			delete(blockData, "metadata")
+		}
 	}
 
 	if blockType, ok := blockData["type"].(string); ok {

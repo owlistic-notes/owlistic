@@ -16,6 +16,9 @@ class DocumentBuilder {
   // Document layout key for accessing the document layout
   final GlobalKey documentLayoutKey = GlobalKey();
   
+  // Document scroller for programmatic scrolling
+  late DocumentScroller documentScroller;
+  
   // Mapping between document node IDs and block IDs
   final Map<String, String> nodeToBlockMap = {};
   
@@ -45,8 +48,34 @@ class DocumentBuilder {
   int? _lastKnownOffset;
   DocumentSelection? _lastKnownSelection;
   
+  // Current editing block ID and timestamp for debouncing
+  String? _currentEditingBlockId;
+  DateTime _lastEdit = DateTime.now();
+  
+  // Callback for updating block content on the server
+  // This should be set by the parent component that uses DocumentBuilder
+  Function(String blockId, Map<String, dynamic> content, {String? type, bool immediate})? onUpdateBlockContent;
+  
   // Get the set of blocks that were explicitly modified by user interaction
   Set<String> get userModifiedBlockIds => Set.from(_userModifiedBlockIds);
+  
+  // The component builders to support different node types
+  final List<ComponentBuilder> _componentBuilders = [
+    const ParagraphComponentBuilder(),
+    // TaskComponentBuilder(null),
+    // Add more component builders as needed
+  ];
+  
+  // Keyboard event handlers
+  final List<DocumentKeyboardAction> _keyboardActions = [
+    ...defaultKeyboardActions,
+    enterToInsertNewTask,
+    backspaceToConvertTaskToParagraph,
+    tabToIndentTask,
+    shiftTabToUnIndentTask,
+    backspaceToUnIndentTask,
+    // Add more keyboard actions as needed
+  ];
   
   DocumentBuilder() {
     _initialize();
@@ -59,7 +88,14 @@ class DocumentBuilder {
     // Create composer
     composer = MutableDocumentComposer();
     
+    // Create document scroller
+    documentScroller = DocumentScroller();
+    
+    // Create editor with our document and composer
     editor = createDefaultDocumentEditor(document: document, composer: composer);
+    
+    // Update component builders with editor
+    _updateComponentBuilders();
     
     // Create focus node
     focusNode = FocusNode();
@@ -70,6 +106,14 @@ class DocumentBuilder {
     
     // Add selection listener to keep track of last valid position
     composer.addListener(_captureSelectionForRecovery);
+  }
+  
+  // Update component builders that require editor reference
+  void _updateComponentBuilders() {
+    final taskBuilder = TaskComponentBuilder(editor);
+    
+    _componentBuilders.removeWhere((builder) => builder is TaskComponentBuilder);
+    _componentBuilders.add(taskBuilder);
   }
   
   // Capture selection data when it changes for recovery purposes
@@ -92,9 +136,17 @@ class DocumentBuilder {
     // Remove selection listener
     composer.removeListener(_captureSelectionForRecovery);
     
+    // Dispose of resources
     focusNode.dispose();
     composer.dispose();
+    documentScroller.detach();
   }
+  
+  // Get component builders for the editor
+  List<ComponentBuilder> get componentBuilders => _componentBuilders;
+  
+  // Get keyboard actions for the editor
+  List<DocumentKeyboardAction> get keyboardActions => _keyboardActions;
   
   // Add document structure change listener to detect new/deleted nodes
   void addDocumentStructureListener(void Function(dynamic) listener) {
@@ -598,7 +650,7 @@ class DocumentBuilder {
       // Get text content and ensure it's not null
       final plainText = node.text.toPlainText();
       
-      // BUGFIX: Always update the text field with current content from editor
+      // Always update the text field with current content from editor
       content['text'] = plainText;
       
       // Extract spans/formatting information
@@ -606,11 +658,63 @@ class DocumentBuilder {
       // Always include spans field to maintain formatting consistency
       content['spans'] = spans;
       
-      // Preserve block-specific metadata
-      if (originalBlock.type == 'heading') {
-        content['level'] = content['level'] ?? 1;
-      } else if (originalBlock.type == 'code') {
-        content['language'] = content['language'] ?? 'plain';
+      // Check for block type metadata changes and update content accordingly
+      if (node.metadata != null) {
+        final blockType = node.metadata!['blockType'];
+        String blockTypeStr = '';
+        
+        // Convert blockType to string if it's a NamedAttribution
+        if (blockType is NamedAttribution) {
+          blockTypeStr = blockType.id;
+        } else if (blockType is String) {
+          blockTypeStr = blockType;
+        }
+        
+        // Update content based on block type
+        if (blockTypeStr == 'heading') {
+          // Get heading level from metadata or default to 1
+          final headingLevel = node.metadata!['headingLevel'] ?? 1;
+          content['level'] = headingLevel;
+        }
+        else if (blockTypeStr == 'code') {
+          // Preserve or set default language
+          content['language'] = content['language'] ?? 'plain';
+        }
+        
+        // Store styling and block metadata directly in content object
+        Map<String, dynamic> blockMetadata = {};
+        if (blockTypeStr.isNotEmpty) {
+          blockMetadata['blockType'] = blockTypeStr;  // Store as STRING for API
+          
+          // For headings, also store the level in metadata
+          if (blockTypeStr == 'heading') {
+            blockMetadata['headingLevel'] = node.metadata!['headingLevel'] ?? 1;
+          }
+          
+          // For code blocks, store the language in metadata
+          if (blockTypeStr == 'code') {
+            blockMetadata['language'] = content['language'] ?? 'plain';
+          }
+        }
+        
+        // Add styling information to metadata
+        if (spans.isNotEmpty) {
+          blockMetadata['styling'] = {
+            'spans': spans,
+            'version': 1,
+          };
+        }
+        
+        // Store metadata directly in the content object
+        content['metadata'] = blockMetadata;
+      } else if (spans.isNotEmpty) {
+        // Even if no other metadata, store styling information
+        content['metadata'] = {
+          'styling': {
+            'spans': spans,
+            'version': 1,
+          }
+        };
       }
     } else if (node is ListItemNode) {
       // Get text content and ensure it's not null
@@ -622,12 +726,159 @@ class DocumentBuilder {
       final spans = extractSpansFromAttributedText(node.text);
       // Always include spans field to maintain formatting consistency
       content['spans'] = spans;
+      
+      // Add list item specific metadata directly to content
+      content['metadata'] = {
+        'blockType': 'listItem',
+        'listType': node.type == ListItemType.ordered ? 'ordered' : 'unordered',
+        'styling': spans.isNotEmpty ? {'spans': spans, 'version': 1} : null,
+      };
+    } else if (node is TaskNode) {
+      // Handle task nodes
+      final plainText = node.text.toPlainText();
+      content['text'] = plainText;
+      content['checked'] = node.isComplete; // Use 'checked' for consistency with API
+      
+      // Extract spans for tasks
+      final spans = extractSpansFromAttributedText(node.text);
+      content['spans'] = spans;
+      
+      // Add task specific metadata directly to content
+      content['metadata'] = {
+        'blockType': 'task',
+        'isComplete': node.isComplete,
+        'styling': spans.isNotEmpty ? {'spans': spans, 'version': 1} : null,
+      };
     }
     
     // Mark this block as modified with current timestamp
     markBlockAsModified(blockId);
     
     return content;
+  }
+
+  // Helper method to determine node's block type (to be used by provider)
+  String detectBlockTypeFromNode(DocumentNode node) {
+    if (node is ParagraphNode && node.metadata != null) {
+      final blockType = node.metadata!['blockType'];
+      
+      String blockTypeStr = '';
+      // Convert blockType to string if it's a NamedAttribution
+      if (blockType is NamedAttribution) {
+        blockTypeStr = blockType.id;
+      } else if (blockType is String) {
+        blockTypeStr = blockType;
+      }
+      
+      if (blockTypeStr == 'heading') {
+        return 'heading';
+      } else if (blockTypeStr == 'code') {
+        return 'code';
+      }
+    } 
+    else if (node is TaskNode) {
+      return 'checklist';
+    }
+    
+    // Default type
+    return 'text';
+  }
+  
+  // Apply markdown-style formatting to a node
+  // Returns true if any changes were made
+  bool applyMarkdownFormatting(String nodeId, String markdownPrefix) {
+    final node = document.getNodeById(nodeId);
+    if (node == null || !(node is ParagraphNode)) {
+      return false;
+    }
+    
+    final paragraphNode = node as ParagraphNode;
+    final text = paragraphNode.text.text;
+    
+    if (markdownPrefix == '#' || markdownPrefix == '# ') {
+      // Convert to heading level 1
+      final newText = text == '#' ? '' : text.substring(2);
+      paragraphNode.copyParagraphWith(
+        id: node.id,
+        text: AttributedText(newText),
+        metadata: {
+          'blockType': const NamedAttribution("heading"),
+          'headingLevel': 1,
+        }
+      );
+      return true;
+    } 
+    else if (markdownPrefix == '##' || markdownPrefix == '## ') {
+      // Convert to heading level 2
+      final newText = text == '##' ? '' : text.substring(3);
+      paragraphNode.copyParagraphWith(
+        id: node.id,
+        text: AttributedText(newText),
+        metadata: {
+          'blockType': const NamedAttribution("heading"),
+          'headingLevel': 2,
+        }
+      );
+      return true;
+    }
+    else if (markdownPrefix == '###' || markdownPrefix == '### ') {
+      // Convert to heading level 3
+      final newText = text == '###' ? '' : text.substring(4);
+      paragraphNode.copyParagraphWith(
+        id: node.id,
+        text: AttributedText(newText),
+        metadata: {
+          'blockType': const NamedAttribution("heading"),
+          'headingLevel': 3,
+        }
+      );
+      return true;
+    }
+    else if (markdownPrefix == '```' || markdownPrefix == '``` ') {
+      // Convert to code block
+      final newText = text == '```' ? '' : text.substring(4);
+      paragraphNode.copyParagraphWith(
+        id: node.id,
+        text: AttributedText(newText),
+        metadata: {
+          'blockType': const NamedAttribution('code'),
+          'language': text.substring(5),
+        }
+      );
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Convert a paragraph node to a task node
+  bool convertToTaskNode(String nodeId, String originalText) {
+    try {
+      final node = document.getNodeById(nodeId);
+      if (node == null || !(node is ParagraphNode)) {
+        return false;
+      }
+      
+      // Extract the text without the checkbox marker
+      final newText = originalText.startsWith('[] ') ? originalText.substring(3) : 
+                      originalText.startsWith('[ ] ') ? originalText.substring(4) : '';
+      
+      // Create a task node to replace the paragraph
+      final taskNodeId = Editor.createNodeId();
+      final taskNode = TaskNode(
+        id: taskNodeId,
+        text: AttributedText(newText),
+        isComplete: false,
+      );
+      
+      // Replace the node
+      document.replaceNodeById(node.id, taskNode);
+      
+      return true;
+    } catch (e) {
+      _logger.error('Error converting to task node: $e');
+      return false;
+    }
   }
 
   // Extract spans (formatting information) from AttributedText with better handling
@@ -731,22 +982,39 @@ class DocumentBuilder {
   // Creates nodes from a block
   List<DocumentNode> createNodesFromBlock(Block block) {
     final content = block.content;
-    final String blockType = block.getBlockType();
+    String blockType = block.type;
+    
+    // Extract metadata if available
+    Map<String, dynamic>? metadata;
+    Map<String, dynamic>? contentMetadata;
+    
+    if (content is Map && content.containsKey('metadata')) {
+      contentMetadata = content['metadata'] as Map<String, dynamic>?;
+      
+      // Check if there's a blockType in the metadata
+      if (contentMetadata != null && contentMetadata.containsKey('blockType')) {
+        final metadataBlockType = contentMetadata['blockType'];
+        if (metadataBlockType != null && metadataBlockType.toString().isNotEmpty) {
+          // Override the block type with metadata value
+          blockType = metadataBlockType.toString();
+        }
+      }
+    }
     
     // Create node based on block type
-    switch (block.type) {
+    switch (blockType) {
       case 'heading':
         final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
         final level = content is Map ? (content['level'] ?? 1) : 1;
         final levelInt = level is int ? level : int.tryParse(level.toString()) ?? 1;
         
-        // Create attributed text with proper styling
-        final attributedText = createAttributedTextFromContent(text, content);
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
-            text: attributedText,
-            metadata: {'blockType': 'heading', 'headingLevel': levelInt},
+            text: createAttributedTextFromContent(text, content),
+            metadata: {
+              'blockType': NamedAttribution("heading$levelInt"), 
+            },
           ),
         ];
         
@@ -754,10 +1022,10 @@ class DocumentBuilder {
         final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
         final checked = content is Map ? (content['checked'] == true) : false;
         return [
-          ListItemNode(
+          TaskNode(
             id: Editor.createNodeId(),
             text: createAttributedTextFromContent(text, content),
-            itemType: checked ? ListItemType.ordered : ListItemType.unordered,
+            isComplete: checked,
           ),
         ];
         
@@ -767,7 +1035,9 @@ class DocumentBuilder {
           ParagraphNode(
             id: Editor.createNodeId(),
             text: createAttributedTextFromContent(text, content),
-            metadata: const {'blockType': 'code'},
+            metadata: const {
+              'blockType': NamedAttribution("code")
+            },
           ),
         ];
         
@@ -776,9 +1046,11 @@ class DocumentBuilder {
         final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
         
         // Get blockType from metadata if available
-        Map<String, dynamic>? metadata;
-        if (block.metadata != null && block.metadata!.containsKey('blockType')) {
-          metadata = {'blockType': block.metadata!['blockType']};
+        if (contentMetadata != null && contentMetadata.containsKey('blockType')) {
+          final metadataBlockType = contentMetadata['blockType'];
+          if (metadataBlockType != null && metadataBlockType.toString().isNotEmpty) {
+            metadata = {'blockType': NamedAttribution(metadataBlockType)};
+          }
         }
         
         return [
@@ -801,14 +1073,22 @@ class DocumentBuilder {
     final attributedText = AttributedText(text);
     
     try {
-      // Process spans if available - support both 'spans' and 'inlineStyles' keys
-      // to match SuperEditor's handling
+      // Process spans if available
       List? spans;
       if (content is Map) {
         if (content.containsKey('spans')) {
           spans = content['spans'] as List?;
         } else if (content.containsKey('inlineStyles')) {
           spans = content['inlineStyles'] as List?;
+        } else if (content is Map && content.containsKey('metadata')) {
+          // Check if spans are in metadata.styling
+          final metadata = content['metadata'] as Map?;
+          if (metadata != null && metadata.containsKey('styling')) {
+            final styling = metadata['styling'] as Map?;
+            if (styling != null && styling.containsKey('spans')) {
+              spans = styling['spans'] as List?;
+            }
+          }
         }
       }
       
@@ -825,7 +1105,7 @@ class DocumentBuilder {
               
               // Validate span range to avoid errors
               if (start >= 0 && end > start && end <= text.length) {
-                // Apply attributions based on the type - following SuperEditor's defaults
+                // Apply attributions based on the type
                 switch (type) {
                   case 'bold':
                     attributedText.addAttribution(
@@ -860,13 +1140,6 @@ class DocumentBuilder {
                       SpanRange(start, end)
                     );
                     break;
-                  // Support for SuperEditor's color attributions could be added here
-                  case 'color':
-                    if (span.containsKey('color')) {
-                      // Would need to parse color from the span data
-                      // This is left as a TODO for future implementation
-                    }
-                    break;
                 }
               }
             } catch (e) {
@@ -883,7 +1156,206 @@ class DocumentBuilder {
     
     return attributedText;
   }
+
+  // New method: Create a node for a specific block and insert it at the right position
+  void insertBlockNode(Block block, {int? index}) {
+    final nodes = createNodesFromBlock(block);
+    if (nodes.isEmpty) return;
+    
+    final node = nodes.first;
+    
+    // Map the node to the block
+    nodeToBlockMap[node.id] = block.id;
+    
+    // Insert at specific index if provided, otherwise add to end
+    if (index != null && index >= 0 && index <= document.length) {
+      _updatingDocument = true;
+      try {
+        document.insertNodeAt(index, node);
+        _logger.info('Node inserted for block ${block.id} at position $index');
+      } finally {
+        _updatingDocument = false;
+      }
+    } else {
+      insertNode(node);
+    }
+  }
   
+  // New method: Delete a node for a specific block
+  bool deleteBlockNode(String blockId) {
+    // Find the node ID for this block
+    String? nodeId;
+    nodeToBlockMap.forEach((nId, bId) {
+      if (bId == blockId) {
+        nodeId = nId;
+      }
+    });
+    
+    if (nodeId != null) {
+      _updatingDocument = true;
+      try {
+        document.deleteNode(nodeId!);
+        nodeToBlockMap.remove(nodeId);
+        _logger.info('Node deleted for block $blockId');
+        return true;
+      } catch (e) {
+        _logger.error('Error deleting node for block $blockId: $e');
+      } finally {
+        _updatingDocument = false;
+      }
+    }
+    return false;
+  }
+  
+  // New method: Update a node for a specific block
+  bool updateBlockNode(Block block) {
+    // Find any nodes for this block
+    List<String> nodeIds = [];
+    nodeToBlockMap.forEach((nId, bId) {
+      if (bId == block.id) {
+        nodeIds.add(nId);
+      }
+    });
+    
+    if (nodeIds.isEmpty) {
+      // No nodes for this block - must be a new block
+      _logger.debug('No existing node for block ${block.id}, will insert a new one');
+      return false;
+    }
+    
+    // Get the first node (should usually be only one)
+    final nodeId = nodeIds.first;
+    
+    // Create new nodes from updated block
+    final newNodes = createNodesFromBlock(block);
+    if (newNodes.isEmpty) return false;
+    
+    try {
+      // Replace the old node with the new one
+      _updatingDocument = true;
+      document.replaceNodeById(nodeId, newNodes.first);
+      
+      // Update mapping
+      nodeToBlockMap.remove(nodeId);
+      nodeToBlockMap[newNodes.first.id] = block.id;
+      
+      _logger.debug('Node updated for block ${block.id}');
+      return true;
+    } catch (e) {
+      _logger.error('Error updating node for block ${block.id}: $e');
+      return false;
+    } finally {
+      _updatingDocument = false;
+    }
+  }
+  
+  // New method: Find the index where a block should be inserted based on order
+  int findInsertIndexForBlock(Block block, List<Block> allBlocks) {
+    // Get all block IDs that have nodes
+    final nodeBlockIds = nodeToBlockMap.values.toList();
+    
+    // If no blocks with nodes, insert at the beginning
+    if (nodeBlockIds.isEmpty) {
+      return 0;
+    }
+    
+    // Find blocks that have nodes and sort by order
+    final visibleBlocks = allBlocks
+        .where((b) => nodeBlockIds.contains(b.id))
+        .toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    
+    // Find the first block with order > new block's order
+    for (int i = 0; i < visibleBlocks.length; i++) {
+      if (block.order < visibleBlocks[i].order) {
+        // Find node index for this block
+        final targetNodeId = _getNodeIdForBlock(visibleBlocks[i].id);
+        if (targetNodeId != null) {
+          final index = document.getNodeIndexById(targetNodeId);
+          if (index != null) {
+            return index;
+          }
+        }
+      }
+    }
+    
+    // If no suitable position found, add to end
+    return document.length;
+  }
+  
+  // Helper to get node ID for a block ID
+  String? _getNodeIdForBlock(String blockId) {
+    for (final entry in nodeToBlockMap.entries) {
+      if (entry.value == blockId) {
+        return entry.key;
+      }
+    }
+    return null;
+  }
+  
+  // New method: Move a node for a block to a new position
+  bool moveBlockNode(String blockId, int targetIndex) {
+    // Find the node ID for this block
+    String? nodeId;
+    nodeToBlockMap.forEach((nId, bId) {
+      if (bId == blockId) {
+        nodeId = nId;
+      }
+    });
+    
+    if (nodeId != null) {
+      final currentIndex = document.getNodeIndexById(nodeId!);
+      if (currentIndex != null && currentIndex != targetIndex) {
+        _updatingDocument = true;
+        try {
+          final node = document.getNodeById(nodeId!)!;
+          document.deleteNode(nodeId!);
+          
+          // Adjust target index if needed (if moving forward)
+          final adjustedIndex = targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
+          document.insertNodeAt(adjustedIndex, node);
+          
+          _logger.info('Node for block $blockId moved from $currentIndex to $adjustedIndex');
+          return true;
+        } catch (e) {
+          _logger.error('Error moving node for block $blockId: $e');
+        } finally {
+          _updatingDocument = false;
+        }
+      }
+    }
+    return false;
+  }
+  
+  // Simplified method to handle incremental document updates
+  void updateDocumentWithBlocks(List<Block> blocks, List<Block> allBlocks) {
+    if (blocks.isEmpty) return;
+    
+    _updatingDocument = true;
+    try {
+      for (final block in blocks) {
+        // Check if a node for this block already exists
+        bool nodeExists = false;
+        nodeToBlockMap.forEach((nodeId, blockId) {
+          if (blockId == block.id) {
+            nodeExists = true;
+          }
+        });
+        
+        if (nodeExists) {
+          // Update existing node
+          updateBlockNode(block);
+        } else {
+          // Insert new node at the correct position
+          final insertIndex = findInsertIndexForBlock(block, allBlocks);
+          insertBlockNode(block, index: insertIndex);
+        }
+      }
+    } finally {
+      _updatingDocument = false;
+    }
+  }
+
   // Find the best node to place cursor at when restoring selection fails
   DocumentPosition? findBestAlternativePosition() {
     try {
@@ -1111,6 +1583,32 @@ class DocumentBuilder {
     } catch (e) {
       _logger.error('Error getting node position for $nodeId: $e');
       return null;
+    }
+  }
+  
+  // Create Super Editor with configured components and keyboard handlers
+  Widget createSuperEditor({
+    required bool readOnly,
+    ScrollController? scrollController,
+  }) {
+    return SuperEditor(
+      editor: editor,
+      componentBuilders: componentBuilders,
+      keyboardActions: keyboardActions,
+      focusNode: focusNode,
+      documentLayoutKey: documentLayoutKey,
+      scrollController: scrollController,
+      stylesheet: defaultStylesheet,
+      selectionStyle: defaultSelectionStyle,
+      document: document,
+    );
+  }
+  // Update block content using the provided callback
+  void updateBlockContent(String blockId, Map<String, dynamic> content, {String? type, bool immediate = false}) {
+    if (onUpdateBlockContent != null) {
+      onUpdateBlockContent!(blockId, content, type: type, immediate: immediate);
+    } else {
+      _logger.warning('onUpdateBlockContent callback is not set. Cannot update block content.');
     }
   }
 }
