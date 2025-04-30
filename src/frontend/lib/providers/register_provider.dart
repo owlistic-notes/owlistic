@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
+import '../services/websocket_service.dart'; // Add import for WebSocketService
 import '../viewmodel/register_viewmodel.dart';
 import '../models/user.dart';
 import '../utils/logger.dart';
@@ -8,6 +9,7 @@ import '../utils/logger.dart';
 class RegisterProvider with ChangeNotifier implements RegisterViewModel {
   final Logger _logger = Logger('RegisterProvider');
   final AuthService _authService;
+  final WebSocketService _webSocketService; // Add WebSocketService field
   
   // State
   bool _isLoading = false;
@@ -16,8 +18,11 @@ class RegisterProvider with ChangeNotifier implements RegisterViewModel {
   String? _errorMessage;
   
   // Constructor with dependency injection
-  RegisterProvider({required AuthService authService})
-      : _authService = authService {
+  RegisterProvider({
+    required AuthService authService, 
+    required WebSocketService webSocketService // Add WebSocketService parameter
+  }) : _authService = authService,
+       _webSocketService = webSocketService { // Initialize WebSocketService field
     _isInitialized = true;
   }
   
@@ -34,6 +39,11 @@ class RegisterProvider with ChangeNotifier implements RegisterViewModel {
       // If registration succeeded, automatically log them in
       if (success) {
         await _authService.login(email, password);
+        
+        // Ensure WebSocket connection is established after successful registration
+        if (!_webSocketService.isConnected) {
+          await _webSocketService.connect();
+        }
       }
       
       _isLoading = false;

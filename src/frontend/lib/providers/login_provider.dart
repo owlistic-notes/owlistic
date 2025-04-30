@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import '../services/websocket_service.dart'; // Add import for WebSocketService
 import '../viewmodel/login_viewmodel.dart';
 import '../models/user.dart';
 import '../utils/logger.dart';
@@ -9,6 +10,7 @@ import '../utils/logger.dart';
 class LoginProvider with ChangeNotifier implements LoginViewModel {
   final Logger _logger = Logger('LoginProvider');
   final AuthService _authService;
+  final WebSocketService _webSocketService; // Add WebSocketService field
   
   // State
   bool _isLoading = false;
@@ -17,8 +19,11 @@ class LoginProvider with ChangeNotifier implements LoginViewModel {
   String? _errorMessage;
   
   // Constructor with dependency injection
-  LoginProvider({required AuthService authService}) 
-      : _authService = authService {
+  LoginProvider({
+    required AuthService authService,
+    required WebSocketService webSocketService // Add WebSocketService parameter
+  }) : _authService = authService,
+       _webSocketService = webSocketService { // Initialize WebSocketService field
     _isInitialized = true;
   }
   
@@ -45,6 +50,11 @@ class LoginProvider with ChangeNotifier implements LoginViewModel {
       
       if (success) {
         _logger.info('Login successful for user: $email');
+        
+        // Ensure WebSocket connection is established after successful login
+        if (!_webSocketService.isConnected) {
+          await _webSocketService.connect();
+        }
       } else {
         _errorMessage = "Authentication failed";
         _logger.error('Login unsuccessful: Authentication failed');

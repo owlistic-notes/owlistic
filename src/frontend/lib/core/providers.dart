@@ -19,7 +19,6 @@ import '../viewmodel/note_editor_viewmodel.dart';
 import '../viewmodel/tasks_viewmodel.dart';
 import '../viewmodel/theme_viewmodel.dart';
 import '../viewmodel/trash_viewmodel.dart';
-import '../viewmodel/websocket_viewmodel.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../viewmodel/register_viewmodel.dart';
 import '../viewmodel/home_viewmodel.dart';
@@ -31,7 +30,6 @@ import '../providers/note_editor_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/trash_provider.dart';
-import '../providers/websocket_provider.dart';
 import '../providers/login_provider.dart';
 import '../providers/register_provider.dart';
 import '../providers/home_provider.dart';
@@ -68,7 +66,8 @@ void setupServices() {
 
   // Initialize authService explicitly
   authService.initialize();
-
+  webSocketService.initialize();
+  
   // Register services in the locator
   ServiceLocator.register<AuthService>(authService);
   ServiceLocator.register<WebSocketService>(webSocketService);
@@ -98,20 +97,16 @@ final List<SingleChildWidget> appProviders = [
   ChangeNotifierProvider<ThemeViewModel>(
     create: (context) => ThemeProvider(),
   ),
-  ChangeNotifierProvider<WebSocketViewModel>(
-    create: (context) => WebSocketProvider(
-      authService: context.read<AuthService>(),
-      webSocketService: context.read<WebSocketService>(),
-    ),
-  ),
   ChangeNotifierProvider<RegisterViewModel>(
     create: (context) => RegisterProvider(
       authService: context.read<AuthService>(),
+      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
     ),
   ),
   ChangeNotifierProvider<LoginViewModel>(
     create: (context) => LoginProvider(
       authService: context.read<AuthService>(),
+      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
     ),
   ),
   ChangeNotifierProvider<HomeViewModel>(
@@ -121,7 +116,7 @@ final List<SingleChildWidget> appProviders = [
       notebookService: context.read<NotebookService>(),
       taskService: context.read<TaskService>(),
       themeService: context.read<ThemeService>(),
-      webSocketService: context.read<WebSocketService>(),
+      webSocketService: context.read<WebSocketService>(), // Keep directly injecting WebSocketService
     ),
   ),
   ChangeNotifierProvider<NotebooksViewModel>(
@@ -129,6 +124,7 @@ final List<SingleChildWidget> appProviders = [
       notebookService: context.read<NotebookService>(),
       noteService: context.read<NoteService>(),
       authService: context.read<AuthService>(),
+      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
     ),
   ),
   ChangeNotifierProvider<NotesViewModel>(
@@ -136,18 +132,21 @@ final List<SingleChildWidget> appProviders = [
       noteService: context.read<NoteService>(),
       authService: context.read<AuthService>(),
       blockService: context.read<BlockService>(),
+      webSocketService: ServiceLocator.get<WebSocketService>(), // Inject WebSocketService directly
     ),
   ),
   ChangeNotifierProvider<TasksViewModel>(
     create: (context) => TasksProvider(
       taskService: context.read<TaskService>(),
       authService: context.read<AuthService>(),
+      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
     ),
   ),
   ChangeNotifierProvider<TrashViewModel>(
     create: (context) => TrashProvider(
       authService: context.read<AuthService>(),
       trashService: context.read<TrashService>(),
+      webSocketService: context.read<WebSocketService>(),
     ),
   ),
   ChangeNotifierProvider<NoteEditorViewModel>(

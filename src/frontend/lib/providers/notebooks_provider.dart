@@ -27,22 +27,24 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
   final NotebookService _notebookService;
   final NoteService _noteService;
   final AuthService _authService;
-  final WebSocketService _webSocketService = WebSocketService();
+  final WebSocketService _webSocketService;
   
   // Add subscription for app state changes
   StreamSubscription? _resetSubscription;
   StreamSubscription? _connectionSubscription;
   final AppStateService _appStateService = AppStateService();
   
-  // Constructor with dependency injection
+  // Constructor with dependency injection - add WebSocketService parameter
   NotebooksProvider({
     required NotebookService notebookService, 
     required NoteService noteService,
-    required AuthService authService
+    required AuthService authService,
+    required WebSocketService webSocketService
   }) : 
     _notebookService = notebookService,
     _noteService = noteService,
-    _authService = authService {
+    _authService = authService,
+    _webSocketService = webSocketService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
