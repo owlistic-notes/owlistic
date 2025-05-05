@@ -152,9 +152,12 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
     int pageSize = 20,
     List<String>? excludeIds,
   }) async {
-    // Remove the _isActive check to allow fetching notebooks even if not explicitly activated
-    // This allows fetching from other screens like the home screen after login
-    
+    // Only process if provider is active
+    if (!_isActive) {
+      _logger.debug('Provider not active, ignoring create event');
+      return;
+    }
+      
     // Get current user ID for filtering
     final currentUser = await _authService.getUserProfile();
     if (currentUser == null) {
@@ -256,7 +259,7 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
       _logger.error('Error creating notebook', e);
       _errorMessage = e.toString();
       notifyListeners();
-      throw e;
+      rethrow;
     }
   }
   
@@ -291,7 +294,7 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
       _logger.error('Error adding note to notebook', e);
       _errorMessage = e.toString();
       notifyListeners();
-      throw e;
+      rethrow;
     }
   }
   
@@ -353,7 +356,7 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
       _logger.error('Error updating notebook', e);
       _errorMessage = e.toString();
       notifyListeners();
-      throw e;
+      rethrow;
     }
   }
   
@@ -374,7 +377,7 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
       _logger.error('Error deleting notebook', e);
       _errorMessage = e.toString();
       notifyListeners();
-      throw e;
+      rethrow;
     }
   }
   
@@ -408,7 +411,7 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
       _logger.error('Error deleting note $noteId from notebook $notebookId', e);
       _errorMessage = e.toString();
       notifyListeners();
-      throw e;
+      rethrow;
     }
   }
   
@@ -431,12 +434,14 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
     }
     
     fetchNotebooks(); // Load notebooks on activation
+    notifyListeners(); // Notify about activation state change
   }
   
   @override
   void deactivate() {
     _isActive = false;
     _logger.info('NotebooksProvider deactivated');
+    notifyListeners(); // Notify about deactivation state change
   }
   
   // WebSocket event handlers
@@ -445,10 +450,10 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
     
     // Only process if provider is active
     if (!_isActive) {
-      _logger.debug('Provider not active, ignoring update');
+      _logger.debug('Provider not active, ignoring create event');
       return;
     }
-    
+
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
@@ -473,7 +478,7 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
       _logger.debug('Provider not active, ignoring create event');
       return;
     }
-    
+
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
@@ -495,10 +500,10 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
     
     // Only process if provider is active
     if (!_isActive) {
-      _logger.debug('Provider not active, ignoring delete event');
+      _logger.debug('Provider not active, ignoring create event');
       return;
     }
-    
+
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
@@ -519,11 +524,12 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
   
   // Handler for note.created events
   void _handleNoteCreate(Map<String, dynamic> message) {
+    // Only process if provider is active
     if (!_isActive) {
       _logger.debug('Provider not active, ignoring create event');
       return;
     }
-    
+
     _logger.info('Note created event received');
     
     try {

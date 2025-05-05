@@ -36,6 +36,12 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
       _notebooksViewModel.fetchNotebooks();
       
       _logger.info('NotebooksViewModel activated and initial data fetched');
+    } else {
+      // Ensure provider is active when screen is visible, even on subsequent dependencies change
+      if (!_notebooksViewModel.isActive) {
+        _notebooksViewModel.activate();
+        _logger.info('NotebooksViewModel re-activated');
+      }
     }
   }
 
