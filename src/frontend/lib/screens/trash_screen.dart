@@ -9,6 +9,7 @@ import '../models/notebook.dart';
 import '../utils/logger.dart';
 import '../widgets/app_bar_common.dart';
 import 'package:intl/intl.dart';
+import '../widgets/theme_switcher.dart';
 
 class TrashScreen extends StatefulWidget {
   @override
@@ -56,6 +57,7 @@ class _TrashScreenState extends State<TrashScreen> {
         title: 'Trash',
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         showBackButton: false,
+        actions: const [ThemeSwitcher()],
       ),
       drawer: const AppDrawer(),
       body: Consumer<TrashViewModel>(

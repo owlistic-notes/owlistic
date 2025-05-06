@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/user.dart';
+import '../widgets/theme_switcher.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
@@ -20,8 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final Logger _logger = Logger('HomeScreen');
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
-  bool _isSearching = false;
-  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -71,22 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     // Deactivate ViewModel when screen is disposed
     context.read<HomeViewModel>().deactivate();
-    _searchController.dispose();
     super.dispose();
-  }
-
-  void _toggleSearch() {
-    setState(() {
-      _isSearching = !_isSearching;
-      if (!_isSearching) {
-        _searchController.clear();
-      }
-    });
-  }
-
-  void _handleSearch(String query) {
-    // Implement search functionality
-    _logger.info('Searching for: $query');
   }
 
   void _showThemeMenu(BuildContext context) {
@@ -189,6 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         showBackButton: false, // Home screen doesn't need back button
         title: 'ThinkStack', // Set explicit title for home screen
+        actions: [
+          const ThemeSwitcher(), // Add theme switcher to app bar
+        ],
       ),
       drawer: const AppDrawer(),
       body: !_isInitialized

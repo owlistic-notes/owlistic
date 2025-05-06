@@ -20,4 +20,7 @@ abstract class ThemeViewModel extends BaseViewModel {
   
   /// Set theme by dark mode value
   Future<void> setTheme(bool darkMode);
+  
+  /// Initialize theme settings
+  Future<void> initialize();
 }

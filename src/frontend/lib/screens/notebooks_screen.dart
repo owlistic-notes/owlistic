@@ -7,6 +7,7 @@ import '../widgets/app_bar_common.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/empty_state.dart';
 import '../viewmodel/notebooks_viewmodel.dart';
+import '../widgets/theme_switcher.dart';
 
 class NotebooksScreen extends StatefulWidget {
   const NotebooksScreen({Key? key}) : super(key: key);
@@ -54,6 +55,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         title: 'Notebooks',
         showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        actions: const [ThemeSwitcher()],
       ),
       drawer: const AppDrawer(),
       body: Consumer<NotebooksViewModel>(

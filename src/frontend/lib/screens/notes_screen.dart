@@ -13,6 +13,7 @@ import '../utils/logger.dart';
 import '../core/theme.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_bar_common.dart';
+import '../widgets/theme_switcher.dart';
 
 class NotesScreen extends StatefulWidget {
   @override
@@ -461,6 +462,7 @@ class _NotesScreenState extends State<NotesScreen> {
         title: 'Notes',
         showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        actions: const [ThemeSwitcher()],
       ),
       drawer: const AppDrawer(),
       body: Consumer<NotesViewModel>(

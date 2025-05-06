@@ -95,7 +95,9 @@ final List<SingleChildWidget> appProviders = [
   
   // ViewModels
   ChangeNotifierProvider<ThemeViewModel>(
-    create: (context) => ThemeProvider(),
+    create: (context) => ThemeProvider(
+      themeService: context.read<ThemeService>(),
+    )..initialize(), // Initialize to load saved theme preferences
   ),
   
   ChangeNotifierProvider<RegisterViewModel>(

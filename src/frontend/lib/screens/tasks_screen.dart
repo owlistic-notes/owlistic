@@ -8,6 +8,7 @@ import '../models/task.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
 import '../utils/logger.dart';
+import '../widgets/theme_switcher.dart';
 
 class TasksScreen extends StatefulWidget {
   @override
@@ -202,6 +203,7 @@ class _TasksScreenState extends State<TasksScreen> {
         title: 'Tasks',
         showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        actions: const [ThemeSwitcher()],
         onBackPressed: () {
           if (Navigator.canPop(context)) {
             Navigator.of(context).pop();
