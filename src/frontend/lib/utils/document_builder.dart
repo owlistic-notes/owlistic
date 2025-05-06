@@ -59,24 +59,6 @@ class DocumentBuilder {
   // Get the set of blocks that were explicitly modified by user interaction
   Set<String> get userModifiedBlockIds => Set.from(_userModifiedBlockIds);
   
-  // The component builders to support different node types
-  final List<ComponentBuilder> _componentBuilders = [
-    const ParagraphComponentBuilder(),
-    // TaskComponentBuilder(null),
-    // Add more component builders as needed
-  ];
-  
-  // Keyboard event handlers
-  final List<DocumentKeyboardAction> _keyboardActions = [
-    ...defaultKeyboardActions,
-    enterToInsertNewTask,
-    backspaceToConvertTaskToParagraph,
-    tabToIndentTask,
-    shiftTabToUnIndentTask,
-    backspaceToUnIndentTask,
-    // Add more keyboard actions as needed
-  ];
-  
   DocumentBuilder() {
     _initialize();
   }
@@ -94,59 +76,21 @@ class DocumentBuilder {
     // Create editor with our document and composer
     editor = createDefaultDocumentEditor(document: document, composer: composer);
     
-    // Update component builders with editor
-    _updateComponentBuilders();
-    
     // Create focus node
     focusNode = FocusNode();
     
     // Store initial node IDs for tracking structure changes
     _lastKnownNodeIds = document.map((node) => node.id).toList();
     _lastKnownNodeCount = document.length;
-    
-    // Add selection listener to keep track of last valid position
-    composer.addListener(_captureSelectionForRecovery);
   }
   
-  // Update component builders that require editor reference
-  void _updateComponentBuilders() {
-    final taskBuilder = TaskComponentBuilder(editor);
-    
-    _componentBuilders.removeWhere((builder) => builder is TaskComponentBuilder);
-    _componentBuilders.add(taskBuilder);
-  }
-  
-  // Capture selection data when it changes for recovery purposes
-  void _captureSelectionForRecovery() {
-    final selection = composer.selection;
-    if (selection != null) {
-      try {
-        _lastKnownSelection = selection;
-        _lastKnownNodeId = selection.extent.nodeId;
-        if (selection.extent.nodePosition is TextNodePosition) {
-          _lastKnownOffset = (selection.extent.nodePosition as TextNodePosition).offset;
-        }
-      } catch (e) {
-        _logger.warning('Error capturing selection state: $e');
-      }
-    }
-  }
   
   void dispose() {
-    // Remove selection listener
-    composer.removeListener(_captureSelectionForRecovery);
-    
     // Dispose of resources
     focusNode.dispose();
     composer.dispose();
     documentScroller.detach();
   }
-  
-  // Get component builders for the editor
-  List<ComponentBuilder> get componentBuilders => _componentBuilders;
-  
-  // Get keyboard actions for the editor
-  List<DocumentKeyboardAction> get keyboardActions => _keyboardActions;
   
   // Add document structure change listener to detect new/deleted nodes
   void addDocumentStructureListener(void Function(dynamic) listener) {
@@ -757,7 +701,7 @@ class DocumentBuilder {
     return content;
   }
 
-  // Helper method to determine node's block type (to be used by provider)
+  // Helper method to determine node's block type
   String detectBlockTypeFromNode(DocumentNode node) {
     if (node is ParagraphNode && node.metadata != null) {
       final blockType = node.metadata!['blockType'];
@@ -783,108 +727,11 @@ class DocumentBuilder {
     // Default type
     return 'text';
   }
-  
-  // Apply markdown-style formatting to a node
-  // Returns true if any changes were made
-  bool applyMarkdownFormatting(String nodeId, String markdownPrefix) {
-    final node = document.getNodeById(nodeId);
-    if (node == null || !(node is ParagraphNode)) {
-      return false;
-    }
-    
-    final paragraphNode = node as ParagraphNode;
-    final text = paragraphNode.text.text;
-    
-    if (markdownPrefix == '#' || markdownPrefix == '# ') {
-      // Convert to heading level 1
-      final newText = text == '#' ? '' : text.substring(2);
-      paragraphNode.copyParagraphWith(
-        id: node.id,
-        text: AttributedText(newText),
-        metadata: {
-          'blockType': const NamedAttribution("heading"),
-          'headingLevel': 1,
-        }
-      );
-      return true;
-    } 
-    else if (markdownPrefix == '##' || markdownPrefix == '## ') {
-      // Convert to heading level 2
-      final newText = text == '##' ? '' : text.substring(3);
-      paragraphNode.copyParagraphWith(
-        id: node.id,
-        text: AttributedText(newText),
-        metadata: {
-          'blockType': const NamedAttribution("heading"),
-          'headingLevel': 2,
-        }
-      );
-      return true;
-    }
-    else if (markdownPrefix == '###' || markdownPrefix == '### ') {
-      // Convert to heading level 3
-      final newText = text == '###' ? '' : text.substring(4);
-      paragraphNode.copyParagraphWith(
-        id: node.id,
-        text: AttributedText(newText),
-        metadata: {
-          'blockType': const NamedAttribution("heading"),
-          'headingLevel': 3,
-        }
-      );
-      return true;
-    }
-    else if (markdownPrefix == '```' || markdownPrefix == '``` ') {
-      // Convert to code block
-      final newText = text == '```' ? '' : text.substring(4);
-      paragraphNode.copyParagraphWith(
-        id: node.id,
-        text: AttributedText(newText),
-        metadata: {
-          'blockType': const NamedAttribution('code'),
-          'language': text.substring(5),
-        }
-      );
-      return true;
-    }
-    
-    return false;
-  }
-  
-  // Convert a paragraph node to a task node
-  bool convertToTaskNode(String nodeId, String originalText) {
-    try {
-      final node = document.getNodeById(nodeId);
-      if (node == null || !(node is ParagraphNode)) {
-        return false;
-      }
-      
-      // Extract the text without the checkbox marker
-      final newText = originalText.startsWith('[] ') ? originalText.substring(3) : 
-                      originalText.startsWith('[ ] ') ? originalText.substring(4) : '';
-      
-      // Create a task node to replace the paragraph
-      final taskNodeId = Editor.createNodeId();
-      final taskNode = TaskNode(
-        id: taskNodeId,
-        text: AttributedText(newText),
-        isComplete: false,
-      );
-      
-      // Replace the node
-      document.replaceNodeById(node.id, taskNode);
-      
-      return true;
-    } catch (e) {
-      _logger.error('Error converting to task node: $e');
-      return false;
-    }
-  }
 
   // Extract spans (formatting information) from AttributedText with better handling
   List<Map<String, dynamic>> extractSpansFromAttributedText(AttributedText attributedText) {
     final List<Map<String, dynamic>> spans = [];
-    final text = attributedText.text;
+    final text = attributedText.toPlainText();
     
     // If text is empty, return empty spans
     if (text.isEmpty) {
@@ -1593,22 +1440,11 @@ class DocumentBuilder {
   }) {
     return SuperEditor(
       editor: editor,
-      componentBuilders: componentBuilders,
-      keyboardActions: keyboardActions,
       focusNode: focusNode,
       documentLayoutKey: documentLayoutKey,
       scrollController: scrollController,
       stylesheet: defaultStylesheet,
       selectionStyle: defaultSelectionStyle,
-      document: document,
     );
-  }
-  // Update block content using the provided callback
-  void updateBlockContent(String blockId, Map<String, dynamic> content, {String? type, bool immediate = false}) {
-    if (onUpdateBlockContent != null) {
-      onUpdateBlockContent!(blockId, content, type: type, immediate: immediate);
-    } else {
-      _logger.warning('onUpdateBlockContent callback is not set. Cannot update block content.');
-    }
   }
 }

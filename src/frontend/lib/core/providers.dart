@@ -83,30 +83,31 @@ void setupServices() {
 /// List of all app providers with proper dependency injection
 final List<SingleChildWidget> appProviders = [
   // Services
+  Provider<ThemeService>(create: (_) => ServiceLocator.get<ThemeService>()),
   Provider<AuthService>(create: (_) => ServiceLocator.get<AuthService>()),
   Provider<WebSocketService>(create: (_) => ServiceLocator.get<WebSocketService>()),
-  Provider<NoteService>(create: (_) => ServiceLocator.get<NoteService>()),
-  Provider<NotebookService>(create: (_) => ServiceLocator.get<NotebookService>()),
-  Provider<TaskService>(create: (_) => ServiceLocator.get<TaskService>()),
-  Provider<ThemeService>(create: (_) => ServiceLocator.get<ThemeService>()),
-  Provider<BlockService>(create: (_) => ServiceLocator.get<BlockService>()),
   Provider<AppStateService>(create: (_) => ServiceLocator.get<AppStateService>()),
+  Provider<NotebookService>(create: (_) => ServiceLocator.get<NotebookService>()),
+  Provider<NoteService>(create: (_) => ServiceLocator.get<NoteService>()),
+  Provider<TaskService>(create: (_) => ServiceLocator.get<TaskService>()),
+  Provider<BlockService>(create: (_) => ServiceLocator.get<BlockService>()),
   Provider<TrashService>(create: (_) => ServiceLocator.get<TrashService>()),
   
   // ViewModels
   ChangeNotifierProvider<ThemeViewModel>(
     create: (context) => ThemeProvider(),
   ),
+  
   ChangeNotifierProvider<RegisterViewModel>(
     create: (context) => RegisterProvider(
       authService: context.read<AuthService>(),
-      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
+      webSocketService: context.read<WebSocketService>(),
     ),
   ),
   ChangeNotifierProvider<LoginViewModel>(
     create: (context) => LoginProvider(
       authService: context.read<AuthService>(),
-      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
+      webSocketService: context.read<WebSocketService>(),
     ),
   ),
   ChangeNotifierProvider<HomeViewModel>(
@@ -116,7 +117,7 @@ final List<SingleChildWidget> appProviders = [
       notebookService: context.read<NotebookService>(),
       taskService: context.read<TaskService>(),
       themeService: context.read<ThemeService>(),
-      webSocketService: context.read<WebSocketService>(), // Keep directly injecting WebSocketService
+      webSocketService: context.read<WebSocketService>(),
     ),
   ),
   ChangeNotifierProvider<NotebooksViewModel>(
@@ -124,7 +125,7 @@ final List<SingleChildWidget> appProviders = [
       notebookService: context.read<NotebookService>(),
       noteService: context.read<NoteService>(),
       authService: context.read<AuthService>(),
-      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
+      webSocketService: context.read<WebSocketService>(),
     ),
   ),
   ChangeNotifierProvider<NotesViewModel>(
@@ -132,14 +133,14 @@ final List<SingleChildWidget> appProviders = [
       noteService: context.read<NoteService>(),
       authService: context.read<AuthService>(),
       blockService: context.read<BlockService>(),
-      webSocketService: ServiceLocator.get<WebSocketService>(), // Inject WebSocketService directly
+      webSocketService: ServiceLocator.get<WebSocketService>(),
     ),
   ),
   ChangeNotifierProvider<TasksViewModel>(
     create: (context) => TasksProvider(
       taskService: context.read<TaskService>(),
       authService: context.read<AuthService>(),
-      webSocketService: context.read<WebSocketService>(), // Inject WebSocketService directly
+      webSocketService: context.read<WebSocketService>(),
     ),
   ),
   ChangeNotifierProvider<TrashViewModel>(
