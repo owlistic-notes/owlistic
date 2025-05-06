@@ -34,10 +34,6 @@ abstract class HomeViewModel extends BaseViewModel {
   Future<Task?> createTask(String title, String category);
   Future<void> toggleTaskCompletion(String taskId, bool isCompleted);
 
-  // Theme management
-  ThemeMode get themeMode;
-  void setThemeMode(ThemeMode mode);
-
   // WebSocket connection
   Future<void> ensureConnected();
 }

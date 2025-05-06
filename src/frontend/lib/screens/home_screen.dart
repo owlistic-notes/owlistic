@@ -73,44 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _showThemeMenu(BuildContext context) {
-    showMenu(
-      context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
-      items: [
-        PopupMenuItem(
-          value: ThemeMode.light,
-          child: Row(
-            children: [
-              Icon(Icons.light_mode, 
-                   color: Theme.of(context).brightness == Brightness.light ? 
-                   Theme.of(context).colorScheme.primary : null),
-              const SizedBox(width: 8),
-              const Text('Light Mode'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: ThemeMode.dark,
-          child: Row(
-            children: [
-              Icon(Icons.dark_mode, 
-                   color: Theme.of(context).brightness == Brightness.dark ? 
-                   Theme.of(context).colorScheme.primary : null),
-              const SizedBox(width: 8),
-              const Text('Dark Mode'),
-            ],
-          ),
-        ),
-      ],
-    ).then((value) {
-      if (value != null) {
-        // Use HomeViewModel for changing theme
-        context.read<HomeViewModel>().setThemeMode(value);
-      }
-    });
-  }
-
   void _showProfileMenu(BuildContext context) async {
     // Use await to properly get currentUser
     final homeViewModel = context.read<HomeViewModel>();

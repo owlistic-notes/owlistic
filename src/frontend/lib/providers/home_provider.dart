@@ -347,24 +347,6 @@ class HomeProvider with ChangeNotifier implements HomeViewModel {
     }
   }
   
-  // Theme management
-  @override
-  ThemeMode get themeMode => _themeMode;
-  
-  @override
-  void setThemeMode(ThemeMode mode) async {
-    _themeMode = mode;
-    notifyListeners();
-    
-    // Persist theme mode
-    try {
-      await _themeService.setThemeMode(mode);
-      _logger.info('Theme mode set to: $mode');
-    } catch (e) {
-      _logger.error('Error setting theme mode', e);
-    }
-  }
-  
   // WebSocket connection
   @override
   Future<void> ensureConnected() async {

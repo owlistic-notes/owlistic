@@ -2,24 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/theme_viewmodel.dart';
 
+/// A widget that provides a button to toggle between light and dark themes
 class ThemeSwitcher extends StatelessWidget {
-  const ThemeSwitcher({Key? key}) : super(key: key);
+  final double? size;
+  final EdgeInsets padding;
+  
+  const ThemeSwitcher({
+    Key? key,
+    this.size,
+    this.padding = const EdgeInsets.all(8.0),
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ThemeViewModel>(
       builder: (context, themeViewModel, _) {
-        final isDarkMode = themeViewModel.isDarkMode;
-        
         return IconButton(
+          padding: padding,
           icon: Icon(
-            isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
-            color: Theme.of(context).appBarTheme.iconTheme?.color,
+            themeViewModel.isDarkMode 
+              ? Icons.light_mode
+              : Icons.nightlight_round,
+            size: size,
           ),
-          tooltip: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
           onPressed: () {
             themeViewModel.toggleTheme();
           },
+          tooltip: themeViewModel.isDarkMode 
+              ? 'Switch to Light Theme' 
+              : 'Switch to Dark Theme',
         );
       },
     );

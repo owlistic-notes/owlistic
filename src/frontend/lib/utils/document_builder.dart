@@ -1437,14 +1437,92 @@ class DocumentBuilder {
   Widget createSuperEditor({
     required bool readOnly,
     ScrollController? scrollController,
+    ThemeData? themeData,
   }) {
+    // Define light stylesheet (default)
+    final lightStylesheet = defaultStylesheet.copyWith();
+    
+    // Define dark stylesheet with adjusted colors
+    final darkStylesheet = lightStylesheet.copyWith(
+      addRulesAfter: [
+        // Make all text white/light gray
+        StyleRule(
+          BlockSelector.all, (doc, docNode) {
+            return {
+              Styles.textStyle: const TextStyle(
+                color: Color(0xFFEEEEEE),
+                fontSize: 18,
+                height: 1.4,
+              ),
+            };
+          },
+        ),
+        // Adjust heading colors for dark mode
+        StyleRule(
+          const BlockSelector("header1"), (doc, docNode) {
+            return {
+              Styles.textStyle: const TextStyle(
+                color: Color(0xFFCCCCCC),
+                fontSize: 38,
+                fontWeight: FontWeight.bold,
+              ),
+            };
+          },
+        ),
+        StyleRule(
+          const BlockSelector("header2"), (doc, docNode) {
+            return {
+              Styles.textStyle: const TextStyle(
+                color: Color(0xFFCCCCCC),
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+              ),
+            };
+          },
+        ),
+        StyleRule(
+          const BlockSelector("header3"), (doc, docNode) {
+            return {
+              Styles.textStyle: const TextStyle(
+                color: Color(0xFFCCCCCC),
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            };
+          },
+        ),
+        // Adjust blockquote for dark mode
+        StyleRule(
+          const BlockSelector("blockquote"), (doc, docNode) {
+            return {
+              Styles.textStyle: const TextStyle(
+                color: Color(0xFFA0A0A0), // Lighter gray for blockquotes
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                height: 1.4,
+              ),
+            };
+          },
+        ),
+      ],
+      // Customize how text appears when selected in dark mode
+      selectedTextColorStrategy: ({required Color originalTextColor, required Color selectionHighlightColor}) {
+        // In dark mode, make the selected text black for better contrast against blue selection
+        return Colors.white;
+      },
+      // Use the same selection color defined in light stylesheet, but can be customized if needed
+    );
+    
+    // Determine which stylesheet to use based on theme brightness
+    final brightness = themeData?.brightness ?? Brightness.light;
+    final stylesheet = brightness == Brightness.dark ? darkStylesheet : lightStylesheet;
+    
     return SuperEditor(
       editor: editor,
       focusNode: focusNode,
       documentLayoutKey: documentLayoutKey,
       scrollController: scrollController,
-      stylesheet: defaultStylesheet,
-      selectionStyle: defaultSelectionStyle,
+      stylesheet: stylesheet,
     );
   }
 }

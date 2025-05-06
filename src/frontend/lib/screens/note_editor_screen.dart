@@ -5,7 +5,7 @@ import '../models/note.dart';
 import '../utils/logger.dart';
 import '../widgets/app_bar_common.dart';
 import '../viewmodel/note_editor_viewmodel.dart';
-import 'package:super_editor/super_editor.dart' hide Logger;
+import '../widgets/theme_switcher.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final String? noteId;
@@ -253,6 +253,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       child: viewModel.documentBuilder.createSuperEditor(
         readOnly: false,
         scrollController: _scrollController,
+        themeData: Theme.of(context), // Pass the current theme to ensure proper text colors
       ),
     );
   }
@@ -260,8 +261,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Remove AppBarCommon and replace with no AppBar
-      appBar: null, // Set to null to hide the app bar completely
+      // Add AppBarCommon with ONLY theme switching functionality
+      appBar: const AppBarCommon(
+        title: '',  // Empty title as we have our own title field
+        showBackButton: false,  // No back button in app bar
+        actions: [ThemeSwitcher()],
+      ),
       body: _isLoading
         ? const Center(child: CircularProgressIndicator())
         : (_errorMessage != null
@@ -294,17 +299,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   children: [
                     // Title field - now functions as the "app bar" content
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 36, 16, 0), // Add extra top padding to account for status bar
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), // Add extra top padding to account for status bar
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Back button
-                          IconButton(
-                            icon: Icon(Icons.arrow_back),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                          ),
                           // Title field - expanded to take available space
                           Expanded(
                             child: TextField(
