@@ -24,19 +24,21 @@ class TrashProvider with ChangeNotifier implements TrashViewModel {
   // Services
   final TrashService _trashService;
   final AuthService _authService;
-  final WebSocketService _webSocketService = WebSocketService();
+  final WebSocketService _webSocketService;
   
   // Add subscription for app state changes
   StreamSubscription? _resetSubscription;
   StreamSubscription? _connectionSubscription;
   final AppStateService _appStateService = AppStateService();
   
-  // Constructor with dependency injection
+  // Constructor with dependency injection - add WebSocketService parameter
   TrashProvider({
     required TrashService trashService,
-    required AuthService authService
+    required AuthService authService,
+    required WebSocketService webSocketService
   }) : _trashService = trashService,
-       _authService = authService {
+       _authService = authService,
+       _webSocketService = webSocketService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
@@ -130,51 +132,11 @@ class TrashProvider with ChangeNotifier implements TrashViewModel {
   
   // WebSocket event handlers
   void _handleItemDeleted(Map<String, dynamic> message) {
-    _logger.info('Item deletion detected');
-    
-    try {
-      // Use the standardized parser
-      final parsedMessage = WebSocketMessage.fromJson(message);
-      
-      // Extract noteId or notebookId - the event could be for either
-      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
-      
-      if (noteId != null || notebookId != null) {
-        _logger.info('Refreshing trash after item deletion');
-        if (_isActive) {
-          fetchTrashedItems();
-        }
-      } else {
-        _logger.warning('Could not extract note_id or notebook_id from message');
-      }
-    } catch (e) {
-      _logger.error('Error handling item deletion event', e);
-    }
+    // Handle item deletion
   }
   
   void _handleItemRestored(Map<String, dynamic> message) {
-    _logger.info('Item restoration detected');
-    
-    try {
-      // Use the standardized parser
-      final parsedMessage = WebSocketMessage.fromJson(message);
-      
-      // Extract noteId or notebookId - the event could be for either
-      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-      final String? notebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
-      
-      if (noteId != null || notebookId != null) {
-        _logger.info('Refreshing trash after item restoration');
-        if (_isActive) {
-          fetchTrashedItems();
-        }
-      } else {
-        _logger.warning('Could not extract note_id or notebook_id from message');
-      }
-    } catch (e) {
-      _logger.error('Error handling item restoration event', e);
-    }
+    // Handle item restoration
   }
   
   // Fetch all trashed items with user filtering

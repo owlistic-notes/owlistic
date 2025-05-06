@@ -4,11 +4,11 @@ import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../viewmodel/tasks_viewmodel.dart';
-import '../viewmodel/websocket_viewmodel.dart';
 import '../models/task.dart';
 import '../core/theme.dart';
 import '../widgets/app_bar_common.dart';
 import '../utils/logger.dart';
+import '../widgets/theme_switcher.dart';
 
 class TasksScreen extends StatefulWidget {
   @override
@@ -16,58 +16,37 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
+  final Logger _logger = Logger('TasksScreen');
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
-  final Logger _logger = Logger('TasksScreen');
-  
+
+  // ViewModel
   late TasksViewModel _tasksViewModel;
-  late WebSocketViewModel _wsViewModel;
-  
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     if (!_isInitialized) {
       _isInitialized = true;
+
+      // Get ViewModel
+      _tasksViewModel = context.read<TasksViewModel>();
+
+      // Initialize data
       _initializeData();
     }
   }
-  
+
   Future<void> _initializeData() async {
     try {
-      _tasksViewModel = context.read<TasksViewModel>();
-      _wsViewModel = context.read<WebSocketViewModel>();
-      
-      await _wsViewModel.ensureConnected();
-      
-      _wsViewModel.addEventListener('event', 'task.created', (data) {
-        _logger.info('Task created event received');
-        _refreshTasks();
-      });
-      
-      _wsViewModel.addEventListener('event', 'task.updated', (data) {
-        _logger.info('Task updated event received');
-        _refreshTasks();
-      });
-      
-      _wsViewModel.addEventListener('event', 'task.deleted', (data) {
-        _logger.info('Task deleted event received');
-        _refreshTasks();
-      });
-      
-      _wsViewModel.subscribe('task');
-      _wsViewModel.subscribeToEvent('task.created');
-      _wsViewModel.subscribeToEvent('task.updated');
-      _wsViewModel.subscribeToEvent('task.deleted');
-      
       _tasksViewModel.activate();
-      
       await _tasksViewModel.fetchTasks();
     } catch (e) {
-      _logger.error('Error initializing tasks screen', e);
+      _logger.error('Error initializing TasksScreen', e);
     }
   }
-  
+
   Future<void> _refreshTasks() async {
     if (!mounted) return;
     
@@ -224,6 +203,7 @@ class _TasksScreenState extends State<TasksScreen> {
         title: 'Tasks',
         showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        actions: const [ThemeSwitcher()],
         onBackPressed: () {
           if (Navigator.canPop(context)) {
             Navigator.of(context).pop();
@@ -320,18 +300,8 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void dispose() {
     if (_isInitialized) {
-      _wsViewModel.removeEventListener('event', 'task.created');
-      _wsViewModel.removeEventListener('event', 'task.updated');
-      _wsViewModel.removeEventListener('event', 'task.deleted');
-      
-      _wsViewModel.unsubscribe('task');
-      _wsViewModel.unsubscribeFromEvent('task.created');
-      _wsViewModel.unsubscribeFromEvent('task.updated');
-      _wsViewModel.unsubscribeFromEvent('task.deleted');
-      
       _tasksViewModel.deactivate();
     }
-    
     super.dispose();
   }
 }

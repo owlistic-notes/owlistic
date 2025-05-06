@@ -29,8 +29,6 @@ import 'screens/trash_screen.dart';
 
 import 'utils/logger.dart';
 import 'viewmodel/login_viewmodel.dart';
-import 'viewmodel/register_viewmodel.dart';
-import 'viewmodel/home_viewmodel.dart';
 import 'viewmodel/theme_viewmodel.dart';
 
 void main() async {

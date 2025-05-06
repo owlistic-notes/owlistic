@@ -6,7 +6,6 @@ import '../widgets/app_drawer.dart';
 import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../models/note.dart';
-import '../viewmodel/websocket_viewmodel.dart';
 import '../viewmodel/notes_viewmodel.dart';
 import '../viewmodel/notebooks_viewmodel.dart';
 import '../utils/websocket_message_parser.dart';
@@ -14,6 +13,7 @@ import '../utils/logger.dart';
 import '../core/theme.dart';
 import 'note_editor_screen.dart';
 import '../widgets/app_bar_common.dart';
+import '../widgets/theme_switcher.dart';
 
 class NotesScreen extends StatefulWidget {
   @override
@@ -25,23 +25,12 @@ class _NotesScreenState extends State<NotesScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
-  int _currentPage = 1;
-  bool _hasMoreData = true;
   bool _isLoadingMore = false;
-  Set<String> _loadedNoteIds = {};
-  bool _isRefreshing = false;
-  String? _selectedNotebookId;
+  final Set<String> _loadedNoteIds = {};
 
-  // ViewModels - defined as late fields
+  // ViewModels
   late NotesViewModel _notesViewModel;
-  late WebSocketViewModel _wsViewModel;
   late NotebooksViewModel _notebooksViewModel;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_scrollListener);
-  }
 
   @override
   void didChangeDependencies() {
@@ -50,9 +39,8 @@ class _NotesScreenState extends State<NotesScreen> {
     if (!_isInitialized) {
       _isInitialized = true;
 
-      // Get ViewModels directly from provider
+      // Get ViewModel
       _notesViewModel = context.read<NotesViewModel>();
-      _wsViewModel = context.read<WebSocketViewModel>();
       _notebooksViewModel = context.read<NotebooksViewModel>();
 
       // Initialize data
@@ -61,210 +49,21 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Future<void> _initializeData() async {
-    // Ensure WebSocket is connected
-    await _wsViewModel.ensureConnected();
-
-    // Register handlers for automatic refresh on events
-    _registerEventHandlers();
-
-    // Subscribe to events with a consistent pattern
-    _wsViewModel.subscribe('note');
-    _wsViewModel.subscribeToEvent('note.created');
-    _wsViewModel.subscribeToEvent('note.updated');
-    _wsViewModel.subscribeToEvent('note.deleted');
-
-    // Activate the ViewModels
-    _notesViewModel.activate();
-    _notebooksViewModel.activate();
-
-    // Fetch notebooks first to populate the dropdown
-    await _notebooksViewModel.fetchNotebooks();
-    
-    // Set the default selected notebook if available
-    if (_notebooksViewModel.notebooks.isNotEmpty) {
-      _selectedNotebookId = _notebooksViewModel.notebooks.first.id;
-    }
-
-    // Fetch initial data
-    await _refreshNotes();
-  }
-
-  void _registerEventHandlers() {
-    _logger.info('Registering event handlers for note-related events');
-    
-    _wsViewModel.addEventListener('event', 'note.created', (data) {
-      _logger.info('Received note.created event');
-      _handleNoteCreatedEvent(data);
-    });
-
-    _wsViewModel.addEventListener('event', 'note.updated', (data) {
-      _logger.info('Received note.updated event');
-      _handleNoteUpdatedEvent(data);
-    });
-
-    _wsViewModel.addEventListener('event', 'note.deleted', (data) {
-      _logger.info('Received note.deleted event');
-      _handleNoteDeletedEvent(data);
-    });
-  }
-  
-  void _handleNoteCreatedEvent(dynamic data) {
     try {
-      final parsedMessage = WebSocketMessage.fromJson(data);
-      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-      
-      if (noteId != null) {
-        _handleNewNote(noteId);
-      }
+      _notesViewModel.activate();
+      await _notesViewModel.fetchNotes();
     } catch (e) {
-      _logger.error('Error handling note created event', e);
-    }
-  }
-  
-  void _handleNoteUpdatedEvent(dynamic data) {
-    try {
-      final parsedMessage = WebSocketMessage.fromJson(data);
-      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-      
-      if (noteId != null) {
-        _refreshNotes();
-      }
-    } catch (e) {
-      _logger.error('Error handling note updated event', e);
-    }
-  }
-  
-  void _handleNoteDeletedEvent(dynamic data) {
-    try {
-      final parsedMessage = WebSocketMessage.fromJson(data);
-      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-      
-      if (noteId != null) {
-        // Let presenter handle the deletion
-        _notesViewModel.handleNoteDeleted(noteId);
-      }
-    } catch (e) {
-      _logger.error('Error handling note deleted event', e);
+      _logger.error('Error initializing NotesScreen', e);
     }
   }
 
-  void _handleNoteEvent() {
-    // Debounce refreshes to avoid multiple API calls for batch updates
-    if (!_isRefreshing) {
-      _isRefreshing = true;
-      
-      // Small delay to batch potential multiple events
-      Future.delayed(const Duration(milliseconds: 300), () {
-        _refreshNotes().then((_) {
-          _isRefreshing = false;
-        });
-      });
-    }
-  }
-
-  // Refresh notes data
   Future<void> _refreshNotes() async {
     _logger.info('Refreshing notes data');
-    _currentPage = 1;
-    
-    if (_notebooksViewModel.notebooks.isEmpty) {
-      _logger.warning('No notebooks available to fetch notes');
-      return;
+    try {
+      await _notesViewModel.fetchNotes();
+    } catch (e) {
+      _logger.error('Error refreshing notes', e);
     }
-    
-    // If we have a selected notebook, fetch notes only for that notebook
-    if (_selectedNotebookId != null) {
-      await _notesViewModel.fetchNotes(notebookId: _selectedNotebookId!);
-    } else {
-      // Otherwise fetch notes for all notebooks
-      for (final notebook in _notebooksViewModel.notebooks) {
-        await _notesViewModel.fetchNotes(notebookId: notebook.id);
-      }
-    }
-    
-    _updateLoadedNoteIds();
-  }
-
-  // Update loaded note IDs to track what we've already loaded
-  void _updateLoadedNoteIds() {
-    setState(() {
-      _loadedNoteIds = _notesViewModel.notes.map((note) => note.id).toSet();
-    });
-  }
-
-  // Process a single new note from WebSocket without full refresh
-  void _handleNewNote(String noteId) {
-    // Check if this note is already loaded
-    if (_loadedNoteIds.contains(noteId)) {
-      _logger.debug('Note $noteId already loaded, skipping');
-      return;
-    }
-
-    _logger.info('Adding new note $noteId from WebSocket event');
-
-    // Add a slight delay to ensure the note is available in the database
-    Future.delayed(Duration(milliseconds: 500), () {
-      // Fetch just this one note and add it to the list
-      _notesViewModel.fetchNoteById(noteId).then((note) {
-        // Only add to the list if the note is not deleted and we got a valid note
-        if (note != null && note.deletedAt == null) {
-          _logger.info('Successfully fetched and added note: ${note.title}');
-          // Update our tracking set
-          _updateLoadedNoteIds();
-        }
-      }).catchError((error) {
-        _logger.error('Failed to fetch note: $error');
-      });
-    });
-  }
-
-  // Scroll listener for infinite scrolling
-  void _scrollListener() {
-    if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent * 0.8 &&
-        !_isLoadingMore &&
-        _hasMoreData) {
-      _loadMoreNotes();
-    }
-  }
-
-  // Load more notes for pagination
-  Future<void> _loadMoreNotes() async {
-    if (_isLoadingMore) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    _currentPage++;
-    final currentCount = _notesViewModel.notes.length;
-    final currentIds = _notesViewModel.notes.map((note) => note.id).toSet();
-
-    if (_selectedNotebookId != null) {
-      // Load more notes for the selected notebook
-      await _notesViewModel.fetchNotes(
-        notebookId: _selectedNotebookId!,
-        page: _currentPage,
-        excludeIds: currentIds.toList(),
-      );
-    } else if (_notebooksViewModel.notebooks.isNotEmpty) {
-      // Load more notes from all notebooks
-      for (final notebook in _notebooksViewModel.notebooks) {
-        await _notesViewModel.fetchNotes(
-          notebookId: notebook.id,
-          page: _currentPage,
-          excludeIds: currentIds.toList(),
-        );
-      }
-    }
-
-    // Check if we got new data
-    final hasNewData = _notesViewModel.notes.length > currentCount;
-
-    setState(() {
-      _hasMoreData = hasNewData;
-      _isLoadingMore = false;
-    });
   }
 
   void _showAddNoteDialog(BuildContext context) {
@@ -663,6 +462,7 @@ class _NotesScreenState extends State<NotesScreen> {
         title: 'Notes',
         showBackButton: false,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        actions: const [ThemeSwitcher()],
       ),
       drawer: const AppDrawer(),
       body: Consumer<NotesViewModel>(
@@ -680,25 +480,10 @@ class _NotesScreenState extends State<NotesScreen> {
 
   @override
   void dispose() {
-    _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
-
-    // Clean up WebSocket listeners
     if (_isInitialized) {
-      _wsViewModel.removeEventListener('event', 'note.created');
-      _wsViewModel.removeEventListener('event', 'note.updated');
-      _wsViewModel.removeEventListener('event', 'note.deleted');
-
-      _wsViewModel.unsubscribeFromEvent('note.created');
-      _wsViewModel.unsubscribeFromEvent('note.updated');
-      _wsViewModel.unsubscribeFromEvent('note.deleted');
-      _wsViewModel.unsubscribe('note');
-
-      // Deactivate the ViewModels
       _notesViewModel.deactivate();
-      _notebooksViewModel.deactivate();
     }
-
     super.dispose();
   }
 }

@@ -26,18 +26,23 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   final NoteService _noteService;
   final AuthService _authService;
   final BlockService _blockService;
-  final WebSocketService _webSocketService = WebSocketService();
+  final WebSocketService _webSocketService;
   final AppStateService _appStateService = AppStateService();
   
   // Subscriptions
   StreamSubscription? _resetSubscription;
   StreamSubscription? _connectionSubscription;
 
-  // Constructor with dependency injection
-  NotesProvider({NoteService? noteService, AuthService? authService, required BlockService blockService}) 
-    : _noteService = noteService ?? ServiceLocator.get<NoteService>(),
+  // Constructor with dependency injection - add WebSocketService parameter
+  NotesProvider({
+    NoteService? noteService, 
+    AuthService? authService, 
+    required BlockService blockService,
+    required WebSocketService webSocketService
+  }) : _noteService = noteService ?? ServiceLocator.get<NoteService>(),
       _authService = authService ?? ServiceLocator.get<AuthService>(),
-      _blockService = blockService {
+      _blockService = blockService,
+      _webSocketService = webSocketService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
@@ -91,11 +96,11 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
 
   // Initialize WebSocket event listeners
   void _initializeEventListeners() {
-    _webSocketService.addEventListener('event', 'note.updated', _handleNoteUpdate);
     _webSocketService.addEventListener('event', 'note.created', _handleNoteCreate);
+    _webSocketService.addEventListener('event', 'note.updated', _handleNoteUpdate);
     _webSocketService.addEventListener('event', 'note.deleted', _handleNoteDelete);
   }
-  
+
   // Subscribe to events
   void _subscribeToEvents() {
     _webSocketService.subscribeToEvent('note.updated');
@@ -134,78 +139,31 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
 
   // Handle note create events with similar pattern to notebooks and blocks
   void _handleNoteCreate(Map<String, dynamic> message) {
-    // Check if provider is active
-    if (!_isActive) {
-      _logger.info('Ignoring note.created event because provider is not active');
-      return;
-    }
-    
-    _logger.info('Received note.created event: ${message.toString()}');
-    
     try {
-      // Use the new parser to extract data
       final parsedMessage = WebSocketMessage.fromJson(message);
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-      
+
       if (noteId != null) {
-        _logger.info('Found note_id: $noteId');
-        
-        // Check if we already have this note
-        if (_notesMap.containsKey(noteId)) {
-          _logger.info('Note $noteId already exists in local state, skipping fetch');
-          return;
-        }
-        
-        // Add a short delay to avoid race condition with database
-        Future.delayed(const Duration(milliseconds: 500), () {
-          // Only proceed if provider is still active
-          if (!_isActive) return;
-          
-          // Fetch the note by ID directly
-          _noteService.getNote(noteId).then((newNote) {
-            // Only add if provider is active and note is not deleted
-            if (_isActive && newNote.deletedAt == null) {
-              _notesMap[noteId] = newNote;
-              _logger.info('Added new note $noteId to list');
-              
-              // Subscribe to this note
-              _webSocketService.subscribe('note', id: newNote.id);
-              
-              notifyListeners();
-            } else {
-              _logger.info('Note $noteId was already added or is deleted or provider inactive');
-            }
-          }).catchError((error) {
-            _logger.error('Error fetching new note $noteId: $error');
-          });
-        });
-      } else {
-        _logger.warning('Could not extract note_id from message');
+        _logger.info('Handling note.created event for note ID: $noteId');
+        fetchNoteById(noteId); // Fetch and add the new note
       }
     } catch (e) {
-      _logger.error('Error handling note create: $e');
+      _logger.error('Error handling note.created event', e);
     }
   }
   
   // Handle note delete events
   void _handleNoteDelete(Map<String, dynamic> message) {
-    if (!_isActive) return;
-    
-    _logger.info('Received note.deleted event: ${message.toString()}');
-    
     try {
-      // Use the new parser
       final parsedMessage = WebSocketMessage.fromJson(message);
       final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
-      
+
       if (noteId != null) {
-        _logger.info('Received note.deleted event for note ID $noteId');
-        handleNoteDeleted(noteId);
-      } else {
-        _logger.warning('Could not extract note_id from message');
+        _logger.info('Handling note.deleted event for note ID: $noteId');
+        handleNoteDeleted(noteId); // Remove the note from the local state
       }
     } catch (e) {
-      _logger.error('Error handling note delete: $e', e);
+      _logger.error('Error handling note.deleted event', e);
     }
   }
 

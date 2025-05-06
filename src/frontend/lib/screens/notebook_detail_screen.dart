@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/notebooks_viewmodel.dart';
 import '../viewmodel/notes_viewmodel.dart';
-import '../viewmodel/websocket_viewmodel.dart';
 import '../utils/websocket_message_parser.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
@@ -33,7 +32,6 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   // ViewModels
   late NotebooksViewModel _notebooksViewModel;
   late NotesViewModel _notesViewModel;
-  late WebSocketViewModel _wsViewModel;
 
   @override
   void didChangeDependencies() {
@@ -45,7 +43,6 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       // Get ViewModels
       _notebooksViewModel = context.read<NotebooksViewModel>();
       _notesViewModel = context.read<NotesViewModel>();
-      _wsViewModel = context.read<WebSocketViewModel>();
       
       // Initialize data
       _initializeData();
@@ -58,25 +55,9 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
     });
     
     try {
-      // Ensure WebSocket connection first
-      await _wsViewModel.ensureConnected();
-      
       // Activate the ViewModels
       _notebooksViewModel.activate();
       _notesViewModel.activate();
-      
-      // Subscribe to the notebook and note events
-      _wsViewModel.subscribe('notebook', id: widget.notebookId);
-      
-      // Also subscribe to note events for real-time updates
-      _wsViewModel.subscribeToEvent('note.created');
-      _wsViewModel.subscribeToEvent('note.updated');
-      _wsViewModel.subscribeToEvent('note.deleted');
-      _wsViewModel.subscribeToEvent('notebook.updated');
-      _wsViewModel.subscribeToEvent('notebook.deleted');
-      
-      // Set up event handlers for automatic updates
-      _setupEventHandlers();
       
       // Fetch notebook data with its notes
       await _notebooksViewModel.fetchNotebookById(widget.notebookId);
@@ -96,55 +77,6 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
         });
       }
     }
-  }
-  
-  void _setupEventHandlers() {
-    // Set up event handlers for real-time updates using the same pattern as other screens
-    _wsViewModel.on('note.created', (data) {
-      _logger.info('Note created event received');
-      _refreshNotebook();
-    });
-    
-    _wsViewModel.on('note.updated', (data) {
-      _logger.info('Note updated event received');
-      _refreshNotebook();
-    });
-    
-    _wsViewModel.on('note.deleted', (data) {
-      _logger.info('Note deleted event received');
-      _refreshNotebook();
-    });
-    
-    _wsViewModel.on('notebook.updated', (data) {
-      _logger.info('Notebook updated event received');
-      _refreshNotebook();
-    });
-    
-    // Handle notebook deletion specially to navigate away if current notebook is deleted
-    _wsViewModel.on('notebook.deleted', (data) {
-      _logger.info('Notebook deleted event received');
-      
-      try {
-        // Extract notebook ID using the same parser as other screens
-        final parsedMessage = WebSocketMessage.fromJson(data);
-        final String? deletedNotebookId = WebSocketModelExtractor.extractNotebookId(parsedMessage);
-        
-        // If the current notebook was deleted, navigate back to notebooks list
-        if (deletedNotebookId == widget.notebookId) {
-          _logger.info('Current notebook was deleted, navigating away');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('This notebook has been deleted'))
-            );
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted) context.go('/notebooks');
-            });
-          }
-        }
-      } catch (e) {
-        _logger.error('Error handling notebook deleted event', e);
-      }
-    });
   }
   
   Future<void> _refreshNotebook() async {
@@ -541,24 +473,8 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
   
   @override
   void dispose() {
-    // Unsubscribe and deactivate when the view is disposed
+    // Deactivate the ViewModels
     if (_isInitialized) {
-      // Remove event listeners with the correct pattern
-      _wsViewModel.off('note.created');
-      _wsViewModel.off('note.updated');
-      _wsViewModel.off('note.deleted');
-      _wsViewModel.off('notebook.updated');
-      _wsViewModel.off('notebook.deleted');
-      
-      // Unsubscribe from event types
-      _wsViewModel.unsubscribe('notebook', id: widget.notebookId);
-      _wsViewModel.unsubscribeFromEvent('note.created');
-      _wsViewModel.unsubscribeFromEvent('note.updated'); 
-      _wsViewModel.unsubscribeFromEvent('note.deleted');
-      _wsViewModel.unsubscribeFromEvent('notebook.updated');
-      _wsViewModel.unsubscribeFromEvent('notebook.deleted');
-      
-      // Deactivate the ViewModels
       _notebooksViewModel.deactivate();
       _notesViewModel.deactivate();
     }

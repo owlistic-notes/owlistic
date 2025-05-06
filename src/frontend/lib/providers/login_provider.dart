@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import '../services/websocket_service.dart'; // Add import for WebSocketService
 import '../viewmodel/login_viewmodel.dart';
 import '../models/user.dart';
 import '../utils/logger.dart';
@@ -9,6 +10,7 @@ import '../utils/logger.dart';
 class LoginProvider with ChangeNotifier implements LoginViewModel {
   final Logger _logger = Logger('LoginProvider');
   final AuthService _authService;
+  final WebSocketService _webSocketService; // Add WebSocketService field
   
   // State
   bool _isLoading = false;
@@ -17,9 +19,49 @@ class LoginProvider with ChangeNotifier implements LoginViewModel {
   String? _errorMessage;
   
   // Constructor with dependency injection
-  LoginProvider({required AuthService authService}) 
-      : _authService = authService {
+  LoginProvider({
+    required AuthService authService,
+    required WebSocketService webSocketService // Add WebSocketService parameter
+  }) : _authService = authService,
+       _webSocketService = webSocketService { // Initialize WebSocketService field
     _isInitialized = true;
+    _initializeAuthState();
+  }
+  
+  // Initialize auth state and websocket connection on startup
+  Future<void> _initializeAuthState() async {
+    try {
+      _logger.info('Initializing auth state');
+      
+      // Initialize auth service
+      await _authService.initialize();
+      
+      // If user is already logged in, setup websocket connection
+      if (_authService.isLoggedIn) {
+        _logger.info('User already logged in, setting up websocket connection');
+        
+        // Get the stored token from auth service
+        final token = await _authService.getStoredToken();
+        final userId = await _authService.getCurrentUserId();
+        
+        if (token != null) {
+          // Set the token in WebSocketService
+          _webSocketService.setAuthToken(token);
+          if (userId != null) {
+            _webSocketService.setUserId(userId);
+          }
+          
+          // Establish WebSocket connection if not already connected
+          if (!_webSocketService.isConnected) {
+            await _webSocketService.connect();
+          }
+          
+          _logger.info('WebSocket connection established from stored credentials');
+        }
+      }
+    } catch (e) {
+      _logger.error('Error initializing auth state', e);
+    }
   }
   
   // LoginViewModel implementation
@@ -45,6 +87,23 @@ class LoginProvider with ChangeNotifier implements LoginViewModel {
       
       if (success) {
         _logger.info('Login successful for user: $email');
+        
+        final token = response['token'] as String?;
+        final userId = response['userId'] as String?;
+        
+        // Set auth token and user ID in WebSocketService
+        if (token != null) {
+          _webSocketService.setAuthToken(token);
+        }
+        
+        if (userId != null) {
+          _webSocketService.setUserId(userId);
+        }
+
+        // Ensure WebSocket connection is established after successful login
+        if (!_webSocketService.isConnected) {
+          await _webSocketService.connect();
+        }
       } else {
         _errorMessage = "Authentication failed";
         _logger.error('Login unsuccessful: Authentication failed');
@@ -93,6 +152,9 @@ class LoginProvider with ChangeNotifier implements LoginViewModel {
       _logger.error('Error clearing saved email', e);
     }
   }
+  
+  // Check WebSocket connection status
+  bool get isConnected => _webSocketService.isConnected;
   
   @override
   bool get isLoggingIn => _isLoading;

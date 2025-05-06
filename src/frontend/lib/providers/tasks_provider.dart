@@ -21,7 +21,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
   // Services
   final TaskService _taskService;
   final AuthService _authService;
-  final WebSocketService _webSocketService = WebSocketService();
+  final WebSocketService _webSocketService;
 
   // Add subscription for app state changes
   StreamSubscription? _resetSubscription;
@@ -31,12 +31,14 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
   // Logger for debugging and tracking events
   final _logger = Logger('TaskProvider');
 
-  // Constructor with dependency injection
+  // Constructor with dependency injection - add WebSocketService parameter
   TasksProvider({
     required TaskService taskService, 
-    required AuthService authService
+    required AuthService authService,
+    required WebSocketService webSocketService
   }) : _taskService = taskService,
-       _authService = authService {
+       _authService = authService,
+       _webSocketService = webSocketService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
@@ -60,11 +62,21 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   // Initialize WebSocket event listeners
   void _initializeEventListeners() {
-    _logger.info('Setting up tasks event listeners');
-    _webSocketService.addEventListener('event', 'task.created', _handleTaskCreated);
-    _webSocketService.addEventListener('event', 'task.updated', _handleTaskUpdated);
-    _webSocketService.addEventListener('event', 'task.deleted', _handleTaskDeleted);
-    _webSocketService.addEventListener('event', 'task.completed', _handleTaskCompleted);
+    _webSocketService.addEventListener('event', 'task.created', _handleTaskCreate);
+    _webSocketService.addEventListener('event', 'task.updated', _handleTaskUpdate);
+    _webSocketService.addEventListener('event', 'task.deleted', _handleTaskDelete);
+  }
+
+  void _handleTaskCreate(Map<String, dynamic> message) {
+    // Handle task creation
+  }
+
+  void _handleTaskUpdate(Map<String, dynamic> message) {
+    // Handle task update
+  }
+
+  void _handleTaskDelete(Map<String, dynamic> message) {
+    // Handle task deletion
   }
   
   // Subscribe to events
