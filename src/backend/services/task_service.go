@@ -52,6 +52,9 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 		Title:  title,
 	}
 
+	// Initialize metadata
+	task.Metadata = models.TaskMetadata{}
+
 	// Optional fields
 	if descStr, ok := taskData["description"].(string); ok {
 		task.Description = descStr
@@ -68,14 +71,92 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 		}
 	}
 
+	// Store note_id in metadata if provided
+	noteIDStr := ""
+	if nid, ok := taskData["note_id"].(string); ok && nid != "" {
+		noteIDStr = nid
+		task.Metadata["note_id"] = noteIDStr
+	}
+
 	// Handle block association
+	blockIDProvided := false
 	if blockIDStr, ok := taskData["block_id"].(string); ok && blockIDStr != "" {
 		blockID, err := uuid.Parse(blockIDStr)
-		if err == nil {
+		if err == nil && blockID != uuid.Nil {
+			// Verify the block exists
 			var block models.Block
 			if err := tx.First(&block, "id = ?", blockID).Error; err == nil {
 				task.BlockID = blockID
+				blockIDProvided = true
+			} else {
+				tx.Rollback()
+				return models.Task{}, errors.New("specified block_id does not exist")
 			}
+		}
+	}
+
+	// If block_id wasn't provided but note_id was, create a block for this task
+	if !blockIDProvided && noteIDStr != "" {
+		noteID, err := uuid.Parse(noteIDStr)
+		if err != nil {
+			tx.Rollback()
+			return models.Task{}, errors.New("invalid note_id format")
+		}
+
+		// Verify the note exists and user has access
+		var note models.Note
+		if err := tx.First(&note, "id = ? AND user_id = ?", noteID, userID).Error; err != nil {
+			tx.Rollback()
+			return models.Task{}, errors.New("note not found or access denied")
+		}
+
+		// Create a block for this task
+		block := models.Block{
+			ID:        uuid.New(),
+			NoteID:    noteID,
+			UserID:    userID,
+			Type:      models.TaskBlock,
+			Content: models.BlockContent{
+				"text": title,
+			},
+			Metadata: models.BlockContent{
+				"is_completed": task.IsCompleted,
+				"task_id":      taskID.String(),
+				"_sync_source": "task_creation",
+			},
+		}
+
+		if err := tx.Create(&block).Error; err != nil {
+			tx.Rollback()
+			return models.Task{}, err
+		}
+
+		// Now set the block_id on the task
+		task.BlockID = block.ID
+		
+		// Create event for block creation
+		blockEvent, err := models.NewEvent(
+			string(broker.BlockCreated),
+			"block",
+			"create",
+			userID.String(),
+			map[string]interface{}{
+				"block_id":     block.ID.String(),
+				"note_id":      noteID.String(),
+				"user_id":      userID.String(),
+				"block_type":   string(models.TaskBlock),
+				"content":      block.Content,
+				"metadata":     block.Metadata,
+				"_sync_source": "task_creation",
+			},
+		)
+		if err != nil {
+			tx.Rollback()
+			return models.Task{}, err
+		}
+		if err := tx.Create(blockEvent).Error; err != nil {
+			tx.Rollback()
+			return models.Task{}, err
 		}
 	}
 
@@ -98,18 +179,38 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 		return models.Task{}, err
 	}
 
+	// Get note_id from metadata or taskData for the event
+	if noteIDStr == "" {
+		if task.Metadata != nil {
+			if nid, ok := task.Metadata["note_id"].(string); ok {
+				noteIDStr = nid
+			}
+		}
+	}
+
 	// Create event for task creation
+	eventPayload := map[string]interface{}{
+		"task_id":      task.ID.String(),
+		"title":        task.Title,
+		"is_completed": task.IsCompleted,
+	}
+
+	// Only include block_id if it's set
+	if task.BlockID != uuid.Nil {
+		eventPayload["block_id"] = task.BlockID.String()
+	}
+
+	// Include note_id in event payload if it exists
+	if noteIDStr != "" {
+		eventPayload["note_id"] = noteIDStr
+	}
+
 	event, err := models.NewEvent(
 		string(broker.TaskCreated),
 		"task",
 		"create",
 		userID.String(),
-		map[string]interface{}{
-			"task_id":      task.ID.String(),
-			"title":        task.Title,
-			"is_completed": task.IsCompleted,
-			"block_id":     task.BlockID.String(), // Add the block_id to the event payload
-		},
+		eventPayload,
 	)
 
 	if err != nil {

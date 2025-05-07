@@ -390,10 +390,8 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 		return err
 	}
 
-	// Tasks must always be associated with a block - this is required
+	// If task has no block ID, create a block for it
 	if task.BlockID == uuid.Nil {
-		// This should never happen as block_id should be required when creating a task
-		// However, we'll handle it by creating a block for this task
 		return s.createBlockForTask(task)
 	}
 
@@ -433,24 +431,55 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 
 // createBlockForTask creates a new block for a task that doesn't have one
 func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
-	// Find the user's primary note, or any note
-	var notes []models.Note
-	if err := s.db.DB.Where("user_id = ? AND is_primary = ?", task.UserID, true).Limit(1).Find(&notes).Error; err != nil {
-		return err
+	var noteID uuid.UUID
+	
+	// Check if the task has noteId in metadata
+	if task.Metadata != nil {
+		if noteIDStr, ok := task.Metadata["note_id"].(string); ok && noteIDStr != "" {
+			if id, err := uuid.Parse(noteIDStr); err == nil {
+				noteID = id
+				// Verify the note exists
+				var note models.Note
+				if err := s.db.DB.First(&note, "id = ?", id).Error; err == nil {
+					// Note found, we can use it
+				} else {
+					// Note not found, reset noteID to find another note
+					noteID = uuid.Nil
+				}
+			}
+		}
 	}
 
-	var noteID uuid.UUID
-	if len(notes) > 0 {
-		noteID = notes[0].ID
-	} else {
-		// No primary note found, try to find any note
-		if err := s.db.DB.Where("user_id = ?", task.UserID).Limit(1).Find(&notes).Error; err != nil {
+	// If no valid noteId in metadata, find a suitable note
+	if noteID == uuid.Nil {
+		// Find the user's primary note, or any note
+		var notes []models.Note
+		if err := s.db.DB.Where("user_id = ? AND is_primary = ?", task.UserID, true).Limit(1).Find(&notes).Error; err != nil {
 			return err
 		}
-		if len(notes) == 0 {
-			return errors.New("no notes available for task block creation")
+
+		if len(notes) > 0 {
+			noteID = notes[0].ID
+		} else {
+			// No primary note found, try to find any note
+			if err := s.db.DB.Where("user_id = ?", task.UserID).Limit(1).Find(&notes).Error; err != nil {
+				return err
+			}
+			if len(notes) == 0 {
+				// No notes found, create a new one
+				newNote := models.Note{
+					ID:        uuid.New(),
+					UserID:    task.UserID,
+					Title:     "Tasks",
+				}
+				if err := s.db.DB.Create(&newNote).Error; err != nil {
+					return err
+				}
+				noteID = newNote.ID
+			} else {
+				noteID = notes[0].ID
+			}
 		}
-		noteID = notes[0].ID
 	}
 
 	// Create a block for this task
@@ -462,6 +491,7 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 		},
 		"metadata": models.BlockContent{
 			"is_completed": task.IsCompleted,
+			"task_id":      task.ID.String(), // Add task ID reference
 			"_sync_source": "task",
 		},
 		"user_id": task.UserID.String(),
@@ -477,11 +507,12 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 		return err
 	}
 
-	// Update task with block_id
+	// Update task with block_id and store note_id in metadata
 	updateData := models.Task{
 		BlockID: block.ID,
 		Metadata: models.TaskMetadata{
 			"_sync_source": "task",
+			"note_id":      noteID.String(),
 		},
 	}
 
