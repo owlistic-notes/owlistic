@@ -100,7 +100,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 
 	// Create event for task creation
 	event, err := models.NewEvent(
-		"task.created",
+		string(broker.TaskCreated),
 		"task",
 		"create",
 		userID.String(),
@@ -108,6 +108,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 			"task_id":      task.ID.String(),
 			"title":        task.Title,
 			"is_completed": task.IsCompleted,
+			"block_id":     task.BlockID.String(), // Add the block_id to the event payload
 		},
 	)
 
@@ -159,17 +160,21 @@ func (s *TaskService) UpdateTask(db *database.Database, id string, updatedData m
 		return models.Task{}, err
 	}
 
+	// Create the event payload for publishing
+	eventPayload := map[string]interface{}{
+		"task_id":      task.ID.String(),
+		"user_id":      task.UserID.String(),
+		"block_id":     task.BlockID.String(),
+		"title":        task.Title,
+		"is_completed": task.IsCompleted,
+	}
+
 	event, err := models.NewEvent(
-		string(broker.TaskUpdated), // Use standard event type
+		string(broker.TaskUpdated),
 		"task",
 		"update",
 		task.UserID.String(),
-		map[string]interface{}{
-			"task_id":      task.ID.String(),
-			"user_id":      task.UserID.String(),
-			"title":        task.Title,
-			"is_completed": task.IsCompleted,
-		},
+		eventPayload,
 	)
 
 	if err != nil {
@@ -211,6 +216,13 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 		return err
 	}
 
+	// Create event for task deletion before actually deleting
+	eventData := map[string]interface{}{
+		"task_id":  task.ID.String(),
+		"user_id":  task.UserID.String(),
+		"block_id": task.BlockID.String(),
+	}
+
 	// Delete task
 	if err := tx.Delete(&task).Error; err != nil {
 		tx.Rollback()
@@ -226,15 +238,12 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 		return err
 	}
 
-	// Create event for task deletion
 	event, err := models.NewEvent(
-		"task.deleted",
+		string(broker.TaskDeleted),
 		"task",
 		"delete",
 		task.UserID.String(),
-		map[string]interface{}{
-			"task_id": task.ID.String(),
-		},
+		eventData,
 	)
 
 	if err != nil {

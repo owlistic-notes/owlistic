@@ -66,6 +66,9 @@ func main() {
 	webSocketService.SetJWTSecret([]byte(cfg.JWTSecret))
 	services.WebSocketServiceInstance = webSocketService
 
+	// Initialize BlockTaskSyncHandler service with the database
+	syncHandler := services.NewSyncHandlerService(db)
+
 	// Start event-based services
 	log.Println("Starting event handler service...")
 	eventHandlerService.Start()
@@ -74,6 +77,11 @@ func main() {
 	log.Println("Starting WebSocket service...")
 	webSocketService.Start()
 	defer webSocketService.Stop()
+
+	// Start block-task sync handler
+	log.Println("Starting Block-Task Sync Handler...")
+	syncHandler.Start()
+	defer syncHandler.Stop()
 
 	router := gin.Default()
 

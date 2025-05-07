@@ -32,7 +32,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, tx.Error
 	}
 
-	blockType, ok := blockData["type"].(string)
+	blockType, ok := blockData["block_type"].(string)
 	if !ok {
 		return models.Block{}, ErrInvalidBlockType
 	}
@@ -44,7 +44,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 
 	// Extract user_id from params for permission check
 	userIDStr, ok := params["user_id"].(string)
-	if (!ok) {
+	if !ok {
 		tx.Rollback()
 		return models.Block{}, errors.New("user_id must be provided in parameters")
 	}
@@ -145,13 +145,13 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		"create",
 		actorID,
 		map[string]interface{}{
-			"block_id": block.ID.String(),
-			"note_id":  block.NoteID.String(),
-			"user_id":  block.UserID.String(),
-			"type":     string(block.Type),
-			"order":    block.Order,
-			"content":  block.Content,
-			"metadata": block.Metadata,
+			"block_id":   block.ID.String(),
+			"note_id":    block.NoteID.String(),
+			"user_id":    block.UserID.String(),
+			"block_type": string(block.Type),
+			"order":      block.Order,
+			"content":    block.Content,
+			"metadata":   block.Metadata,
 		},
 	)
 
@@ -230,9 +230,9 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 	}
 
 	eventData := map[string]interface{}{
-		"id":         block.ID,
-		"note_id":    block.NoteID,
-		"user_id":    block.UserID,
+		"block_id":   block.ID.String(), // Use block_id instead of id
+		"note_id":    block.NoteID.String(),
+		"user_id":    block.UserID.String(),
 		"updated_at": time.Now().UTC(),
 	}
 
@@ -264,14 +264,14 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 			// Add metadata to content object
 			contentMap["metadata"] = metadataInterface
 			blockData["content"] = contentMap
-			
+
 			// Remove separate metadata field
 			delete(blockData, "metadata")
 		}
 	}
 
-	if blockType, ok := blockData["type"].(string); ok {
-		eventData["type"] = blockType
+	if blockType, ok := blockData["block_type"].(string); ok {
+		eventData["block_type"] = blockType
 	}
 
 	// Create the event
@@ -466,7 +466,7 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 		log.Printf("Filtering by note_id: %s", noteID)
 	}
 
-	if blockType, ok := params["type"].(string); ok && blockType != "" {
+	if blockType, ok := params["block_type"].(string); ok && blockType != "" {
 		query = query.Where("type = ?", blockType)
 	}
 
