@@ -63,53 +63,88 @@ class _TasksScreenState extends State<TasksScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.add_task, color: Theme.of(context).primaryColor),
-            const SizedBox(width: 8),
-            const Text('Add Task'),
-          ],
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Task Title',
-                prefixIcon: Icon(Icons.title),
-              ),
-              autofocus: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          final availableNotes = _tasksViewModel.availableNotes;
+          
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.add_task, color: Theme.of(context).primaryColor),
+                const SizedBox(width: 8),
+                const Text('Add Task'),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
-                try {
-                  await _tasksViewModel.createTask(_titleController.text, selectedNoteId ?? '');
-                  Navigator.of(ctx).pop();
-                } catch (error) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to create task')),
-                  );
-                }
-              }
-            },
-            child: const Text('Create'),
-            style: AppTheme.getSuccessButtonStyle(),
-          ),
-        ],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Task Title',
+                    prefixIcon: Icon(Icons.title),
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Select Note',
+                    prefixIcon: Icon(Icons.book),
+                  ),
+                  value: selectedNoteId,
+                  items: [
+                    if (availableNotes.isEmpty)
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('No notes available'),
+                      ),
+                    ...availableNotes.map(
+                      (note) => DropdownMenuItem(
+                        value: note.id,
+                        child: Text(note.title),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedNoteId = value;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (_titleController.text.isNotEmpty && selectedNoteId != null) {
+                    try {
+                      await _tasksViewModel.createTask(_titleController.text, selectedNoteId!);
+                      Navigator.of(ctx).pop();
+                    } catch (error) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to create task')),
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a title and select a note')),
+                    );
+                  }
+                },
+                child: const Text('Create'),
+                style: AppTheme.getSuccessButtonStyle(),
+              ),
+            ],
+          );
+        }
       ),
     );
   }

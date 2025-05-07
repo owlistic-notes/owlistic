@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/note.dart';
 import '../models/task.dart';
+import '../services/note_service.dart';
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
 import '../services/base_service.dart';
@@ -13,6 +15,7 @@ import '../viewmodel/tasks_viewmodel.dart';
 class TasksProvider with ChangeNotifier implements TasksViewModel {
   // Change to Map to prevent duplicates and enable O(1) lookups
   final Map<String, Task> _tasksMap = {};
+  final Map<String, Note> _notesMap = {}; // Add notes map
   bool _isLoading = false;
   bool _isActive = false; // Add flag for active state
   bool _isInitialized = false;  // Standardize the variable name
@@ -22,6 +25,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
   final TaskService _taskService;
   final AuthService _authService;
   final WebSocketService _webSocketService;
+  final NoteService _noteService; // Add note service
 
   // Add subscription for app state changes
   StreamSubscription? _resetSubscription;
@@ -31,14 +35,16 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
   // Logger for debugging and tracking events
   final _logger = Logger('TaskProvider');
 
-  // Constructor with dependency injection - add WebSocketService parameter
+  // Constructor with dependency injection - add NoteService parameter
   TasksProvider({
     required TaskService taskService, 
     required AuthService authService,
-    required WebSocketService webSocketService
+    required WebSocketService webSocketService,
+    required NoteService noteService
   }) : _taskService = taskService,
        _authService = authService,
-       _webSocketService = webSocketService {
+       _webSocketService = webSocketService,
+       _noteService = noteService {
     // Listen for app reset events
     _resetSubscription = _appStateService.onResetState.listen((_) {
       resetState();
@@ -117,11 +123,15 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
   @override
   List<Task> get recentTasks => _tasksMap.values.take(3).toList();
   
+  @override
+  List<Note> get availableNotes => _notesMap.values.toList();
+
   // Reset state on logout
   @override
   void resetState() {
     _logger.info('Resetting TasksProvider state');
     _tasksMap.clear();
+    _notesMap.clear();
     _isActive = false;
     notifyListeners();
   }
@@ -138,6 +148,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     }
     
     fetchTasks(); // Load tasks on activation
+    loadAvailableNotes(); // Load notes on activation
   }
 
   @override
@@ -301,7 +312,26 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     notifyListeners();
   }
 
-  // Create task - no optimistic updates
+  @override
+  Future<void> loadAvailableNotes() async {
+    if (!_isActive) return; // Don't fetch if not active
+    
+    try {
+      final notes = await _noteService.getNotes();
+      
+      _notesMap.clear();
+      for (final note in notes) {
+        _notesMap[note.id] = note;
+      }
+      
+      notifyListeners();
+      _logger.debug('Loaded ${_notesMap.length} notes for task creation');
+    } catch (error) {
+      _logger.error('Error loading available notes: $error');
+    }
+  }
+
+  // Create task - updated to use noteId
   @override
   Future<void> createTask(String title, String noteId, {String? blockId}) async {
     try {
@@ -311,7 +341,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
       // Subscribe to this task
       _webSocketService.subscribe('task', id: task.id);
       
-      _logger.info('Created task: $title, waiting for event');
+      _logger.info('Created task: $title with noteId: $noteId, waiting for event');
     } catch (error) {
       _logger.error('Error creating task: $error');
       rethrow;

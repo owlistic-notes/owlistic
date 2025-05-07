@@ -1,4 +1,5 @@
 import '../models/task.dart';
+import '../models/note.dart';
 import 'base_viewmodel.dart';
 
 /// Interface for task management functionality
@@ -9,8 +10,14 @@ abstract class TasksViewModel extends BaseViewModel {
   /// Recent tasks (limited set)
   List<Task> get recentTasks;
   
+  /// Available notes for task creation
+  List<Note> get availableNotes;
+  
   /// Fetch tasks with filtering
   Future<void> fetchTasks({String? completed, String? noteId});
+  
+  /// Load available notes for task creation
+  Future<void> loadAvailableNotes();
   
   /// Create a new task
   Future<void> createTask(String title, String noteId, {String? blockId});

@@ -196,4 +196,21 @@ class NoteService extends BaseService {
       rethrow;
     }
   }
+
+  Future<List<Note>> getNotes() async {
+    try {
+      final response = await authenticatedGet('/api/v1/notes');
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final notes = data.map((json) => Note.fromJson(json)).toList();
+        return notes;
+      } else {
+        throw Exception('Failed to load notes: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in getNotes', e);
+      rethrow;
+    }
+  }
 }

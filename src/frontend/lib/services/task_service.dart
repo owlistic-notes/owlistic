@@ -47,10 +47,15 @@ class TaskService extends BaseService {
       final taskData = {
         'title': title,
         'is_completed': false,
-        'note_id': noteId,
       };
       
-      if (blockId != null && blockId.isNotEmpty && blockId != '00000000-0000-0000-0000-000000000000') {
+      // Include noteId as primary parameter for creating tasks
+      if (noteId.isNotEmpty) {
+        taskData['note_id'] = noteId;
+      }
+      
+      // Only include blockId if it's provided (optional now)
+      if (blockId != null && blockId.isNotEmpty) {
         taskData['block_id'] = blockId;
       }
 

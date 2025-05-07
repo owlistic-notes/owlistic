@@ -140,6 +140,7 @@ final List<SingleChildWidget> appProviders = [
   ),
   ChangeNotifierProvider<TasksViewModel>(
     create: (context) => TasksProvider(
+      noteService:  context.read<NoteService>(),
       taskService: context.read<TaskService>(),
       authService: context.read<AuthService>(),
       webSocketService: context.read<WebSocketService>(),
