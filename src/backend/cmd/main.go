@@ -55,10 +55,12 @@ func main() {
 
 	// Initialize WebSocket service with the database
 	kafkaTopics := []string{
-		broker.NoteEventsTopic,
+		broker.UserEventsTopic,
 		broker.NotebookEventsTopic,
-		broker.SyncEventsTopic,
+		broker.NoteEventsTopic,
 		broker.BlockEventsTopic,
+		broker.TaskEventsTopic,
+		broker.NotificationTopic,
 	}
 	webSocketService := services.NewWebSocketService(db, kafkaTopics)
 	webSocketService.SetJWTSecret([]byte(cfg.JWTSecret))

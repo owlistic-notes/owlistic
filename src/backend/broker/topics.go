@@ -10,12 +10,11 @@ import (
 
 const (
 	UserEventsTopic     = "user_events"
-	NoteEventsTopic     = "note_events"
-	TaskEventsTopic     = "task_events"
-	SyncEventsTopic     = "sync_events"
-	NotificationTopic   = "notification_events"
 	NotebookEventsTopic = "notebook_events"
+	NoteEventsTopic     = "note_events"
 	BlockEventsTopic    = "block_events"
+	TaskEventsTopic     = "task_events"
+	NotificationTopic   = "notification_events"
 )
 
 func CreateTopics() {
@@ -30,12 +29,11 @@ func CreateTopics() {
 
 	topics := []kafka.TopicSpecification{
 		{Topic: UserEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
-		{Topic: NoteEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
-		{Topic: TaskEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
-		{Topic: SyncEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
-		{Topic: NotificationTopic, NumPartitions: 1, ReplicationFactor: 1},
 		{Topic: NotebookEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
+		{Topic: NoteEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
 		{Topic: BlockEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
+		{Topic: TaskEventsTopic, NumPartitions: 1, ReplicationFactor: 1},
+		{Topic: NotificationTopic, NumPartitions: 1, ReplicationFactor: 1},
 	}
 
 	results, err := adminClient.CreateTopics(context.TODO(), topics)
