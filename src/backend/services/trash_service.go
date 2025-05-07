@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 )
@@ -340,7 +341,7 @@ func (s *TrashService) EmptyTrash(db *database.Database, userID string) error {
 
 	// Create event for emptying trash
 	event, err := models.NewEvent(
-		"trash.emptied",
+		string(broker.TrashEmptied),
 		"trash",
 		"empty",
 		userID,

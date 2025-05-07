@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 )
@@ -139,7 +140,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 
 	actorID, _ := blockData["user_id"].(string)
 	event, err := models.NewEvent(
-		"block.created", // Standardized event type
+		string(broker.BlockCreated), // Use standard event type
 		"block",
 		"create",
 		actorID,
@@ -275,7 +276,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 
 	// Create the event
 	event, err := models.NewEvent(
-		"block.updated",
+		string(broker.BlockUpdated), // Use standard event type
 		"block",
 		"update",
 		userIDStr,
@@ -354,7 +355,7 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[
 
 	// Create an event entry instead of directly publishing
 	event, err := models.NewEvent(
-		"block.deleted", // Standardized event type
+		string(broker.BlockDeleted), // Use standard event type
 		"block",
 		"delete",
 		block.UserID.String(), // Use the block's owner as the actor

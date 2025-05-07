@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 
@@ -128,7 +129,7 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 
 	// Create event for note creation
 	event, err := models.NewEvent(
-		"note.created",
+		string(broker.NoteCreated),
 		"note",
 		"create",
 		userIDStr,
@@ -260,7 +261,7 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[
 
 	// Create event for note update
 	event, err := models.NewEvent(
-		"note.updated",
+		string(broker.NoteUpdated),
 		"note",
 		"update",
 		userIDStr,
@@ -338,7 +339,7 @@ func (s *NoteService) DeleteNote(db *database.Database, id string, params map[st
 
 	// Create event for note deletion
 	event, err := models.NewEvent(
-		"note.deleted",
+		string(broker.NoteDeleted),
 		"note",
 		"delete",
 		userIDStr,

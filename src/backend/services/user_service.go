@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/thinkstack/broker"
 	"github.com/thinkstack/database"
 	"github.com/thinkstack/models"
 	"gorm.io/gorm"
@@ -93,7 +94,7 @@ func (s *UserService) CreateUser(db *database.Database, userData map[string]inte
 
 	// Create event for user creation
 	event, err := models.NewEvent(
-		"user.created",
+		string(broker.UserCreated),
 		"user",
 		"create",
 		user.ID.String(),
