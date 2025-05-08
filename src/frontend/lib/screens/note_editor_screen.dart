@@ -78,6 +78,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   Future<void> _initialize() async {
     // Activate ViewModel
+    _noteEditorViewModel = context.read<NoteEditorViewModel>();
     _noteEditorViewModel.activate();
     
     try {
@@ -105,64 +106,29 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _titleController.text = _note!.title;
       }
       
+      // Activate the note in the ViewModel
+      _noteEditorViewModel.activateNote(_noteId!);
+      
       // Set the note ID in the editor
       _noteEditorViewModel.noteId = _noteId;
       
       // Load initial blocks for the note using ViewModel
-      await _noteEditorViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 20);
+      await _noteEditorViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 30);
+      
+      // Initialize the scroll listener for pagination - JUST ONCE
+      _noteEditorViewModel.initScrollListener(_scrollController);
+      
+      _isInitialized = true;
       
       setState(() {
         _isLoading = false;
       });
-      
-      // Load more blocks in the background if available
-      _loadMoreBlocksInBackground();
     } catch (e) {
       _logger.error('Error initializing note editor', e);
       setState(() {
         _isLoading = false;
         _errorMessage = 'Error loading note: ${e.toString()}';
       });
-    }
-  }
-
-  // Simplified method for loading more blocks in the background
-  Future<void> _loadMoreBlocksInBackground() async {
-    if (_noteId == null || !mounted) return;
-    
-    try {
-      // Get current pagination state
-      final paginationInfo = _noteEditorViewModel.getPaginationInfo(_noteId!);
-      final currentPage = paginationInfo['page'] as int? ?? 1;
-      final nextPage = currentPage + 1;
-      
-      // Check if there are more blocks to load
-      if (!_noteEditorViewModel.hasMoreBlocks(_noteId!)) {
-        return;
-      }
-      
-      _logger.info('Loading more blocks in background (page: $nextPage)');
-      
-      // Fetch the next page with append=true to keep existing blocks
-      final moreBlocks = await _noteEditorViewModel.fetchBlocksForNote(
-        _noteId!,
-        page: nextPage,
-        pageSize: 20,
-        append: true
-      );
-      
-      // Log the result for debugging
-      _logger.debug('Received ${moreBlocks.length} blocks for page $nextPage');
-      
-      // Simple check - if ViewModel says there are more blocks, load them after a short delay
-      if (moreBlocks.isNotEmpty && _noteEditorViewModel.hasMoreBlocks(_noteId!)) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted) {
-          _loadMoreBlocksInBackground();
-        }
-      }
-    } catch (e) {
-      _logger.error('Error loading more blocks', e);
     }
   }
 
@@ -173,11 +139,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _titleFocusNode.removeListener(_handleTitleFocusChange);
     _titleFocusNode.dispose();
     _titleController.dispose();
-    _scrollController.dispose();
     
-    // Save any pending changes
+    // Save any pending changes before disposing scroll controller
     _autoSaveTitleIfNeeded();
     _noteEditorViewModel.commitAllContent();
+    
+    // Important: Dispose scroll controller AFTER using it to save content
+    _scrollController.dispose();
     
     // Deactivate ViewModel
     if (_isInitialized) {
@@ -238,23 +206,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   // Build the rich text editor directly, without using a separate widget
   Widget _buildRichTextEditor(NoteEditorViewModel viewModel) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (ScrollNotification scrollInfo) {
-        // Check if we're near the bottom of the scroll view to trigger loading more blocks
-        if (_noteId != null &&
-            viewModel.hasMoreBlocks(_noteId!) &&
-            scrollInfo.metrics.pixels > scrollInfo.metrics.maxScrollExtent * 0.8) {
-          // Simplified trigger for loading more blocks
-          _loadMoreBlocksInBackground();
-        }
-        return false;
-      },
-      // Use DocumentBuilder's createSuperEditor method
-      child: viewModel.documentBuilder.createSuperEditor(
-        readOnly: false,
-        scrollController: _scrollController,
-        themeData: Theme.of(context), // Pass the current theme to ensure proper text colors
-      ),
+    // Remove redundant notification listener and use the scroll controller directly
+    return viewModel.documentBuilder.createSuperEditor(
+      readOnly: false,
+      scrollController: _scrollController,
+      themeData: Theme.of(context),
     );
   }
 

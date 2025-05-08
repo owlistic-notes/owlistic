@@ -412,12 +412,6 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 	var blocks []models.Block
 	query := db.DB
 
-	// Debug received params with more details
-	log.Printf("GetBlocks received params: %+v with types:", params)
-	for k, v := range params {
-		log.Printf("  param %s: %v (type: %T)", k, v, v)
-	}
-
 	// Check if user_id is in query string parameters
 	userIDStr := ""
 	userIDValue, userIDExists := params["user_id"]

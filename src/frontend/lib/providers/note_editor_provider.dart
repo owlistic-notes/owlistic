@@ -802,7 +802,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     bool append = false,
     bool refresh = false
   }) async {
-    _isLoading = true;
+    if (!append) {
+      _isLoading = true;
+      notifyListeners(); // Notify immediately about loading state
+    }
     
     try {
       _logger.info('Fetching blocks for note $noteId, page $page, pageSize $pageSize');
@@ -834,7 +837,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Add all blocks to maps, tracking which ones are actually new
       for (var block in blocksResult) {
-        // Check if this block is already in our map
         final isNewBlock = !_blocks.containsKey(block.id);
         
         _blocks[block.id] = block;
@@ -844,22 +846,20 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         }
       }
       
-      // IMPORTANT FIX: Update pagination state based on if we got any new blocks
-      // If we got zero new blocks, we're at the end of the data
-      final bool hasMore = blocksResult.isNotEmpty && newBlockCount > 0;
+      // Update pagination state
+      final bool hasMore = blocksResult.length >= pageSize;
       _paginationState[noteId] = {
         'page': page,
         'page_size': pageSize,
         'has_more': hasMore
       };
       
-      _logger.debug('Pagination state updated for $noteId: hasMore=$hasMore, newBlockCount=$newBlockCount');
+      _logger.debug('Pagination state updated for $noteId: hasMore=$hasMore, newBlocks=$newBlockCount, results=${blocksResult.length}');
       
-      // If this is the current note and not appending, update document
+      // Update document
       if (_noteId == noteId && !append) {
         setBlocks(blocksResult);
       } else if (_noteId == noteId && append) {
-        // If appending to current note, add blocks to document
         addBlocks(blocksResult);
       }
       
@@ -1127,7 +1127,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Content must be inside the content field
       Map<String, dynamic> contentMap;
       if (content is Map) {
-        contentMap = _sanitizeForJson(Map<String, dynamic>.from(content));
+        contentMap = Map<String, dynamic>.from(content);
       } else if (content is String) {
         contentMap = {'text': content};
       } else {
@@ -1149,7 +1149,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Add metadata if specified
       if (metadata != null) {
-        payload['metadata'] = _sanitizeForJson(metadata);
+        payload['metadata'] = metadata;
       }
       
       _logger.debug('Sending payload to server: $payload');
@@ -1168,59 +1168,154 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       _logger.error('Error saving block $id', error);
     }
   }
-
-  // Helper method to ensure all data is JSON serializable
-  Map<String, dynamic> _sanitizeForJson(Map<String, dynamic> data) {
-    final Map<String, dynamic> result = {};
-    
-    data.forEach((key, value) {
-      if (value == null || 
-          value is String || 
-          value is num || 
-          value is bool) {
-        // Basic types that are already JSON serializable
-        result[key] = value;
-      } else if (value is List) {
-        // For lists, recursively sanitize each element
-        result[key] = _sanitizeListForJson(value);
-      } else if (value is Map) {
-        // For maps, recursively sanitize
-        result[key] = _sanitizeForJson(Map<String, dynamic>.from(value));
-      } else if (value is NamedAttribution) {
-        // Special handling for NamedAttribution - convert to string ID
-        result[key] = value.id;
-      } else {
-        // For other types, convert to string
-        result[key] = value.toString();
-      }
-    });
-    
-    return result;
-  }
   
-  // Helper to sanitize Lists for JSON
-  List _sanitizeListForJson(List list) {
-    final result = [];
+  // Store scroll controller reference as class variable
+  ScrollController? _scrollController;
+  bool _isLoadingMoreBlocks = false; // Add dedicated flag for pagination loading
+  
+  @override
+  void initScrollListener(ScrollController scrollController) {
+    _logger.debug('Initializing scroll listener for pagination');
     
-    for (final item in list) {
-      if (item == null || 
-          item is String || 
-          item is num || 
-          item is bool) {
-        result.add(item);
-      } else if (item is List) {
-        result.add(_sanitizeListForJson(item));
-      } else if (item is Map) {
-        result.add(_sanitizeForJson(Map<String, dynamic>.from(item)));
-      } else if (item is NamedAttribution) {
-        // Special handling for NamedAttribution
-        result.add(item.id);
-      } else {
-        result.add(item.toString());
-      }
+    // Remove existing listener if any
+    if (_scrollController != null) {
+      _scrollController!.removeListener(_handleScroll);
     }
     
-    return result;
+    // Store reference to the controller
+    _scrollController = scrollController;
+    
+    // Add scroll listener
+    _scrollController!.addListener(_handleScroll);
+    
+    _logger.debug('Scroll listener initialized successfully');
+  }
+  
+  // Improved scroll handler with better logging and scroll position detection
+  void _handleScroll() {
+    if (_scrollController == null || !_scrollController!.hasClients) return;
+    if (_noteId == null) return;
+    if (_isLoading || _isLoadingMoreBlocks) return;
+    
+    // Calculate scroll position
+    final maxScroll = _scrollController!.position.maxScrollExtent;
+    final currentScroll = _scrollController!.position.pixels;
+    final threshold = 500.0; // Load more when within 500px of bottom
+    
+    if (maxScroll - currentScroll <= threshold) {
+      // Check if we have more blocks to load
+      if (hasMoreBlocks(_noteId!)) {
+        _logger.info('Scroll threshold reached at ${currentScroll.toStringAsFixed(1)}/${maxScroll.toStringAsFixed(1)}, loading more blocks');
+        _loadMoreBlocks();
+      } else {
+        _logger.debug('Reached end of content, no more blocks to load');
+      }
+    }
+  }
+  
+  // Simplified and improved _loadMoreBlocks method
+  void _loadMoreBlocks() async {
+    if (_noteId == null) return;
+    if (_isLoadingMoreBlocks) return; // Prevent multiple concurrent loads
+    
+    try {
+      _isLoadingMoreBlocks = true;
+      
+      // Get current pagination info
+      final paginationInfo = _paginationState[_noteId!] ?? {'page': 1, 'page_size': 100};
+      final nextPage = (paginationInfo['page'] ?? 1) + 1;
+      final pageSize = paginationInfo['page_size'] ?? 30; // Use smaller page size for smoother loading
+      
+      _logger.info('Loading more blocks for note $_noteId (page $nextPage)');
+      
+      // Fetch the next page of blocks with append=true
+      final newBlocks = await _blockService.fetchBlocksForNote(_noteId!, 
+          queryParams: {
+            'note_id': _noteId,
+            'page': nextPage,
+            'page_size': pageSize,
+          });
+      
+      // Update pagination state based on results
+      final hasMore = newBlocks.length >= pageSize;
+      _paginationState[_noteId!] = {
+        'page': nextPage,
+        'page_size': pageSize,
+        'has_more': hasMore
+      };
+      
+      // Add the new blocks to the document
+      if (newBlocks.isNotEmpty) {
+        // Process and add blocks to the document
+        final blocksToAdd = newBlocks.where((block) => !_blocks.containsKey(block.id)).toList();
+        
+        _logger.debug('Fetched ${newBlocks.length} blocks, adding ${blocksToAdd.length} new blocks (page $nextPage)');
+        
+        // If we have new blocks, add them to the document
+        if (blocksToAdd.isNotEmpty) {
+          addBlocks(blocksToAdd);
+        } else if (newBlocks.isEmpty || blocksToAdd.isEmpty) {
+          // If we didn't get any new blocks, mark that we have no more blocks
+          _paginationState[_noteId!]!['has_more'] = false;
+          _logger.debug('No new blocks received, marking pagination complete for $_noteId');
+        }
+      } else {
+        // No blocks returned, mark pagination as complete
+        _paginationState[_noteId!]!['has_more'] = false;
+        _logger.debug('Empty response, marking pagination complete for $_noteId');
+      }
+      
+      _enqueueNotification(); // Notify listeners about the update
+      
+    } catch (e) {
+      _logger.error('Error loading more blocks for note $_noteId: $e');
+      _errorMessage = 'Failed to load more content: $e';
+    } finally {
+      _isLoadingMoreBlocks = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _logger.info('Disposing NoteEditorProvider');
+    
+    // Cancel subscriptions
+    _resetSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    
+    // Cancel all debounce timers
+    for (final timer in _saveTimers.values) {
+      timer.cancel();
+    }
+    _saveTimers.clear();
+    _notificationDebouncer?.cancel();
+    
+    // Commit any pending changes
+    if (_isActive) {
+      commitAllContent();
+    }
+    
+    // Remove event listeners
+    _webSocketService.removeEventListener('event', 'block.updated');
+    _webSocketService.removeEventListener('event', 'block.created');
+    _webSocketService.removeEventListener('event', 'block.deleted');
+    _webSocketService.removeEventListener('event', 'note.updated');
+    
+    // Remove document listeners
+    _documentBuilder.removeDocumentStructureListener(_documentStructureChangeListener);
+    _documentBuilder.removeDocumentContentListener(_documentChangeListener);
+    _documentBuilder.document.removeListener(_handleDocumentAttributeChange);
+    _documentBuilder.focusNode.removeListener(_handleFocusChange);
+    
+    // Remove scroll listener
+    if (_scrollController != null) {
+      _scrollController!.removeListener(_handleScroll);
+    }
+    
+    // Dispose document builder
+    _documentBuilder.dispose();
+    
+    super.dispose();
   }
 
   @override
@@ -1580,44 +1675,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _documentBuilder = _documentBuilderFactory();
     
     notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _logger.info('Disposing NoteEditorProvider');
-    
-    // Cancel subscriptions
-    _resetSubscription?.cancel();
-    _connectionSubscription?.cancel();
-    
-    // Cancel all debounce timers
-    for (final timer in _saveTimers.values) {
-      timer.cancel();
-    }
-    _saveTimers.clear();
-    _notificationDebouncer?.cancel();
-    
-    // Commit any pending changes
-    if (_isActive) {
-      commitAllContent();
-    }
-    
-    // Remove event listeners
-    _webSocketService.removeEventListener('event', 'block.updated');
-    _webSocketService.removeEventListener('event', 'block.created');
-    _webSocketService.removeEventListener('event', 'block.deleted');
-    _webSocketService.removeEventListener('event', 'note.updated');
-    
-    // Remove document listeners
-    _documentBuilder.removeDocumentStructureListener(_documentStructureChangeListener);
-    _documentBuilder.removeDocumentContentListener(_documentChangeListener);
-    _documentBuilder.document.removeListener(_handleDocumentAttributeChange);
-    _documentBuilder.focusNode.removeListener(_handleFocusChange);
-    
-    // Dispose document builder
-    _documentBuilder.dispose();
-    
-    super.dispose();
   }
 
   // Add this method to listen for document attribute changes

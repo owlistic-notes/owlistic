@@ -57,9 +57,16 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   void activateNote(String noteId);
   void deactivateNote(String noteId);
   
-  // Block visibility and pagination
+  // Block visibility and pagination 
+  
+  /// Subscribe to receive updates for specific block IDs that are visible in the UI.
+  /// This optimizes websocket subscriptions to focus on currently visible blocks.
   void subscribeToVisibleBlocks(String noteId, List<String> visibleBlockIds);
+  
+  /// Check if there are more blocks available to load for the given note.
   bool hasMoreBlocks(String noteId);
+  
+  /// Get current pagination information for the specified note.
   Map<String, dynamic> getPaginationInfo(String noteId);
   
   // Server sync and events
@@ -75,4 +82,12 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   
   // User modified blocks tracking
   Set<String> get userModifiedBlockIds;
+  
+  // Pagination scroll handling
+  
+  /// Initializes the scroll listener for pagination.
+  /// This should be called when the note editor is initialized.
+  /// The provided ScrollController will be used to detect when the user 
+  /// scrolls near the bottom to automatically load more blocks.
+  void initScrollListener(ScrollController scrollController);
 }

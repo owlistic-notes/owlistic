@@ -318,9 +318,6 @@ func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]
 	var notebooks []models.Notebook
 	query := db.DB
 
-	// Debug received params
-	log.Printf("GetNotebooks received params: %+v", params)
-
 	// More robust handling of user_id parameter
 	userIDValue, userIDExists := params["user_id"]
 	if !userIDExists {
