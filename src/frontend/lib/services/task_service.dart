@@ -12,18 +12,15 @@ class TaskService extends BaseService {
     Map<String, dynamic>? queryParams,
   }) async {
     try {
-      // Build query parameters
       final Map<String, dynamic> params = {};
       
       if (completed != null) params['completed'] = completed;
       if (noteId != null) params['note_id'] = noteId;
       
-      // Add any additional query parameters
       if (queryParams != null) {
         params.addAll(queryParams);
       }
       
-      _logger.info('Fetching tasks with params: $params');
       final response = await authenticatedGet(
         '/api/v1/tasks',
         queryParameters: params
@@ -31,9 +28,9 @@ class TaskService extends BaseService {
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        final tasks = data.map((json) => Task.fromJson(json)).toList();
-        return tasks;
+        return data.map((json) => Task.fromJson(json)).toList();
       } else {
+        _logger.error('Failed to load tasks: ${response.statusCode}, ${response.body}');
         throw Exception('Failed to load tasks: ${response.statusCode}');
       }
     } catch (e) {
@@ -47,27 +44,20 @@ class TaskService extends BaseService {
       final taskData = {
         'title': title,
         'is_completed': false,
+        'note_id': noteId,
       };
       
-      // Include noteId as primary parameter for creating tasks
-      if (noteId.isNotEmpty) {
-        taskData['note_id'] = noteId;
-      }
-      
-      // Only include blockId if it's provided (optional now)
       if (blockId != null && blockId.isNotEmpty) {
         taskData['block_id'] = blockId;
       }
 
-      final taskResponse = await authenticatedPost(
-        '/api/v1/tasks',
-        taskData
-      );
+      final response = await authenticatedPost('/api/v1/tasks', taskData);
 
-      if (taskResponse.statusCode == 201) {
-        return Task.fromJson(json.decode(taskResponse.body));
+      if (response.statusCode == 201) {
+        return Task.fromJson(json.decode(response.body));
       } else {
-        throw Exception('Failed to create task: ${taskResponse.statusCode}');
+        _logger.error('Failed to create task: ${response.statusCode}, ${response.body}');
+        throw Exception('Failed to create task: ${response.statusCode}');
       }
     } catch (e) {
       _logger.error('Error in createTask', e);
@@ -76,43 +66,49 @@ class TaskService extends BaseService {
   }
 
   Future<void> deleteTask(String id) async {
-    final response = await authenticatedDelete(
-      '/api/v1/tasks/$id'
-    );
+    try {
+      final response = await authenticatedDelete('/api/v1/tasks/$id');
 
-    if (response.statusCode != 204) {
-      throw Exception('Failed to delete task: ${response.statusCode}');
+      if (response.statusCode != 204) {
+        _logger.error('Failed to delete task: ${response.statusCode}, ${response.body}');
+        throw Exception('Failed to delete task: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in deleteTask', e);
+      rethrow;
     }
   }
 
   Future<Task> updateTask(String id, {String? title, bool? isCompleted}) async {
-    final Map<String, dynamic> updates = {};
-    
-    if (title != null) updates['title'] = title;
-    if (isCompleted != null) updates['is_completed'] = isCompleted;
+    try {
+      final Map<String, dynamic> updates = {};
+      
+      if (title != null) updates['title'] = title;
+      if (isCompleted != null) updates['is_completed'] = isCompleted;
 
-    final response = await authenticatedPut(
-      '/api/v1/tasks/$id',
-      updates
-    );
+      final response = await authenticatedPut('/api/v1/tasks/$id', updates);
 
-    if (response.statusCode == 200) {
-      return Task.fromJson(json.decode(response.body));
-    } else {
-      throw Exception('Failed to update task: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        return Task.fromJson(json.decode(response.body));
+      } else {
+        _logger.error('Failed to update task: ${response.statusCode}, ${response.body}');
+        throw Exception('Failed to update task: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.error('Error in updateTask', e);
+      rethrow;
     }
   }
 
   Future<Task> getTask(String id) async {
     try {
-      final response = await authenticatedGet(
-        '/api/v1/tasks/$id'
-      );
+      final response = await authenticatedGet('/api/v1/tasks/$id');
       
       if (response.statusCode == 200) {
         return Task.fromJson(json.decode(response.body));
       } else {
-        throw Exception('Failed to load task');
+        _logger.error('Failed to get task: ${response.statusCode}, ${response.body}');
+        throw Exception('Failed to get task: ${response.statusCode}');
       }
     } catch (e) {
       _logger.error('Error in getTask', e);

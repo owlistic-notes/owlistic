@@ -1121,30 +1121,41 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     try {
       _logger.debug('Saving block $id to server');
       
-      // Ensure that content is JSON serializable
-      Map<String, dynamic> sanitizedContent;
+      // Prepare content properly structured for the API
+      Map<String, dynamic> payload = {};
+      
+      // Content must be inside the content field
+      Map<String, dynamic> contentMap;
       if (content is Map) {
-        sanitizedContent = _sanitizeForJson(Map<String, dynamic>.from(content));
+        contentMap = _sanitizeForJson(Map<String, dynamic>.from(content));
       } else if (content is String) {
-        sanitizedContent = {'text': content};
+        contentMap = {'text': content};
       } else {
-        sanitizedContent = {'text': content.toString()};
+        contentMap = {'text': content.toString()};
       }
       
-      // Sanitize metadata as well if present
-      Map<String, dynamic>? sanitizedMetadata;
-      if (metadata != null) {
-        sanitizedMetadata = _sanitizeForJson(Map<String, dynamic>.from(metadata));
+      // Create properly structured payload
+      payload['content'] = contentMap;
+      
+      // Add block_type if specified
+      if (type != null) {
+        payload['block_type'] = type;
       }
+      
+      // Add order if specified
+      if (order != null) {
+        payload['order'] = order;
+      }
+      
+      // Add metadata if specified
+      if (metadata != null) {
+        payload['metadata'] = _sanitizeForJson(metadata);
+      }
+      
+      _logger.debug('Sending payload to server: $payload');
       
       // Update via BlockService
-      final updatedBlock = await _blockService.updateBlock(
-        id, 
-        sanitizedContent, 
-        metadata: sanitizedMetadata,
-        type: type,
-        order: order
-      );
+      final updatedBlock = await _blockService.updateBlock(id, payload);
       
       // Update local block with returned data
       _blocks[id] = updatedBlock;
@@ -1447,7 +1458,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       // Call API to update the order
-      await _blockService.updateBlock(blockId, block.content, order: newOrder);
+      await _blockService.updateBlock(blockId, block.content);
       
       // Notify listeners
       _enqueueNotification();

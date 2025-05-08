@@ -44,13 +44,13 @@ class Task {
     }
 
     return Task(
-      id: json['ID'] ?? '',
-      title: json['Title'] ?? '',
-      isCompleted: json['IsCompleted'] ?? false,
-      userId: json['UserID'] ?? '',
-      description: json['Description'],
-      dueDate: json['DueDate'],
-      noteId: json['NoteID'],
+      id: json['id'] ?? '',
+      title: json['title'] ?? '',
+      isCompleted: json['is_completed'] ?? false,
+      userId: json['user_id'] ?? '',
+      description: json['description'],
+      dueDate: json['due_date'],
+      noteId: json['note_id'],
       blockId: json['block_id'],
       createdAt: createdAt,
       deletedAt: deletedAt,
@@ -59,16 +59,26 @@ class Task {
   
   Map<String, dynamic> toJson() {
     return {
-      'ID': id,
-      'Title': title,
-      'IsCompleted': isCompleted,
-      'UserID': userId,
-      if (description != null) 'Description': description,
-      if (dueDate != null) 'DueDate': dueDate,
-      if (noteId != null) 'NoteID': noteId,
+      'id': id,
+      'title': title,
+      'is_completed': isCompleted,
+      'user_id': userId,
+      if (description != null) 'description': description,
+      if (dueDate != null) 'due_date': dueDate,
+      if (noteId != null) 'note_id': noteId,
       if (blockId != null) 'block_id': blockId,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
       if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
+    };
+  }
+
+  /// Creates a payload specifically for task updates
+  Map<String, dynamic> toUpdatePayload() {
+    return {
+      'title': title,
+      'is_completed': isCompleted,
+      if (description != null) 'description': description,
+      if (dueDate != null) 'due_date': dueDate,
     };
   }
 

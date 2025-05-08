@@ -71,12 +71,25 @@ class Block {
     return {
       'id': id,
       'note_id': noteId,
-      'content': content is String ? content : jsonEncode(content),
-      'type': type,
+      'content': content,
+      'block_type': type, // Always use block_type for API serialization
       'metadata': metadata,
       'order': order,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Creates a block update with new content text
+  Map<String, dynamic> createUpdateWithText(String text) {
+    final Map<String, dynamic> contentMap = DataConverter.normalizeContent(content);
+    contentMap['text'] = text;
+    
+    return {
+      'note_id': noteId,
+      'block_type': type, // Always use block_type
+      'content': contentMap,
+      'order': order,
     };
   }
 
