@@ -5,6 +5,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../utils/logger.dart';
 import '../models/subscription.dart';
 import '../utils/websocket_message_parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class WebSocketService {
   static final WebSocketService _instance = WebSocketService._internal();
@@ -14,6 +15,7 @@ class WebSocketService {
   WebSocketChannel? _channel;
   String? _authToken;
   String? _userId;
+  String? _serverUrl;
   bool _isConnected = false;
   bool _isConnecting = false;
   bool _isInitialized = false; // Track initialization state
@@ -38,6 +40,7 @@ class WebSocketService {
   // Private constructor
   WebSocketService._internal() {
     _logger.info('WebSocketService instance created - waiting for initialization');
+    _loadServerUrl();
   }
   
   // Factory constructor for singleton
@@ -49,8 +52,29 @@ class WebSocketService {
   void initialize() {
     if (_isInitialized) return;
     _isInitialized = true;
+    _loadServerUrl();
     _logger.info('WebSocketService explicitly initialized');
   }
+  
+  // Load server URL from SharedPreferences
+  Future<void> _loadServerUrl() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _serverUrl = prefs.getString('api_url');
+      _logger.debug('Loaded server URL: $_serverUrl');
+    } catch (e) {
+      _logger.error('Error loading server URL from preferences', e);
+    }
+  }
+  
+  // Set server URL
+  void setServerUrl(String? url) {
+    _serverUrl = url;
+    _logger.debug('WebSocket service server URL updated: $url');
+  }
+  
+  // Get server URL
+  String? get serverUrl => _serverUrl;
   
   // Getters
   bool get isConnected => _isConnected;
@@ -171,12 +195,24 @@ class WebSocketService {
   
   // Get WebSocket URI with authentication parameters
   Uri _getWebsocketUri() {
-    // Use the existing URL with auth parameters
-    // This maintains the existing connection mechanism
-    final uri = Uri.parse(const String.fromEnvironment(
-      'WEBSOCKET_URL',
-      defaultValue: 'ws://localhost:8080/ws',
-    ));
+    // Convert HTTP URL to WebSocket URL (ws:// or wss://)
+    String wsUrl;
+    
+    if (_serverUrl != null && _serverUrl!.isNotEmpty) {
+      if (_serverUrl!.startsWith('https://')) {
+        wsUrl = 'wss://${_serverUrl!.substring(8)}/ws';
+      } else if (_serverUrl!.startsWith('http://')) {
+        wsUrl = 'ws://${_serverUrl!.substring(7)}/ws';
+      } else {
+        wsUrl = 'ws://$_serverUrl/ws';
+      }
+      _logger.debug('Using WebSocket URL from server URL: $wsUrl');
+    } else {
+      wsUrl = 'ws://localhost:8080/ws';
+      _logger.warning('No server URL configured, using default: $wsUrl');
+    }
+    
+    final uri = Uri.parse(wsUrl);
     
     // Add query parameters for authentication
     return uri.replace(

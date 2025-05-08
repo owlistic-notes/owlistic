@@ -32,4 +32,10 @@ abstract class LoginViewModel extends BaseViewModel {
   
   /// Handle successful login - perform any additional actions needed
   void onLoginSuccess(BuildContext context);
+  
+  /// Save server URL
+  Future<void> saveServerUrl(String url);
+  
+  /// Get server URL
+  String? getServerUrl();
 }

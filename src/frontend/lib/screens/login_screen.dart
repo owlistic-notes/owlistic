@@ -15,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _serverUrlController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _rememberMe = true;
   
@@ -26,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LoginViewModel>().activate();
       _loadSavedEmail();
+      _loadServerUrl();
     });
   }
   
@@ -36,16 +38,43 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
   
+  Future<void> _loadServerUrl() async {
+    final serverUrl = context.read<LoginViewModel>().getServerUrl();
+    if (serverUrl != null && serverUrl.isNotEmpty) {
+      _serverUrlController.text = serverUrl;
+    } else {
+      // Default server URL if none is set
+      _serverUrlController.text = 'http://localhost:8080';
+    }
+  }
+
+  Future<void> _saveServerUrl() async {
+    final url = _serverUrlController.text.trim();
+    if (url.isNotEmpty) {
+      await context.read<LoginViewModel>().saveServerUrl(url);
+      _logger.info('Server URL saved: $url');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server URL updated'))
+        );
+      }
+    }
+  }
+  
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _serverUrlController.dispose();
     // Deactivate the LoginViewModel
     context.read<LoginViewModel>().deactivate();
     super.dispose();
   }
 
   Future<void> _login() async {
+    // Save server URL first
+    await _saveServerUrl();
+    
     if (_formKey.currentState!.validate()) {
       try {
         final loginViewModel = context.read<LoginViewModel>();
@@ -149,6 +178,30 @@ class _LoginScreenState extends State<LoginScreen> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 32),
+                      
+                      // Server URL field
+                      TextFormField(
+                        controller: _serverUrlController,
+                        decoration: InputDecoration(
+                          labelText: 'Server URL',
+                          hintText: 'http://localhost:8080',
+                          prefixIcon: Icon(Icons.cloud),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter server URL';
+                          }
+                          // Basic URL validation - should start with http:// or https://
+                          if (!value.startsWith('http://') && !value.startsWith('https://')) {
+                            return 'URL should start with http:// or https://';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       
                       // Email field
                       TextFormField(

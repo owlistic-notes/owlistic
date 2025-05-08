@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Make sure this is imported
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -39,10 +38,6 @@ void main() async {
   logger.info('Starting ThinkStack application');
   
   try {
-    // Load environment variables FIRST before any service is initialized
-    await dotenv.load(fileName: ".env");
-    logger.info('Environment variables loaded successfully');
-    
     // Initialize ServiceLocator explicitly before creating any providers
     setupServices();
     logger.info('ServiceLocator initialized successfully');

@@ -1,6 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../utils/logger.dart';
 
@@ -8,8 +7,8 @@ import '../utils/logger.dart';
 abstract class BaseService {
   static final Logger _logger = Logger('BaseService');
   
-  // Base URL from environment variables
-  static String get _baseUrl => dotenv.env['API_URL'] ?? 'http://localhost:8080';
+  // Base URL from SharedPreferences
+  static String? _cachedBaseUrl;
   
   // Static token accessor that can be set by AuthService
   static String? _authToken;
@@ -22,24 +21,51 @@ abstract class BaseService {
   // Getter for the auth token
   static String? get authToken => _authToken;
   
+  // Get base URL from SharedPreferences
+  static Future<String?> _getBaseUrl() async {
+    // Return cached URL if available
+    if (_cachedBaseUrl != null) {
+      return _cachedBaseUrl!;
+    }
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final url = prefs.getString('api_url');
+      
+      if (url != null && url.isNotEmpty) {
+        _cachedBaseUrl = url;
+        return url;
+      }
+    } catch (e) {
+      _logger.error('Error getting base URL from SharedPreferences', e);
+    }
+    return null;
+  }
+  
+  // Reset cached URL when it changes
+  static void resetCachedUrl() {
+    _cachedBaseUrl = null;
+  }
+  
   // Create URI helper
-  Uri createUri(String path, {Map<String, dynamic>? queryParameters}) {
+  Future<Uri> createUri(String path, {Map<String, dynamic>? queryParameters}) async {
     // Validate path
     if (!path.startsWith('/')) {
       path = '/' + path;
     }
     
+    // Get base URL from SharedPreferences
+    final baseUrl = await _getBaseUrl();
+    
     // Build full URL
-    String fullUrl = _baseUrl + path;
+    String fullUrl = baseUrl! + path;
     
     // Convert all query parameter values to strings
     Map<String, String>? stringParams;
     if (queryParameters != null) {
       stringParams = {};
       queryParameters.forEach((key, value) {
-        if (value != null) {
-          stringParams![key] = value.toString();
-        }
+        stringParams![key] = value.toString();
       });
     }
     
@@ -68,7 +94,7 @@ abstract class BaseService {
 
   // Helper methods for API calls with better error handling
   Future<http.Response> authenticatedGet(String path, {Map<String, dynamic>? queryParameters}) async {
-    final uri = createUri(path, queryParameters: queryParameters);
+    final uri = await createUri(path, queryParameters: queryParameters);
     _logger.debug('GET: $uri');
     
     try {
@@ -83,7 +109,7 @@ abstract class BaseService {
   }
 
   Future<http.Response> authenticatedPost(String path, dynamic body, {Map<String, dynamic>? queryParameters}) async {
-    final uri = createUri(path, queryParameters: queryParameters);
+    final uri = await createUri(path, queryParameters: queryParameters);
     _logger.debug('POST: $uri');
     
     try {
@@ -103,15 +129,16 @@ abstract class BaseService {
   }
 
   Future<http.Response> authenticatedPut(String path, dynamic body, {Map<String, dynamic>? queryParameters}) async {
-    final uri = createUri(path, queryParameters: queryParameters);
+    final uri = await createUri(path, queryParameters: queryParameters);
     _logger.debug('PUT: $uri');
     
     try {
+      final bodyJson = jsonEncode(body);
       // Always use getAuthHeaders to get the current token
       final response = await http.put(
         uri,
         headers: getAuthHeaders(),
-        body: jsonEncode(body),
+        body: bodyJson,
       );
       _validateResponse(response, 'PUT', uri.toString(), body: body);
       return response;
@@ -122,12 +149,15 @@ abstract class BaseService {
   }
 
   Future<http.Response> authenticatedDelete(String path, {Map<String, dynamic>? queryParameters}) async {
-    final uri = createUri(path, queryParameters: queryParameters);
+    final uri = await createUri(path, queryParameters: queryParameters);
     _logger.debug('DELETE: $uri');
     
     try {
       // Always use getAuthHeaders to get the current token
-      final response = await http.delete(uri, headers: getAuthHeaders());
+      final response = await http.delete(
+        uri,
+        headers: getAuthHeaders(),
+      );
       _validateResponse(response, 'DELETE', uri.toString());
       return response;
     } catch (e) {
@@ -142,12 +172,10 @@ abstract class BaseService {
     
     if (!isSuccess) {
       _logger.error(
-        'HTTP $method failed: $url\nStatus: ${response.statusCode}\nResponse: ${response.body}',
+        'HTTP $method request failed: $url\n'
+        'Status: ${response.statusCode}\n'
+        'Response: ${response.body}'
       );
-      
-      if (kDebugMode && body != null) {
-        _logger.debug('Request body: ${jsonEncode(body)}');
-      }
     }
   }
   

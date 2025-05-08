@@ -181,7 +181,7 @@ class AuthService extends BaseService {
         
         _logger.debug('Login successful, token received');
         await _storeToken(token);
-        return {'success': true, 'token': token};
+        return {'success': true, 'token': token, 'userId': data['user_id'] ?? data['userId']};
       } else {
         _logger.error('Login failed with status: ${response.statusCode}, body: ${response.body}');
         throw Exception('Failed to login: ${response.body}');
@@ -192,14 +192,15 @@ class AuthService extends BaseService {
     }
   }
   
-  // Helper method for unauthenticated POST
+  // Helper method for unauthenticated POST - fixed to handle async URI creation
   Future<http.Response> createPostRequest(String path, dynamic body) async {
-    final uri = createUri(path);
+    // Properly await the URI creation
+    final uri = await createUri(path);
     _logger.debug('Creating unauthenticated POST request to $uri');
     
     return http.post(
       uri,
-      headers: getBaseHeaders(), // Use base headers for unauthenticated requests
+      headers: getBaseHeaders(),
       body: jsonEncode(body),
     );
   }

@@ -12,7 +12,6 @@ dependencies:
     sdk: flutter
   provider: ^6.0.5
   http: ^1.1.0
-  flutter_dotenv: ^5.1.0
   go_router: ^13.1.0
   flutter_markdown: ^0.6.18
   sqflite: ^2.3.2
