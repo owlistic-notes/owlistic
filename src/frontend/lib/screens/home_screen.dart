@@ -150,11 +150,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildWelcomeCard(context),
-                    _buildSectionHeader(context, 'Recent Notebooks', Icons.folder_outlined),
+                    _buildSectionHeader(context, 'Recent Notebooks', Icons.book_outlined),
                     _buildRecentNotebooks(),
-                    _buildSectionHeader(context, 'Recent Notes', Icons.note_outlined),
+                    _buildSectionHeader(context, 'Recent Notes', Icons.description_outlined),
                     _buildRecentNotes(),
-                    _buildSectionHeader(context, 'Recent Tasks', Icons.assignment_outlined),
+                    _buildSectionHeader(context, 'Recent Tasks', Icons.task_outlined),
                     _buildRecentTasks(context),
                     const SizedBox(height: 80), // Space for FAB
                   ],
@@ -315,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 80,
                           width: double.infinity,
                           child: Icon(
-                            Icons.folder,
+                            Icons.book,
                             size: 40,
                             color: Theme.of(context).primaryColor,
                           ),
@@ -404,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                leading: const Icon(Icons.note),
+                leading: const Icon(Icons.description),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.push(
@@ -524,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 20),
                 _buildQuickCreateItem(
                   context,
-                  icon: Icons.folder,
+                  icon: Icons.book,
                   title: 'Notebook',
                   description: 'Create a new notebook to organize notes',
                   onTap: () {
@@ -535,7 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const Divider(),
                 _buildQuickCreateItem(
                   context,
-                  icon: Icons.note,
+                  icon: Icons.description,
                   title: 'Note',
                   description: 'Create a new note to capture your thoughts',
                   onTap: () {
@@ -637,7 +637,7 @@ class _HomeScreenState extends State<HomeScreen> {
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(
                 labelText: 'Notebook',
-                prefixIcon: Icon(Icons.folder),
+                prefixIcon: Icon(Icons.book),
               ),
               items: notebooks.map((notebook) {
                 return DropdownMenuItem(
@@ -776,7 +776,7 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: 'Notebook Name',
-                prefixIcon: Icon(Icons.folder),
+                prefixIcon: Icon(Icons.book),
               ),
               autofocus: true,
             ),

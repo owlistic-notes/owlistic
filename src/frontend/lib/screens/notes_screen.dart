@@ -409,7 +409,7 @@ class _NotesScreenState extends State<NotesScreen> {
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(
                 labelText: 'Destination Notebook',
-                prefixIcon: Icon(Icons.folder),
+                prefixIcon: Icon(Icons.book),
               ),
               value: selectedNotebookId,
               items: notebooks.map((notebook) {

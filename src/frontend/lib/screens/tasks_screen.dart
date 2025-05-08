@@ -256,7 +256,7 @@ class _TasksScreenState extends State<TasksScreen> {
             return EmptyState(
               title: 'No tasks yet',
               message: 'Create your first task to stay organized',
-              icon: Icons.assignment_outlined,
+              icon: Icons.task_outlined,
               onAction: _showAddTaskDialog,
               actionLabel: 'Create Task',
             );

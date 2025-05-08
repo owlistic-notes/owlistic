@@ -56,7 +56,7 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.folder),
+            leading: const Icon(Icons.book),
             title: const Text('Notebooks'),
             onTap: () {
               Navigator.pop(context);
@@ -64,8 +64,8 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.note),
-            title: const Text('Recent Notes'),
+            leading: const Icon(Icons.description),
+            title: const Text('Notes'),
             onTap: () {
               Navigator.pop(context);
               GoRouter.of(context).go('/notes');
