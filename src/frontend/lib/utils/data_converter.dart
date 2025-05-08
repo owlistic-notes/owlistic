@@ -207,10 +207,10 @@ class DataConverter {
           'spans': contentMap['spans'] ?? [],
         };
       
-      case 'checklist':
+      case 'task':
         return {
           'text': contentMap['text'] ?? '',
-          'checked': contentMap['checked'] == true,
+          'is_completed': contentMap['is_completed'],
           'spans': contentMap['spans'] ?? [],
         };
         

@@ -389,7 +389,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Notify listeners
     _enqueueNotification();
   }
-  
+
   // Create a server block for a new node created in the editor
   Future<void> _createBlockForNode(String nodeId, DocumentNode node) async {
     try {
@@ -418,9 +418,9 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
           blockType = 'code';
         }
       } else if (node is TaskNode) {
-        blockType = 'checklist';
+        blockType = 'task'; // Use 'task' instead of 'checklist'
       } else if (node is ListItemNode) {
-        blockType = 'checklist';
+        blockType = 'text'; // ListItems should map to text blocks
       }
       
       // Extract content from node in the format needed by API
@@ -519,7 +519,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     } else if (node is TaskNode) {
       // Handle task nodes
       content['text'] = node.text.toPlainText();
-      content['checked'] = node.isComplete;
+      content['is_completed'] = node.isComplete;
       
       // Extract spans for tasks
       final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
@@ -532,7 +532,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       metadata['blockType'] = 'task';
-      metadata['isComplete'] = node.isComplete;
+      metadata['is_completed'] = node.isComplete;
     } else if (node is ListItemNode) {
       content['text'] = node.text.toPlainText();
       content['checked'] = node.type == ListItemType.ordered;
@@ -561,7 +561,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       'metadata': metadata
     };
   }
-  
+
   // DocumentChangeListener implementation for content changes
   void _documentChangeListener(_) {
     if (!_updatingDocument) {
@@ -927,8 +927,8 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     Map<String, dynamic> content = {'text': ''};
     if (type == 'heading') {
       content['level'] = 1;
-    } else if (type == 'checklist') {
-      content['checked'] = false;
+    } else if (type == 'task') {
+      content['is_completed'] = false;
     }
     
     // Create block on server

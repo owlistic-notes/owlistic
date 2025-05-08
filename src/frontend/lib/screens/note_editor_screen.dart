@@ -332,10 +332,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.check_box),
-              title: const Text('Checklist'),
+              title: const Text('Task'),
               onTap: () {
                 Navigator.pop(context);
-                _createBlock('checklist');
+                _createBlock('task');
               },
             ),
             ListTile(

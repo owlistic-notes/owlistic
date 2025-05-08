@@ -648,7 +648,7 @@ class DocumentBuilder {
       
       // Store metadata directly in the content object
       content['metadata'] = blockMetadata;
-        } else if (node is ListItemNode) {
+    } else if (node is ListItemNode) {
       // Get text content and ensure it's not null
       final plainText = node.text.toPlainText();
       content['text'] = plainText;
@@ -669,7 +669,7 @@ class DocumentBuilder {
       // Handle task nodes
       final plainText = node.text.toPlainText();
       content['text'] = plainText;
-      content['checked'] = node.isComplete; // Use 'checked' for consistency with API
+      content['is_completed'] = node.isComplete;
       
       // Extract spans for tasks
       final spans = extractSpansFromAttributedText(node.text);
@@ -678,7 +678,7 @@ class DocumentBuilder {
       // Add task specific metadata directly to content
       content['metadata'] = {
         'blockType': 'task',
-        'isComplete': node.isComplete,
+        'is_completed': node.isComplete,
         'styling': spans.isNotEmpty ? {'spans': spans, 'version': 1} : null,
       };
     }
@@ -709,7 +709,7 @@ class DocumentBuilder {
       }
     } 
     else if (node is TaskNode) {
-      return 'checklist';
+      return 'task';
     }
     
     // Default type
@@ -853,14 +853,27 @@ class DocumentBuilder {
           ),
         ];
         
-      case 'checklist':
+      case 'checklist': // Handle legacy 'checklist' type for backward compatibility
+      case 'task':
         final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
-        final checked = content is Map ? (content['checked'] == true) : false;
+        
+        // Get checked status from content - prefer is_completed over checked
+        bool isCompleted = false;
+        if (content is Map) {
+          if (content.containsKey('is_completed')) {
+            isCompleted = content['is_completed'] == true;
+          } else if (content.containsKey('checked')) {
+            isCompleted = content['checked'] == true;
+          } else if (contentMetadata != null) {
+            isCompleted = contentMetadata['is_completed'] == true;
+          }
+        }
+        
         return [
           TaskNode(
             id: Editor.createNodeId(),
             text: createAttributedTextFromContent(text, content),
-            isComplete: checked,
+            isComplete: isCompleted,
           ),
         ];
         
@@ -1353,6 +1366,14 @@ class DocumentBuilder {
         return true;
       }
       
+      // Check if task completion status changed - add specific check for task blocks
+      if (block.type == 'task' && node is TaskNode) {
+        // Check if is_completed changed in content
+        if (block.content['is_completed'] != nodeContent['is_completed']) {
+          return true;
+        }
+      }
+      
       // Check if spans have changed (requires deeper comparison)
       final blockSpans = block.content['spans'];
       final nodeSpans = nodeContent['spans'];
@@ -1367,11 +1388,6 @@ class DocumentBuilder {
       // Check other type-specific fields
       if (block.type == 'heading' && 
           block.content['level'] != nodeContent['level']) {
-        return true;
-      }
-      
-      if (block.type == 'checklist' && 
-          block.content['checked'] != nodeContent['checked']) {
         return true;
       }
       

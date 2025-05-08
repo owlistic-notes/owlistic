@@ -1,4 +1,3 @@
-
 import '../utils/data_converter.dart';
 
 class Block {
@@ -118,15 +117,6 @@ class Block {
     return 0;
   }
   
-  /// Check if this is a checklist item and whether it's checked
-  bool isChecklistChecked() {
-    if (type == 'checklist') {
-      final contentMap = getContentMap();
-      return contentMap['checked'] == true;
-    }
-    return false;
-  }
-  
   /// Get code block language if this is a code block
   String getCodeLanguage() {
     if (type == 'code') {
@@ -153,8 +143,8 @@ class Block {
       case 'heading':
         final level = getHeadingLevel();
         return 'heading$level';
-      case 'checklist':
-        return 'listItem';
+      case 'task':
+        return 'task';
       case 'code':
         return 'codeBlock';
       case 'text':
@@ -163,6 +153,15 @@ class Block {
     }
   }
   
+  /// Check if this is a task and whether it's completed
+  bool isTaskCompleted() {
+    if (type == 'task') {
+      final contentMap = getContentMap();
+      return contentMap['is_completed'] == true;
+    }
+    return false;
+  }
+
   /// Get raw markdown if available
   String? getRawMarkdown() {
     // First check metadata (preferred location)
