@@ -73,17 +73,6 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     _webSocketService.addEventListener('event', 'task.deleted', _handleTaskDelete);
   }
 
-  void _handleTaskCreate(Map<String, dynamic> message) {
-    // Handle task creation
-  }
-
-  void _handleTaskUpdate(Map<String, dynamic> message) {
-    // Handle task update
-  }
-
-  void _handleTaskDelete(Map<String, dynamic> message) {
-    // Handle task deletion
-  }
   
   // Subscribe to events
   void _subscribeToEvents() {
@@ -157,7 +146,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     _logger.info('TasksProvider deactivated');
   }
 
-  void _handleTaskUpdated(Map<String, dynamic> message) {
+  void _handleTaskUpdate(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
     try {
@@ -175,7 +164,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     }
   }
 
-  void _handleTaskCreated(Map<String, dynamic> message) {
+  void _handleTaskCreate(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
     try {
@@ -206,7 +195,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     }
   }
 
-  void _handleTaskDeleted(Map<String, dynamic> message) {
+  void _handleTaskDelete(Map<String, dynamic> message) {
     if (!_isActive) return; // Only process events when active
     
     try {
@@ -232,23 +221,6 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     } catch (e) {
       _logger.error('Error handling task delete: $e');
     }
-  }
-
-  void _handleTaskCompleted(Map<String, dynamic> message) {
-    // ...existing code...
-  }
-
-  String _extractTaskId(dynamic data) {
-    if (data == null) return '';
-
-    String taskId = '';
-    if (data['task_id'] != null) {
-      taskId = data['task_id'].toString();
-    } else if (data['id'] != null) {
-      taskId = data['id'].toString();
-    }
-
-    return taskId;
   }
 
   Future<void> _fetchSingleTask(String taskId) async {
@@ -331,31 +303,47 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     }
   }
 
-  // Create task - updated to use noteId
+  // Create task - updated to include optimistic update
   @override
   Future<void> createTask(String title, String noteId, {String? blockId}) async {
     try {
       // Create task on server
       final task = await _taskService.createTask(title, noteId, blockId: blockId);
       
+      // Optimistic update - add task to local state immediately
+      _tasksMap[task.id] = task;
+      notifyListeners();
+      
       // Subscribe to this task
       _webSocketService.subscribe('task', id: task.id);
       
-      _logger.info('Created task: $title with noteId: $noteId, waiting for event');
+      _logger.info('Created task: $title with noteId: $noteId');
     } catch (error) {
       _logger.error('Error creating task: $error');
+      notifyListeners(); // Notify even on error to update UI
       rethrow;
     }
   }
 
   @override
   Future<void> deleteTask(String id) async {
+    // Save current task for potential restore
+    final Task? originalTask = _tasksMap[id];
+    
+    // Optimistic update - remove from UI immediately
+    _tasksMap.remove(id);
+    notifyListeners();
+    
     try {
       // Delete task on server
       await _taskService.deleteTask(id);
-      
-      _logger.info('Deleted task: $id, waiting for event');
+      _logger.info('Deleted task: $id');
     } catch (error) {
+      // Restore task on error
+      if (originalTask != null) {
+        _tasksMap[id] = originalTask;
+        notifyListeners();
+      }
       _logger.error('Error deleting task: $error');
       rethrow;
     }
@@ -363,12 +351,27 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   @override
   Future<void> updateTaskTitle(String id, String title) async {
+    // Save original for potential restore
+    final Task? originalTask = _tasksMap[id];
+    if (originalTask == null) return;
+    
+    // Optimistic update
+    final updatedTask = originalTask.copyWith(
+      title: title,
+      updatedAt: DateTime.now(),
+    );
+    
+    _tasksMap[id] = updatedTask;
+    notifyListeners();
+    
     try {
       // Update task on server
       await _taskService.updateTask(id, title: title);
-      
-      _logger.info('Updated task title: $title, waiting for event');
+      _logger.info('Updated task title: $title');
     } catch (error) {
+      // Restore on error
+      _tasksMap[id] = originalTask;
+      notifyListeners();
       _logger.error('Error updating task title: $error');
       rethrow;
     }
@@ -376,12 +379,27 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   @override
   Future<void> toggleTaskCompletion(String id, bool isCompleted) async {
+    // Save original for potential restore
+    final Task? originalTask = _tasksMap[id];
+    if (originalTask == null) return;
+    
+    // Optimistic update
+    final updatedTask = originalTask.copyWith(
+      isCompleted: isCompleted,
+      updatedAt: DateTime.now(),
+    );
+    
+    _tasksMap[id] = updatedTask;
+    notifyListeners();
+    
     try {
       // Update task on server
       await _taskService.updateTask(id, isCompleted: isCompleted);
-      
-      _logger.info('Toggled task completion: $isCompleted, waiting for event');
+      _logger.info('Toggled task completion: $isCompleted');
     } catch (error) {
+      // Restore on error
+      _tasksMap[id] = originalTask;
+      notifyListeners();
       _logger.error('Error toggling task completion: $error');
       rethrow;
     }

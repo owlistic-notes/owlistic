@@ -8,6 +8,7 @@ class Task {
   final String? noteId;
   final String? blockId;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
   final DateTime? deletedAt;
 
   const Task({
@@ -20,6 +21,7 @@ class Task {
     this.noteId,
     this.blockId,
     this.createdAt,
+    this.updatedAt,
     this.deletedAt,
   });
 
@@ -31,6 +33,15 @@ class Task {
         createdAt = DateTime.parse(json['created_at']);
       } catch (e) {
         print('Error parsing created_at: $e');
+      }
+    }
+
+    DateTime? updatedAt;
+    if (json['updated_at'] != null) {
+      try {
+        updatedAt = DateTime.parse(json['updated_at']);
+      } catch (e) {
+        print('Error parsing updated_at: $e');
       }
     }
 
@@ -53,6 +64,7 @@ class Task {
       noteId: json['note_id'],
       blockId: json['block_id'],
       createdAt: createdAt,
+      updatedAt: updatedAt,
       deletedAt: deletedAt,
     );
   }
@@ -68,6 +80,7 @@ class Task {
       if (noteId != null) 'note_id': noteId,
       if (blockId != null) 'block_id': blockId,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
       if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
     };
   }
@@ -93,6 +106,7 @@ class Task {
     String? noteId,
     String? blockId,
     DateTime? createdAt,
+    DateTime? updatedAt,
     DateTime? deletedAt,
   }) {
     return Task(
@@ -105,6 +119,7 @@ class Task {
       noteId: noteId ?? this.noteId,
       blockId: blockId ?? this.blockId,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
     );
   }
