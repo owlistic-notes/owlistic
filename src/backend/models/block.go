@@ -14,10 +14,6 @@ type BlockType string
 
 const (
 	TextBlock      BlockType = "text"
-	HeadingBlock   BlockType = "heading"
-	ChecklistBlock BlockType = "checklist"
-	CodeBlock      BlockType = "code"
-	ImageBlock     BlockType = "image"
 	TaskBlock      BlockType = "task"
 )
 
