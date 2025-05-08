@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _logger.info('Server URL saved: $url');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server URL updated'))
+          const SnackBar(content: Text('Server URL updated'))
         );
       }
     }
@@ -127,14 +127,14 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           child: Center(
             child: Container(
-              constraints: BoxConstraints(
+              constraints: const BoxConstraints(
                 maxWidth: 400,
                 minHeight: 500,
               ),
               width: size.width * 0.85,
               margin: const EdgeInsets.symmetric(vertical: 24.0),
               decoration: BoxDecoration(
-                color: theme.colorScheme.background,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -185,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: InputDecoration(
                           labelText: 'Server URL',
                           hintText: 'http://localhost:8080',
-                          prefixIcon: Icon(Icons.cloud),
+                          prefixIcon: const Icon(Icons.cloud),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -209,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: InputDecoration(
                           labelText: 'Email',
                           hintText: 'Enter your email',
-                          prefixIcon: Icon(Icons.email),
+                          prefixIcon: const Icon(Icons.email),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -235,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: InputDecoration(
                           labelText: 'Password',
                           hintText: 'Enter your password',
-                          prefixIcon: Icon(Icons.lock),
+                          prefixIcon: const Icon(Icons.lock),
                           suffixIcon: IconButton(
                             icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
                             onPressed: () {
@@ -283,7 +283,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         child: isLoading 
-                          ? SizedBox(
+                          ? const SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(

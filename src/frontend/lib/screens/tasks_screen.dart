@@ -10,6 +10,8 @@ import '../utils/logger.dart';
 import '../widgets/theme_switcher.dart';
 
 class TasksScreen extends StatefulWidget {
+  const TasksScreen({super.key});
+
   @override
   _TasksScreenState createState() => _TasksScreenState();
 }
@@ -46,18 +48,8 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  Future<void> _refreshTasks() async {
-    if (!mounted) return;
-    
-    try {
-      await _tasksViewModel.fetchTasks();
-    } catch (e) {
-      _logger.error('Error refreshing tasks', e);
-    }
-  }
-
   void _showAddTaskDialog() {
-    final _titleController = TextEditingController();
+    final titleController = TextEditingController();
     String? selectedNoteId;
 
     showDialog(
@@ -81,7 +73,7 @@ class _TasksScreenState extends State<TasksScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: _titleController,
+                  controller: titleController,
                   decoration: const InputDecoration(
                     labelText: 'Task Title',
                     prefixIcon: Icon(Icons.title),
@@ -123,9 +115,9 @@ class _TasksScreenState extends State<TasksScreen> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  if (_titleController.text.isNotEmpty && selectedNoteId != null) {
+                  if (titleController.text.isNotEmpty && selectedNoteId != null) {
                     try {
-                      await _tasksViewModel.createTask(_titleController.text, selectedNoteId!);
+                      await _tasksViewModel.createTask(titleController.text, selectedNoteId!);
                       Navigator.of(ctx).pop();
                     } catch (error) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,8 +130,8 @@ class _TasksScreenState extends State<TasksScreen> {
                     );
                   }
                 },
-                child: const Text('Create'),
                 style: AppTheme.getSuccessButtonStyle(),
+                child: const Text('Create'),
               ),
             ],
           );
@@ -149,7 +141,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   void _showEditTaskDialog(BuildContext context, Task task) {
-    final _titleController = TextEditingController(text: task.title);
+    final titleController = TextEditingController(text: task.title);
 
     showDialog(
       context: context,
@@ -165,7 +157,7 @@ class _TasksScreenState extends State<TasksScreen> {
           borderRadius: BorderRadius.circular(16),
         ),
         content: TextField(
-          controller: _titleController,
+          controller: titleController,
           decoration: const InputDecoration(
             labelText: 'Task Title',
             prefixIcon: Icon(Icons.title),
@@ -179,9 +171,9 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
+              if (titleController.text.isNotEmpty) {
                 try {
-                  await _tasksViewModel.updateTaskTitle(task.id, _titleController.text);
+                  await _tasksViewModel.updateTaskTitle(task.id, titleController.text);
                   Navigator.of(ctx).pop();
                 } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -190,8 +182,8 @@ class _TasksScreenState extends State<TasksScreen> {
                 }
               }
             },
-            child: const Text('Save'),
             style: AppTheme.getSuccessButtonStyle(),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -277,8 +269,8 @@ class _TasksScreenState extends State<TasksScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddTaskDialog,
-        child: const Icon(Icons.add),
         tooltip: 'Add Task',
+        child: const Icon(Icons.add),
       ),
     );
   }

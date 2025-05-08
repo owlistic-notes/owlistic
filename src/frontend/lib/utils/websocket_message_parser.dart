@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 
 /// Class to represent a standardized WebSocket message with RBAC information
@@ -144,7 +142,6 @@ class WebSocketModelExtractor {
   static DateTime? extractTimestamp(WebSocketMessage message) {
     try {
       final payload = message.payload;
-      if (payload == null) return null;
       
       // Try finding timestamp in various locations
       String? timestampStr;

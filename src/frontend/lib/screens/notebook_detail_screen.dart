@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/notebooks_viewmodel.dart';
 import '../viewmodel/notes_viewmodel.dart';
-import '../utils/websocket_message_parser.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
 import '../utils/logger.dart';
@@ -78,19 +77,9 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
       }
     }
   }
-  
-  Future<void> _refreshNotebook() async {
-    if (!mounted) return;
-    
-    try {
-      await _notebooksViewModel.fetchNotebookById(widget.notebookId);
-    } catch (e) {
-      _logger.error('Error refreshing notebook', e);
-    }
-  }
 
   void _showAddNoteDialog(BuildContext context, String notebookId) {
-    final _titleController = TextEditingController();
+    final titleController = TextEditingController();
 
     showDialog(
       context: context,
@@ -106,7 +95,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
           ],
         ),
         content: TextField(
-          controller: _titleController,
+          controller: titleController,
           decoration: const InputDecoration(
             labelText: 'Title',
             prefixIcon: Icon(Icons.title),
@@ -121,11 +110,11 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
+              if (titleController.text.isNotEmpty) {
                 try {
                   await _notebooksViewModel.addNoteToNotebook(
                     notebookId,
-                    _titleController.text,
+                    titleController.text,
                   );
                   Navigator.of(ctx).pop();
                 } catch (error) {

@@ -50,7 +50,7 @@ class DocumentBuilder {
   
   // Current editing block ID and timestamp for debouncing
   String? _currentEditingBlockId;
-  DateTime _lastEdit = DateTime.now();
+  final DateTime _lastEdit = DateTime.now();
   
   // Callback for updating block content on the server
   // This should be set by the parent component that uses DocumentBuilder
@@ -269,10 +269,9 @@ class DocumentBuilder {
             if (previousPosition != null) {
               // Verify the position is valid for the node type
               final node = document.getNodeById(previousNodeId);
-              bool validPosition = false;
               
               if (node is TextNode && previousPosition.nodePosition is TextNodePosition) {
-                final textNode = node as TextNode;
+                final textNode = node;
                 final textPosition = previousPosition.nodePosition as TextNodePosition;
                 // Ensure text offset is within bounds
                 final safeOffset = textPosition.offset.clamp(0, textNode.text.length);
@@ -454,8 +453,7 @@ class DocumentBuilder {
   // Calculate a fractional index order for a new node using midpoint between adjacent blocks
   Future<double> calculateOrderForNewNode(String nodeId, List<Block> blocks) async {
     // Get the position of this node in the document
-    final nodeIndex = document.getNodeIndexById(nodeId);
-    if (nodeIndex == null) return 1000.0; // Fallback value
+    final nodeIndex = document.getNodeIndexById(nodeId); // Fallback value
     
     // If no blocks exist yet, use 1000 as starting point
     if (blocks.isEmpty) {
@@ -603,64 +601,54 @@ class DocumentBuilder {
       content['spans'] = spans;
       
       // Check for block type metadata changes and update content accordingly
-      if (node.metadata != null) {
-        final blockType = node.metadata!['blockType'];
-        String blockTypeStr = '';
+      final blockType = node.metadata['blockType'];
+      String blockTypeStr = '';
+      
+      // Convert blockType to string if it's a NamedAttribution
+      if (blockType is NamedAttribution) {
+        blockTypeStr = blockType.id;
+      } else if (blockType is String) {
+        blockTypeStr = blockType;
+      }
+      
+      // Update content based on block type
+      if (blockTypeStr == 'heading') {
+        // Get heading level from metadata or default to 1
+        final headingLevel = node.metadata['headingLevel'] ?? 1;
+        content['level'] = headingLevel;
+      }
+      else if (blockTypeStr == 'code') {
+        // Preserve or set default language
+        content['language'] = content['language'] ?? 'plain';
+      }
+      
+      // Store styling and block metadata directly in content object
+      Map<String, dynamic> blockMetadata = {};
+      if (blockTypeStr.isNotEmpty) {
+        blockMetadata['blockType'] = blockTypeStr;  // Store as STRING for API
         
-        // Convert blockType to string if it's a NamedAttribution
-        if (blockType is NamedAttribution) {
-          blockTypeStr = blockType.id;
-        } else if (blockType is String) {
-          blockTypeStr = blockType;
-        }
-        
-        // Update content based on block type
+        // For headings, also store the level in metadata
         if (blockTypeStr == 'heading') {
-          // Get heading level from metadata or default to 1
-          final headingLevel = node.metadata!['headingLevel'] ?? 1;
-          content['level'] = headingLevel;
-        }
-        else if (blockTypeStr == 'code') {
-          // Preserve or set default language
-          content['language'] = content['language'] ?? 'plain';
+          blockMetadata['headingLevel'] = node.metadata['headingLevel'] ?? 1;
         }
         
-        // Store styling and block metadata directly in content object
-        Map<String, dynamic> blockMetadata = {};
-        if (blockTypeStr.isNotEmpty) {
-          blockMetadata['blockType'] = blockTypeStr;  // Store as STRING for API
-          
-          // For headings, also store the level in metadata
-          if (blockTypeStr == 'heading') {
-            blockMetadata['headingLevel'] = node.metadata!['headingLevel'] ?? 1;
-          }
-          
-          // For code blocks, store the language in metadata
-          if (blockTypeStr == 'code') {
-            blockMetadata['language'] = content['language'] ?? 'plain';
-          }
+        // For code blocks, store the language in metadata
+        if (blockTypeStr == 'code') {
+          blockMetadata['language'] = content['language'] ?? 'plain';
         }
-        
-        // Add styling information to metadata
-        if (spans.isNotEmpty) {
-          blockMetadata['styling'] = {
-            'spans': spans,
-            'version': 1,
-          };
-        }
-        
-        // Store metadata directly in the content object
-        content['metadata'] = blockMetadata;
-      } else if (spans.isNotEmpty) {
-        // Even if no other metadata, store styling information
-        content['metadata'] = {
-          'styling': {
-            'spans': spans,
-            'version': 1,
-          }
+      }
+      
+      // Add styling information to metadata
+      if (spans.isNotEmpty) {
+        blockMetadata['styling'] = {
+          'spans': spans,
+          'version': 1,
         };
       }
-    } else if (node is ListItemNode) {
+      
+      // Store metadata directly in the content object
+      content['metadata'] = blockMetadata;
+        } else if (node is ListItemNode) {
       // Get text content and ensure it's not null
       final plainText = node.text.toPlainText();
       content['text'] = plainText;
@@ -703,8 +691,8 @@ class DocumentBuilder {
 
   // Helper method to determine node's block type
   String detectBlockTypeFromNode(DocumentNode node) {
-    if (node is ParagraphNode && node.metadata != null) {
-      final blockType = node.metadata!['blockType'];
+    if (node is ParagraphNode) {
+      final blockType = node.metadata['blockType'];
       
       String blockTypeStr = '';
       // Convert blockType to string if it's a NamedAttribution
@@ -927,7 +915,7 @@ class DocumentBuilder {
           spans = content['spans'] as List?;
         } else if (content.containsKey('inlineStyles')) {
           spans = content['inlineStyles'] as List?;
-        } else if (content is Map && content.containsKey('metadata')) {
+        } else if (content.containsKey('metadata')) {
           // Check if spans are in metadata.styling
           final metadata = content['metadata'] as Map?;
           if (metadata != null && metadata.containsKey('styling')) {
@@ -939,7 +927,7 @@ class DocumentBuilder {
         }
       }
       
-      if (spans != null && spans is List) {
+      if (spans != null) {
         for (final span in spans) {
           if (span is Map && 
               span.containsKey('start') && 
@@ -1119,10 +1107,8 @@ class DocumentBuilder {
         final targetNodeId = _getNodeIdForBlock(visibleBlocks[i].id);
         if (targetNodeId != null) {
           final index = document.getNodeIndexById(targetNodeId);
-          if (index != null) {
-            return index;
-          }
-        }
+          return index;
+                }
       }
     }
     
@@ -1152,7 +1138,7 @@ class DocumentBuilder {
     
     if (nodeId != null) {
       final currentIndex = document.getNodeIndexById(nodeId!);
-      if (currentIndex != null && currentIndex != targetIndex) {
+      if (currentIndex != targetIndex) {
         _updatingDocument = true;
         try {
           final node = document.getNodeById(nodeId!)!;
@@ -1361,7 +1347,7 @@ class DocumentBuilder {
     
     // Compare the extracted content with the block's content
     // This requires a deep comparison, not just toString()
-    if (block.content is Map && nodeContent is Map) {
+    if (block.content is Map) {
       // Compare important fields like 'text' and 'spans'
       if (block.content['text'] != nodeContent['text']) {
         return true;

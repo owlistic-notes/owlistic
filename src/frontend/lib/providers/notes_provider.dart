@@ -64,9 +64,11 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   }
 
   // Getters
+  @override
   List<Note> get notes => _notesMap.values.toList();
   
   // Fixed: Changed updatedAt to a different sorting method since Note doesn't have updatedAt
+  @override
   List<Note> get recentNotes {
     final notesList = _notesMap.values.toList();
     // Sort by ID for now, or any other field available in your Note model
@@ -74,7 +76,9 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
     return notesList.take(5).toList();
   }
   
+  @override
   bool get isEmpty => _notesMap.isEmpty;
+  @override
   int get updateCount => _updateCount;
   
   Note? getNoteById(String id) {
@@ -86,6 +90,7 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   }
 
   // Reset state on logout
+  @override
   void resetState() {
     _logger.info('Resetting NotesProvider state');
     _notesMap.clear();
@@ -109,12 +114,14 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   }
 
   // Mark a note as active/inactive
+  @override
   void activateNote(String noteId) {
     _activeNoteIds.add(noteId);
     _webSocketService.subscribe('note', id: noteId);
     _logger.debug('Note $noteId activated');
   }
   
+  @override
   void deactivateNote(String noteId) {
     _activeNoteIds.remove(noteId);
     _logger.debug('Note $noteId deactivated');
@@ -186,11 +193,12 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       return note;
     } catch (error) {
       _logger.error('Error fetching note $noteId: $error');
-      throw error;
+      rethrow;
     }
   }
 
   // Public method to fetch a single note by ID
+  @override
   Future<Note?> fetchNoteById(String noteId) async {
     try {
       _logger.info('Fetching note by ID: $noteId');
@@ -282,6 +290,7 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   }
 
   // Helper method to get notes by notebook ID
+  @override
   List<Note> getNotesByNotebookId(String notebookId) {
     return _notesMap.values
       .where((note) => note.notebookId == notebookId)
@@ -351,6 +360,7 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   }
 
   // Delete a note - ensure API call and notification
+  @override
   Future<void> deleteNote(String id) async {
     try {
       _logger.info('Deleting note $id via API');
@@ -440,13 +450,14 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       _logger.error('Error moving note', e);
       _errorMessage = 'Failed to move note: ${e.toString()}';
       notifyListeners();
-      throw e;
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
+  @override
   void activate() {
     _isActive = true;
     _logger.info('NotesProvider activated');
@@ -457,12 +468,14 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
     }
   }
 
+  @override
   void deactivate() {
     _isActive = false;
     _logger.info('NotesProvider deactivated');
   }
 
   // Add this method to handle note deletion events with more robust implementation
+  @override
   void handleNoteDeleted(String noteId) {
     _logger.info('Handling note deleted: $noteId');
     

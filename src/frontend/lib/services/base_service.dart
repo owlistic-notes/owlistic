@@ -51,7 +51,7 @@ abstract class BaseService {
   Future<Uri> createUri(String path, {Map<String, dynamic>? queryParameters}) async {
     // Validate path
     if (!path.startsWith('/')) {
-      path = '/' + path;
+      path = '/$path';
     }
     
     // Get base URL from SharedPreferences

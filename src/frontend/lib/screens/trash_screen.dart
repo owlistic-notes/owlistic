@@ -12,6 +12,8 @@ import 'package:intl/intl.dart';
 import '../widgets/theme_switcher.dart';
 
 class TrashScreen extends StatefulWidget {
+  const TrashScreen({super.key});
+
   @override
   _TrashScreenState createState() => _TrashScreenState();
 }
@@ -70,7 +72,7 @@ class _TrashScreenState extends State<TrashScreen> {
           final hasNotebooks = trashViewModel.trashedNotebooks.isNotEmpty;
           
           if (!hasNotes && !hasNotebooks) {
-            return EmptyState(
+            return const EmptyState(
               title: 'Trash is Empty',
               message: 'Items that are moved to trash will appear here',
               icon: Icons.delete_outline,

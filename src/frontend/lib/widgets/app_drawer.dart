@@ -3,19 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../viewmodel/home_viewmodel.dart';
-import '../utils/logger.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final logger = Logger('AppDrawer');
-    
-    // Use HomeViewModel interface instead of concrete AuthProvider class
-    final homeViewModel = context.watch<HomeViewModel>();
-    final user = homeViewModel.currentUser;
-    
     return Drawer(
       child: Column(
         children: [
@@ -24,7 +17,7 @@ class AppDrawer extends StatelessWidget {
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
             ),
-            child: Center(
+            child: const Center(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -87,7 +80,7 @@ class AppDrawer extends StatelessWidget {
               GoRouter.of(context).go('/trash');
             },
           ),
-          Divider(),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Settings'),
@@ -97,7 +90,7 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           const Spacer(),
-          Divider(),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
@@ -107,17 +100,10 @@ class AppDrawer extends StatelessWidget {
               await context.read<HomeViewModel>().logout();
             },
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
         ],
       ),
     );
-  }
-
-  void _navigateTo(BuildContext context, String route) {
-    Navigator.pop(context); // Close the drawer first
-    if (GoRouterState.of(context).matchedLocation != route) {
-      context.go(route);
-    }
   }
 
   void _showLogoutConfirmation(BuildContext context) {

@@ -226,7 +226,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       body: _isLoading
         ? const Center(child: CircularProgressIndicator())
         : (_errorMessage != null
-          ? Center(child: Text('Error: $_errorMessage', style: TextStyle(color: Colors.red)))
+          ? Center(child: Text('Error: $_errorMessage', style: const TextStyle(color: Colors.red)))
           : Consumer<NoteEditorViewModel>(
               builder: (context, noteEditorViewModel, _) {
                 // React to loading state
@@ -236,7 +236,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 final errorMessage = noteEditorViewModel.errorMessage;
                 
                 if (errorMessage != null) {
-                  return Center(child: Text('Error: $errorMessage', style: TextStyle(color: Colors.red)));
+                  return Center(child: Text('Error: $errorMessage', style: const TextStyle(color: Colors.red)));
                 }
 
                 // Check for specific block focus requests
@@ -298,8 +298,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddBlockMenu(context),
-        child: const Icon(Icons.add),
         tooltip: 'Add block',
+        child: const Icon(Icons.add),
       ),
     );
   }

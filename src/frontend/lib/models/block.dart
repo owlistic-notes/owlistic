@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import '../utils/data_converter.dart';
 
@@ -21,8 +20,8 @@ class Block {
     this.metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) : this.createdAt = createdAt ?? DateTime.now(),
-       this.updatedAt = updatedAt ?? DateTime.now();
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   factory Block.fromJson(Map<String, dynamic> json) {
     // Use DataConverter for parsing numeric values as double

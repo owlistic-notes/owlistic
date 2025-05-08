@@ -5,7 +5,6 @@ import '../models/task.dart';
 import '../services/note_service.dart';
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
-import '../services/base_service.dart';
 import '../services/websocket_service.dart';
 import '../utils/logger.dart';
 import '../utils/websocket_message_parser.dart';

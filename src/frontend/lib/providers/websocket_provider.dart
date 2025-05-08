@@ -6,7 +6,6 @@ import '../services/auth_service.dart';
 import '../utils/logger.dart';
 import '../models/user.dart';
 import '../viewmodel/websocket_viewmodel.dart';
-import '../services/base_service.dart';
 
 class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
   // Singleton WebSocket service
@@ -26,7 +25,7 @@ class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
   DateTime? _lastEventTime;
   int _messageCount = 0;
   bool _initialized = false;
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _isActive = false;
   
   // Current user from auth service
@@ -114,39 +113,37 @@ class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
       
       // Listen to auth state changes to connect/disconnect WebSocket
       final authStream = _authService.authStateChanges;
-      if (authStream != null) {
-        _authSubscription = authStream.listen((isLoggedIn) {
-          _logger.info('Auth state changed: isLoggedIn=$isLoggedIn');
+      _authSubscription = authStream.listen((isLoggedIn) {
+        _logger.info('Auth state changed: isLoggedIn=$isLoggedIn');
+        
+        if (isLoggedIn) {
+          // User logged in - get current user and connect WebSocket
+          _authService.getUserProfile().then((user) {
+            _currentUser = user;
+            if (user != null) {
+              _logger.info('Setting WebSocket auth data after login');
+              
+              // First set the auth token - primary authentication method 
+              _webSocketService.setAuthToken(AuthService.token);
+              
+              // Then set the user ID as additional identification
+              _webSocketService.setUserId(user.id);
+              
+              // Ensure connection is established
+              ensureConnected();
+            }
+          });
+        } else {
+          // User logged out - disconnect WebSocket
+          _logger.info('User logged out, disconnecting WebSocket');
+          _currentUser = null;
+          clearAllSubscriptions();
+          disconnect();
+          _webSocketService.setAuthToken(null); // Clear token first
+          _webSocketService.setUserId(null);    // Then clear user ID
+        }
+      });
           
-          if (isLoggedIn) {
-            // User logged in - get current user and connect WebSocket
-            _authService.getUserProfile().then((user) {
-              _currentUser = user;
-              if (user != null) {
-                _logger.info('Setting WebSocket auth data after login');
-                
-                // First set the auth token - primary authentication method 
-                _webSocketService.setAuthToken(AuthService.token);
-                
-                // Then set the user ID as additional identification
-                _webSocketService.setUserId(user.id);
-                
-                // Ensure connection is established
-                ensureConnected();
-              }
-            });
-          } else {
-            // User logged out - disconnect WebSocket
-            _logger.info('User logged out, disconnecting WebSocket');
-            _currentUser = null;
-            clearAllSubscriptions();
-            disconnect();
-            _webSocketService.setAuthToken(null); // Clear token first
-            _webSocketService.setUserId(null);    // Then clear user ID
-          }
-        });
-      }
-      
       // Check current auth state immediately
       _authService.getUserProfile().then((user) {
         _currentUser = user;
@@ -238,7 +235,7 @@ class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
       // Small delay between subscriptions
       count++;
       if (count % 5 == 0) {
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
       }
     }
     
@@ -652,7 +649,7 @@ class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
       }
       
       // Add a small delay between batches
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
     }
     
     notifyListeners();
@@ -691,7 +688,7 @@ class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
     _webSocketService.disconnect();
     
     // Wait for disconnection to complete
-    await Future.delayed(Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 300));
     
     // Set fresh auth data
     _webSocketService.setAuthToken(token);
@@ -703,7 +700,7 @@ class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
     await _webSocketService.connect();
     
     // Wait for connection
-    await Future.delayed(Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 500));
     
     _isConnected = _webSocketService.isConnected;
     
@@ -723,7 +720,7 @@ class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
         // Add delay every 5 subscriptions
         count++;
         if (count % 5 == 0) {
-          await Future.delayed(Duration(milliseconds: 100));
+          await Future.delayed(const Duration(milliseconds: 100));
         }
       }
     }

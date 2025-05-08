@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/note.dart';
 import 'base_service.dart';
 import '../utils/logger.dart';
@@ -62,7 +61,7 @@ class NoteService extends BaseService {
       }
     } catch (e) {
       _logger.error('Error fetching notes', e);
-      throw e;
+      rethrow;
     }
   }
 
@@ -173,7 +172,7 @@ class NoteService extends BaseService {
       }
     } catch (e) {
       _logger.error('Error in updateNote', e);
-      throw e;
+      rethrow;
     }
   }
 

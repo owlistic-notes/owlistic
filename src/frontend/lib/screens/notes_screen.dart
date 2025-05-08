@@ -8,7 +8,6 @@ import '../widgets/empty_state.dart';
 import '../models/note.dart';
 import '../viewmodel/notes_viewmodel.dart';
 import '../viewmodel/notebooks_viewmodel.dart';
-import '../utils/websocket_message_parser.dart';
 import '../utils/logger.dart';
 import '../core/theme.dart';
 import 'note_editor_screen.dart';
@@ -16,6 +15,8 @@ import '../widgets/app_bar_common.dart';
 import '../widgets/theme_switcher.dart';
 
 class NotesScreen extends StatefulWidget {
+  const NotesScreen({super.key});
+
   @override
   _NotesScreenState createState() => _NotesScreenState();
 }
@@ -25,7 +26,7 @@ class _NotesScreenState extends State<NotesScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isInitialized = false;
-  bool _isLoadingMore = false;
+  final bool _isLoadingMore = false;
   final Set<String> _loadedNoteIds = {};
 
   // ViewModels
@@ -67,7 +68,7 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   void _showAddNoteDialog(BuildContext context) {
-    final _titleController = TextEditingController();
+    final titleController = TextEditingController();
     String? selectedNotebookId;
 
     showDialog(
@@ -104,8 +105,8 @@ class _NotesScreenState extends State<NotesScreen> {
 
                 // If no notebooks, show message
                 if (notebooks.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
                     child: Text(
                       'You need to create a notebook first',
                       style: TextStyle(color: AppTheme.dangerColor),
@@ -142,7 +143,7 @@ class _NotesScreenState extends State<NotesScreen> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _titleController,
+              controller: titleController,
               decoration: const InputDecoration(
                 labelText: 'Title',
                 prefixIcon: Icon(Icons.title),
@@ -158,22 +159,22 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty &&
+              if (titleController.text.isNotEmpty &&
                   selectedNotebookId != null) {
                 try {
-                  _logger.info('Creating note: ${_titleController.text} in notebook: $selectedNotebookId');
+                  _logger.info('Creating note: ${titleController.text} in notebook: $selectedNotebookId');
                   
                   final notebooksViewModel = context.read<NotebooksViewModel>();
                   await notebooksViewModel.addNoteToNotebook(
                     selectedNotebookId!,
-                    _titleController.text,
+                    titleController.text,
                   );
                   
                   Navigator.of(ctx).pop();
                   
                   // Display success message
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Note "${_titleController.text}" created successfully')),
+                    SnackBar(content: Text('Note "${titleController.text}" created successfully')),
                   );
                   
                   // Note: WebSocket event will handle UI update
@@ -472,8 +473,8 @@ class _NotesScreenState extends State<NotesScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddNoteDialog(context),
-        child: const Icon(Icons.add),
         tooltip: 'Add Note',
+        child: const Icon(Icons.add),
       ),
     );
   }

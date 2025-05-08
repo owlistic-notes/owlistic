@@ -13,6 +13,8 @@ import '../utils/logger.dart';
 import '../widgets/app_bar_common.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
@@ -73,60 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _showProfileMenu(BuildContext context) async {
-    // Use await to properly get currentUser
-    final homeViewModel = context.read<HomeViewModel>();
-    final currentUser = await homeViewModel.currentUser;
-    
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(MediaQuery.of(context).size.width, 0, 0, 0),
-      items: <PopupMenuEntry<String>>[
-        PopupMenuItem<String>(
-          value: 'profile_header',
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-              child: Icon(Icons.person, color: Theme.of(context).primaryColor),
-            ),
-            title: Text(currentUser?.email?.split('@')[0] ?? 'User'),
-            subtitle: Text(currentUser?.email ?? 'No email'),
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'profile',
-          child: ListTile(
-            leading: Icon(Icons.person),
-            title: Text('My Profile'),
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'settings',
-          child: ListTile(
-            leading: Icon(Icons.settings),
-            title: Text('Settings'),
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem<String>(
-          value: 'logout',
-          child: const ListTile(
-            leading: Icon(Icons.logout),
-            title: Text('Logout'),
-          ),
-          onTap: () async {
-            // Wait a moment for the menu to close
-            await Future.delayed(Duration.zero);
-            if (context.mounted) {
-              // Use HomeViewModel for logout
-              await context.read<HomeViewModel>().logout();
-            }
-          },
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,8 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         showBackButton: false, // Home screen doesn't need back button
         title: 'ThinkStack', // Set explicit title for home screen
-        actions: [
-          const ThemeSwitcher(), // Add theme switcher to app bar
+        actions: const [
+          ThemeSwitcher(), // Add theme switcher to app bar
         ],
       ),
       drawer: const AppDrawer(),
@@ -163,8 +111,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showQuickCreateMenu(context),
-        child: const Icon(Icons.add),
         tooltip: 'Create New',
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -174,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<User?>(
       future: context.read<HomeViewModel>().currentUser,
       builder: (context, snapshot) {
-        final userName = snapshot.data?.email?.split('@')[0] ?? 'User';
+        final userName = snapshot.data?.email.split('@')[0] ?? 'User';
         
         return Container(
           margin: const EdgeInsets.all(16),
@@ -596,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAddNoteDialog(BuildContext context) {
-    final _titleController = TextEditingController();
+    final titleController = TextEditingController();
     String? selectedNotebookId;
 
     // Use HomeViewModel for notebooks
@@ -626,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _titleController,
+              controller: titleController,
               decoration: const InputDecoration(
                 labelText: 'Note Title',
                 prefixIcon: Icon(Icons.title),
@@ -662,11 +610,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty && selectedNotebookId != null) {
+              if (titleController.text.isNotEmpty && selectedNotebookId != null) {
                 // Create note through HomeViewModel
                 try {
                   final note = await homeViewModel.createNote(
-                    _titleController.text,
+                    titleController.text,
                     selectedNotebookId!,
                   );
                   
@@ -698,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAddTaskDialog(BuildContext context) {
-    final _titleController = TextEditingController();
+    final titleController = TextEditingController();
 
     showDialog(
       context: context,
@@ -714,7 +662,7 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(16),
         ),
         content: TextField(
-          controller: _titleController,
+          controller: titleController,
           decoration: const InputDecoration(
             labelText: 'Task Title',
             prefixIcon: Icon(Icons.title),
@@ -730,11 +678,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
+              if (titleController.text.isNotEmpty) {
                 // Create task through HomeViewModel
                 final homeViewModel = context.read<HomeViewModel>();
                 try {
-                  await homeViewModel.createTask(_titleController.text, 'general');
+                  await homeViewModel.createTask(titleController.text, 'general');
                   Navigator.pop(context);
                 } catch (e) {
                   _logger.error('Error creating task', e);
@@ -753,8 +701,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAddNotebookDialog(BuildContext context, {bool showNoteDialogAfter = false}) {
-    final _nameController = TextEditingController();
-    final _descriptionController = TextEditingController();
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
 
     showDialog(
       context: context,
@@ -773,7 +721,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _nameController,
+              controller: nameController,
               decoration: const InputDecoration(
                 labelText: 'Notebook Name',
                 prefixIcon: Icon(Icons.book),
@@ -782,7 +730,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _descriptionController,
+              controller: descriptionController,
               decoration: const InputDecoration(
                 labelText: 'Description (Optional)',
                 prefixIcon: Icon(Icons.description),
@@ -800,13 +748,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_nameController.text.isNotEmpty) {
+              if (nameController.text.isNotEmpty) {
                 // Create notebook through HomeViewModel
                 final homeViewModel = context.read<HomeViewModel>();
                 try {
                   await homeViewModel.createNotebook(
-                    _nameController.text,
-                    _descriptionController.text,
+                    nameController.text,
+                    descriptionController.text,
                   );
                   
                   Navigator.pop(context);

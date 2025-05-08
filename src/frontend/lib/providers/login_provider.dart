@@ -182,7 +182,7 @@ class LoginProvider with ChangeNotifier implements LoginViewModel {
   // Get the current server URL
   @override
   String? getServerUrl() {
-    return _serverUrl ?? null;
+    return _serverUrl;
   }
   
   @override

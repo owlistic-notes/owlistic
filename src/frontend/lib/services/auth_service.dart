@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:async';
-import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,7 +24,7 @@ class AuthService extends BaseService {
   // Singleton pattern for global token access
   static AuthService? _instance;
   // Initialize synchronously - guaranteed to be true after constructor
-  bool _isInitialized = true;
+  final bool _isInitialized = true;
   bool get isInitialized => true; // Always return true for safety
   
   // Constructor sets the instance for static access
@@ -188,7 +187,7 @@ class AuthService extends BaseService {
       }
     } catch (e) {
       _logger.error('Error during login', e);
-      throw e;
+      rethrow;
     }
   }
   
@@ -225,7 +224,7 @@ class AuthService extends BaseService {
       }
     } catch (e) {
       _logger.error('Error during registration', e);
-      throw e;
+      rethrow;
     }
   }
   

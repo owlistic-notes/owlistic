@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/note.dart';
 import '../models/notebook.dart';
 import '../utils/logger.dart';

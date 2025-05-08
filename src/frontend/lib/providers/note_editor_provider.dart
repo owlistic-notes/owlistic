@@ -179,7 +179,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       _logger.error('Error updating note title', error);
       _errorMessage = 'Failed to update note: ${error.toString()}';
       notifyListeners();
-      throw error;
+      rethrow;
     }
   }
 
@@ -402,8 +402,8 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Determine block type based on node
       String blockType = 'text';
-      if (node is ParagraphNode && node.metadata != null) {
-        final blockTypeAttr = node.metadata!['blockType'];
+      if (node is ParagraphNode) {
+        final blockTypeAttr = node.metadata['blockType'];
         String blockTypeStr = '';
         
         if (blockTypeAttr is NamedAttribution) {
@@ -426,7 +426,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Extract content from node in the format needed by API
       final extractedData = _extractNodeContentForApi(node);
       final content = extractedData['content'] as Map<String, dynamic>;
-      final metadata = extractedData['metadata'] as Map<String, dynamic>;
       
       // Calculate a fractional order value using the document builder
       double order = await _documentBuilder.calculateOrderForNewNode(nodeId, blocks);
@@ -493,8 +492,8 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       // Add metadata based on node.metadata
-      if (node.metadata != null && node.metadata!.isNotEmpty) {
-        final blockType = node.metadata!['blockType'];
+      if (node.metadata.isNotEmpty) {
+        final blockType = node.metadata['blockType'];
         String blockTypeStr = '';
         
         // Convert blockType to string if it's a NamedAttribution
@@ -509,11 +508,11 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
           
           // Add type-specific properties
           if (blockTypeStr == 'heading') {
-            content['level'] = node.metadata!['headingLevel'] ?? 1;
-            metadata['headingLevel'] = node.metadata!['headingLevel'] ?? 1;
+            content['level'] = node.metadata['headingLevel'] ?? 1;
+            metadata['headingLevel'] = node.metadata['headingLevel'] ?? 1;
           } else if (blockTypeStr == 'code') {
-            content['language'] = node.metadata!['language'] ?? 'plain';
-            metadata['language'] = node.metadata!['language'] ?? 'plain';
+            content['language'] = node.metadata['language'] ?? 'plain';
+            metadata['language'] = node.metadata['language'] ?? 'plain';
           }
         }
       }
@@ -578,7 +577,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Get node ID from selection
     final nodeId = selection.extent.nodeId;
-    if (nodeId == null) return;
     
     // Find the block ID for this node
     final blockId = _documentBuilder.nodeToBlockMap[nodeId];
@@ -837,8 +835,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Add all blocks to maps, tracking which ones are actually new
       for (var block in blocksResult) {
-        final isNewBlock = !_blocks.containsKey(block.id);
-        
         _blocks[block.id] = block;
         if (!_noteBlocksMap[noteId]!.contains(block.id)) {
           _noteBlocksMap[noteId]!.add(block.id);
@@ -882,12 +878,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       _logger.debug('Fetching block with ID $blockId');
       
       // Use BlockService to get the block
-      final Block? block = await _blockService.getBlock(blockId);
-      
-      if (block == null) {
-        _logger.warning('Block $blockId not found on server');
-        return null;
-      }
+      final Block block = await _blockService.getBlock(blockId);
       
       // Add to our blocks map
       _blocks[blockId] = block;
@@ -1200,7 +1191,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Calculate scroll position
     final maxScroll = _scrollController!.position.maxScrollExtent;
     final currentScroll = _scrollController!.position.pixels;
-    final threshold = 500.0; // Load more when within 500px of bottom
+    const threshold = 500.0; // Load more when within 500px of bottom
     
     if (maxScroll - currentScroll <= threshold) {
       // Check if we have more blocks to load
@@ -1693,7 +1684,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Get the current node ID
     final nodeId = selection.extent.nodeId;
-    if (nodeId == null) return;
     
     // Find the associated block
     final blockId = _documentBuilder.nodeToBlockMap[nodeId];

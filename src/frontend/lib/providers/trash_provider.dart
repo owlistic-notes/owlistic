@@ -4,10 +4,8 @@ import '../models/note.dart';
 import '../models/notebook.dart';
 import '../services/trash_service.dart';
 import '../services/auth_service.dart';
-import '../services/base_service.dart';
 import '../services/websocket_service.dart';
 import '../utils/logger.dart';
-import '../utils/websocket_message_parser.dart';
 import '../services/app_state_service.dart';
 import '../viewmodel/trash_viewmodel.dart';
 

@@ -9,7 +9,6 @@ import '../screens/register_screen.dart';
 import '../screens/notebooks_screen.dart';
 import '../screens/notebook_detail_screen.dart';
 import '../screens/notes_screen.dart';
-import '../screens/note_editor_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../screens/trash_screen.dart';
 import '../utils/logger.dart';
@@ -49,11 +48,11 @@ class AppRouter {
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => HomeScreen(),
+          builder: (context, state) => const HomeScreen(),
         ),
         GoRoute(
           path: '/notebooks',
-          builder: (context, state) => NotebooksScreen(),
+          builder: (context, state) => const NotebooksScreen(),
           routes: [
             GoRoute(
               path: ':id',
@@ -65,23 +64,23 @@ class AppRouter {
         ),
         GoRoute(
           path: '/notes',
-          builder: (context, state) => NotesScreen(),
+          builder: (context, state) => const NotesScreen(),
         ),
         GoRoute(
           path: '/tasks',
-          builder: (context, state) => TasksScreen(),
+          builder: (context, state) => const TasksScreen(),
         ),
         GoRoute(
           path: '/trash',
-          builder: (context, state) => TrashScreen(),
+          builder: (context, state) => const TrashScreen(),
         ),
         GoRoute(
           path: '/login',
-          builder: (context, state) => LoginScreen(),
+          builder: (context, state) => const LoginScreen(),
         ),
         GoRoute(
           path: '/register',
-          builder: (context, state) => RegisterScreen(),
+          builder: (context, state) => const RegisterScreen(),
         ),
       ],
     );

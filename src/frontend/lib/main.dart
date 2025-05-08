@@ -140,7 +140,7 @@ class _ThinkStackAppWithProvidersState extends State<ThinkStackAppWithProviders>
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => HomeScreen(),
+          builder: (context, state) => const HomeScreen(),
         ),
         GoRoute(
           path: '/login',
@@ -163,7 +163,7 @@ class _ThinkStackAppWithProvidersState extends State<ThinkStackAppWithProviders>
         ),
         GoRoute(
           path: '/notes',
-          builder: (context, state) => NotesScreen(),
+          builder: (context, state) => const NotesScreen(),
         ),
         GoRoute(
           path: '/notes/:id',
@@ -174,11 +174,11 @@ class _ThinkStackAppWithProvidersState extends State<ThinkStackAppWithProviders>
         ),
         GoRoute(
           path: '/tasks',
-          builder: (context, state) => TasksScreen(),
+          builder: (context, state) => const TasksScreen(),
         ),
         GoRoute(
           path: '/trash',
-          builder: (context, state) => TrashScreen(),
+          builder: (context, state) => const TrashScreen(),
         ),
       ],
     );

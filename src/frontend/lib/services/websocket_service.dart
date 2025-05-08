@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../utils/logger.dart';
 import '../models/subscription.dart';
-import '../utils/websocket_message_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WebSocketService {
@@ -24,7 +22,7 @@ class WebSocketService {
   final Set<String> _confirmedSubscriptions = {};
   final Set<String> _pendingSubscriptions = {};
   final Map<String, DateTime> _lastSubscriptionAttempt = {};
-  final Duration _subscriptionThrottleTime = Duration(seconds: 10);
+  final Duration _subscriptionThrottleTime = const Duration(seconds: 10);
   
   // Event handlers by type and event
   final Map<String, Map<String, List<Function(Map<String, dynamic>)>>> _eventHandlers = {};

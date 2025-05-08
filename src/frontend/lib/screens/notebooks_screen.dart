@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/notebook.dart';
 import '../models/note.dart';
@@ -25,7 +24,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   
   // Track expanded notebooks
-  Set<String> _expandedNotebooks = {};
+  final Set<String> _expandedNotebooks = {};
   
   @override
   void didChangeDependencies() {
@@ -355,7 +354,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
   }
 
   void _showAddNoteDialog(BuildContext context, String notebookId) {
-    final _titleController = TextEditingController();
+    final titleController = TextEditingController();
 
     showDialog(
       context: context,
@@ -371,7 +370,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
           ],
         ),
         content: TextField(
-          controller: _titleController,
+          controller: titleController,
           decoration: const InputDecoration(
             labelText: 'Title',
             prefixIcon: Icon(Icons.title),
@@ -386,11 +385,11 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_titleController.text.isNotEmpty) {
+              if (titleController.text.isNotEmpty) {
                 try {
                   await _notebooksViewModel.addNoteToNotebook(
                     notebookId,
-                    _titleController.text,
+                    titleController.text,
                   );
                   Navigator.of(ctx).pop();
                 } catch (error) {
@@ -599,10 +598,6 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
   
   @override

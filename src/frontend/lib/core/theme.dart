@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 /// App theme definition inspired by Evernote
 class AppTheme {
@@ -40,7 +39,7 @@ class AppTheme {
       color: Colors.grey[300],
       thickness: 1,
     ),
-    colorScheme: ColorScheme.light(
+    colorScheme: const ColorScheme.light(
       primary: primaryColor,
       secondary: accentColor,
       error: dangerColor,
@@ -76,7 +75,7 @@ class AppTheme {
       color: Colors.white24,
       thickness: 1,
     ),
-    colorScheme: ColorScheme.dark(
+    colorScheme: const ColorScheme.dark(
       primary: primaryColor,
       secondary: accentColor,
       error: dangerColor,
