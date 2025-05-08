@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/card_container.dart';
 import '../widgets/empty_state.dart';
 import '../viewmodel/tasks_viewmodel.dart';
 import '../models/task.dart';
@@ -270,55 +269,7 @@ class _TasksScreenState extends State<TasksScreen> {
               itemCount: tasksViewModel.tasks.length,
               itemBuilder: (context, index) {
                 final task = tasksViewModel.tasks[index];
-                return CardContainer(
-                  leading: Transform.scale(
-                    scale: 1.2,
-                    child: Checkbox(
-                      value: task.isCompleted,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                      onChanged: (bool? value) async {
-                        try {
-                          await tasksViewModel.toggleTaskCompletion(
-                            task.id,
-                            value ?? false,
-                          );
-                        } catch (error) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Failed to update task status')),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                  title: task.title,
-                  subtitle: task.description,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () => _showEditTaskDialog(context, task),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_outline,
-                          color: AppTheme.dangerColor,
-                        ),
-                        onPressed: () => _showDeleteConfirmation(context, task),
-                      ),
-                    ],
-                  ),
-                  child: task.description != null && task.description!.isNotEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            task.description!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                );
+                return _buildTaskCard(context, task, tasksViewModel);
               },
             ),
           );
@@ -328,6 +279,117 @@ class _TasksScreenState extends State<TasksScreen> {
         onPressed: _showAddTaskDialog,
         child: const Icon(Icons.add),
         tooltip: 'Add Task',
+      ),
+    );
+  }
+  
+  Widget _buildTaskCard(BuildContext context, Task task, TasksViewModel tasksViewModel) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
+        leading: Transform.scale(
+          scale: 1.2,
+          child: Checkbox(
+            value: task.isCompleted,
+            shape: const CircleBorder(),
+            checkColor: Colors.white,
+            activeColor: Theme.of(context).primaryColor,
+            onChanged: (bool? value) async {
+              try {
+                await tasksViewModel.toggleTaskCompletion(
+                  task.id,
+                  value ?? false,
+                );
+              } catch (error) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Failed to update task status')),
+                );
+              }
+            },
+          ),
+        ),
+        title: Text(
+          task.title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+            color: task.isCompleted ? Colors.grey : Theme.of(context).textTheme.bodyLarge?.color,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (task.description?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 2.0),
+                child: Text(
+                  task.description!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 4),
+            // Placeholder for future task metadata (due date, etc.)
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 14, color: Theme.of(context).hintColor),
+                const SizedBox(width: 4),
+                // This will be replaced with actual due date when available
+                Text(
+                  'No due date',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+                ),
+                const SizedBox(width: 12),
+                // Placeholder for other metadata (priority, etc.)
+                Icon(Icons.flag_outlined, size: 14, color: Theme.of(context).hintColor),
+                const SizedBox(width: 4),
+                Text(
+                  'No priority',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, size: 20),
+          splashRadius: 20,
+          onSelected: (value) {
+            if (value == 'edit') {
+              _showEditTaskDialog(context, task);
+            } else if (value == 'delete') {
+              _showDeleteConfirmation(context, task);
+            }
+          },
+          itemBuilder: (BuildContext context) => [
+            const PopupMenuItem<String>(
+              value: 'edit',
+              child: ListTile(
+                leading: Icon(Icons.edit),
+                title: Text('Edit Task'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const PopupMenuItem<String>(
+              value: 'delete',
+              child: ListTile(
+                leading: Icon(Icons.delete_outline, color: Colors.red),
+                title: Text('Delete Task', style: TextStyle(color: Colors.red)),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
