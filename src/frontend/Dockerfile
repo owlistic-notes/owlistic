@@ -40,7 +40,6 @@ RUN flutter create --platforms=web .
 
 # Build the web app with warning suppressed
 RUN flutter build web --release
-COPY ./assets /app/build/web/assets
 
 # Second stage: Serve the app with Nginx
 FROM nginx:alpine
