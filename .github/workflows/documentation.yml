@@ -1,0 +1,41 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs-website/**'
+      - '.github/workflows/documentation.yml'
+
+jobs:
+  deploy:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+          cache-dependency-path: docs-website/package-lock.json
+      
+      - name: Install dependencies
+        run: |
+          cd docs-website
+          npm ci
+      
+      - name: Build website
+        run: |
+          cd docs-website
+          npm run build
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs-website/build
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
