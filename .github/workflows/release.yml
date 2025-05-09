@@ -17,6 +17,16 @@ jobs:
         with:
           persist-credentials: false
 
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/arm64
+
       # Set up Go environment
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -47,7 +57,7 @@ jobs:
           build-args: |
             TARGETARCH=arm64
           tags: thinkstack:latest-arm64,thinkstack:${{ github.ref_name }}-arm64
-          cache-from: type=registry,ref=thinkstack:${{ github.ref_name }}-arm64
+          cache-from: type=registry,ref=thinkstack:buildcache
 
   frontend:
     name: Frontend Build and Push
@@ -59,6 +69,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/arm64
 
       # Setup Flutter environment
       - name: Set up Flutter
@@ -120,4 +140,4 @@ jobs:
           build-args: |
             TARGETARCH=arm64
           tags: thinkstack-ui:latest-arm64,thinkstack-ui:${{ github.ref_name }}-arm64
-          cache-from: type=registry,ref=${{ github.ref_name }}-arm64
+          cache-from: type=registry,ref=thinkstack-ui:buildcache
