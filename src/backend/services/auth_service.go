@@ -3,9 +3,9 @@ package services
 import (
 	"time"
 
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
-	"github.com/thinkstack/utils/token"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
+	"github.com/owlistic/utils/token"
 	"golang.org/x/crypto/bcrypt"
 )
 

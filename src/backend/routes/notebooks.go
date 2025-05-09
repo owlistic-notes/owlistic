@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/services"
+	"github.com/owlistic/database"
+	"github.com/owlistic/services"
 )
 
 func RegisterNotebookRoutes(group *gin.RouterGroup, db *database.Database, notebookService services.NotebookServiceInterface) {

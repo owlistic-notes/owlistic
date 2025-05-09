@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/thinkstack/broker"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
+	"github.com/owlistic/broker"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
 
 	"gorm.io/gorm"
 )
@@ -112,10 +112,10 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 
 		// Create a block for this task
 		block := models.Block{
-			ID:        uuid.New(),
-			NoteID:    noteID,
-			UserID:    userID,
-			Type:      models.TaskBlock,
+			ID:     uuid.New(),
+			NoteID: noteID,
+			UserID: userID,
+			Type:   models.TaskBlock,
 			Content: models.BlockContent{
 				"text": title,
 			},
@@ -133,7 +133,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 
 		// Now set the block_id on the task
 		task.BlockID = block.ID
-		
+
 		// Create event for block creation
 		blockEvent, err := models.NewEvent(
 			string(broker.BlockCreated),

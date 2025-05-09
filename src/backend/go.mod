@@ -1,4 +1,4 @@
-module github.com/thinkstack
+module github.com/owlistic
 
 go 1.23.4
 

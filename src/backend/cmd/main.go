@@ -7,12 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/thinkstack/broker"
-	"github.com/thinkstack/config"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/middleware"
-	"github.com/thinkstack/routes"
-	"github.com/thinkstack/services"
+	"github.com/owlistic/broker"
+	"github.com/owlistic/config"
+	"github.com/owlistic/database"
+	"github.com/owlistic/middleware"
+	"github.com/owlistic/routes"
+	"github.com/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 )

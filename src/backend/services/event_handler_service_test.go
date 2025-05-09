@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
+	"github.com/owlistic/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
-	"github.com/thinkstack/testutils"
 )
 
 // MockProducer implements the broker.Producer interface for testing

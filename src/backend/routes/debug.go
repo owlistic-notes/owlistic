@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
 )
 
 // SetupDebugRoutes sets up routes for debugging

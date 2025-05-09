@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:thinkstack/viewmodel/notes_viewmodel.dart';
+import 'package:owlistic/viewmodel/notes_viewmodel.dart';
 import '../models/note.dart';
 import '../services/note_service.dart';
 import '../services/auth_service.dart';

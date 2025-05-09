@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/thinkstack/broker"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
+	"github.com/owlistic/broker"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
 )
 
 // SyncHandlerService handles bidirectional synchronization between blocks and tasks
@@ -432,7 +432,7 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 // createBlockForTask creates a new block for a task that doesn't have one
 func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 	var noteID uuid.UUID
-	
+
 	// Check if the task has noteId in metadata
 	if task.Metadata != nil {
 		if noteIDStr, ok := task.Metadata["note_id"].(string); ok && noteIDStr != "" {
@@ -468,9 +468,9 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 			if len(notes) == 0 {
 				// No notes found, create a new one
 				newNote := models.Note{
-					ID:        uuid.New(),
-					UserID:    task.UserID,
-					Title:     "Tasks",
+					ID:     uuid.New(),
+					UserID: task.UserID,
+					Title:  "Tasks",
 				}
 				if err := s.db.DB.Create(&newNote).Error; err != nil {
 					return err
@@ -626,64 +626,64 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 
 // handleTaskDeleted handles cleanup when a task is deleted
 func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) error {
-    taskIDStr, ok := payload["task_id"].(string)
-    if !ok {
-        return errors.New("missing task_id in event payload")
-    }
+	taskIDStr, ok := payload["task_id"].(string)
+	if !ok {
+		return errors.New("missing task_id in event payload")
+	}
 
-    // We need to find the block_id from the task data
-    // Since the task is deleted, we can't query it directly
-    blockIDStr, ok := payload["block_id"].(string)
+	// We need to find the block_id from the task data
+	// Since the task is deleted, we can't query it directly
+	blockIDStr, ok := payload["block_id"].(string)
 
-    // If block_id wasn't in the payload, we can't update the block
-    if !ok || blockIDStr == "" {
-        return nil
-    }
+	// If block_id wasn't in the payload, we can't update the block
+	if !ok || blockIDStr == "" {
+		return nil
+	}
 
-    // Get the associated block
-    var block models.Block
-    if err := s.db.DB.Where("id = ?", blockIDStr).First(&block).Error; err != nil {
-        return nil // Block not found or already deleted
-    }
+	// Get the associated block
+	var block models.Block
+	if err := s.db.DB.Where("id = ?", blockIDStr).First(&block).Error; err != nil {
+		return nil // Block not found or already deleted
+	}
 
-    // Check if this is a task block
-    if block.Type != models.TaskBlock {
-        return nil // Not a task block
-    }
+	// Check if this is a task block
+	if block.Type != models.TaskBlock {
+		return nil // Not a task block
+	}
 
 	// Update block metadata to reflect task deletion
-    blockData := map[string]interface{}{
-        "metadata": models.BlockContent{
-            "task_deleted": true,
-            "_sync_source": "task",
-            "task_id":      taskIDStr,
-            "deleted_at":   time.Now().Format(time.RFC3339),
-        },
-    }
+	blockData := map[string]interface{}{
+		"metadata": models.BlockContent{
+			"task_deleted": true,
+			"_sync_source": "task",
+			"task_id":      taskIDStr,
+			"deleted_at":   time.Now().Format(time.RFC3339),
+		},
+	}
 
-    // Keep the original metadata properties
-    if block.Metadata != nil {
-        for k, v := range block.Metadata {
-            if k != "_sync_source" && k != "task_deleted" && k != "deleted_at" {
-                blockData["metadata"].(models.BlockContent)[k] = v
-            }
-        }
-    }
+	// Keep the original metadata properties
+	if block.Metadata != nil {
+		for k, v := range block.Metadata {
+			if k != "_sync_source" && k != "task_deleted" && k != "deleted_at" {
+				blockData["metadata"].(models.BlockContent)[k] = v
+			}
+		}
+	}
 
-    // Get user_id from payload or from block
-    userIDStr := ""
-    if userID, ok := payload["user_id"].(string); ok {
-        userIDStr = userID
-    } else {
-        userIDStr = block.UserID.String()
-    }
+	// Get user_id from payload or from block
+	userIDStr := ""
+	if userID, ok := payload["user_id"].(string); ok {
+		userIDStr = userID
+	} else {
+		userIDStr = block.UserID.String()
+	}
 
-    // Params for permission check
-    params := map[string]interface{}{
-        "user_id": userIDStr,
-    }
+	// Params for permission check
+	params := map[string]interface{}{
+		"user_id": userIDStr,
+	}
 
-    // Update the block to reflect task deletion
-    _, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
-    return err
+	// Update the block to reflect task deletion
+	_, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
+	return err
 }

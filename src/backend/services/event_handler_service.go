@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/thinkstack/broker"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
+	"github.com/owlistic/broker"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
 )
 
 type EventHandlerServiceInterface interface {
@@ -104,7 +104,7 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 	// Determine resource type and ID based on entity
 	var resourceType, resourceId string
 	resourceType = event.Entity // Default resource type to entity
-	
+
 	// Extract resource IDs
 	if noteId, exists := dataMap["note_id"]; exists {
 		if resourceType == "note" {
@@ -121,7 +121,7 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 			resourceId = blockId.(string)
 		}
 	}
-	
+
 	// Also check for direct ID in the data
 	if id, exists := dataMap["id"]; exists && resourceId == "" {
 		resourceId = id.(string)

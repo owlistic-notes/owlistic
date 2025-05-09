@@ -27,7 +27,7 @@ COPY . .
 RUN CGO_ENABLED=1 GO111MODULE=on CGO_LDFLAGS="-lsasl2" \
     GOOS=linux GOARCH=${TARGETARCH} \
     go build -v -tags musl -ldflags "-w -s" \
-    -o /app/thinkstack ./cmd/main.go
+    -o /app/owlistic ./cmd/main.go
 
 # Use a minimal Alpine image for the final stage
 FROM --platform=linux/$TARGETARCH alpine:3.19
@@ -43,10 +43,10 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copy the built binary from the builder stage
-COPY --from=builder /app/thinkstack ./
+COPY --from=builder /app/owlistic ./
 
 # Expose the application port
 EXPOSE 8080
 
 # Set the entrypoint to the binary
-ENTRYPOINT ["/app/thinkstack"]
+ENTRYPOINT ["/app/owlistic"]

@@ -3,7 +3,7 @@ package database
 import (
 	"log"
 
-	"github.com/thinkstack/models"
+	"github.com/owlistic/models"
 	"gorm.io/gorm"
 )
 

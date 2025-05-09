@@ -7,9 +7,9 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
 	"github.com/stretchr/testify/assert"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

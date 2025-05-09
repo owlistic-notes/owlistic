@@ -10,12 +10,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/owlistic/broker"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
+	"github.com/owlistic/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/thinkstack/broker"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
-	"github.com/thinkstack/testutils"
 )
 
 // MockAuthService for testing

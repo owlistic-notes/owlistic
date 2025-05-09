@@ -5,8 +5,8 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
 	"gorm.io/gorm"
 )
 

@@ -1,6 +1,6 @@
 import 'package:provider/provider.dart';
 import 'package:nested/nested.dart';
-import 'package:thinkstack/services/trash_service.dart';
+import 'package:owlistic/services/trash_service.dart';
 import '../services/auth_service.dart';
 import '../services/note_service.dart';
 import '../services/notebook_service.dart';

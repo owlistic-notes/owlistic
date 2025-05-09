@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/thinkstack/config"
+	"github.com/owlistic/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

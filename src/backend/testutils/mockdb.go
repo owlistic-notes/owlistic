@@ -4,7 +4,7 @@ import (
 	"database/sql"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/thinkstack/database"
+	"github.com/owlistic/database"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

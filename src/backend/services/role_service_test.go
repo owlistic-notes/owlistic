@@ -5,9 +5,9 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/owlistic/models"
+	"github.com/owlistic/testutils"
 	"github.com/stretchr/testify/assert"
-	"github.com/thinkstack/models"
-	"github.com/thinkstack/testutils"
 )
 
 func TestAssignRole(t *testing.T) {

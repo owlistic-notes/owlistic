@@ -2,7 +2,7 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/thinkstack/services"
+	"github.com/owlistic/services"
 )
 
 // RegisterWebSocketRoutes sets up WebSocket endpoints with authentication

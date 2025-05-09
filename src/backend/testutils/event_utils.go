@@ -7,7 +7,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
-	"github.com/thinkstack/models"
+	"github.com/owlistic/models"
 )
 
 // MockEventRows creates mock SQL rows for events testing

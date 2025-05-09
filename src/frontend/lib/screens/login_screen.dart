@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       
                       // App title
                       Text(
-                        'ThinkStack',
+                        'Owlistic',
                         style: theme.textTheme.headlineMedium!.copyWith(
                           color: theme.primaryColor,
                           fontWeight: FontWeight.bold,

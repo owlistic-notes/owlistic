@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/thinkstack/services"
-	"github.com/thinkstack/utils/token"
+	"github.com/owlistic/services"
+	"github.com/owlistic/utils/token"
 )
 
 // ExtractAndValidateToken uses the token utility instead

@@ -8,10 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
+	"github.com/owlistic/services"
 	"github.com/stretchr/testify/assert"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
-	"github.com/thinkstack/services"
 )
 
 // Updated MockUserService to match the new interface

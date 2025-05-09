@@ -10,10 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/thinkstack/broker"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
-	"github.com/thinkstack/utils/token"
+	"github.com/owlistic/broker"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
+	"github.com/owlistic/utils/token"
 )
 
 type WebSocketServiceInterface interface {
@@ -152,7 +152,7 @@ func (s *WebSocketService) HandleConnection(c *gin.Context) {
 
 	// Send a welcome message
 	welcome := models.NewStandardMessage(models.EventMessage, "connected", map[string]interface{}{
-		"message": "Connected to ThinkStack WebSocket server",
+		"message": "Connected to Owlistic WebSocket server",
 		"user_id": userID.String(),
 		"time":    time.Now(),
 	})

@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/thinkstack/config"
+	"github.com/owlistic/config"
 )
 
 // Producer defines the interface for message production
@@ -46,7 +46,7 @@ func NewKafkaProducer(brokerAddress string) (Producer, error) {
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":  brokerAddress,
 		"socket.timeout.ms":  10000,
-		"client.id":          "thinkstack-producer-main",
+		"client.id":          "owlistic-producer-main",
 		"message.timeout.ms": 30000,
 		"retries":            5,
 		"retry.backoff.ms":   1000,

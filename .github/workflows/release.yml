@@ -35,7 +35,7 @@ jobs:
       - name: Build Golang Binary
         run: |
           cd src/backend
-          go build -o thinkstack ./cmd/main.go
+          go build -o owlistic ./cmd/main.go
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
@@ -54,8 +54,8 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: thinkstack:latest-arm64,thinkstack:${{ github.ref_name }}-arm64
-          cache-from: type=registry,ref=thinkstack:buildcache-arm64
+          tags: owlistic:latest-arm64,owlistic:${{ github.ref_name }}-arm64
+          cache-from: type=registry,ref=owlistic:buildcache-arm64
 
       # Build Docker Image for amd64
       - name: Build Backend Docker Image (AMD64)
@@ -67,8 +67,8 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: thinkstack:latest-amd64,thinkstack:${{ github.ref_name }}-amd64
-          cache-from: type=registry,ref=thinkstack:buildcache-amd64
+          tags: owlistic:latest-amd64,owlistic:${{ github.ref_name }}-amd64
+          cache-from: type=registry,ref=owlistic:buildcache-amd64
 
   frontend:
     name: Frontend Build and Push
@@ -148,8 +148,8 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: thinkstack-ui:latest-arm64,thinkstack-ui:${{ github.ref_name }}-arm64
-          cache-from: type=registry,ref=thinkstack-ui:buildcache-arm64
+          tags: owlistic-ui:latest-arm64,owlistic-ui:${{ github.ref_name }}-arm64
+          cache-from: type=registry,ref=owlistic-ui:buildcache-arm64
           
       # Build Docker Image for amd64
       - name: Build Frontend Docker Image (AMD64)
@@ -161,5 +161,5 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: thinkstack-ui:latest-amd64,thinkstack-ui:${{ github.ref_name }}-amd64
-          cache-from: type=registry,ref=thinkstack-ui:buildcache-amd64
+          tags: owlistic-ui:latest-amd64,owlistic-ui:${{ github.ref_name }}-amd64
+          cache-from: type=registry,ref=owlistic-ui:buildcache-amd64

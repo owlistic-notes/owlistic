@@ -110,7 +110,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               
               // App name
               Text(
-                'Join ThinkStack',
+                'Join Owlistic',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),

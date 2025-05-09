@@ -28,7 +28,7 @@ class AppDrawer extends StatelessWidget {
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'ThinkStack',
+                    'Owlistic',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  thinkstack:
+  owlistic:
     build:
       context: ./src/backend
       dockerfile: Dockerfile
@@ -17,16 +17,16 @@ services:
       - DB_PASSWORD=admin
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
-  thinkstack-ui:
+  owlistic-ui:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
     ports:
       - "80:80"
     depends_on:
-      - thinkstack
+      - owlistic
     environment:
-      - BASE_URL=http://thinkstack:8080
+      - BASE_URL=http://owlistic:8080
   postgres:
     image: postgres:15
     environment:

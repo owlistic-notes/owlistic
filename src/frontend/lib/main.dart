@@ -35,7 +35,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   final logger = Logger('Main');
-  logger.info('Starting ThinkStack application');
+  logger.info('Starting Owlistic application');
   
   try {
     // Initialize ServiceLocator explicitly before creating any providers
@@ -46,7 +46,7 @@ void main() async {
     _initializeServices();
     logger.info('Core services initialized successfully');
     
-    runApp(ThinkStackApp());
+    runApp(OwlisticApp());
   } catch (e) {
     logger.error('Failed to initialize application: $e');
     runApp(ErrorApp(message: e.toString()));
@@ -78,29 +78,29 @@ void _initializeServices() {
   ServiceLocator.register<TrashService>(TrashService());
 }
 
-class ThinkStackApp extends StatelessWidget {
-  final Logger _logger = Logger('ThinkStackApp');
+class OwlisticApp extends StatelessWidget {
+  final Logger _logger = Logger('OwlisticApp');
   
-  ThinkStackApp({Key? key}) : super(key: key);
+  OwlisticApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: appProviders,
-      child: const ThinkStackAppWithProviders(),
+      child: const OwlisticAppWithProviders(),
     );
   }
 }
 
-class ThinkStackAppWithProviders extends StatefulWidget {
-  const ThinkStackAppWithProviders({Key? key}) : super(key: key);
+class OwlisticAppWithProviders extends StatefulWidget {
+  const OwlisticAppWithProviders({Key? key}) : super(key: key);
 
   @override
-  _ThinkStackAppWithProvidersState createState() => _ThinkStackAppWithProvidersState();
+  _OwlisticAppWithProvidersState createState() => _OwlisticAppWithProvidersState();
 }
 
-class _ThinkStackAppWithProvidersState extends State<ThinkStackAppWithProviders> {
-  final Logger _logger = Logger('ThinkStackAppState');
+class _OwlisticAppWithProvidersState extends State<OwlisticAppWithProviders> {
+  final Logger _logger = Logger('OwlisticAppState');
   late final GoRouter _router;
 
   @override
@@ -190,7 +190,7 @@ class _ThinkStackAppWithProvidersState extends State<ThinkStackAppWithProviders>
     return Consumer<ThemeViewModel>(
       builder: (context, themeViewModel, _) {
         return MaterialApp.router(
-          title: 'ThinkStack',
+          title: 'Owlistic',
           debugShowCheckedModeBanner: false,
           theme: themeViewModel.theme,
           themeMode: themeViewModel.themeMode,

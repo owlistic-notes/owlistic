@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/services"
+	"github.com/owlistic/database"
+	"github.com/owlistic/services"
 )
 
 type loginRequest struct {

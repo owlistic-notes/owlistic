@@ -2,9 +2,9 @@ package testutils
 
 import (
 	"github.com/google/uuid"
+	"github.com/owlistic/database"
+	"github.com/owlistic/models"
 	"github.com/stretchr/testify/mock"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/models"
 )
 
 // MockBlockService mocks the BlockServiceInterface for testing

@@ -1,8 +1,8 @@
 {
     "info": {
-        "name": "ThinkStack API",
+        "name": "Owlistic API",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-        "description": "API collection for the ThinkStack application"
+        "description": "API collection for the Owlistic application"
     },
     "item": [
         {

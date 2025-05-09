@@ -82,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBarCommon(
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         showBackButton: false, // Home screen doesn't need back button
-        title: 'ThinkStack', // Set explicit title for home screen
+        title: 'Owlistic', // Set explicit title for home screen
         actions: const [
           ThemeSwitcher(), // Add theme switcher to app bar
         ],

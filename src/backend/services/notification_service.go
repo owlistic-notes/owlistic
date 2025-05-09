@@ -1,8 +1,8 @@
 package services
 
 import (
-	"github.com/thinkstack/broker"
-	"github.com/thinkstack/models"
+	"github.com/owlistic/broker"
+	"github.com/owlistic/models"
 )
 
 type NotificationServiceInterface interface {

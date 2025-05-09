@@ -1,8 +1,8 @@
-# ThinkStack Frontend Architecture
+# Owlistic Frontend Architecture
 
 ## Model-View-Presenter (MVP) Pattern
 
-ThinkStack uses the Model-View-Presenter (MVP) pattern with a few adaptations for Flutter:
+Owlistic uses the Model-View-Presenter (MVP) pattern with a few adaptations for Flutter:
 
 ### Components
 

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/thinkstack/config"
+	"github.com/owlistic/config"
 )
 
 // KafkaMessage represents a message received from Kafka
@@ -87,7 +87,7 @@ func NewKafkaConsumer(broker string, topics []string, groupID string) (Consumer,
 		"enable.auto.commit":      true,
 		"auto.commit.interval.ms": 5000,
 		"enable.partition.eof":    false,
-		"client.id":               "thinkstack-consumer-" + groupID,
+		"client.id":               "owlistic-consumer-" + groupID,
 		"broker.address.family":   "v4",
 	})
 

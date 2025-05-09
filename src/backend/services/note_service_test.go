@@ -6,8 +6,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/owlistic/testutils"
 	"github.com/stretchr/testify/assert"
-	"github.com/thinkstack/testutils"
 	"gorm.io/gorm"
 )
 

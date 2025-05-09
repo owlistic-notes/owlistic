@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/thinkstack/database"
-	"github.com/thinkstack/middleware"
-	"github.com/thinkstack/services"
+	"github.com/owlistic/database"
+	"github.com/owlistic/middleware"
+	"github.com/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 )
