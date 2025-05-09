@@ -163,7 +163,7 @@ class AuthService extends BaseService {
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final response = await createPostRequest(
-        '/api/v1/auth/login',
+        '/api/v1/login',
         {
           'email': email,
           'password': password,
@@ -208,7 +208,7 @@ class AuthService extends BaseService {
     try {
       // Not using authenticatedPost here since we don't have a token yet
       final response = await createPostRequest(
-        '/api/v1/auth/register',
+        '/api/v1/register',
         {
           'email': email,
           'password': password,
@@ -233,7 +233,7 @@ class AuthService extends BaseService {
       // Call logout endpoint if it exists and we have a token
       if (isLoggedIn) {
         try {
-          await authenticatedPost('/api/v1/auth/logout', {});
+          await authenticatedPost('/api/v1/logout', {});
         } catch (e) {
           // Just log the error but continue with local logout
           _logger.error('Error calling logout endpoint', e);

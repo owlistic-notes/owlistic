@@ -13,28 +13,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Request model for registration since User no longer has Password field
-type registrationRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
-func RegisterUserRoutes(group *gin.RouterGroup, db *database.Database, userService services.UserServiceInterface, authService services.AuthServiceInterface) {
+func RegisterPublicUserRoutes(group *gin.RouterGroup, db *database.Database, userService services.UserServiceInterface, authService services.AuthServiceInterface) {
 	// Public registration endpoint - no auth required
 	group.POST("/register", func(c *gin.Context) { CreateUser(c, db, userService) })
+}
 
-	// Protected user routes
-	userGroup := group.Group("/users")
-	userGroup.Use(middleware.AuthMiddleware(authService))
-	{
+func RegisterProtectedUserRoutes(group *gin.RouterGroup, db *database.Database, userService services.UserServiceInterface, authService services.AuthServiceInterface) {
 		// Collection endpoints with query parameters
-		userGroup.GET("/", func(c *gin.Context) { GetUsers(c, db, userService) })
+	group.GET("/", func(c *gin.Context) { GetUsers(c, db, userService) })
 
 		// Resource-specific endpoints
-		userGroup.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
-		userGroup.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
-		userGroup.DELETE("/:id", func(c *gin.Context) { DeleteUser(c, db, userService) })
-	}
+	group.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
+	group.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
+	group.DELETE("/:id", func(c *gin.Context) { DeleteUser(c, db, userService) })
+	group.PUT("/:id/password", func(c *gin.Context) { UpdateUserPassword(c, db, userService, authService) })
 }
 
 func CreateUser(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {

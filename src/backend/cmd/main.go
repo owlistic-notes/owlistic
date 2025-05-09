@@ -103,22 +103,23 @@ func main() {
 	})
 
 	// Create public API groups
-	authGroup := router.Group("/api/v1/auth")
-	apiGroup := router.Group("/api/v1")
-
+	publicGroup := router.Group("/api/v1")
+	
 	// Register public routes (no auth required)
-	routes.RegisterAuthRoutes(authGroup, db, authService)
-	routes.RegisterUserRoutes(authGroup, db, userService, authService)
+	routes.RegisterAuthRoutes(publicGroup, db, authService)
+	routes.RegisterPublicUserRoutes(publicGroup, db, userService, authService)
 
 	// Create protected API group with auth middleware
-	apiGroup.Use(middleware.AuthMiddleware(authService))
+	protectedGroup := router.Group("/api/v1")
+	protectedGroup.Use(middleware.AuthMiddleware(authService))
+
 	// Register protected API routes using the API group
-	routes.RegisterNoteRoutes(apiGroup, db, services.NoteServiceInstance)
-	routes.RegisterTaskRoutes(apiGroup, db, services.TaskServiceInstance)
-	routes.RegisterNotebookRoutes(apiGroup, db, services.NotebookServiceInstance)
-	routes.RegisterBlockRoutes(apiGroup, db, services.BlockServiceInstance)
-	routes.RegisterTrashRoutes(apiGroup, db, services.TrashServiceInstance)
-	routes.RegisterRoleRoutes(apiGroup, db, services.RoleServiceInstance)
+	routes.RegisterNoteRoutes(protectedGroup, db, services.NoteServiceInstance)
+	routes.RegisterTaskRoutes(protectedGroup, db, services.TaskServiceInstance)
+	routes.RegisterNotebookRoutes(protectedGroup, db, services.NotebookServiceInstance)
+	routes.RegisterBlockRoutes(protectedGroup, db, services.BlockServiceInstance)
+	routes.RegisterTrashRoutes(protectedGroup, db, services.TrashServiceInstance)
+	routes.RegisterRoleRoutes(protectedGroup, db, services.RoleServiceInstance)
 
 	// Register WebSocket routes with consistent auth middleware
 	wsGroup := router.Group("/ws")
