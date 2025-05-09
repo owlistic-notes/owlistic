@@ -39,11 +39,12 @@ jobs:
           
       # Archive Go binary as artifact
       - name: Archive Go Binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: backend-binary
+          name: owlistic
           path: src/backend/owlistic
           retention-days: 7
+          if-no-files-found: error
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
@@ -141,11 +142,12 @@ jobs:
           
       # Archive Flutter web build as artifact
       - name: Archive Web App
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-web-build
-          path: src/frontend/build/web
+          path: src/frontend/web
           retention-days: 7
+          if-no-files-found: error
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
