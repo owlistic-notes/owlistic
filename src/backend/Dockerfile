@@ -1,11 +1,8 @@
 # Use the official Golang image as the base image
 FROM --platform=linux/$TARGETARCH golang:1.23.4-alpine AS builder
 
-ENV TARGETARCH=arm64
-ENV TARGETOS=linux
-
-ARG TARGETARCH=${TARGETARCH}
-ARG TARGETOS=${TARGETOS}
+# Set ARG for platform targeting
+ARG TARGETARCH
 
 # Install librdkafka for Kafka client dependencies with Alpine packages
 RUN apk add --no-cache \
@@ -28,12 +25,12 @@ COPY . .
 # Build the application with proper linking flags for librdkafka
 # Adding -tags musl and removing -m64 flag via CGO_CFLAGS
 RUN CGO_ENABLED=1 GO111MODULE=on CGO_LDFLAGS="-lsasl2" \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=aarch64-linux-gnu-gcc \
+    GOOS=linux GOARCH=${TARGETARCH} \
     go build -v -tags musl -ldflags "-w -s" \
     -o /app/thinkstack ./cmd/main.go
 
 # Use a minimal Alpine image for the final stage
-FROM alpine:3.19
+FROM --platform=linux/$TARGETARCH alpine:3.19
 
 # Install runtime dependencies - adding more libraries that might be needed
 RUN apk add --no-cache \

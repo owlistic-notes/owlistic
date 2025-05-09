@@ -44,6 +44,8 @@ jobs:
           context: src/backend
           platforms: linux/arm64
           file: src/backend/Dockerfile
+          build-args: |
+            TARGETARCH=arm64
           tags: thinkstack:latest-arm64,thinkstack:${{ github.ref_name }}-arm64
           cache-from: type=registry,ref=thinkstack:${{ github.ref_name }}-arm64
 
@@ -58,8 +60,7 @@ jobs:
         with:
           persist-credentials: false
 
-
-      # Set up Flutter environment
+      # Setup Flutter environment
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -109,12 +110,14 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       # Build Docker Image
-      - name: Build Frontend Docker Image (AMD)
+      - name: Build Frontend Docker Image
         uses: docker/build-push-action@v5
         with:
           push: true
           context: src/frontend
           platforms: linux/arm64
           file: src/frontend/Dockerfile
+          build-args: |
+            TARGETARCH=arm64
           tags: thinkstack-ui:latest-arm64,thinkstack-ui:${{ github.ref_name }}-arm64
           cache-from: type=registry,ref=${{ github.ref_name }}-arm64

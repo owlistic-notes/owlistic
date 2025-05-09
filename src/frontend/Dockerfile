@@ -1,21 +1,24 @@
 # First stage: Build the Flutter web app
-FROM debian:latest AS build
+FROM --platform=linux/$TARGETARCH debian:bullseye-slim AS build
+
+# Set ARG for platform targeting
+ARG TARGETARCH
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     unzip \
     xz-utils \
     zip \
     libglu1-mesa \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up Flutter
-# NOTE: You may want to pin a specific version tag instead of master for reproducible builds
 RUN git clone https://github.com/flutter/flutter.git -b stable /flutter
 ENV PATH="/flutter/bin:$PATH"
 
@@ -26,7 +29,6 @@ RUN flutter doctor
 WORKDIR /app
 
 # Copy the Flutter project files
-# Update this if your Flutter project is in a subdirectory
 COPY . .
 
 # Configure Flutter for web
@@ -42,13 +44,10 @@ RUN flutter create --platforms=web .
 RUN flutter build web --release
 
 # Second stage: Serve the app with Nginx
-FROM nginx:alpine
+FROM --platform=linux/$TARGETARCH nginx:alpine
 
 # Copy the build output to replace the default nginx contents
 COPY --from=build /app/build/web /usr/share/nginx/html
-
-# If you have a custom nginx config, uncomment the following line
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80
