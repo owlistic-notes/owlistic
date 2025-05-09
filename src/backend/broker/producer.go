@@ -6,8 +6,9 @@ import (
 	"os"
 	"sync"
 
+	"daviderutigliano/owlistic/config"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/owlistic/config"
 )
 
 // Producer defines the interface for message production

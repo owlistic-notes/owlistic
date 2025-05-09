@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"daviderutigliano/owlistic/models"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
-	"github.com/owlistic/models"
 )
 
 // MockEventRows creates mock SQL rows for events testing

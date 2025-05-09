@@ -4,10 +4,11 @@ import (
 	"errors"
 	"net/http"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/services"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/owlistic/database"
-	"github.com/owlistic/services"
 )
 
 func RegisterNotebookRoutes(group *gin.RouterGroup, db *database.Database, notebookService services.NotebookServiceInterface) {

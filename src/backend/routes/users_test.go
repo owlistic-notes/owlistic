@@ -6,11 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+	"daviderutigliano/owlistic/services"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
-	"github.com/owlistic/services"
 	"github.com/stretchr/testify/assert"
 )
 

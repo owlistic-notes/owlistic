@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"daviderutigliano/owlistic/config"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/owlistic/config"
 )
 
 // KafkaMessage represents a message received from Kafka

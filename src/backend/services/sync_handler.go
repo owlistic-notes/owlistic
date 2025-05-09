@@ -6,10 +6,11 @@ import (
 	"log"
 	"time"
 
+	"daviderutigliano/owlistic/broker"
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+
 	"github.com/google/uuid"
-	"github.com/owlistic/broker"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
 )
 
 // SyncHandlerService handles bidirectional synchronization between blocks and tasks

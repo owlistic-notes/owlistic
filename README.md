@@ -34,7 +34,7 @@ This is a project to build an Evernote-like application using the following stac
 
 ### Project Structure
 ```plaintext
-github.com/owlistic/
+daviderutigliano/owlistic/
 ├── backend/
 ├── frontend/
 ├── kafka/

@@ -3,7 +3,8 @@ package database
 import (
 	"testing"
 
-	"github.com/owlistic/models"
+	"daviderutigliano/owlistic/models"
+
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

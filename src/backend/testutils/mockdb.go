@@ -3,8 +3,9 @@ package testutils
 import (
 	"database/sql"
 
+	"daviderutigliano/owlistic/database"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/owlistic/database"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

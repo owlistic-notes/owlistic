@@ -3,10 +3,11 @@ package routes
 import (
 	"net/http"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/services"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/owlistic/database"
-	"github.com/owlistic/services"
 )
 
 // RegisterTrashRoutes registers all routes related to trash functionality

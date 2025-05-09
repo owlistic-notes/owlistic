@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/owlistic/broker"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
+	"daviderutigliano/owlistic/broker"
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
 )
 
 type EventHandlerServiceInterface interface {

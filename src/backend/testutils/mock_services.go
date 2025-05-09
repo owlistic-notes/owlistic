@@ -1,9 +1,10 @@
 package testutils
 
 import (
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+
 	"github.com/google/uuid"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
 	"github.com/stretchr/testify/mock"
 )
 

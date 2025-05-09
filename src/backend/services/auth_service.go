@@ -3,9 +3,10 @@ package services
 import (
 	"time"
 
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
-	"github.com/owlistic/utils/token"
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+	"daviderutigliano/owlistic/utils/token"
+
 	"golang.org/x/crypto/bcrypt"
 )
 

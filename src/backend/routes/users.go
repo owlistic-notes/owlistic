@@ -4,10 +4,11 @@ import (
 	"errors"
 	"net/http"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/middleware"
+	"daviderutigliano/owlistic/services"
+
 	"github.com/google/uuid"
-	"github.com/owlistic/database"
-	"github.com/owlistic/middleware"
-	"github.com/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 )

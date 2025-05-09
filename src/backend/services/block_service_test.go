@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

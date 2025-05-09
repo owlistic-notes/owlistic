@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"time"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+
 	"github.com/gin-gonic/gin"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
 )
 
 // SetupDebugRoutes sets up routes for debugging

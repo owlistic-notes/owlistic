@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"daviderutigliano/owlistic/broker"
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+	"daviderutigliano/owlistic/utils/token"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/owlistic/broker"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
-	"github.com/owlistic/utils/token"
 )
 
 type WebSocketServiceInterface interface {

@@ -1,4 +1,4 @@
-module github.com/owlistic
+module daviderutigliano/owlistic
 
 go 1.23.4
 

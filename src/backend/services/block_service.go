@@ -8,10 +8,11 @@ import (
 
 	"strconv"
 
+	"daviderutigliano/owlistic/broker"
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+
 	"github.com/google/uuid"
-	"github.com/owlistic/broker"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
 )
 
 type BlockServiceInterface interface {

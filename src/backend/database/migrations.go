@@ -3,7 +3,8 @@ package database
 import (
 	"log"
 
-	"github.com/owlistic/models"
+	"daviderutigliano/owlistic/models"
+
 	"gorm.io/gorm"
 )
 

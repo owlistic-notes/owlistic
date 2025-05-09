@@ -3,9 +3,10 @@ package middleware
 import (
 	"net/http"
 
+	"daviderutigliano/owlistic/services"
+	"daviderutigliano/owlistic/utils/token"
+
 	"github.com/gin-gonic/gin"
-	"github.com/owlistic/services"
-	"github.com/owlistic/utils/token"
 )
 
 // ExtractAndValidateToken uses the token utility instead

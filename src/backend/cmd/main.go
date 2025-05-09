@@ -7,12 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/owlistic/broker"
-	"github.com/owlistic/config"
-	"github.com/owlistic/database"
-	"github.com/owlistic/middleware"
-	"github.com/owlistic/routes"
-	"github.com/owlistic/services"
+	"daviderutigliano/owlistic/broker"
+	"daviderutigliano/owlistic/config"
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/middleware"
+	"daviderutigliano/owlistic/routes"
+	"daviderutigliano/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 )

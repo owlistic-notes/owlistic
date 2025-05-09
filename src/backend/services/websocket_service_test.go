@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"daviderutigliano/owlistic/broker"
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+	"daviderutigliano/owlistic/testutils"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/owlistic/broker"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
-	"github.com/owlistic/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

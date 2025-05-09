@@ -3,9 +3,10 @@ package services
 import (
 	"testing"
 
+	"daviderutigliano/owlistic/testutils"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
-	"github.com/owlistic/testutils"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )

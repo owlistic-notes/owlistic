@@ -4,9 +4,10 @@ import (
 	"errors"
 	"log"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/models"
+
 	"github.com/google/uuid"
-	"github.com/owlistic/database"
-	"github.com/owlistic/models"
 	"gorm.io/gorm"
 )
 

@@ -3,9 +3,10 @@ package routes
 import (
 	"net/http"
 
+	"daviderutigliano/owlistic/database"
+	"daviderutigliano/owlistic/services"
+
 	"github.com/gin-gonic/gin"
-	"github.com/owlistic/database"
-	"github.com/owlistic/services"
 )
 
 type loginRequest struct {
