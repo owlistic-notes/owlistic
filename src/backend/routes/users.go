@@ -21,13 +21,13 @@ func RegisterPublicUserRoutes(group *gin.RouterGroup, db *database.Database, use
 
 func RegisterProtectedUserRoutes(group *gin.RouterGroup, db *database.Database, userService services.UserServiceInterface, authService services.AuthServiceInterface) {
 	// Collection endpoints with query parameters
-	group.GET("/", func(c *gin.Context) { GetUsers(c, db, userService) })
+	group.GET("/users", func(c *gin.Context) { GetUsers(c, db, userService) })
 
 	// Resource-specific endpoints
-	group.GET("/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
-	group.PUT("/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
-	group.DELETE("/:id", func(c *gin.Context) { DeleteUser(c, db, userService) })
-	group.PUT("/:id/password", func(c *gin.Context) { UpdateUserPassword(c, db, userService, authService) })
+	group.GET("/users/:id", func(c *gin.Context) { GetUserById(c, db, userService) })
+	group.PUT("/users/:id", func(c *gin.Context) { UpdateUser(c, db, userService) })
+	group.DELETE("/users/:id", func(c *gin.Context) { DeleteUser(c, db, userService) })
+	group.PUT("/users/:id/password", func(c *gin.Context) { UpdateUserPassword(c, db, userService, authService) })
 }
 
 func CreateUser(c *gin.Context, db *database.Database, userService services.UserServiceInterface) {
