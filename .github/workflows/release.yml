@@ -24,8 +24,6 @@ jobs:
       # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          platforms: linux/arm64
 
       # Set up Go environment
       - name: Set up Go
@@ -46,8 +44,8 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Build Docker Image
-      - name: Build Backend Docker Image
+      # Build Docker Image for arm64
+      - name: Build Backend Docker Image (ARM64)
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -57,7 +55,20 @@ jobs:
           build-args: |
             TARGETARCH=arm64
           tags: thinkstack:latest-arm64,thinkstack:${{ github.ref_name }}-arm64
-          cache-from: type=registry,ref=thinkstack:buildcache
+          cache-from: type=registry,ref=thinkstack:buildcache-arm64
+
+      # Build Docker Image for amd64
+      - name: Build Backend Docker Image (AMD64)
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: src/backend
+          platforms: linux/amd64
+          file: src/backend/Dockerfile
+          build-args: |
+            TARGETARCH=amd64
+          tags: thinkstack:latest-amd64,thinkstack:${{ github.ref_name }}-amd64
+          cache-from: type=registry,ref=thinkstack:buildcache-amd64
 
   frontend:
     name: Frontend Build and Push
@@ -77,8 +88,6 @@ jobs:
       # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          platforms: linux/arm64
 
       # Setup Flutter environment
       - name: Set up Flutter
@@ -129,8 +138,8 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Build Docker Image
-      - name: Build Frontend Docker Image
+      # Build Docker Image for arm64
+      - name: Build Frontend Docker Image (ARM64)
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -140,4 +149,17 @@ jobs:
           build-args: |
             TARGETARCH=arm64
           tags: thinkstack-ui:latest-arm64,thinkstack-ui:${{ github.ref_name }}-arm64
-          cache-from: type=registry,ref=thinkstack-ui:buildcache
+          cache-from: type=registry,ref=thinkstack-ui:buildcache-arm64
+          
+      # Build Docker Image for amd64
+      - name: Build Frontend Docker Image (AMD64)
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: src/frontend
+          platforms: linux/amd64
+          file: src/frontend/Dockerfile
+          build-args: |
+            TARGETARCH=amd64
+          tags: thinkstack-ui:latest-amd64,thinkstack-ui:${{ github.ref_name }}-amd64
+          cache-from: type=registry,ref=thinkstack-ui:buildcache-amd64
