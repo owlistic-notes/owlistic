@@ -5,6 +5,8 @@ services:
     build:
       context: ./src/backend
       dockerfile: Dockerfile
+      args:
+        TARGETARCH: ${TARGETARCH:-arm64}
     ports:
       - "8080:8080"
     depends_on:
@@ -21,12 +23,12 @@ services:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
+      args:
+        TARGETARCH: ${TARGETARCH:-arm64}
     ports:
       - "80:80"
     depends_on:
       - owlistic
-    environment:
-      - BASE_URL=http://owlistic:8080
   postgres:
     image: postgres:15
     environment:
