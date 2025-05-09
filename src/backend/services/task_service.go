@@ -122,7 +122,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 			Metadata: models.BlockContent{
 				"is_completed": task.IsCompleted,
 				"task_id":      taskID.String(),
-				"_sync_source": "task_creation",
+				"_sync_source": "task",
 			},
 		}
 
@@ -147,7 +147,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 				"block_type":   string(models.TaskBlock),
 				"content":      block.Content,
 				"metadata":     block.Metadata,
-				"_sync_source": "task_creation",
+				"_sync_source": "task",
 			},
 		)
 		if err != nil {
@@ -384,6 +384,31 @@ func (s *TaskService) GetTasks(db *database.Database, params map[string]interfac
 
 	if completed, ok := params["completed"].(string); ok && completed != "" {
 		query = query.Where("is_completed = ?", completed == "true")
+	}
+
+	if blockID, ok := params["block_id"].(string); ok && blockID != "" {
+		query = query.Where("block_id = ?", blockID)
+	}
+
+	if noteID, ok := params["note_id"].(string); ok && noteID != "" {
+		// Filter tasks by note ID (from metadata)
+		query = query.Where("CAST(metadata->>'note_id' AS TEXT) = ?", noteID)
+	}
+
+	// Standardize on include_deleted parameter
+	includeDeleted := false
+	if includeDeletedParam, ok := params["include_deleted"].(string); ok {
+		includeDeleted = includeDeletedParam == "true"
+	} else if includeDeletedBool, ok := params["include_deleted"].(bool); ok {
+		includeDeleted = includeDeletedBool
+	}
+
+	// If include_deleted=true, show only deleted items
+	if includeDeleted {
+		query = query.Unscoped().Where("deleted_at IS NOT NULL")
+	} else {
+		// Otherwise show only non-deleted items
+		query = query.Where("deleted_at IS NULL")
 	}
 
 	result := query.Find(&tasks)

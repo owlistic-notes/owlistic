@@ -182,6 +182,15 @@ func GetTasks(c *gin.Context, db *database.Database, taskService services.TaskSe
 		params["due_date"] = dueDate
 	}
 
+	if noteId := c.Query("note_id"); noteId != "" {
+		params["note_id"] = noteId
+	}
+
+	// Standardize on include_deleted parameter
+	if includeDeleted := c.Query("include_deleted"); includeDeleted != "" {
+		params["include_deleted"] = includeDeleted
+	}
+
 	tasks, err := taskService.GetTasks(db, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

@@ -418,7 +418,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
           blockType = 'code';
         }
       } else if (node is TaskNode) {
-        blockType = 'task'; // Use 'task' instead of 'checklist'
+        blockType = 'task';
       } else if (node is ListItemNode) {
         blockType = 'text'; // ListItems should map to text blocks
       }
@@ -471,25 +471,21 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   Map<String, dynamic> _extractNodeContentForApi(DocumentNode node) {
     // Initialize with a base structure that includes required fields
     Map<String, dynamic> content = {'text': ''};
-    Map<String, dynamic> metadata = {};
+    Map<String, dynamic> metadata = {'_sync_source': 'block'};
     
     if (node is ParagraphNode) {
       // Basic text content
       content['text'] = node.text.toPlainText();
       
-      // Extract spans/formatting information
+      // Extract spans/formatting information - make sure spans are always included
       final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
-      if (spans.isNotEmpty) {
-        content['spans'] = spans;
-      }
+      content['spans'] = spans; // Always include spans array, even if empty
       
       // Add styling information to metadata
-      if (spans.isNotEmpty) {
-        metadata['styling'] = {
-          'spans': spans,
-          'version': 1,
-        };
-      }
+      metadata['styling'] = {
+        'spans': spans,
+        'version': 1,
+      };
       
       // Add metadata based on node.metadata
       if (node.metadata.isNotEmpty) {
@@ -499,21 +495,36 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         // Convert blockType to string if it's a NamedAttribution
         if (blockType is NamedAttribution) {
           blockTypeStr = blockType.id;
+          if (blockTypeStr.startsWith('heading')) {
+            // Extract heading level from blockType like "heading1"
+            final levelStr = blockTypeStr.substring(7);
+            final level = int.tryParse(levelStr) ?? 1;
+            metadata['blockType'] = 'heading';
+            metadata['headingLevel'] = level;
+            content['level'] = level;
+          } else {
+            metadata['blockType'] = blockTypeStr;
+          }
         } else if (blockType is String) {
           blockTypeStr = blockType;
-        }
-        
-        if (blockTypeStr.isNotEmpty) {
           metadata['blockType'] = blockTypeStr;
           
-          // Add type-specific properties
-          if (blockTypeStr == 'heading') {
-            content['level'] = node.metadata['headingLevel'] ?? 1;
-            metadata['headingLevel'] = node.metadata['headingLevel'] ?? 1;
-          } else if (blockTypeStr == 'code') {
-            content['language'] = node.metadata['language'] ?? 'plain';
-            metadata['language'] = node.metadata['language'] ?? 'plain';
+          // Check if it's a heading with pattern "heading1", "heading2", etc.
+          if (blockTypeStr.startsWith('heading') && blockTypeStr.length > 7) {
+            final levelStr = blockTypeStr.substring(7);
+            final level = int.tryParse(levelStr) ?? 1;
+            metadata['blockType'] = 'heading';
+            metadata['headingLevel'] = level;
+            content['level'] = level;
           }
+        }
+        
+        // Add type-specific properties
+        if (blockTypeStr.startsWith('heading') || metadata['blockType'] == 'heading') {
+          content['level'] = metadata['headingLevel'] ?? node.metadata['headingLevel'] ?? 1;
+        } else if (blockTypeStr == 'code') {
+          content['language'] = node.metadata['language'] ?? 'plain';
+          metadata['language'] = node.metadata['language'] ?? 'plain';
         }
       }
     } else if (node is TaskNode) {
@@ -521,40 +532,34 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       content['text'] = node.text.toPlainText();
       content['is_completed'] = node.isComplete;
       
-      // Extract spans for tasks
+      // Extract spans for tasks - always include spans
       final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
-      if (spans.isNotEmpty) {
-        content['spans'] = spans;
-        metadata['styling'] = {
-          'spans': spans,
-          'version': 1,
-        };
-      }
+      content['spans'] = spans;
       
       metadata['blockType'] = 'task';
       metadata['is_completed'] = node.isComplete;
+      metadata['styling'] = {
+        'spans': spans,
+        'version': 1,
+      };
     } else if (node is ListItemNode) {
       content['text'] = node.text.toPlainText();
       content['checked'] = node.type == ListItemType.ordered;
       
-      // Extract spans for list items as well
+      // Extract spans for list items - always include spans
       final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
-      if (spans.isNotEmpty) {
-        content['spans'] = spans;
-        metadata['styling'] = {
-          'spans': spans,
-          'version': 1,
-        };
-      }
+      content['spans'] = spans;
       
       metadata['blockType'] = 'listItem';
       metadata['listType'] = node.type == ListItemType.ordered ? 'ordered' : 'unordered';
+      metadata['styling'] = {
+        'spans': spans,
+        'version': 1,
+      };
     }
     
-    // Store metadata in the content object if it's not empty
-    if (metadata.isNotEmpty) {
-      content['metadata'] = metadata;
-    }
+    // Store metadata in the content object
+    content['metadata'] = metadata;
     
     return {
       'content': content,
@@ -563,12 +568,78 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   // DocumentChangeListener implementation for content changes
-  void _documentChangeListener(_) {
-    if (!_updatingDocument) {
-      _handleDocumentChange();
+  void _documentChangeListener(dynamic _) {
+    if (_updatingDocument) return;
+    
+    // Check if this change is a DocumentChangeLog which might contain TaskNode changes
+    if (_ is DocumentChangeLog) {
+      DocumentChangeLog changeLog = _;
+      
+      // Check if this change includes a TaskNode's isComplete property change
+      bool hasTaskStateChange = false;
+      String? taskNodeId;
+      bool? newCompletionState;
+      
+      for (final change in changeLog.changes) {
+        if (change is NodeChangeEvent) {
+          final node = _documentBuilder.document.getNodeById(change.nodeId);
+          if (node is TaskNode) {
+            taskNodeId = change.nodeId;
+            newCompletionState = node.isComplete;
+            hasTaskStateChange = true;
+            break;
+          }
+        }
+      }
+      
+      // If a task state changed, handle it immediately
+      if (hasTaskStateChange && taskNodeId != null) {
+        _handleTaskNodeStateChange(taskNodeId, newCompletionState!);
+        return;
+      }
+    }
+    
+    // Regular change handling for typing/editing
+    _handleDocumentChange();
+  }
+
+  // Handle task completion state change
+  void _handleTaskNodeStateChange(String nodeId, bool isComplete) {
+    // Find the block ID for this node
+    final blockId = _documentBuilder.nodeToBlockMap[nodeId];
+    if (blockId == null) return;
+    
+    // Get the block to check against
+    final block = getBlock(blockId);
+    if (block == null || block.type != 'task') return;
+    
+    // Compare with current state to see if it actually changed
+    final bool wasComplete = block.content is Map && 
+                            block.content['is_completed'] == true;
+    
+    if (wasComplete != isComplete) {
+      _logger.info('Task completion changed: nodeId=$nodeId, blockId=$blockId, isComplete=$isComplete');
+      
+      // Create updated content with new completion status
+      final updatedContent = Map<String, dynamic>.from(block.content is Map ? 
+                            block.content : {'text': block.getTextContent()});
+      updatedContent['is_completed'] = isComplete;
+      
+      // Ensure we have metadata with _sync_source
+      if (!updatedContent.containsKey('metadata')) {
+        updatedContent['metadata'] = {};
+      }
+      if (updatedContent['metadata'] is Map) {
+        (updatedContent['metadata'] as Map)['_sync_source'] = 'block';
+      } else {
+        updatedContent['metadata'] = {'_sync_source': 'block'};
+      }
+      
+      // Send immediate update to server
+      updateBlockContent(blockId, updatedContent, immediate: true);
     }
   }
-  
+
   // Track which block is being edited and schedule updates
   void _handleDocumentChange() {
     // Get the node that's currently being edited
@@ -589,7 +660,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Mark the block as modified by the user
     _documentBuilder.markBlockAsModified(blockId);
     
-    // Debounce updates to avoid too many API calls
+    // Debounce updates for regular content changes
     Future.delayed(const Duration(milliseconds: 500), () {
       // Only update if this is still the most recent edit
       if (DateTime.now().difference(_lastEdit).inMilliseconds >= 500 && 
@@ -598,7 +669,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
     });
   }
-  
+
   // Commit changes for a specific node
   void _commitBlockContentChange(String nodeId) {
     // Find block ID for this node
@@ -658,12 +729,38 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Quick exit if we don't have necessary information
       if (blockId == null) return;
       
+      _logger.info('Received block update event for blockId=$blockId, noteId=$eventNoteId');
+      
       // Check if we should care about this block
       bool shouldUpdate = _blocks.containsKey(blockId) || 
                          (_noteId == eventNoteId) ||
                          (_activeNoteIds.contains(eventNoteId ?? ''));
       
       if (shouldUpdate) {
+        try {
+            // Try to construct block from event payload
+            final existingBlock = _blocks[blockId];
+            if (existingBlock != null) {
+              final updatedBlock = Block(
+                id: blockId,
+                noteId: existingBlock.noteId,
+                content: parsedMessage.payload['content'],
+                type: parsedMessage.payload['block_type'] as String? ?? existingBlock.type,
+                order: existingBlock.order,
+                metadata: parsedMessage.payload['metadata'] as Map<String, dynamic>?,
+                updatedAt: DateTime.now(),
+                createdAt: existingBlock.createdAt
+              );
+              
+              _blocks[blockId] = updatedBlock;
+              _updateDocumentWithBlock(updatedBlock);
+              _enqueueNotification();
+              return;
+            }
+          } catch (e) {
+            _logger.error('Error creating block from payload: $e');
+            // Fall back to fetching the block
+        }
         fetchBlockById(blockId).then((block) {
           if (block != null) {
             _updateDocumentWithBlock(block);
@@ -672,7 +769,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         });
       }
     } catch (e) {
-      _logger.error('Error handling block update', e);
+      _logger.error('Error handling block update: $e');
     }
   }
   

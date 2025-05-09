@@ -17,6 +17,10 @@ class TaskService extends BaseService {
       if (completed != null) params['completed'] = completed;
       if (noteId != null) params['note_id'] = noteId;
       
+      if (!(queryParams != null && queryParams.containsKey('include_deleted'))) {
+        params['include_deleted'] = 'false';
+      }
+      
       if (queryParams != null) {
         params.addAll(queryParams);
       }
@@ -41,10 +45,14 @@ class TaskService extends BaseService {
 
   Future<Task> createTask(String title, String noteId, {String? blockId}) async {
     try {
+      // Create metadata with _sync_source instead of adding directly
+      final metadata = {'_sync_source': 'task'};
+      
       final taskData = {
         'title': title,
         'is_completed': false,
         'note_id': noteId,
+        'metadata': metadata,
       };
       
       if (blockId != null && blockId.isNotEmpty) {
@@ -81,7 +89,12 @@ class TaskService extends BaseService {
 
   Future<Task> updateTask(String id, {String? title, bool? isCompleted}) async {
     try {
-      final Map<String, dynamic> updates = {};
+      // Create metadata with _sync_source
+      final Map<String, dynamic> metadata = {'_sync_source': 'task'};
+      
+      final Map<String, dynamic> updates = {
+        'metadata': metadata,
+      };
       
       if (title != null) updates['title'] = title;
       if (isCompleted != null) updates['is_completed'] = isCompleted;

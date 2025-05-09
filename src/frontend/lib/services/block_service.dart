@@ -20,14 +20,14 @@ class BlockService extends BaseService {
       
       final response = await authenticatedGet(
         '/api/v1/blocks',
-        queryParameters: params
+        queryParameters: params,
       );
       
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.map((json) => Block.fromJson(json)).toList();
       } else {
-        _logger.error('Failed to load blocks: Status ${response.statusCode}');
+        _logger.error('Failed to load blocks: ${response.statusCode}, ${response.body}');
         throw Exception('Failed to load blocks: ${response.statusCode}');
       }
     } catch (e) {
@@ -45,13 +45,20 @@ class BlockService extends BaseService {
       } else if (content is Map) {
         contentMap = Map<String, dynamic>.from(content);
       } else {
-        throw ArgumentError('Content must be a String or Map');
+        contentMap = {'text': content.toString()};
+      }
+      
+      // Make sure metadata exists and contains _sync_source
+      if (!contentMap.containsKey('metadata')) {
+        contentMap['metadata'] = {'_sync_source': 'block'};
+      } else if (contentMap['metadata'] is Map) {
+        (contentMap['metadata'] as Map)['_sync_source'] = 'block';
       }
       
       final requestBody = {
         'note_id': noteId,
+        'block_type': blockType,
         'content': contentMap,
-        'block_type': blockType, // Use block_type field name expected by backend
         'order': order,
       };
       
@@ -85,38 +92,22 @@ class BlockService extends BaseService {
 
   Future<Block> updateBlock(String blockId, Map<String, dynamic> content) async {
     try {
-      // Ensure proper payload structure with content in the right place
-      Map<String, dynamic> payload = {};
+      // Create a copy of the content to avoid modifying the original
+      final payload = Map<String, dynamic>.from(content);
       
-      // If content doesn't have a 'content' field at root level, wrap it in content field
-      if (!content.containsKey('content')) {
-        // Extract metadata if it exists at root level
-        Map<String, dynamic>? metadata;
-        if (content.containsKey('metadata')) {
-          metadata = content.remove('metadata');
-        }
-        
-        // Create properly structured payload
-        payload = {
-          'content': content,
-          'block_type': content.remove('block_type') ?? content.remove('type'),
-        };
-        
-        // Add back metadata if it was present
-        if (metadata != null) {
-          payload['metadata'] = metadata;
+      // Make sure _sync_source is inside metadata, not at the top level
+      if (payload.containsKey('metadata')) {
+        if (payload['metadata'] is Map) {
+          (payload['metadata'] as Map)['_sync_source'] = 'block';
+        } else {
+          payload['metadata'] = {'_sync_source': 'block'};
         }
       } else {
-        // Content already has the right structure
-        payload = content;
+        payload['metadata'] = {'_sync_source': 'block'};
       }
       
-      // Ensure block_type is present and not type
-      if (payload.containsKey('type') && !payload.containsKey('block_type')) {
-        payload['block_type'] = payload.remove('type');
-      }
+      _logger.debug('Sending update for block $blockId: $payload');
       
-      _logger.debug('Sending block update payload: $payload');
       final response = await authenticatedPut('/api/v1/blocks/$blockId', payload);
       
       if (response.statusCode == 200) {

@@ -229,6 +229,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           ? Center(child: Text('Error: $_errorMessage', style: const TextStyle(color: Colors.red)))
           : Consumer<NoteEditorViewModel>(
               builder: (context, noteEditorViewModel, _) {
+                // Always update _note from viewModel to ensure we have latest data
+                if (noteEditorViewModel.currentNote != null && 
+                    noteEditorViewModel.currentNote!.id == _noteId) {
+                  _note = noteEditorViewModel.currentNote;
+                  
+                  // Update title if changed from server
+                  if (_note != null && 
+                      _titleController.text != _note!.title && 
+                      !_titleFocusNode.hasFocus) {
+                    _titleController.text = _note!.title;
+                  }
+                }
+                
                 // React to loading state
                 final isContentLoading = noteEditorViewModel.isLoading;
                 
@@ -245,10 +258,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   _scrollToBlock(focusBlockId);
                 }
 
-                // Check if current note was updated from ViewModel
-                if (noteEditorViewModel.currentNote != null && 
-                    noteEditorViewModel.currentNote!.id == _noteId) {
-                  _note = noteEditorViewModel.currentNote;
+                // Listen for update count changes to refresh UI
+                final updateCount = noteEditorViewModel.updateCount;
+                if (updateCount > 0) {
+                  // This will trigger a UI refresh when updateCount changes
+                  _logger.debug('Note editor update count: $updateCount');
                 }
 
                 return Column(

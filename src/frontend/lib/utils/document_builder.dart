@@ -853,7 +853,6 @@ class DocumentBuilder {
           ),
         ];
         
-      case 'checklist': // Handle legacy 'checklist' type for backward compatibility
       case 'task':
         final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
         
