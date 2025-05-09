@@ -104,6 +104,32 @@ func (m *MockUserService) GetUserRole(db *database.Database, userID uuid.UUID) (
 	return "", services.ErrUserNotFound
 }
 
+func (m *MockUserService) GetUserProfile(db *database.Database, id string) (models.UserProfile, error) {
+	if id == "123e4567-e89b-12d3-a456-426614174000" {
+		return models.UserProfile{
+			Username:    "testuser",
+			DisplayName: "Test User",
+			ProfilePic:  "https://example.com/pic.jpg",
+			Preferences: map[string]interface{}{"theme": "dark"},
+		}, nil
+	}
+	return models.UserProfile{}, services.ErrUserNotFound
+}
+
+func (m *MockUserService) UpdateUserProfile(db *database.Database, id string, profile models.UserProfile) (models.User, error) {
+	if id == "123e4567-e89b-12d3-a456-426614174000" {
+		return models.User{
+			ID:          uuid.Must(uuid.Parse(id)),
+			Email:       "test@example.com",
+			Username:    profile.Username,
+			DisplayName: profile.DisplayName,
+			ProfilePic:  profile.ProfilePic,
+			Preferences: profile.Preferences,
+		}, nil
+	}
+	return models.User{}, services.ErrUserNotFound
+}
+
 // Mock authentication service for testing
 type MockAuthService struct{}
 
@@ -156,7 +182,7 @@ func setupTestRouter() (*gin.Engine, *database.Database, *MockUserService, *Mock
 	})
 
 	// Register routes with the apiGroup
-	RegisterUserRoutes(apiGroup, db, mockUserService, mockAuthService)
+	RegisterPublicUserRoutes(apiGroup, db, mockUserService, mockAuthService)
 
 	return router, db, mockUserService, mockAuthService
 }
@@ -170,7 +196,7 @@ func TestRegisterUser(t *testing.T) {
 	apiGroup := router.Group("/api/v1")
 
 	// Register user routes
-	RegisterUserRoutes(apiGroup, db, mockUserService, nil)
+	RegisterPublicUserRoutes(apiGroup, db, mockUserService, nil)
 
 	t.Run("Register User with Valid Input", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -239,13 +265,13 @@ func TestLoginRoute(t *testing.T) {
 	mockAuthService := &MockAuthService{}
 
 	// Create auth group
-	authGroup := router.Group("/api/v1/auth")
+	authGroup := router.Group("/api/v1")
 	authGroup.POST("/login", func(c *gin.Context) { Login(c, db, mockAuthService) })
 
 	t.Run("Login with Valid Credentials", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		reqBody := `{"email":"test@example.com","password":"password123"}`
-		req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBufferString(reqBody))
+		req, _ := http.NewRequest("POST", "/api/v1/login", bytes.NewBufferString(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -255,7 +281,7 @@ func TestLoginRoute(t *testing.T) {
 
 	t.Run("Login with Invalid JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBufferString(`invalid json`))
+		req, _ := http.NewRequest("POST", "/api/v1/login", bytes.NewBufferString(`invalid json`))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -265,7 +291,7 @@ func TestLoginRoute(t *testing.T) {
 	t.Run("Login with Missing Required Fields", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		reqBody := `{"email":"test@example.com"}` // Missing password
-		req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBufferString(reqBody))
+		req, _ := http.NewRequest("POST", "/api/v1/login", bytes.NewBufferString(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -282,7 +308,7 @@ func TestCreateUser(t *testing.T) {
 	apiGroup := router.Group("/api/v1")
 
 	// Register user routes
-	RegisterUserRoutes(apiGroup, db, mockUserService, nil)
+	RegisterPublicUserRoutes(apiGroup, db, mockUserService, nil)
 
 	t.Run("Valid Registration", func(t *testing.T) {
 		w := httptest.NewRecorder()
