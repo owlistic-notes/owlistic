@@ -36,6 +36,14 @@ jobs:
         run: |
           cd src/backend
           go build -o owlistic ./cmd/main.go
+          
+      # Archive Go binary as artifact
+      - name: Archive Go Binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-binary
+          path: src/backend/owlistic
+          retention-days: 7
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
@@ -130,6 +138,14 @@ jobs:
 
           # Build macOS app
           # flutter build linux --release
+          
+      # Archive Flutter web build as artifact
+      - name: Archive Web App
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-web-build
+          path: src/frontend/build/web
+          retention-days: 7
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
