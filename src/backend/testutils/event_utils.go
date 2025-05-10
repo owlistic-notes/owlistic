@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"daviderutigliano/owlistic/models"
+	"owlistic-notes/owlistic/models"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"

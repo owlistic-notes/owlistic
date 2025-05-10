@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"daviderutigliano/owlistic/config"
+	"owlistic-notes/owlistic/config"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

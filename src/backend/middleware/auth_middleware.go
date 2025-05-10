@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"daviderutigliano/owlistic/services"
-	"daviderutigliano/owlistic/utils/token"
+	"owlistic-notes/owlistic/services"
+	"owlistic-notes/owlistic/utils/token"
 
 	"github.com/gin-gonic/gin"
 )

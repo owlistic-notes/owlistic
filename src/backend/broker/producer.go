@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"daviderutigliano/owlistic/config"
+	"owlistic-notes/owlistic/config"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )

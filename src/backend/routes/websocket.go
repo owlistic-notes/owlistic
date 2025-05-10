@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"daviderutigliano/owlistic/services"
+	"owlistic-notes/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 )

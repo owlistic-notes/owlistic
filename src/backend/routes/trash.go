@@ -3,8 +3,8 @@ package routes
 import (
 	"net/http"
 
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/services"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

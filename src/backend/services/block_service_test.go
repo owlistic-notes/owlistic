@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/models"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"

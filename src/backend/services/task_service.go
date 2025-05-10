@@ -4,9 +4,9 @@ import (
 	"errors"
 	"time"
 
-	"daviderutigliano/owlistic/broker"
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/models"
+	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/models"
 
 	"github.com/google/uuid"
 

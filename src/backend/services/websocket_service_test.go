@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"daviderutigliano/owlistic/broker"
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/models"
-	"daviderutigliano/owlistic/testutils"
+	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/models"
+	"owlistic-notes/owlistic/testutils"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

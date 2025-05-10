@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"daviderutigliano/owlistic/broker"
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/models"
-	"daviderutigliano/owlistic/utils/token"
+	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/models"
+	"owlistic-notes/owlistic/utils/token"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

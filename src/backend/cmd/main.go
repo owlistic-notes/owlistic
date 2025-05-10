@@ -7,12 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"daviderutigliano/owlistic/broker"
-	"daviderutigliano/owlistic/config"
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/middleware"
-	"daviderutigliano/owlistic/routes"
-	"daviderutigliano/owlistic/services"
+	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/config"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/middleware"
+	"owlistic-notes/owlistic/routes"
+	"owlistic-notes/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -104,7 +104,7 @@ func main() {
 
 	// Create public API groups
 	publicGroup := router.Group("/api/v1")
-	
+
 	// Register public routes (no auth required)
 	routes.RegisterAuthRoutes(publicGroup, db, authService)
 	routes.RegisterPublicUserRoutes(publicGroup, db, userService, authService)

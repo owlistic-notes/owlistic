@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/models"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/models"
 
 	"github.com/gin-gonic/gin"
 )

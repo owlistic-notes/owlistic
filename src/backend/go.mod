@@ -1,4 +1,4 @@
-module daviderutigliano/owlistic
+module owlistic-notes/owlistic
 
 go 1.23.4
 

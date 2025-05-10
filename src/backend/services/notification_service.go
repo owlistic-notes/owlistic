@@ -1,8 +1,8 @@
 package services
 
 import (
-	"daviderutigliano/owlistic/broker"
-	"daviderutigliano/owlistic/models"
+	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/models"
 )
 
 type NotificationServiceInterface interface {

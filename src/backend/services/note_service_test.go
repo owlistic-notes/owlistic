@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"daviderutigliano/owlistic/testutils"
+	"owlistic-notes/owlistic/testutils"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"

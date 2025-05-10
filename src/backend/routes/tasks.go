@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/models"
-	"daviderutigliano/owlistic/services"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/models"
+	"owlistic-notes/owlistic/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

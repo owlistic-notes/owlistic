@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"daviderutigliano/owlistic/database"
-	"daviderutigliano/owlistic/models"
-	"daviderutigliano/owlistic/testutils"
+	"owlistic-notes/owlistic/database"
+	"owlistic-notes/owlistic/models"
+	"owlistic-notes/owlistic/testutils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
