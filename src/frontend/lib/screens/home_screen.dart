@@ -122,7 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<User?>(
       future: context.read<HomeViewModel>().currentUser,
       builder: (context, snapshot) {
-        final userName = snapshot.data?.email.split('@')[0] ?? 'User';
+        final userName = snapshot.data?.displayName.isNotEmpty == true 
+          ? snapshot.data!.displayName 
+          : snapshot.data?.username;
         
         return Container(
           margin: const EdgeInsets.all(16),

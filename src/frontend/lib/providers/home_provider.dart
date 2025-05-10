@@ -108,7 +108,17 @@ class HomeProvider with ChangeNotifier implements HomeViewModel {
   
   // Authentication methods
   @override
-  Future<User?> get currentUser async => await _authService.getUserProfile();
+  Future<User?> get currentUser async {
+    try {
+      final token = await _authService.getStoredToken();
+      if (token != null) {
+        return await _authService.getCurrentUser();
+      }
+    } catch (e) {
+      _logger.error('Error getting current user', e);
+    }
+    return null;
+  }
   
   @override
   bool get isLoggedIn => _authService.isLoggedIn;

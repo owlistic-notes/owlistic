@@ -339,8 +339,10 @@ class AuthService extends BaseService {
       final payload = jsonDecode(payloadJson);
       
       return User(
-        id: payload['UserID'] ?? payload['user_id'] ?? payload['sub'] ?? '',
+        id: payload['user_id'],
         email: payload['email'] ?? '',
+        username: payload['username'],
+        displayName: payload['display_name'] ?? payload['username'],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );

@@ -37,6 +37,13 @@ func CreateUser(c *gin.Context, db *database.Database, userService services.User
 		return
 	}
 
+	if req.Username == "" {
+        emailParts := strings.Split(req.Email, "@")
+        if len(emailParts) > 0 {
+            req.Username = emailParts[0]
+        }
+    }
+
 	// Create user data map from request
 	userData := map[string]interface{}{
 		"email":        req.Email,
@@ -166,6 +173,12 @@ func UpdateUser(c *gin.Context, db *database.Database, userService services.User
 	updateData := make(map[string]interface{})
 	if req.Email != "" {
 		updateData["email"] = req.Email
+		if req.Username == "" {
+            emailParts := strings.Split(req.Email, "@")
+            if len(emailParts) > 0 {
+                updateData["username"] = emailParts[0]
+            }
+        }
 	}
 	if req.Password != "" {
 		updateData["password"] = req.Password
