@@ -359,7 +359,7 @@ class AuthService extends BaseService {
     
     try {
       final userId = await getCurrentUserId();
-      final response = await authenticatedGet('/api/v1/user/$userId');
+      final response = await authenticatedGet('/api/v1/users/$userId');
       
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);

@@ -92,7 +92,10 @@ class AppRouter {
           path: '/trash',
           builder: (context, state) => const TrashScreen(),
         ),
-        
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const UserProfileScreen(),
+        ),
       ],
     );
   }

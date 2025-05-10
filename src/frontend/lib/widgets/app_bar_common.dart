@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class AppBarCommon extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
@@ -11,6 +12,7 @@ class AppBarCommon extends StatelessWidget implements PreferredSizeWidget {
   final bool centerTitle;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final bool showProfileButton;
   
   const AppBarCommon({
     Key? key,
@@ -24,6 +26,7 @@ class AppBarCommon extends StatelessWidget implements PreferredSizeWidget {
     this.centerTitle = true,
     this.backgroundColor,
     this.foregroundColor,
+    this.showProfileButton = true,
   }) : super(key: key);
 
   @override
@@ -46,6 +49,23 @@ class AppBarCommon extends StatelessWidget implements PreferredSizeWidget {
       }
     }
     
+    // Create a copy of the actions list to modify if needed
+    List<Widget>? actionWidgets = actions != null ? List<Widget>.from(actions!) : [];
+    
+    // Add profile button to actions if showProfileButton is true
+    if (showProfileButton) {
+      actionWidgets.add(
+        IconButton(
+          icon: const Icon(Icons.account_circle),
+          tooltip: 'Profile',
+          onPressed: () {
+            // Navigate to profile page
+            context.go('/profile');
+          },
+        ),
+      );
+    }
+    
     return AppBar(
       title: title != null ? Text(title!) : null,
       centerTitle: centerTitle,
@@ -53,7 +73,7 @@ class AppBarCommon extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
       leading: leadingWidget,
-      actions: actions,
+      actions: actionWidgets,
     );
   }
 

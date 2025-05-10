@@ -9,6 +9,7 @@ import '../services/theme_service.dart';
 import '../services/websocket_service.dart';
 import '../services/app_state_service.dart';
 import '../services/block_service.dart';
+import '../services/user_service.dart';
 import '../utils/document_builder.dart';
 
 // Import ViewModels
@@ -21,6 +22,7 @@ import '../viewmodel/trash_viewmodel.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../viewmodel/register_viewmodel.dart';
 import '../viewmodel/home_viewmodel.dart';
+import '../viewmodel/user_profile_viewmodel.dart';
 
 // ViewModels implementations
 import '../providers/notebooks_provider.dart';
@@ -32,6 +34,7 @@ import '../providers/trash_provider.dart';
 import '../providers/login_provider.dart';
 import '../providers/register_provider.dart';
 import '../providers/home_provider.dart';
+import '../providers/user_profile_provider.dart';
 
 /// ServiceLocator for dependency injection
 class ServiceLocator {
@@ -62,6 +65,7 @@ void setupServices() {
   final blockService = BlockService();
   final appStateService = AppStateService();
   final trashService = TrashService();
+  final userService = UserService();
 
   // Initialize authService explicitly
   authService.initialize();
@@ -77,6 +81,7 @@ void setupServices() {
   ServiceLocator.register<BlockService>(blockService);
   ServiceLocator.register<AppStateService>(appStateService);
   ServiceLocator.register<TrashService>(trashService);
+  ServiceLocator.register<UserService>(userService);
 }
 
 /// List of all app providers with proper dependency injection
@@ -91,6 +96,7 @@ final List<SingleChildWidget> appProviders = [
   Provider<TaskService>(create: (_) => ServiceLocator.get<TaskService>()),
   Provider<BlockService>(create: (_) => ServiceLocator.get<BlockService>()),
   Provider<TrashService>(create: (_) => ServiceLocator.get<TrashService>()),
+  Provider<UserService>(create: (_) => ServiceLocator.get<UserService>()),
   
   // ViewModels
   ChangeNotifierProvider<ThemeViewModel>(
@@ -159,6 +165,12 @@ final List<SingleChildWidget> appProviders = [
       webSocketService: context.read<WebSocketService>(),
       noteService: context.read<NoteService>(),
       documentBuilderFactory: () => DocumentBuilder(),
+    ),
+  ),
+  ChangeNotifierProvider<UserProfileViewModel>(
+    create: (context) => UserProfileProvider(
+      userService: context.read<UserService>(),
+      authService: context.read<AuthService>(),
     ),
   ),
 ];
