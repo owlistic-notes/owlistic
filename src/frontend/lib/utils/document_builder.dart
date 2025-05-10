@@ -37,7 +37,6 @@ class DocumentBuilder {
 
   // Flag to prevent recursive document updates
   bool _updatingDocument = false;
-
   // Last known selection data for robust position restoration
   String? _lastKnownNodeId;
   int? _lastKnownOffset;
@@ -72,7 +71,6 @@ class DocumentBuilder {
 
     // Create composer
     composer = MutableDocumentComposer();
-
     // Create editor with our document and composer
     editor =
         createDefaultDocumentEditor(document: document, composer: composer);
@@ -84,7 +82,6 @@ class DocumentBuilder {
     _lastKnownNodeIds = document.map((node) => node.id).toList();
     _lastKnownNodeCount = document.length;
   }
-
   void dispose() {
     focusNode.dispose();
     composer.dispose();
