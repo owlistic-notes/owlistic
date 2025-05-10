@@ -70,7 +70,7 @@ class RegisterProvider with ChangeNotifier implements RegisterViewModel {
     try {
       final token = await _authService.getStoredToken();
       if (token != null) {
-        return await _authService.getUserProfile();
+        return await _authService.getCurrentUser();
       }
     } catch (e) {
       _logger.error('Error getting current user', e);

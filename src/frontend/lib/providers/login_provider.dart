@@ -207,11 +207,14 @@ class LoginProvider with ChangeNotifier implements LoginViewModel {
   @override
   Future<User?> get currentUser async {
     try {
-      return await _authService.getUserProfile();
+      final token = await _authService.getStoredToken();
+      if (token != null) {
+        return await _authService.getCurrentUser();
+      }
     } catch (e) {
       _logger.error('Error getting current user', e);
-      return null;
     }
+    return null;
   }
   
   @override
