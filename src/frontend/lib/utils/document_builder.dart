@@ -5,6 +5,7 @@ import 'package:owlistic/models/block.dart';
 import 'package:owlistic/utils/logger.dart';
 import 'package:owlistic/utils/attributed_text_utils.dart';
 import 'package:owlistic/utils/block_node_mapping.dart';
+import 'package:super_editor_markdown/super_editor_markdown.dart';
 
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
@@ -63,14 +64,11 @@ class DocumentBuilder {
   }
   
   void _initialize() {
-    // Create an empty document first
+    // Create document
     document = MutableDocument();
     
     // Create composer
     composer = MutableDocumentComposer();
-    
-    // Create document scroller
-    documentScroller = DocumentScroller();
     
     // Create editor with our document and composer
     editor = createDefaultDocumentEditor(document: document, composer: composer);
@@ -83,12 +81,10 @@ class DocumentBuilder {
     _lastKnownNodeCount = document.length;
   }
   
-  
   void dispose() {
-    // Dispose of resources
     focusNode.dispose();
     composer.dispose();
-    documentScroller.detach();
+    editor.dispose();
   }
   
   // Add document structure change listener to detect new/deleted nodes
@@ -664,7 +660,7 @@ class DocumentBuilder {
       if (blockTypeStr.startsWith('heading')) {
         // Extract heading level from blockType like "heading1"
         final levelStr = blockTypeStr.substring(7);
-        final level = DataConverter.parseIntSafely(levelStr) ?? 1;
+        final level = DataConverter.parseIntSafely(levelStr);
         metadata['level'] = level;
       } 
       else if (blockTypeStr == 'code') {
@@ -1183,21 +1179,27 @@ class DocumentBuilder {
     _blockNodeMapping.removeUncommittedNode(nodeId);
   }
   
-  // Create Super Editor with configured components and keyboard handlers
+  // Create Super Editor with configured components for SuperEditor 0.3.0
   Widget createSuperEditor({
     required bool readOnly,
     ScrollController? scrollController,
     ThemeData? themeData,
   }) {
-    // Define light stylesheet (default)
-    final lightStylesheet = defaultStylesheet.copyWith();
+    // Define component builders for the editor
+    final componentBuilders = [
+      const ParagraphComponentBuilder(),
+      const ListItemComponentBuilder(),
+      TaskComponentBuilder(editor),
+    ];
     
-    // Define dark stylesheet with adjusted colors
-    final darkStylesheet = lightStylesheet.copyWith(
-      addRulesAfter: [
-        // Make all text white/light gray
-        StyleRule(
-          BlockSelector.all, (doc, docNode) {
+    // Determine if dark mode
+    final isDarkMode = themeData?.brightness == Brightness.dark;
+    
+    // Create stylesheet
+    final stylesheet = defaultStylesheet.copyWith(
+      // Add dark mode styles if needed
+      addRulesAfter: isDarkMode ? [
+        StyleRule(BlockSelector.all, (doc, node) {
             return {
               Styles.textStyle: const TextStyle(
                 color: Color(0xFFEEEEEE),
@@ -1205,74 +1207,20 @@ class DocumentBuilder {
                 height: 1.4,
               ),
             };
-          },
-        ),
-        // Adjust heading colors for dark mode
-        StyleRule(
-          const BlockSelector("header1"), (doc, docNode) {
-            return {
-              Styles.textStyle: const TextStyle(
-                color: Color(0xFFCCCCCC),
-                fontSize: 38,
-                fontWeight: FontWeight.bold,
-              ),
-            };
-          },
-        ),
-        StyleRule(
-          const BlockSelector("header2"), (doc, docNode) {
-            return {
-              Styles.textStyle: const TextStyle(
-                color: Color(0xFFCCCCCC),
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
-            };
-          },
-        ),
-        StyleRule(
-          const BlockSelector("header3"), (doc, docNode) {
-            return {
-              Styles.textStyle: const TextStyle(
-                color: Color(0xFFCCCCCC),
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            };
-          },
-        ),
-        // Adjust blockquote for dark mode
-        StyleRule(
-          const BlockSelector("blockquote"), (doc, docNode) {
-            return {
-              Styles.textStyle: const TextStyle(
-                color: Color(0xFFA0A0A0), // Lighter gray for blockquotes
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                height: 1.4,
-              ),
-            };
-          },
-        ),
-      ],
-      // Customize how text appears when selected in dark mode
-      selectedTextColorStrategy: ({required Color originalTextColor, required Color selectionHighlightColor}) {
-        // In dark mode, make the selected text black for better contrast against blue selection
-        return Colors.white;
-      },
-      // Use the same selection color defined in light stylesheet, but can be customized if needed
+        }),
+      ] : [],
     );
-    
-    // Determine which stylesheet to use based on theme brightness
-    final brightness = themeData?.brightness ?? Brightness.light;
-    final stylesheet = brightness == Brightness.dark ? darkStylesheet : lightStylesheet;
     
     return SuperEditor(
       editor: editor,
       focusNode: focusNode,
-      documentLayoutKey: documentLayoutKey,
-      scrollController: scrollController,
+            scrollController: scrollController,
       stylesheet: stylesheet,
+componentBuilders: componentBuilders,
+      keyboardActions: defaultKeyboardActions,
+      plugins: {
+        MarkdownInlineUpstreamSyntaxPlugin(),
+      }
     );
   }
 }
