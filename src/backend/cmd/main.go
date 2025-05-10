@@ -114,7 +114,7 @@ func main() {
 	protectedGroup.Use(middleware.AuthMiddleware(authService))
 
 	// Register protected API routes using the API group
-	routes.RegisterProtectedUserRoutes(publicGroup, db, userService, authService)
+	routes.RegisterProtectedUserRoutes(protectedGroup, db, userService, authService)
 	routes.RegisterNoteRoutes(protectedGroup, db, services.NoteServiceInstance)
 	routes.RegisterTaskRoutes(protectedGroup, db, services.TaskServiceInstance)
 	routes.RegisterNotebookRoutes(protectedGroup, db, services.NotebookServiceInstance)
