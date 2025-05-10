@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
+import 'package:super_editor_markdown/super_editor_markdown.dart';
 
 import 'package:owlistic/services/block_service.dart';
 import 'package:owlistic/services/auth_service.dart';
@@ -1674,6 +1675,93 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Update with the detected type
       updateBlockContent(blockId, content, type: detectedType, immediate: true);
       _logger.debug('Block type changed from ${block.type} to $detectedType');
+    }
+  }
+  
+  @override
+  Future<void> importMarkdownContent(String markdown) async {
+    if (_noteId == null) {
+      throw Exception('Cannot import content: no active note');
+    }
+    
+    _isLoading = true;
+    notifyListeners();
+    
+    try {
+      _logger.info('Importing markdown content to note: $_noteId');
+      
+      // Delete all existing blocks for this note
+      final existingBlocks = getBlocksForNote(_noteId!);
+      for (final block in existingBlocks) {
+        await _blockService.deleteBlock(block.id);
+      }
+      
+      // Create blocks for each node
+      final document = _documentBuilder.deserializeMarkdownContent(markdown);
+
+      // Create blocks for each node
+      int order = 0;
+      for (final node in document) {
+        try {
+          final blockContent = _documentBuilder.buildBlockContent(node);
+          
+          final blockType = blockContent['type'];
+          final payload = {
+            "metadata": blockContent['metadata'],
+            "content": blockContent['content'],
+          };
+
+          // Create block through BlockService
+          await _blockService.createBlock(
+            _noteId!,
+            payload,
+            blockType,
+            (order + 1) * 1000.0  // Use increasing order with gaps
+          );
+          
+          order++;
+        } catch (e) {
+          _logger.error('Error creating block for imported markdown: $e');
+        }
+      }
+      
+      // Refresh blocks from server
+      await fetchBlocksForNote(_noteId!, refresh: true);
+      
+      _logger.info('Markdown content imported successfully');
+    } catch (e) {
+      _logger.error('Error importing markdown content', e);
+      _errorMessage = 'Failed to import markdown: ${e.toString()}';
+    } finally {
+      _isLoading = false;
+      _updateCount++;
+      notifyListeners();
+    }
+  }
+  
+  @override
+  Future<String> exportToMarkdown() async {
+    try {
+      if (_noteId == null) {
+        throw Exception('Cannot export: no active note');
+      }
+      
+      _logger.info('Exporting note $_noteId to markdown');
+      
+      // Make sure all content is committed
+      commitAllContent();
+      
+      // Serialize the document to markdown
+      final markdown = serializeDocumentToMarkdown(
+        _documentBuilder.document,
+        syntax: MarkdownSyntax.normal
+      );
+      
+      _logger.debug('Note exported to markdown successfully');
+      return markdown;
+    } catch (e) {
+      _logger.error('Error exporting to markdown', e);
+      throw Exception('Failed to export note: ${e.toString()}');
     }
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:owlistic/utils/document_builder.dart';
 import 'package:owlistic/viewmodel/notes_viewmodel.dart';
 import 'package:owlistic/models/note.dart';
 import 'package:owlistic/services/note_service.dart';
@@ -10,6 +11,8 @@ import 'package:owlistic/utils/websocket_message_parser.dart';
 import 'package:owlistic/utils/logger.dart';
 import 'package:owlistic/services/block_service.dart';
 import 'package:owlistic/services/app_state_service.dart';
+import 'package:super_editor_markdown/super_editor_markdown.dart';
+import 'package:super_editor/super_editor.dart' hide Logger;
 
 class NotesProvider with ChangeNotifier implements NotesViewModel {
   final Logger _logger = Logger('NotesProvider');
@@ -524,6 +527,108 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
     if (_errorMessage != null) {
       _errorMessage = null;
       notifyListeners();
+    }
+  }
+
+  @override
+  Future<Note?> importMarkdownFile(String content, String fileName, String notebookId) async {
+    try {
+      _logger.info('Importing markdown file: $fileName to notebook: $notebookId');
+      
+      if (notebookId.isEmpty) {
+        throw Exception("Notebook ID is required to import a note");
+      }
+      
+      // Extract title from filename (remove .md extension if present)
+      String title = fileName;
+      if (title.toLowerCase().endsWith('.md')) {
+        title = title.substring(0, title.length - 3);
+      }
+      
+      // Create the note first
+      final note = await _noteService.createNote(notebookId, title);
+      _logger.debug('Created note: ${note.id} for markdown import');
+      
+      final _documentBuilder = DocumentBuilder();
+
+      // Create blocks for each node
+      final document = _documentBuilder.deserializeMarkdownContent(content);
+
+      // Create blocks for each node
+      int order = 0;
+      for (final node in document) {
+        try {
+          final blockContent = _documentBuilder.buildBlockContent(node);
+          
+          final blockType = blockContent['type'];
+          final payload = {
+            "metadata": blockContent['metadata'],
+            "content": blockContent['content'],
+          };
+
+          // Create block through BlockService
+          await _blockService.createBlock(
+            note.id,
+            payload,
+            blockType,
+            (order + 1) * 1000.0  // Use increasing order with gaps
+          );
+          
+          order++;
+        } catch (e) {
+          _logger.error('Error creating block for imported markdown: $e');
+        }
+      }
+      
+      // Add note to local state
+      _notesMap[note.id] = note;
+      _updateCount++;
+      notifyListeners();
+      
+      return note;
+    } catch (error) {
+      _logger.error('Error importing markdown file', error);
+      _errorMessage = 'Failed to import markdown: ${error.toString()}';
+      notifyListeners();
+      return null;
+    }
+  }
+  
+  @override
+  Future<String> exportNoteToMarkdown(String noteId) async {
+    try {
+      _logger.info('Exporting note $noteId to markdown');
+      
+      // Fetch note if not already in memory
+      Note? note = _notesMap[noteId];
+      if (note == null) {
+        note = await fetchNoteById(noteId);
+      }
+      
+      if (note == null) {
+        throw Exception("Note not found");
+      }
+      
+      // Fetch all blocks for the note to ensure we have the latest data
+      final blocks = await _blockService.fetchBlocksForNote(noteId);
+      
+      // Create a document from the blocks
+      final documentBuilder = DocumentBuilder();
+      
+      // Convert blocks to document nodes
+      documentBuilder.populateDocumentFromBlocks(blocks);
+      
+      // Serialize document to markdown
+      final markdown = serializeDocumentToMarkdown(
+        documentBuilder.document,
+        syntax: MarkdownSyntax.normal
+      );
+      
+      _logger.debug('Note exported to markdown successfully');
+      return markdown;
+    } catch (error) {
+      _logger.error('Error exporting note to markdown', error);
+      throw Exception('Failed to export note: ${error.toString()}');
     }
   }
 }
