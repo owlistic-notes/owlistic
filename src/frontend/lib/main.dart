@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:owlistic/core/router.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme.dart';
@@ -15,16 +16,6 @@ import 'services/task_service.dart';
 import 'services/trash_service.dart';
 import 'services/websocket_service.dart';
 import 'services/app_state_service.dart';
-
-import 'screens/home_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/register_screen.dart';
-import 'screens/notebooks_screen.dart';
-import 'screens/notebook_detail_screen.dart';
-import 'screens/notes_screen.dart';
-import 'screens/note_editor_screen.dart';
-import 'screens/tasks_screen.dart';
-import 'screens/trash_screen.dart';
 
 import 'utils/logger.dart';
 import 'viewmodel/login_viewmodel.dart';
@@ -101,87 +92,17 @@ class OwlisticAppWithProviders extends StatefulWidget {
 
 class _OwlisticAppWithProvidersState extends State<OwlisticAppWithProviders> {
   final Logger _logger = Logger('OwlisticAppState');
+  late final AppRouter _appRouter;
   late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
-    _initializeRouter();
-  }
-
-  void _initializeRouter() {
-    _router = GoRouter(
-      refreshListenable: GoRouterRefreshStream(
-        context.read<LoginViewModel>().authStateChanges,
-      ),
-      debugLogDiagnostics: true,
-      initialLocation: '/',
-      redirect: (BuildContext context, GoRouterState state) {
-        final loginViewModel = context.read<LoginViewModel>();
-        final bool isLoggedIn = loginViewModel.isLoggedIn;
-        final bool isLoggingIn = state.fullPath == '/login';
-        final bool isRegistering = state.fullPath == '/register';
-        
-        _logger.debug('GoRouter redirect: isLoggedIn=$isLoggedIn, currentPath=${state.fullPath}');
-        
-        // If not logged in and not on login or register page, redirect to login
-        if (!isLoggedIn && !isLoggingIn && !isRegistering) {
-          return '/login';
-        }
-        
-        // If logged in and on login or register page, redirect to home
-        if (isLoggedIn && (isLoggingIn || isRegistering)) {
-          return '/';
-        }
-        
-        // No redirection needed
-        return null;
-      },
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const HomeScreen(),
-        ),
-        GoRoute(
-          path: '/login',
-          builder: (context, state) => const LoginScreen(),
-        ),
-        GoRoute(
-          path: '/register',
-          builder: (context, state) => const RegisterScreen(),
-        ),
-        GoRoute(
-          path: '/notebooks',
-          builder: (context, state) => const NotebooksScreen(),
-        ),
-        GoRoute(
-          path: '/notebooks/:id',
-          builder: (context, state) {
-            final String notebookId = state.pathParameters['id']!;
-            return NotebookDetailScreen(notebookId: notebookId);
-          },
-        ),
-        GoRoute(
-          path: '/notes',
-          builder: (context, state) => const NotesScreen(),
-        ),
-        GoRoute(
-          path: '/notes/:id',
-          builder: (context, state) {
-            final String noteId = state.pathParameters['id']!;
-            return NoteEditorScreen(noteId: noteId);
-          },
-        ),
-        GoRoute(
-          path: '/tasks',
-          builder: (context, state) => const TasksScreen(),
-        ),
-        GoRoute(
-          path: '/trash',
-          builder: (context, state) => const TrashScreen(),
-        ),
-      ],
+    _appRouter = AppRouter(
+      context, 
+      authStateChanges: context.read<LoginViewModel>().authStateChanges
     );
+    _router = _appRouter.router;
   }
 
   @override
@@ -244,21 +165,5 @@ class ErrorApp extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// Helper class to convert Stream to Listenable for GoRouter
-class GoRouterRefreshStream extends ChangeNotifier {
-  late final Stream<dynamic>? _stream;
-  StreamSubscription<dynamic>? _subscription;
-
-  GoRouterRefreshStream(Stream<dynamic>? stream) : _stream = stream {
-    _subscription = _stream?.listen((_) => notifyListeners());
-  }
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
   }
 }

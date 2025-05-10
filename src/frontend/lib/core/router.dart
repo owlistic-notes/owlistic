@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -9,8 +10,10 @@ import '../screens/register_screen.dart';
 import '../screens/notebooks_screen.dart';
 import '../screens/notebook_detail_screen.dart';
 import '../screens/notes_screen.dart';
+import '../screens/note_editor_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../screens/trash_screen.dart';
+import '../screens/user_profile_screen.dart';
 import '../utils/logger.dart';
 
 class AppRouter {
@@ -18,14 +21,15 @@ class AppRouter {
   
   late final GoRouter router;
 
-  AppRouter(BuildContext context) {
+  AppRouter(BuildContext context, {Stream<dynamic>? authStateChanges}) {
     router = GoRouter(
-      refreshListenable: GoRouterRefreshStream(),
+      refreshListenable: authStateChanges != null 
+          ? GoRouterRefreshStream(authStateChanges)
+          : GoRouterRefreshStream(),
       debugLogDiagnostics: true,
       initialLocation: '/',
       redirect: (BuildContext context, GoRouterState state) {
-        // Use LoginViewModel for isLoggedIn check
-        final loginViewModel = Provider.of<LoginViewModel>(context, listen: false);
+        final loginViewModel = context.read<LoginViewModel>();
         final bool isLoggedIn = loginViewModel.isLoggedIn;
         final bool isLoggingIn = state.fullPath == '/login';
         final bool isRegistering = state.fullPath == '/register';
@@ -51,20 +55,34 @@ class AppRouter {
           builder: (context, state) => const HomeScreen(),
         ),
         GoRoute(
+          path: '/login',
+          builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegisterScreen(),
+        ),
+        GoRoute(
           path: '/notebooks',
           builder: (context, state) => const NotebooksScreen(),
-          routes: [
-            GoRoute(
-              path: ':id',
-              builder: (context, state) => NotebookDetailScreen(
-                notebookId: state.pathParameters['id']!,
-              ),
-            ),
-          ],
+        ),
+        GoRoute(
+          path: '/notebooks/:id',
+          builder: (context, state) {
+            final String notebookId = state.pathParameters['id']!;
+            return NotebookDetailScreen(notebookId: notebookId);
+          },
         ),
         GoRoute(
           path: '/notes',
           builder: (context, state) => const NotesScreen(),
+        ),
+        GoRoute(
+          path: '/notes/:id',
+          builder: (context, state) {
+            final String noteId = state.pathParameters['id']!;
+            return NoteEditorScreen(noteId: noteId);
+          },
         ),
         GoRoute(
           path: '/tasks',
@@ -74,14 +92,7 @@ class AppRouter {
           path: '/trash',
           builder: (context, state) => const TrashScreen(),
         ),
-        GoRoute(
-          path: '/login',
-          builder: (context, state) => const LoginScreen(),
-        ),
-        GoRoute(
-          path: '/register',
-          builder: (context, state) => const RegisterScreen(),
-        ),
+        
       ],
     );
   }
@@ -89,5 +100,16 @@ class AppRouter {
 
 // Helper class to convert Stream to Listenable for GoRouter
 class GoRouterRefreshStream extends ChangeNotifier {
-  // ...existing code...
+  late final Stream<dynamic>? _stream;
+  StreamSubscription<dynamic>? _subscription;
+
+  GoRouterRefreshStream([Stream<dynamic>? stream]) : _stream = stream {
+    _subscription = _stream?.listen((_) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
 }
