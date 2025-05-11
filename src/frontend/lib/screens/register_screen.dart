@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/register_viewmodel.dart';
 import '../utils/logger.dart';
+import '../widgets/app_logo.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -114,27 +115,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 padding: const EdgeInsets.all(32.0),
                 child: Form(
                   key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                       // Logo
-                      Icon(
-                        Icons.psychology,
-                        size: 60,
-                        color: theme.primaryColor,
-                      ),
+                      const AppLogo(size: 80),
                       const SizedBox(height: 16),
-              
+                      
                       // App title
-              Text(
+                      Text(
                         'Owlistic',
                         style: theme.textTheme.headlineMedium!.copyWith(
                           color: theme.primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 24),
                       
                       // Subtitle
@@ -143,140 +140,140 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: theme.textTheme.titleMedium,
                         textAlign: TextAlign.center,
                       ),
-              const SizedBox(height: 32),
-              
-                    // Email field
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        labelText: 'Email',
+                      const SizedBox(height: 32),
+                      
+                      // Email field
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
                           hintText: 'Enter your email',
-                        prefixIcon: const Icon(Icons.email),
-                        border: OutlineInputBorder(
+                          prefixIcon: const Icon(Icons.email),
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your email';
+                          }
+                          if (!registerViewModel.isValidEmail(value)) {
+                            return 'Please enter a valid email';
+                          }
+                          return null;
+                        },
                       ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!registerViewModel.isValidEmail(value)) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Password field
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
+                      const SizedBox(height: 16),
+                      
+                      // Password field
+                      TextFormField(
+                        controller: _passwordController,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
                           hintText: 'Enter your password',
-                        prefixIcon: const Icon(Icons.lock),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _isPasswordVisible 
-                              ? Icons.visibility_off 
-                              : Icons.visibility
+                          prefixIcon: const Icon(Icons.lock),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible 
+                                ? Icons.visibility_off 
+                                : Icons.visibility
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordVisible = !_isPasswordVisible;
+                              });
+                            },
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _isPasswordVisible = !_isPasswordVisible;
-                            });
-                          },
-                        ),
-                        border: OutlineInputBorder(
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
+                        obscureText: !_isPasswordVisible,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a password';
+                          }
+                          if (!registerViewModel.isValidPassword(value)) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
                       ),
-                      obscureText: !_isPasswordVisible,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a password';
-                        }
-                        if (!registerViewModel.isValidPassword(value)) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Confirm Password field
-                    TextFormField(
-                      controller: _confirmPasswordController,
-                      decoration: InputDecoration(
-                        labelText: 'Confirm Password',
+                      const SizedBox(height: 16),
+                      
+                      // Confirm Password field
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        decoration: InputDecoration(
+                          labelText: 'Confirm Password',
                           hintText: 'Confirm your password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _isConfirmPasswordVisible 
-                              ? Icons.visibility_off 
-                              : Icons.visibility
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isConfirmPasswordVisible 
+                                ? Icons.visibility_off 
+                                : Icons.visibility
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                              });
+                            },
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                            });
-                          },
-                        ),
-                        border: OutlineInputBorder(
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
+                        obscureText: !_isConfirmPasswordVisible,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          if (!registerViewModel.doPasswordsMatch(_passwordController.text, value)) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
                       ),
-                      obscureText: !_isConfirmPasswordVisible,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please confirm your password';
-                        }
-                        if (!registerViewModel.doPasswordsMatch(_passwordController.text, value)) {
-                          return 'Passwords do not match';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Register button with reactive loading state
-                    ElevatedButton(
-                      onPressed: isLoading ? null : _register,
-                      style: ElevatedButton.styleFrom(
+                      const SizedBox(height: 24),
+                      
+                      // Register button with reactive loading state
+                      ElevatedButton(
+                        onPressed: isLoading ? null : _register,
+                        style: ElevatedButton.styleFrom(
                           backgroundColor: theme.primaryColor,
                           foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Create Account',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Login link
-                    TextButton(
-                      onPressed: () => registerViewModel.navigateToLogin(context),
-                      child: const Text('Already have an account? Log In'),
-                    ),
-                  ],
+                        ),
+                        child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Create Account',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Login link
+                      TextButton(
+                        onPressed: () => registerViewModel.navigateToLogin(context),
+                        child: const Text('Already have an account? Log In'),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
               ),
             ),
           ),

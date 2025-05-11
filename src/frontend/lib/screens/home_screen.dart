@@ -11,6 +11,7 @@ import '../widgets/empty_state.dart';
 import '../viewmodel/home_viewmodel.dart';
 import '../utils/logger.dart';
 import '../widgets/app_bar_common.dart';
+import '../widgets/app_logo.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -165,19 +166,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(35),
-                ),
-                child: const Icon(
-                  Icons.lightbulb_outline,
-                  color: Colors.white,
-                  size: 32,
-                ),
-              ),
+              // Use transparent logo in welcome card
+              const AppLogo(size: 60, forceTransparent: true),
             ],
           ),
         );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../utils/logger.dart';
+import '../widgets/app_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -152,12 +153,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // App logo
-                      Icon(
-                        Icons.psychology,
-                        size: 60,
-                        color: theme.primaryColor,
-                      ),
+                      // Replace icon with custom logo
+                      const AppLogo(size: 80),
                       const SizedBox(height: 16),
                       
                       // App title

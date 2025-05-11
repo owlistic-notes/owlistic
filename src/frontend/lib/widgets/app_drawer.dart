@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../viewmodel/home_viewmodel.dart';
+import 'app_logo.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({Key? key}) : super(key: key);
@@ -12,31 +13,26 @@ class AppDrawer extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          // Drawer header with app logo/name
-          DrawerHeader(
+          // Smaller drawer header with app logo - using transparent logo
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
             ),
-            child: const Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.psychology,
-                    size: 36,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                AppLogo(size: 32, forceTransparent: true),
+                SizedBox(width: 12),
+                Text(
+                  'Owlistic',
+                  style: TextStyle(
                     color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Owlistic',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           // Drawer items
@@ -90,8 +86,10 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           const Spacer(),
-          const Divider(),
+          // Compact logout section
+          const Divider(height: 1),
           ListTile(
+            visualDensity: VisualDensity.compact,
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
             onTap: () async {
@@ -100,7 +98,6 @@ class AppDrawer extends StatelessWidget {
               await context.read<HomeViewModel>().logout();
             },
           ),
-          const SizedBox(height: 16),
         ],
       ),
     );
