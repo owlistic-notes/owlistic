@@ -80,58 +80,80 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final size = MediaQuery.of(context).size;
     
     // Watch the RegisterViewModel for changes
     final registerViewModel = context.watch<RegisterViewModel>();
     final isLoading = registerViewModel.isLoading;
     
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => registerViewModel.navigateToLogin(context),
-        ),
-      ),
+      backgroundColor: theme.colorScheme.background,
+      // Remove the AppBar completely
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(
+                maxWidth: 400,
+                minHeight: 500,
+              ),
+              width: size.width * 0.85,
+              margin: const EdgeInsets.symmetric(vertical: 24.0),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Form(
+                  key: _formKey,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // App logo
-              Icon(
-                Icons.psychology,
-                size: 60,
-                color: theme.primaryColor,
-              ),
-              const SizedBox(height: 24),
+                      // Logo
+                      Icon(
+                        Icons.psychology,
+                        size: 60,
+                        color: theme.primaryColor,
+                      ),
+                      const SizedBox(height: 16),
               
-              // App name
+                      // App title
               Text(
-                'Join Owlistic',
-                style: theme.textTheme.headlineSmall?.copyWith(
+                        'Owlistic',
+                        style: theme.textTheme.headlineMedium!.copyWith(
+                          color: theme.primaryColor,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
               ),
+                      const SizedBox(height: 24),
+                      
+                      // Subtitle
+                      Text(
+                        'Create an Account',
+                        style: theme.textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
               const SizedBox(height: 32),
               
-              // Registration form
-              Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
                     // Email field
                     TextFormField(
                       controller: _emailController,
                       decoration: InputDecoration(
                         labelText: 'Email',
+                          hintText: 'Enter your email',
                         prefixIcon: const Icon(Icons.email),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                       keyboardType: TextInputType.emailAddress,
@@ -152,6 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _passwordController,
                       decoration: InputDecoration(
                         labelText: 'Password',
+                          hintText: 'Enter your password',
                         prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -166,7 +189,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                       obscureText: !_isPasswordVisible,
@@ -187,6 +210,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _confirmPasswordController,
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
+                          hintText: 'Confirm your password',
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -201,7 +225,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                       obscureText: !_isConfirmPasswordVisible,
@@ -221,9 +245,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ElevatedButton(
                       onPressed: isLoading ? null : _register,
                       style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.primaryColor,
+                          foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                       child: isLoading
@@ -251,7 +277,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
               ),
-            ],
+              ),
+            ),
           ),
         ),
       ),
