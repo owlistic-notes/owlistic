@@ -1,48 +1,46 @@
-# Evernote Clone
+<div align="center">
+  <img src="src/frontend/assets/logo/logo.png" width="500px" />
+  <h1>Owlistic</h1>
+  <h3>🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀 </h3>
 
-This is a project to build an Evernote-like application using the following stack:
-- **Backend**: GoLang or Python
-- **Database**: PostgreSQL
-- **Streaming**: Kafka
-- **Search**: Elasticsearch
-- **Frontend**: React or any modern web framework
+  [![standard-readme compliant](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
+</div>
 
-## Getting Started
+## Table of Contents
 
-### Prerequisites
-- Docker and Docker Compose
-- PostgreSQL
-- Kafka
-- Redis
-- Node.js
+- [Intro & motivation](#intro-and-motivation)
+- [Background](#background)
+- [Install](#install)
+- [Usage](#usage)
+- [Maintainers](#maintainers)
+- [Contributing](#contributing)
+- [License](#license)
 
-### Setup
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/evernote-clone.git
-   cd evernote-clone
-   ```
+## Intro and motivation
 
-2. Start the services using Docker Compose:
-   ```bash
-   docker-compose up --build
-   ```
+TODO: add motivation
 
-3. Access the application:
-   - Backend: `http://localhost:5000`
-   - Frontend: `http://localhost:3000`
+## Background
 
-### Project Structure
-```plaintext
-daviderutigliano/owlistic/
-├── backend/
-├── frontend/
-├── kafka/
-├── postgres/
-├── redis/
-├── search/
-└── docker-compose.yml
-```
+## Install
 
-### Contributing
-Feel free to open issues and submit pull requests.
+TODO: add a link to docs/install gh-pages
+
+## Usage
+
+TODO: add a link to docs/user-guide gh-pages
+
+## Maintainers
+
+- [@Davide Rutigliano](https://github.com/DavideRutigliano)
+
+## Contributing
+
+PRs accepted.
+
+Small note: If editing the README, please conform to the
+[standard-readme](https://github.com/RichardLitt/standard-readme) specification.
+
+## License
+
+MIT © 2025 owlistic-notes
