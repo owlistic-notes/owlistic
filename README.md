@@ -4,7 +4,7 @@
 
   [![standard-readme compliant](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-  [Website](https://owlistic-notes.github.io/owlistic/) • [Docs](https://owlistic-notes.github.io/owlistic/docs)
+  [Website](https://owlistic-notes.github.io/owlistic/) • [Docs](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
 </div>
 
 ## Table of Contents
@@ -23,7 +23,7 @@ TODO: add motivation
 
 ## Links
 
-- [Docs](https://owlistic-notes.github.io/owlistic/docs)
+- [Getting Started](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
 
 ## Background
 
