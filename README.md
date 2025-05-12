@@ -1,13 +1,12 @@
 <div align="center">
 
+  [![standard-readme](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE.md)
+  [![Release](https://img.shields.io/github/release/owlistic-notes/owlistic?style=flat-square)](https://github.com/owlistic-notes/owlistic/releases/latest)
+  [![Docs](https://img.shields.io/badge/docs-online-blue.svg?style=flat-square)](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
+  
   <img src="src/frontend/assets/logo/owlistic-w-text.png" width="350px" />
   <h3>🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀 </h3>
-
-  [![standard-readme compliant](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
-  [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE.md)
-  [![GitHub release](https://img.shields.io/github/release/owlistic-notes/owlistic?style=flat-square)](https://github.com/owlistic-notes/owlistic/releases/latest)
-
-  [Website](https://owlistic-notes.github.io/owlistic/) • [Docs](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
 </div>
 
 ## Table of Contents
