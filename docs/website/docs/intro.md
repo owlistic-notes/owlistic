@@ -2,46 +2,33 @@
 sidebar_position: 1
 ---
 
-# Tutorial Intro
+# Introduction to Owlistic
 
-Let's discover **Docusaurus in less than 5 minutes**.
+Welcome to Owlistic - a free open-source Owlistic with real-time synchronization.
+
+![Owlistic Logo](/img/logo.svg)
+
+## What is Owlistic?
+
+Owlistic is a self-hosted application designed to help you capture, organize, and access your thoughts from anywhere. With real-time synchronization capabilities, your notes are always up-to-date across all your devices.
+
+## Key Features
+
+- **Real-time synchronization** across all your devices
+- **Markdown support** for rich text formatting
+- **Self-hosted** solution for complete privacy and data control
+- **Open-source** and free to use under MIT license
+- **Customizable** to fit your workflow
+- **Secure** by design, with your data under your control
 
 ## Getting Started
 
-Get started by **creating a new site**.
+Ready to start using Owlistic? Check out our [Quick Start Guide](getting-started/quick-start) to get up and running in minutes.
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+## Why Owlistic?
 
-### What you'll need
+In a world of proprietary note-taking solutions that lock your data into walled gardens, Owlistic stands out by putting you in control. Host it on your own infrastructure, customize it to your needs, and never worry about a service shutting down or changing its terms.
 
-- [Node.js](https://nodejs.org/en/download/) version 18.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
+## Contributing
 
-## Generate a new site
-
-Generate a new Docusaurus site using the **classic template**.
-
-The classic template will automatically be added to your project after you run the command:
-
-```bash
-npm init docusaurus@latest my-website classic
-```
-
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
-
-The command also installs all necessary dependencies you need to run Docusaurus.
-
-## Start your site
-
-Run the development server:
-
-```bash
-cd my-website
-npm run start
-```
-
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
-
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
-
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+Owlistic is developed by the community, for the community. We welcome contributions of all kinds - from code improvements to documentation updates. Check out our [Contributing Guide](contributing/development-setup) to learn how you can help.
