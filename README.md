@@ -3,6 +3,8 @@
   <h3>🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀 </h3>
 
   [![standard-readme compliant](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
+
+  [Website](https://owlistic-notes.github.io/owlistic/) • [Docs](https://owlistic-notes.github.io/owlistic/docs)
 </div>
 
 ## Table of Contents
@@ -18,6 +20,10 @@
 ## Intro and motivation
 
 TODO: add motivation
+
+## Links
+
+- [Docs](https://owlistic-notes.github.io/owlistic/docs)
 
 ## Background
 
