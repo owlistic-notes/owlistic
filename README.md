@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/frontend/assets/logo/logo.png" width="100px" />
+  <img src="src/frontend/assets/logo/logo.png" width="350px" />
   <h1>Owlistic</h1>
   <h3>🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀 </h3>
 
