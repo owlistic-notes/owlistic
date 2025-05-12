@@ -34,10 +34,12 @@ TODO: add motivation
 
 ## Features
 
-- 📒 Notebooks
+- 📒 Notebooks/Notes tree
 - ✏️ Rich (WYSIWYG) editor
 - ✔️ Inline todo items
 - 🔄 Real-time sync
+- 🔑 JWT-based auth
+- 🔒 Role-based access control
 - 🗑 Trash
 - 🌓 Dark/Light mode
 - ⬇️ Import markdown notes
