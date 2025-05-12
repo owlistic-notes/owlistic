@@ -26,11 +26,11 @@ Currently, the app only support web-based experience. However, you can access it
 
 ## How can I contribute to the project?
 
-We welcome contributions! Please read our [Contributing](../contributing) guidelines for more information on how to get involved.
+We welcome contributions! Please read our [Contributing](../contributing/pull-requests.md) guidelines for more information on how to get involved.
 
 ## Where can I find help if I encounter issues?
 
-If you encounter any issues, please refer to the [Troubleshooting](../troubleshooting) section for common problems and solutions. You can also reach out to the community through our GitHub discussions.
+If you encounter any issues, please refer to the [Troubleshooting](../troubleshooting/common-issues.md) section for common problems and solutions. You can also reach out to the community through our GitHub discussions.
 
 ## How do I report a bug?
 
