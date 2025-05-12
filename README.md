@@ -32,6 +32,14 @@ TODO: add motivation
 - [Api Reference](https://owlistic-notes.github.io/owlistic/docs/category/api-reference)
 -->
 
+## Features
+
+- 📱 Responsive design and supports most modern browsers
+- 🌓 Dark/Light mode support
+- 🔄 Real-time Synchronization
+- ⬇️ Import and export your markdown notes
+
+
 ## Install
 
 Please follow the [installation instructions](https://owlistic-notes.github.io/owlistic/docs/getting-started/installation).
