@@ -1,8 +1,12 @@
-# System Requirements
+---
+sidebar_position: 3
+---
+
+# Requirements
 
 To ensure optimal performance and functionality of the Owlistic, please ensure your system meets the following requirements:
 
-## Minimum Requirements
+## Minimum System Requirements
 
 - **Operating System**: Windows 10, macOS 10.14 (Mojave), or a recent version of Linux (Ubuntu 20.04 or later).
 - **Processor**: Dual-core CPU with a clock speed of 2.0 GHz or higher.
@@ -11,7 +15,7 @@ To ensure optimal performance and functionality of the Owlistic, please ensure y
 - **Node.js**: Version 14.x or later.
 - **Internet Connection**: Required for initial setup and updates.
 
-## Recommended Requirements
+## Recommended System Requirements
 
 - **Operating System**: Windows 10, macOS 11 (Big Sur), or a recent version of Linux (Ubuntu 22.04 or later).
 - **Processor**: Quad-core CPU with a clock speed of 2.5 GHz or higher.

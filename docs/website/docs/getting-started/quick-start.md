@@ -1,4 +1,8 @@
-# Quick Start Guide
+---
+sidebar_position: 2
+---
+
+# Quick Start
 
 Welcome to the Quick Start Guide for our self-hosted Owlistic! This guide will help you get up and running quickly.
 

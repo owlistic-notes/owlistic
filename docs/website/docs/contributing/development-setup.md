@@ -1,13 +1,16 @@
 # Development Setup
 
-To contribute to the Owlistic, you'll need to set up your development environment. Follow the steps below to get started.
+To contribute to Owlistic, you'll need to set up your development environment. Follow the steps below to get started.
 
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js** (version 14 or above)
+- **Go** (version 1.23 or above) for the backend
+- **Flutter** (latest stable version) for the frontend
 - **Git** (for version control)
+- **Docker** and **Docker Compose** (for local deployment with dependencies)
+- **PostgreSQL** and **Kafka** (required for storage and real-time synchronization)
 - A code editor of your choice (e.g., Visual Studio Code)
 
 ## Cloning the Repository
@@ -16,38 +19,109 @@ First, clone the repository to your local machine:
 
 ```bash
 git clone https://github.com/owlistic-notes/owlistic.git
-cd note-taking-app
+cd owlistic
 ```
 
-## Installing Dependencies
+## Development Workflow
 
-Once you have cloned the repository, navigate to the project directory and install the necessary dependencies:
+Owlistic consists of two main components:
+
+1. **Backend**: Written in Go
+2. **Frontend**: Flutter web application
+
+### Setting Up the Backend
+
+Navigate to the backend directory and build the Go application:
 
 ```bash
-npm install
+cd src/backend
+go mod download
+go build -o build/owlistic cmd/main.go
 ```
 
-## Running the Development Server
+#### Running the Backend
 
-To start the development server, use the following command:
+Before running the backend, ensure PostgreSQL and Kafka are available. You can use Docker Compose for this:
 
 ```bash
-npm run start
+# From the project root directory
+docker-compose up -d postgres kafka zookeeper
 ```
 
-This will launch the application in your default web browser at `http://localhost:3000`.
+Configure environment variables:
+
+```bash
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=admin
+export DB_PASSWORD=admin
+export DB_NAME=postgres
+export KAFKA_BROKER=localhost:9092
+```
+
+Run the backend server:
+
+```bash
+cd src/backend
+./build/owlistic
+```
+
+The backend should now be running on `http://localhost:8080`.
+
+### Setting Up the Frontend
+
+Navigate to the Flutter frontend directory:
+
+```bash
+cd src/frontend
+```
+
+Install Flutter dependencies:
+
+```bash
+flutter pub get
+```
+
+#### Running the Frontend
+
+Start the Flutter web application in development mode:
+
+```bash
+flutter run -d chrome
+```
+
+This will launch the application in Chrome.
 
 ## Making Changes
 
-You can now make changes to the codebase. As you edit files, the development server will automatically reload to reflect your changes.
+You can now make changes to the codebase. Here are some guidelines:
+
+- Backend (Go): Changes will require recompilation and restarting the server
+- Frontend (Flutter): Many changes will automatically reload in the browser
 
 ## Testing Your Changes
 
-Before submitting your contributions, ensure that all tests pass. You can run the tests using:
+Before submitting your contributions, ensure that all tests pass:
 
 ```bash
-npm test
+# For backend tests
+cd src/backend
+go test ./...
+
+# For frontend tests
+cd src/frontend
+flutter test
 ```
+
+## Full Development Environment with Docker Compose
+
+For convenience, you can use Docker Compose to run the entire application stack:
+
+```bash
+docker-compose up -d
+```
+
+This will start PostgreSQL, Kafka, Zookeeper, and the Owlistic backend and frontend services.
 
 ## Submitting Your Changes
 
@@ -61,4 +135,4 @@ git push origin your-branch-name
 
 Finally, create a pull request to the main repository for review.
 
-Thank you for contributing to the Owlistic!
+Thank you for contributing to Owlistic!

@@ -1,4 +1,8 @@
-# Installation Guide
+---
+sidebar_position: 4
+---
+
+# Installation
 
 Owlistic is a Go-based application that can be deployed in several ways. Choose the method that best suits your environment and requirements.
 

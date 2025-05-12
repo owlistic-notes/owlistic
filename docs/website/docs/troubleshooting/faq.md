@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Frequently Asked Questions (FAQ)
 
 ## What is this Owlistic?
