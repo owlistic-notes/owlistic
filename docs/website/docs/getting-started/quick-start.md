@@ -11,10 +11,14 @@ Before you begin, ensure that you have completed the installation process. Refer
 Once installed, you can launch the application by running the following command in your terminal:
 
 ```bash
-npm start
+# Start the backend application
+./owlistic
+
+# Serve the UI using a simple HTTP server
+cd owlistic-ui && python3 -m http.server 80
 ```
 
-This will start the application, and you can access it at [http://localhost:3000](http://localhost:3000).
+This will start the application, and you can access it at [http://localhost](http://localhost).
 
 ## Step 3: Create Your First Note
 

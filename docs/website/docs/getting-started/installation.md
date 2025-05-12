@@ -15,15 +15,13 @@ Before installation, ensure you have:
 
 ```bash
 # For Linux (amd64)
-curl -LO https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic-linux-amd64
-chmod +x owlistic-linux-amd64
+curl -LO https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic
+# Make owlistic executable
+chmod +x owlistic
 
-# For macOS (amd64)
-curl -LO https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic-darwin-amd64
-chmod +x owlistic-darwin-amd64
-
-# For Windows (amd64)
-# Download from: https://github.com/owlistic-notes/owlistic/releases/latest
+curl -L https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic-ui.zip -o owlistic-ui.zip
+# Extract the UI files
+unzip owlistic-ui.zip -d owlistic-ui
 ```
 
 ### Step 2: Configure Environment Variables
@@ -43,10 +41,11 @@ export KAFKA_BROKER=localhost:9092
 
 ```bash
 # Start the backend application
-./owlistic-linux-amd64
+./owlistic
 
-# Separately, serve the frontend (if using the UI separately)
-# See UI setup documentation
+# Serve the UI using a simple HTTP server
+cd owlistic-ui
+python3 -m http.server 80
 ```
 
 ## Docker Installation
@@ -224,15 +223,43 @@ If you prefer to build from source:
 # Clone the repository
 git clone https://github.com/owlistic-notes/owlistic.git
 cd owlistic
+```
 
+### Building the backend server
+
+```
 # Build the backend
 cd src/backend
-go build -o owlistic
+go build -o owlistic cmd/main.go
+```
 
-# Build the frontend
-cd ../frontend
-npm install
-npm run build
+### Building the Flutter Web UI
+
+To build the frontend Flutter web application:
+
+```bash
+# Navigate to the frontend directory
+cd src/frontend
+
+# Ensure Flutter dependencies are installed
+flutter pub get
+
+# Build the web release
+flutter build web --release
+```
+
+This will generate the web artifacts in the `build/web` directory, which can be deployed to any web server.
+
+#### Deploying the Web UI
+
+You can deploy the Flutter web build by hosting it locally or using a basic web server:
+
+```bash
+# Navigate to the build directory
+cd build/web
+
+# Serve using Python's built-in HTTP server (for testing)
+python3 -m http.server 8000
 ```
 
 ## Post-Installation
