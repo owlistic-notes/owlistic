@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/frontend/assets/logo/logo-w-text.png" width="350px" />
+  <img src="src/frontend/assets/logo/owlistic-w-text.png" width="350px" />
   <h3>🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀 </h3>
 
   [![standard-readme compliant](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)

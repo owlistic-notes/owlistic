@@ -17,7 +17,7 @@ class AppLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Use transparent logo if in dark mode or if explicitly requested
-    const String logoAsset = 'assets/logo/logo.png';
+    const String logoAsset = 'assets/logo/owlistic.png';
     final logoWidget = Image.asset(
       logoAsset,
       width: size,
