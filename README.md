@@ -34,11 +34,13 @@ TODO: add motivation
 
 ## Features
 
-- 📱 Responsive design and supports most modern browsers
-- 🌓 Dark/Light mode support
-- 🔄 Real-time Synchronization
-- ⬇️ Import and export your markdown notes
-
+- 📒 Notebooks
+- ✏️ Rich (WYSIWYG) editor
+- ✔️ Inline todo items
+- 🔄 Real-time sync
+- 🗑 Trash
+- 🌓 Dark/Light mode
+- ⬇️ Import markdown notes
 
 ## Install
 
