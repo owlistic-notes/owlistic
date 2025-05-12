@@ -23,7 +23,7 @@ Owlistic is a self-hosted application designed to help you capture, organize, an
 
 ## Getting Started
 
-Ready to start using Owlistic? Check out our [Quick Start Guide](getting-started/quick-start) to get up and running in minutes.
+Ready to start using Owlistic? Check out our [Quick Start Guide](./quick-start) to get up and running in minutes.
 
 ## Why Owlistic?
 
@@ -31,4 +31,4 @@ In a world of proprietary note-taking solutions that lock your data into walled 
 
 ## Contributing
 
-Owlistic is developed by the community, for the community. We welcome contributions of all kinds - from code improvements to documentation updates. Check out our [Contributing Guide](contributing/development-setup) to learn how you can help.
+Owlistic is developed by the community, for the community. We welcome contributions of all kinds - from code improvements to documentation updates. Check out our [Contributing Guide](../contributing/development-setup) to learn how you can help.
