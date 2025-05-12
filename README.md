@@ -10,7 +10,7 @@
 ## Table of Contents
 
 - [Intro & motivation](#intro-and-motivation)
-- [Background](#background)
+- [Quick Links](#quick-links)
 - [Install](#install)
 - [Usage](#usage)
 - [Maintainers](#maintainers)
@@ -24,7 +24,7 @@ TODO: add motivation
 ## Quick Links
 
 - [Getting Started](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
-- [FAQ](https://owlistic-notes.github.io/owlistic/docs/category/faq)
+- [FAQ](https://owlistic-notes.github.io/owlistic/docs/troubleshooting/faq)
 <!--
 - [Api Reference](https://owlistic-notes.github.io/owlistic/docs/category/api-reference)
 -->
