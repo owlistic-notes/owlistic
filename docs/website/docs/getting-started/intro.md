@@ -4,9 +4,9 @@ sidebar_position: 1
 
 # Introduction to Owlistic
 
-Welcome to Owlistic - a free open-source Owlistic with real-time synchronization.
+![Owlistic Logo](/img/logo-192x192.png)
 
-![Owlistic Logo](/img/logo.svg)
+Welcome to Owlistic - a free open-source Owlistic with real-time synchronization.
 
 ## What is Owlistic?
 
