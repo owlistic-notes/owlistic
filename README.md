@@ -21,19 +21,21 @@
 
 TODO: add motivation
 
-## Links
+## Quick Links
 
 - [Getting Started](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
-
-## Background
+- [FAQ](https://owlistic-notes.github.io/owlistic/docs/category/faq)
+<!--
+- [Api Reference](https://owlistic-notes.github.io/owlistic/docs/category/api-reference)
+-->
 
 ## Install
 
-TODO: add a link to docs/install gh-pages
+Please follow the [installation instructions](https://owlistic-notes.github.io/owlistic/docs/getting-started/installation).
 
 ## Usage
 
-TODO: add a link to docs/user-guide gh-pages
+Please follow the [usage instructions](https://owlistic-notes.github.io/owlistic/docs/category/usage).
 
 ## Maintainers
 
@@ -41,7 +43,7 @@ TODO: add a link to docs/user-guide gh-pages
 
 ## Contributing
 
-PRs accepted.
+Owlistic is developed by the community, for the community. We welcome contributions of all kinds - from code improvements to documentation updates. Check out our [Contributing Guide](https://owlistic-notes.github.io/owlistic/docs/category/contributing) to learn how you can help.
 
 Small note: If editing the README, please conform to the
 [standard-readme](https://github.com/RichardLitt/standard-readme) specification.
