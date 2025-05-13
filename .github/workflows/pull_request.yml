@@ -61,9 +61,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Create tag variables
-        env:
-          TAG: ${{ github.ref_name }}
-          LOWERCASE_REPO: ${{ steps.lowercaseRepo.outputs.lowercase }}
         run: |
           echo "BUILD_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
@@ -85,7 +82,7 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic:${BUILD_TAG}
+          tags: ghcr.io/owlistic-notes/owlistic:${env.BUILD_TAG}
 
   server-docker-amd64:
     name: Server Docker Build and Push (AMD64)
