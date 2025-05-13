@@ -86,21 +86,11 @@ func main() {
 	router := gin.Default()
 
 	// CORS middleware
-	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
-		c.Writer.Header().Set("Access-Control-Max-Age", "3600") // Cache preflight request for 1 hour
-
-		// Handle preflight requests
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	})
+	corsOrigins := cfg.AllowedOrigins
+	if len(corsOrigins) == 0 {
+		corsOrigins = []string{"*"}
+	}
+	router.Use(middleware.CORSMiddleware(corsOrigins))
 
 	// Create public API groups
 	publicGroup := router.Group("/api/v1")
@@ -141,7 +131,7 @@ func main() {
 	}()
 
 	log.Println("API server is running on port 8080")
-	if err := http.ListenAndServe(":8080", router); err != nil {
+	if err := http.ListenAndServe(":" + cfg.AppPort, router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
