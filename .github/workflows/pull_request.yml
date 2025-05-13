@@ -9,7 +9,7 @@ on:
       - "docs/**"
 
 env:
-  BUILD_TAG: ${{ github.event.pull_request.head.sha }}
+  BUILD_TAG: ${{ github.sha }}
 
 concurrency:
   group: ${{ github.ref }}
