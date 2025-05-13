@@ -8,9 +8,6 @@ on:
     paths-ignore:
       - "docs/**"
 
-env:
-  BUILD_TAG: ${{ github.sha }}
-
 concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
@@ -71,6 +68,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.REPO_TOKEN }}
 
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short
+
       # Build Docker Image for arm64
       - name: Build Backend Docker Image (ARM64)
         uses: docker/build-push-action@v5
@@ -81,7 +87,8 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic:${{ env.BUILD_TAG }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   server-docker-amd64:
     name: Server Docker Build and Push (AMD64)
@@ -108,6 +115,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.REPO_TOKEN }}
 
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short,suffix=-amd64
+
       # Build Docker Image for amd64
       - name: Build Backend Docker Image (AMD64)
         uses: docker/build-push-action@v5
@@ -118,7 +134,8 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic:${{ env.BUILD_TAG }}-amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   frontend-package:
     name: Frontend Package and Archive
@@ -207,6 +224,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.REPO_TOKEN }}
 
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short,suffix=-ui
+
       # Build Docker Image for arm64
       - name: Build Frontend Docker Image (ARM64)
         uses: docker/build-push-action@v5
@@ -217,7 +243,8 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${{ env.BUILD_TAG }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   frontend-docker-amd64:
     name: Frontend Docker Build and Push (AMD64)
@@ -244,6 +271,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.REPO_TOKEN }}
 
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short,suffix=-ui-amd64
+            type=raw,value=latest,enable=false
+
       # Build Docker Image for amd64
       - name: Build Frontend Docker Image (AMD64)
         uses: docker/build-push-action@v5
@@ -254,4 +291,5 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${{ env.BUILD_TAG }}-amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
