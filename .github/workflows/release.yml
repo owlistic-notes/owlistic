@@ -12,24 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tag:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Create Tag
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag ${{ github.event.inputs.version }}
-          git push origin ${{ github.event.inputs.version }}
-  
   backend:
-    needs: tag
     name: Backend Build and Push
     runs-on: ubuntu-latest
     steps:
@@ -96,7 +79,6 @@ jobs:
           cache-from: type=registry,ref=daviderutigliano/owlistic:buildcache-amd64
 
   frontend:
-    needs: tag
     name: Frontend Build and Push
     runs-on: ubuntu-latest
 
@@ -205,16 +187,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
-
+          persist-credentials: false
+      - name: Create Tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          name: Release ${{ github.event.inputs.version }}
           files: ./artifacts/**/*
           path: ./artifacts
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.tag_version.outputs.changelog }}
