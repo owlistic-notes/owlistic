@@ -2,12 +2,11 @@ version: '3.8'
 
 services:
   owlistic:
-    image: daviderutigliano/owlistic:main-arm64
-    # build:
-    #   context: ./src/backend
-    #   dockerfile: Dockerfile
-    #   args:
-    #     TARGETARCH: ${TARGETARCH:-arm64}
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        TARGETARCH: ${TARGETARCH:-arm64}
     ports:
       - "8080:8080"
     depends_on:
@@ -21,12 +20,11 @@ services:
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
   owlistic-ui:
-    image: daviderutigliano/owlistic-ui:main-arm64
-    # build:
-    #   context: ./src/frontend
-    #   dockerfile: Dockerfile
-    #   args:
-    #     TARGETARCH: ${TARGETARCH:-arm64}
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+      args:
+        TARGETARCH: ${TARGETARCH:-arm64}
     ports:
       - "80:80"
     depends_on:
@@ -53,7 +51,6 @@ services:
       - "9092:9092"
     depends_on:
       - zookeeper
-
   zookeeper:
     image: bitnami/zookeeper:3
     environment:
