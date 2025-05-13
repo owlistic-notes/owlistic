@@ -1,4 +1,4 @@
-name: Dev
+name: Run CI for Dev
 
 on:
   workflow_dispatch:
