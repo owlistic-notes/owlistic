@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
+  server-binary:
     name: Backend Build and Push
     runs-on: ubuntu-latest
     steps:
@@ -21,14 +21,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       # Set up Go environment
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -45,10 +37,27 @@ jobs:
       - name: Archive Go Binary
         uses: actions/upload-artifact@v4
         with:
-          name: owlistic
+          name: Server Binary
           path: src/backend/owlistic
           retention-days: 7
           if-no-files-found: error
+
+  server-docker:
+    name: Backend Build and Push
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
@@ -83,8 +92,8 @@ jobs:
           tags: daviderutigliano/owlistic:latest-amd64,daviderutigliano/owlistic:${{ github.ref_name }}-amd64
           cache-from: type=registry,ref=daviderutigliano/owlistic:buildcache-amd64
 
-  frontend:
-    name: Frontend Build and Push
+  frontend-package:
+    name: Frontend Package and Archive
     runs-on: ubuntu-latest
 
     steps:
@@ -93,14 +102,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       # Setup Flutter environment
       - name: Set up Flutter
@@ -148,10 +149,27 @@ jobs:
       - name: Archive Web App
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-web-build
+          name: Web App
           path: src/frontend/web
           retention-days: 7
           if-no-files-found: error
+
+  frontend-docker:
+    name: Frontend Docker Build and Push
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
@@ -187,7 +205,7 @@ jobs:
           cache-from: type=registry,ref=daviderutigliano/owlistic-ui:buildcache-amd64
 
   release:
-    needs: [backend, frontend]
+    needs: [server-binary, server-docker, frontend-package, frontend-docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -205,8 +223,6 @@ jobs:
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          files: ./artifacts/**/*
-          path: ./artifacts
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}

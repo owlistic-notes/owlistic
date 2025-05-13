@@ -8,14 +8,16 @@ on:
     paths-ignore:
       - "src/**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   docs:
     name: Deploy and Publish Docs
     runs-on: ubuntu-22.04
     permissions:
       contents: write
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
     defaults:
       run:
         working-directory: docs/website
