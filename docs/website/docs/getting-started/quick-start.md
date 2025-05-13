@@ -22,7 +22,7 @@ Once installed, you can launch the application by running the following command 
 cd owlistic-ui && python3 -m http.server 80
 ```
 
-This will start the application, and you can access it at [http://localhost](http://localhost).
+This will start the application, and you can access it at `http://your-website`.
 
 ## Step 3: Create Your First Note
 

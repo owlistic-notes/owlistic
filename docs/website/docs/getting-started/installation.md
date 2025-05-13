@@ -58,28 +58,28 @@ python3 -m http.server 80
 
 ```bash
 # Pull the backend image
-docker pull daviderutigliano/owlistic:main-arm64
+docker pull daviderutigliano/owlistic:latest
 
 # Pull the frontend image
-docker pull daviderutigliano/owlistic-ui:main-arm64
+docker pull daviderutigliano/owlistic-ui:latest
 
 # Run the backend
 docker run -d \
   --name owlistic \
   -p 8080:8080 \
-  -e DB_HOST=postgres \
+  -e APP_PORT=8080 \
   -e DB_PORT=5432 \
   -e DB_USER=admin \
   -e DB_PASSWORD=admin \
   -e DB_NAME=postgres \
   -e KAFKA_BROKER=kafka:9092 \
-  daviderutigliano/owlistic:main-arm64
+  daviderutigliano/owlistic:latest
 
 # Run the frontend
 docker run -d \
   --name owlistic-ui \
   -p 80:80 \
-  daviderutigliano/owlistic-ui:main-arm64
+  daviderutigliano/owlistic-ui:latest
 ```
 
 Note: The above commands assume you have PostgreSQL and Kafka running and accessible.
@@ -95,13 +95,14 @@ version: '3.8'
 
 services:
   owlistic:
-    image: daviderutigliano/owlistic:main-arm64
+    image: daviderutigliano/owlistic:latest
     ports:
       - "8080:8080"
     depends_on:
       - postgres
       - kafka
     environment:
+      - APP_PORT=8080
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=admin
@@ -109,7 +110,7 @@ services:
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
   owlistic-ui:
-    image: daviderutigliano/owlistic-ui:main-arm64
+    image: daviderutigliano/owlistic-ui:latest
     ports:
       - "80:80"
     depends_on:
@@ -196,6 +197,7 @@ service:
     port: 80
 
 environment:
+  APP_PORT: 8080
   DB_HOST: postgres-service
   DB_PORT: 5432
   DB_USER: admin
