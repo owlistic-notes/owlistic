@@ -230,7 +230,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=ref,event=tag,enable=true,prefix=,suffix=
+            type=ref,event=tag,enable=true,priority=600,prefix=,suffix=
             type=raw,format=latest,enabled=true
 
       # Build Docker Image for arm64
