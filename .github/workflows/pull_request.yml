@@ -1,14 +1,15 @@
-name: Release
+name: Merge
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g., v1.2.3)'
-        required: true
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -70,7 +71,7 @@ jobs:
       - name: Build Backend Docker Image (ARM64)
         uses: docker/build-push-action@v5
         with:
-          push: true
+          push: false
           context: src/backend
           platforms: linux/arm64
           file: src/backend/Dockerfile
@@ -83,7 +84,7 @@ jobs:
       - name: Build Backend Docker Image (AMD64)
         uses: docker/build-push-action@v5
         with:
-          push: true
+          push: false
           context: src/backend
           platforms: linux/amd64
           file: src/backend/Dockerfile
@@ -182,7 +183,7 @@ jobs:
       - name: Build Frontend Docker Image (ARM64)
         uses: docker/build-push-action@v5
         with:
-          push: true
+          push: false
           context: src/frontend
           platforms: linux/arm64
           file: src/frontend/Dockerfile
@@ -195,7 +196,7 @@ jobs:
       - name: Build Frontend Docker Image (AMD64)
         uses: docker/build-push-action@v5
         with:
-          push: true
+          push: false
           context: src/frontend
           platforms: linux/amd64
           file: src/frontend/Dockerfile
@@ -203,26 +204,3 @@ jobs:
             TARGETARCH=amd64
           tags: daviderutigliano/owlistic-ui:latest-amd64,daviderutigliano/owlistic-ui:${{ github.ref_name }}-amd64
           cache-from: type=registry,ref=daviderutigliano/owlistic-ui:buildcache-amd64
-
-  release:
-    needs: [server-binary, server-docker, frontend-package, frontend-docker]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Create Tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.2
-        with:
-          github_token: ${{ secrets.REPO_TOKEN }}
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
