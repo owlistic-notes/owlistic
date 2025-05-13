@@ -73,7 +73,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=tag,enable=true,prefix=,suffix=
-            type=raw,value=latest,enabled=true
 
       # Build Docker Image for arm64
       - name: Build Backend Docker Image (ARM64)
@@ -121,7 +120,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=tag,enable=true,prefix=,suffix=
-            type=raw,value=latest,enabled=true
 
       # Build Docker Image for amd64
       - name: Build Backend Docker Image (AMD64)
@@ -231,7 +229,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=tag,enable=true,priority=600,prefix=,suffix=
-            type=raw,value=latest,enabled=true
 
       # Build Docker Image for arm64
       - name: Build Frontend Docker Image (ARM64)
@@ -279,7 +276,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=tag,enable=true,prefix=,suffix=
-            type=raw,value=latest,enabled=true
 
       # Build Docker Image for amd64
       - name: Build Frontend Docker Image (AMD64)
