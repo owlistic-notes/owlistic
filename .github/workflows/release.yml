@@ -2,10 +2,10 @@ name: Release Artifacts
 
 on:
   workflow_dispatch:
-  inputs:
-    version:
-      description: 'Release version (e.g., v1.2.3)'
-      required: true
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.2.3)'
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
