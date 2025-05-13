@@ -81,7 +81,7 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic:${env.BUILD_TAG}
+          tags: ghcr.io/owlistic-notes/owlistic:${{ env.BUILD_TAG }}
 
   server-docker-amd64:
     name: Server Docker Build and Push (AMD64)
@@ -118,7 +118,7 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic:${BUILD_TAG}-amd64
+          tags: ghcr.io/owlistic-notes/owlistic:${{ env.BUILD_TAG }}-amd64
 
   frontend-package:
     name: Frontend Package and Archive
@@ -217,7 +217,7 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${BUILD_TAG}
+          tags: ghcr.io/owlistic-notes/owlistic-ui:${{ env.BUILD_TAG }}
 
   frontend-docker-amd64:
     name: Frontend Docker Build and Push (AMD64)
@@ -254,4 +254,4 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${BUILD_TAG}-amd64
+          tags: ghcr.io/owlistic-notes/owlistic-ui:${{ env.BUILD_TAG }}-amd64
