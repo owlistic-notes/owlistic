@@ -68,7 +68,7 @@ jobs:
           build-args: |
             TARGETARCH=arm64
           tags: daviderutigliano/owlistic:latest,daviderutigliano/owlistic:${{ github.ref_name }}
-          # cache-from: type=registry,ref=daviderutigliano/owlistic:buildcache-arm64
+          cache-from: type=registry,ref=daviderutigliano/owlistic:buildcache-arm64
 
       # Build Docker Image for amd64
       - name: Build Backend Docker Image (AMD64)
@@ -81,7 +81,7 @@ jobs:
           build-args: |
             TARGETARCH=amd64
           tags: daviderutigliano/owlistic:latest-amd64,daviderutigliano/owlistic:${{ github.ref_name }}-amd64
-          # cache-from: type=registry,ref=daviderutigliano/owlistic:buildcache-amd64
+          cache-from: type=registry,ref=daviderutigliano/owlistic:buildcache-amd64
 
   frontend:
     name: Frontend Build and Push
@@ -171,7 +171,7 @@ jobs:
           build-args: |
             TARGETARCH=arm64
           tags: daviderutigliano/owlistic-ui:latest,daviderutigliano/owlistic-ui:${{ github.ref_name }}
-          # cache-from: type=registry,ref=daviderutigliano/owlistic-ui:buildcache-arm64
+          cache-from: type=registry,ref=daviderutigliano/owlistic-ui:buildcache-arm64
           
       # Build Docker Image for amd64
       - name: Build Frontend Docker Image (AMD64)
@@ -184,7 +184,7 @@ jobs:
           build-args: |
             TARGETARCH=amd64
           tags: daviderutigliano/owlistic-ui:latest-amd64,daviderutigliano/owlistic-ui:${{ github.ref_name }}-amd64
-          # cache-from: type=registry,ref=daviderutigliano/owlistic-ui:buildcache-amd64
+          cache-from: type=registry,ref=daviderutigliano/owlistic-ui:buildcache-amd64
 
   release:
     needs: [backend, frontend]
@@ -198,7 +198,7 @@ jobs:
         id: tag_version
         uses: mathieudutour/github-tag-action@v6.2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.REPO_TOKEN }}
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
