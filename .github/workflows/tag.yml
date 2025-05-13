@@ -27,7 +27,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.REPO_TOKEN }}
-          custom_tag: v${{ github.event.inputs.version }}
+          custom_tag: ${{ github.event.inputs.version }}
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
