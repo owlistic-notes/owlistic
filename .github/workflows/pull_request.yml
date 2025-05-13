@@ -60,6 +60,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Create tag variables
+        env:
+          TAG: ${{ github.ref_name }}
+          LOWERCASE_REPO: ${{ steps.lowercaseRepo.outputs.lowercase }}
+        run: |
+          echo "BUILD_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
       # Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -78,7 +85,7 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic:${GITHUB_SHA::7}
+          tags: ghcr.io/owlistic-notes/owlistic:${BUILD_TAG}
 
   server-docker-amd64:
     name: Server Docker Build and Push (AMD64)
@@ -115,7 +122,7 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic:${GITHUB_SHA::7}-amd64
+          tags: ghcr.io/owlistic-notes/owlistic:${BUILD_TAG}-amd64
 
   frontend-package:
     name: Frontend Package and Archive
@@ -214,7 +221,7 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${GITHUB_SHA::7}
+          tags: ghcr.io/owlistic-notes/owlistic-ui:${BUILD_TAG}
 
   frontend-docker-amd64:
     name: Frontend Docker Build and Push (AMD64)
@@ -251,4 +258,4 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${GITHUB_SHA::7}-amd64
+          tags: ghcr.io/owlistic-notes/owlistic-ui:${BUILD_TAG}-amd64
