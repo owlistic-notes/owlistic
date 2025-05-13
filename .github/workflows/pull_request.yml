@@ -81,7 +81,7 @@ jobs:
       - name: Build Backend Docker Image (ARM64)
         uses: docker/build-push-action@v5
         with:
-          push: false
+          push: true
           context: src/backend
           platforms: linux/arm64
           file: src/backend/Dockerfile
@@ -128,7 +128,7 @@ jobs:
       - name: Build Backend Docker Image (AMD64)
         uses: docker/build-push-action@v5
         with:
-          push: false
+          push: true
           context: src/backend
           platforms: linux/amd64
           file: src/backend/Dockerfile
@@ -237,7 +237,7 @@ jobs:
       - name: Build Frontend Docker Image (ARM64)
         uses: docker/build-push-action@v5
         with:
-          push: false
+          push: true
           context: src/frontend
           platforms: linux/arm64
           file: src/frontend/Dockerfile
@@ -285,7 +285,7 @@ jobs:
       - name: Build Frontend Docker Image (AMD64)
         uses: docker/build-push-action@v5
         with:
-          push: false
+          push: true
           context: src/frontend
           platforms: linux/amd64
           file: src/frontend/Dockerfile

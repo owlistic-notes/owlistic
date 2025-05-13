@@ -33,7 +33,7 @@ jobs:
         run: |
           cd src/backend
           go build -o owlistic ./cmd/main.go
-          
+
       # Archive Go binary as artifact
       - name: Archive Go Binary
         uses: actions/upload-artifact@v4
@@ -42,6 +42,100 @@ jobs:
           path: src/backend/owlistic
           retention-days: 7
           if-no-files-found: error
+
+  server-docker-arm64:
+    name: Server Docker Build and Push (ARM64)
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short,prefix=
+
+      # Build Docker Image for arm64
+      - name: Build Backend Docker Image (ARM64)
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          context: src/backend
+          platforms: linux/arm64
+          file: src/backend/Dockerfile
+          build-args: |
+            TARGETARCH=arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  server-docker-amd64:
+    name: Server Docker Build and Push (AMD64)
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short,prefix=,suffix=-amd64
+
+      # Build Docker Image for amd64
+      - name: Build Backend Docker Image (AMD64)
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          context: src/backend
+          platforms: linux/amd64
+          file: src/backend/Dockerfile
+          build-args: |
+            TARGETARCH=amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   frontend-package:
     name: Frontend Package and Archive
@@ -104,3 +198,98 @@ jobs:
           path: src/frontend/web
           retention-days: 7
           if-no-files-found: error
+
+  frontend-docker-arm64:
+    name: Frontend Docker Build and Push (ARM64)
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short,prefix=,suffix=-ui
+
+      # Build Docker Image for arm64
+      - name: Build Frontend Docker Image (ARM64)
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          context: src/frontend
+          platforms: linux/arm64
+          file: src/frontend/Dockerfile
+          build-args: |
+            TARGETARCH=arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  frontend-docker-amd64:
+    name: Frontend Docker Build and Push (AMD64)
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Set up QEMU for cross-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short,prefix=,suffix=-ui-amd64
+            type=raw,value=latest,enable=false
+
+      # Build Docker Image for amd64
+      - name: Build Frontend Docker Image (AMD64)
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          context: src/frontend
+          platforms: linux/amd64
+          file: src/frontend/Dockerfile
+          build-args: |
+            TARGETARCH=amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
