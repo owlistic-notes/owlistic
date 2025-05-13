@@ -13,11 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  generate-image-tag:
-    - name: Get latest commit SHA
-      id: sha
-      run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
   server-binary:
     name: Server binary Package and Archive
     runs-on: ubuntu-latest
