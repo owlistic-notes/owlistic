@@ -8,6 +8,9 @@ on:
     paths-ignore:
       - "docs/**"
 
+env:
+  BUILD_TAG: ${GITHUB_SHA::7}
+
 concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
@@ -59,10 +62,6 @@ jobs:
       # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Create tag variables
-        run: |
-          echo "BUILD_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       # Log in to Docker Hub
       - name: Log in to Docker Hub
