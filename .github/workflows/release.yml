@@ -189,6 +189,9 @@ jobs:
   release:
     needs: [backend, frontend]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
