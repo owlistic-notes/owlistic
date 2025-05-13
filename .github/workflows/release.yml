@@ -1,22 +1,38 @@
-name: On release
+name: Release Artifacts
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
+  inputs:
+    version:
+      description: 'Release version (e.g., v1.2.3)'
+      required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  backend:
-    name: Backend Build and Push
+  tag:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      # Checkout code
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
+      - name: Create Tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ github.event.inputs.version }}
+          git push origin ${{ github.event.inputs.version }}
+  
+  backend:
+    needs: tag
+    name: Backend Build and Push
+    runs-on: ubuntu-latest
+    steps:
       # Set up QEMU for cross-platform builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -80,6 +96,7 @@ jobs:
           cache-from: type=registry,ref=daviderutigliano/owlistic:buildcache-amd64
 
   frontend:
+    needs: tag
     name: Frontend Build and Push
     runs-on: ubuntu-latest
 
@@ -182,42 +199,24 @@ jobs:
           tags: daviderutigliano/owlistic-ui:latest-amd64,daviderutigliano/owlistic-ui:${{ github.ref_name }}-amd64
           cache-from: type=registry,ref=daviderutigliano/owlistic-ui:buildcache-amd64
 
-  docs:
-    name: Deploy and Publish Docs
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-    defaults:
-      run:
-        working-directory: docs/website
+  release:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          node-version: '24'
+          path: ./artifacts
 
-      - name: Get yarn cache
-        id: yarn-cache
-        run: echo "YARN_CACHE_DIR=$(yarn cache dir)" >> "${GITHUB_OUTPUT}"
-
-      - name: Cache dependencies
-        uses: actions/cache@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          path: ${{ steps.yarn-cache.outputs.YARN_CACHE_DIR }}
-          key: ${{ runner.os }}-website-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-website-
+          tag_name: ${{ github.event.inputs.version }}
+          name: Release ${{ github.event.inputs.version }}
+          files: ./artifacts/**/*
 
-      - run: yarn install --frozen-lockfile
-      - run: yarn build
-
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v4
-        if: github.ref == 'refs/heads/main'
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/website/build
+          path: ./artifacts
