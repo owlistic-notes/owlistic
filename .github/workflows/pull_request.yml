@@ -13,6 +13,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  generate-image-tag:
+    - name: Get latest commit SHA
+      id: sha
+      run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
   server-binary:
     name: Server binary Package and Archive
     runs-on: ubuntu-latest
@@ -33,7 +38,7 @@ jobs:
         run: |
           cd src/backend
           go build -o owlistic ./cmd/main.go
-          
+
       # Archive Go binary as artifact
       - name: Archive Go Binary
         uses: actions/upload-artifact@v4
@@ -78,7 +83,7 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic:${{ github.sha::7 }}
+          tags: ghcr.io/owlistic-notes/owlistic:${GITHUB_SHA::7}
 
   server-docker-amd64:
     name: Server Docker Build and Push (AMD64)
@@ -115,7 +120,7 @@ jobs:
           file: src/backend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic:${{ github.sha::7 }}-amd64
+          tags: ghcr.io/owlistic-notes/owlistic:${GITHUB_SHA::7}-amd64
 
   frontend-package:
     name: Frontend Package and Archive
@@ -214,7 +219,7 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=arm64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${{ github.sha::7 }}
+          tags: ghcr.io/owlistic-notes/owlistic-ui:${GITHUB_SHA::7}
 
   frontend-docker-amd64:
     name: Frontend Docker Build and Push (AMD64)
@@ -251,4 +256,4 @@ jobs:
           file: src/frontend/Dockerfile
           build-args: |
             TARGETARCH=amd64
-          tags: ghcr.io/owlistic-notes/owlistic-ui:${{ github.sha::7 }}-amd64
+          tags: ghcr.io/owlistic-notes/owlistic-ui:${GITHUB_SHA::7}-amd64
