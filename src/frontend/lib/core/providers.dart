@@ -102,7 +102,7 @@ final List<SingleChildWidget> appProviders = [
   ChangeNotifierProvider<ThemeViewModel>(
     create: (context) => ThemeProvider(
       themeService: context.read<ThemeService>(),
-    )..initialize(), // Initialize to load saved theme preferences
+    )..initialize(),
   ),
   
   ChangeNotifierProvider<RegisterViewModel>(

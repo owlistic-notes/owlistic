@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:owlistic/core/theme.dart';
 import '../viewmodel/theme_viewmodel.dart';
 import '../services/theme_service.dart';
 import '../utils/logger.dart';
@@ -17,7 +18,7 @@ class ThemeProvider with ChangeNotifier implements ThemeViewModel {
   
   // Default to light mode instead of system
   ThemeMode _themeMode = ThemeMode.light;
-  late ThemeData _theme;
+  late ThemeData _theme = AppTheme.getThemeData(_themeMode);
   
   // Define consistent theme colors - same for both light and dark
   static final Color _primaryColor = Colors.blue.shade700;
