@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -86,11 +87,7 @@ func main() {
 	router := gin.Default()
 
 	// CORS middleware
-	corsOrigins := cfg.AllowedOrigins
-	if len(corsOrigins) == 0 {
-		corsOrigins = []string{"*"}
-	}
-	router.Use(middleware.CORSMiddleware(corsOrigins))
+	router.Use(middleware.CORSMiddleware())
 
 	// Create public API groups
 	publicGroup := router.Group("/api/v1")
@@ -130,8 +127,8 @@ func main() {
 		os.Exit(0)
 	}()
 
-	log.Println("API server is running on port 8080")
-	if err := http.ListenAndServe(":" + cfg.AppPort, router); err != nil {
+	log.Println("API server is running on port", cfg.AppPort)
+	if err := http.ListenAndServe(fmt.Sprintf(":%v", cfg.AppPort), router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

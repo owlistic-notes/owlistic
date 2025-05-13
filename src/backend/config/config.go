@@ -23,7 +23,6 @@ type Config struct {
 	RedisPort          string
 	JWTSecret          string
 	JWTExpirationHours int
-	AllowedOrigins     []string
 }
 
 func getEnv(key, defaultValue string) string {
@@ -46,9 +45,11 @@ func getEnvAsInt(key string, defaultValue int) int {
 
 func getEnvAsList(key string, defaultValue []string) []string {
 	if value, exists := os.LookupEnv(key); exists {
-		return strings.Split(value, ",")
+		if list := strings.Split(value, ","); len(list) > 0 {
+			return list
+		}
+		log.Printf("%s not set, defaulting to %v", key, defaultValue)
 	}
-	log.Printf("Invalid list value for %s, defaulting to %s", key, defaultValue)
 	return defaultValue
 }
 
@@ -71,6 +72,5 @@ func Load() Config {
 		RedisPort:          getEnv("REDIS_PORT", "6379"),
 		JWTSecret:          getEnv("JWT_SECRET", "your-super-secret-key-change-this-in-production"),
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
-		AllowedOrigins:     getEnvAsList("CORS_ALLOWED_ORIGINS", []string{"*"}),
 	}
 }
