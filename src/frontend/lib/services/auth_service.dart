@@ -341,8 +341,6 @@ class AuthService extends BaseService {
       return User(
         id: payload['user_id'],
         email: payload['email'] ?? '',
-        username: payload['username'],
-        displayName: payload['display_name'] ?? payload['username'],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );

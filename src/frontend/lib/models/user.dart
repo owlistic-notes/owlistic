@@ -11,7 +11,7 @@ class User {
   User({
     required this.id,
     required this.email,
-    required this.username,
+    this.username = '',
     this.displayName = '',
     this.profilePic = '',
     this.preferences,
