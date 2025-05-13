@@ -4,6 +4,7 @@ __pycache__/
 
 # VSCode settings
 .vscode/
+.continue/
 
 # intellij
 .idea/

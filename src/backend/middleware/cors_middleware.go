@@ -1,16 +1,19 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gin-contrib/cors"
 	gin "github.com/gin-gonic/gin"
 )
 
 // CORSMiddleware adds the required headers to allow cross-origin requests
-func CORSMiddleware() gin.HandlerFunc {
+func CORSMiddleware(AllowedOrigins string) gin.HandlerFunc {
 
 	// Set up CORS configuration
 	corsConfig := cors.Config{
-		AllowAllOrigins:  true,
+		AllowOrigins:     strings.Split(AllowedOrigins, ","),
+		// AllowAllOrigins:  true,
 		AllowWildcard:    true,
 		AllowWebSockets:  true,
 		AllowCredentials: true,

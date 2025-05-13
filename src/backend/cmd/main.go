@@ -87,7 +87,7 @@ func main() {
 	router := gin.Default()
 
 	// CORS middleware
-	router.Use(middleware.CORSMiddleware())
+	router.Use(middleware.CORSMiddleware(cfg.AllowedOrigins))
 
 	// Create public API groups
 	publicGroup := router.Group("/api/v1")
