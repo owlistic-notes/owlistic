@@ -1,8 +1,8 @@
 {
-  "label": "Getting Started",
+  "label": "Overview",
   "position": 1,
   "link": {
     "type": "generated-index",
-    "description": "Learn how to install and quickly start using the Owlistic."
+    "description": "Owlistic overview and quick start guides"
   }
 }

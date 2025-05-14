@@ -1,8 +1,8 @@
 ---
-sidebar_position: 1
+sidebar_position: 9999
 ---
 
-# FAQ
+# Frequently Asked Questions (FAQ)
 
 ## What is this Owlistic?
 
@@ -10,7 +10,7 @@ Owlistic is a self-hosted solution designed to help users manage their notes and
 
 ## How do I install the app?
 
-You can install the app using your preferred [installation method](../installation/).
+Follow [Docker compose instructions](../installation/docker-compose.md) to deploy Owlistic server and webapp.
 
 ## What are the system requirements?
 
@@ -27,10 +27,6 @@ Currently, the app only support web-based experience. However, you can access it
 ## How can I contribute to the project?
 
 We welcome contributions! Please read our [Contributing](../contributing/pull-requests.md) guidelines for more information on how to get involved.
-
-## Where can I find help if I encounter issues?
-
-If you encounter any issues, please refer to the [Troubleshooting](../troubleshooting/common-issues.md) section for common problems and solutions. You can also reach out to the community through our GitHub discussions.
 
 ## How do I report a bug?
 
