@@ -2,7 +2,7 @@
 
   <img src="src/frontend/assets/logo/owlistic-w-text.png" width="400px" />
   
-  # 🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀
+  # 🦉 Open-source notetaking app with real-time sync 🔄⚡️🚀
 
   [![Release](https://img.shields.io/github/release/owlistic-notes/owlistic?style=flat-square)](https://github.com/owlistic-notes/owlistic/releases/latest)
   [![Docs](https://img.shields.io/badge/docs-online-blue.svg?style=flat-square)](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
