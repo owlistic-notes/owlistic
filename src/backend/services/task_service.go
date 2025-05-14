@@ -120,7 +120,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 			Content: models.BlockContent{
 				"text": title,
 			},
-			Metadata: models.BlockContent{
+			Metadata: models.BlockMetadata{
 				"is_completed": task.IsCompleted,
 				"task_id":      taskID.String(),
 				"_sync_source": "task",
@@ -145,7 +145,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 				"block_id":     block.ID.String(),
 				"note_id":      noteID.String(),
 				"user_id":      userID.String(),
-				"block_type":   string(models.TaskBlock),
+				"type":		    string(models.TaskBlock),
 				"content":      block.Content,
 				"metadata":     block.Metadata,
 				"_sync_source": "task",

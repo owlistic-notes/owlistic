@@ -14,9 +14,8 @@ func TestBlockJSON(t *testing.T) {
 		NoteID:   uuid.New(),
 		Type:     TextBlock,
 		Content:  BlockContent{"text": "Test Content"},
-		Metadata: BlockContent{"format": "markdown"},
+		Metadata: BlockMetadata{"format": "markdown"},
 		Order:    1,
-		Tasks:    []Task{},
 	}
 
 	data, err := json.Marshal(block)
@@ -46,7 +45,7 @@ func TestBlockWithTasks(t *testing.T) {
 		NoteID:  uuid.New(),
 		Type:    TaskBlock,
 		Content: BlockContent{"text": "Task Block"},
-		Tasks:   []Task{task},
+		Metadata: BlockMetadata{"task_id": task.ID},
 		Order:   1,
 	}
 
@@ -56,8 +55,7 @@ func TestBlockWithTasks(t *testing.T) {
 	var result Block
 	err = json.Unmarshal(data, &result)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(result.Tasks))
-	assert.Equal(t, task.Title, result.Tasks[0].Title)
+	assert.Equal(t, task.ID, result.GetTaskID())
 }
 
 func TestBlockContentSerialization(t *testing.T) {

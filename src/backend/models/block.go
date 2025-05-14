@@ -13,27 +13,12 @@ import (
 type BlockType string
 
 const (
-	TextBlock      BlockType = "text"
-	TaskBlock      BlockType = "task"
+	TextBlock    BlockType = "text"
+	TaskBlock    BlockType = "task"
+	HeadingBlock BlockType = "heading"
 )
 
-// BlockContent stores the structured content of a block
 type BlockContent map[string]interface{}
-
-// InlineStyle represents a formatting span within block text
-type InlineStyle struct {
-	Type  string `json:"type"`
-	Start int    `json:"start"`
-	End   int    `json:"end"`
-	Href  string `json:"href,omitempty"` // For link styles
-}
-
-// StyleOptions defines the styling configuration for a block's content
-type StyleOptions struct {
-	RawMarkdown    string        `json:"raw_markdown,omitempty"`    // Original markdown text
-	InlineStyles   []InlineStyle `json:"styles,omitempty"`          // Extracted style information
-	PreserveFormat bool          `json:"preserve_format,omitempty"` // Whether to preserve formatting in storage
-}
 
 // Value implements the driver.Valuer interface for JSONB storage
 func (bc BlockContent) Value() (driver.Value, error) {
@@ -58,55 +43,92 @@ func (bc *BlockContent) Scan(value interface{}) error {
 	return json.Unmarshal(bytes, bc)
 }
 
+// BlockMetadata stores flexible metadata specific to each block type
+type BlockMetadata map[string]interface{}
+
+// Value implements the driver.Valuer interface for JSONB storage
+func (bm BlockMetadata) Value() (driver.Value, error) {
+	if bm == nil {
+		return nil, nil
+	}
+	return json.Marshal(bm)
+}
+
+// Scan implements the sql.Scanner interface for JSONB retrieval
+func (bm *BlockMetadata) Scan(value interface{}) error {
+	if value == nil {
+		*bm = make(BlockMetadata)
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(bytes, bm)
+}
+
 // Block represents a content block within a note
 type Block struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
 	NoteID    uuid.UUID      `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"note_id"`
 	Type      BlockType      `gorm:"type:varchar(20);not null" json:"type"`
-	Content   BlockContent   `gorm:"type:jsonb;not null;default:'{}'::jsonb" json:"content"`
-	Metadata  BlockContent   `gorm:"type:jsonb;default:'{}'::jsonb" json:"metadata,omitempty"`
-	Tasks     []Task         `gorm:"foreignKey:BlockID" json:"tasks,omitempty"`
-	Order     float64        `gorm:"not null" json:"order"` // Changed from int to float64
+	Content   BlockContent   `gorm:"type:jsonb;default:'{}'::jsonb" json:"content"`
+	Metadata  BlockMetadata  `gorm:"type:jsonb;default:'{}'::jsonb" json:"metadata"`
+	Order     float64        `gorm:"not null" json:"order"`
 	CreatedAt time.Time      `gorm:"not null;default:now()" json:"created_at"`
 	UpdatedAt time.Time      `gorm:"not null;default:now()" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }
 
-// GetInlineStyles returns the block's inline style information
-func (b *Block) GetInlineStyles() []InlineStyle {
-	if b.Content == nil {
-		return nil
+// GetHeadingLevel returns the heading level (for heading blocks)
+func (b *Block) GetHeadingLevel() int {
+	if b.Type != HeadingBlock {
+		return 0
 	}
 
-	// Try getting styles directly from the content map
-	if spans, ok := b.Content["spans"].([]interface{}); ok {
-		styles := make([]InlineStyle, 0, len(spans))
+	if level, ok := b.Metadata["level"].(float64); ok {
+		return int(level)
+	}
+	return 1 // Default heading level
+}
+
+// GetSpans returns formatting spans from metadata
+func (b *Block) GetSpans() []map[string]interface{} {
+	if spans, ok := b.Metadata["spans"].([]interface{}); ok {
+		result := make([]map[string]interface{}, 0, len(spans))
 		for _, span := range spans {
 			if spanMap, ok := span.(map[string]interface{}); ok {
-				style := InlineStyle{}
-
-				if t, ok := spanMap["type"].(string); ok {
-					style.Type = t
-				}
-
-				if start, ok := spanMap["start"].(float64); ok {
-					style.Start = int(start)
-				}
-
-				if end, ok := spanMap["end"].(float64); ok {
-					style.End = int(end)
-				}
-
-				if href, ok := spanMap["href"].(string); ok {
-					style.Href = href
-				}
-
-				styles = append(styles, style)
+				result = append(result, spanMap)
 			}
 		}
-		return styles
+		return result
+	}
+	return nil
+}
+
+// IsTaskCompleted returns whether a task is completed (for task blocks)
+func (b *Block) IsTaskCompleted() bool {
+	if b.Type != TaskBlock {
+		return false
 	}
 
-	return nil
+	if completed, ok := b.Metadata["is_completed"].(bool); ok {
+		return completed
+	}
+	return false
+}
+
+// GetTaskID returns the associated task ID (for task blocks)
+func (b *Block) GetTaskID() string {
+	if b.Type != TaskBlock {
+		return ""
+	}
+
+	if taskID, ok := b.Metadata["task_id"].(string); ok {
+		return taskID
+	}
+	return ""
 }

@@ -195,39 +195,6 @@ func (m *MockBlockService) ListBlocksByNote(db *database.Database, noteID string
 	return []models.Block{}, nil
 }
 
-// GetBlockWithStyles retrieves a block with its associated style information
-func (m *MockBlockService) GetBlockWithStyles(db *database.Database, id string, params map[string]interface{}) (models.Block, map[string]interface{}, error) {
-	// Check permissions using the params (simplified for tests)
-	_, hasUserID := params["user_id"]
-	if !hasUserID {
-		return models.Block{}, nil, errors.New("user_id must be provided in parameters")
-	}
-
-	if id == "123e4567-e89b-12d3-a456-426614174000" {
-		block := models.Block{
-			ID:      uuid.Must(uuid.Parse(id)),
-			NoteID:  uuid.Must(uuid.Parse("90a12345-f12a-98c4-a456-513432930000")),
-			Type:    models.TextBlock,
-			Content: models.BlockContent{"text": "Test Content"},
-			Order:   1,
-		}
-
-		styleInfo := map[string]interface{}{
-			"spans": []map[string]interface{}{
-				{
-					"start": 0,
-					"end":   4,
-					"type":  "bold",
-				},
-			},
-		}
-
-		return block, styleInfo, nil
-	}
-
-	return models.Block{}, nil, services.ErrBlockNotFound
-}
-
 func TestCreateBlock(t *testing.T) {
 	router := gin.Default()
 	db := &database.Database{}
