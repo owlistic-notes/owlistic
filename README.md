@@ -1,17 +1,14 @@
 <div align="center">
 
-  <img src="src/frontend/assets/logo/owlistic-w-text.png" width="350px" />
-  <br/>
+  <img src="src/frontend/assets/logo/owlistic-w-text.png" width="400px" />
   
-  ** 🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀 **
+  # 🦉 Free open-source notetaking app with real-time sync 🔄⚡️🚀
 
-  <br/>
   [![Release](https://img.shields.io/github/release/owlistic-notes/owlistic?style=flat-square)](https://github.com/owlistic-notes/owlistic/releases/latest)
   [![Docs](https://img.shields.io/badge/docs-online-blue.svg?style=flat-square)](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
   [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE.md)
   [![standard-readme](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-  <br/>
   [![Activity](https://img.shields.io/github/commit-activity/m/badges/shields)](https://github.com/owlistic-notes/owlistic/pulse)
 
 </div>
