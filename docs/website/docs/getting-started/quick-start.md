@@ -8,7 +8,7 @@ Welcome to the Quick Start Guide for our self-hosted Owlistic! This guide will h
 
 ## Step 1: Installation
 
-Before you begin, ensure that you have completed the installation process. Refer to the [Installation Guide](installation.md) for detailed instructions.
+Before you begin, ensure that you have completed the installation process using your preferred [install option](../installation/).
 
 ## Step 2: Launch the Application
 
@@ -43,7 +43,7 @@ Now that you have created your first note, take some time to explore the various
 
 ## Step 5: Check System Requirements
 
-Make sure your system meets the necessary requirements to run the application effectively. Refer to the [System Requirements](system-requirements.md) for more information.
+Make sure your system meets the necessary requirements to run the application effectively. Refer to the [System Requirements](../installation/system-requirements.md) for more information.
 
 ## Conclusion
 

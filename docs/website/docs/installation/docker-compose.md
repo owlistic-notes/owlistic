@@ -1,8 +1,8 @@
 ---
-sidebar_position: 4
+sidebar_position: 3
 ---
 
-# Installation
+# Docker Compose Installation (Recommended)
 
 Owlistic is a Go-based application that can be deployed in several ways. Choose the method that best suits your environment and requirements.
 
@@ -13,78 +13,7 @@ Before installation, ensure you have:
 - Read the [System Requirements](system-requirements.md)
 - Set up PostgreSQL and Kafka (required for storage and real-time synchronization)
 
-## Binary Installation
-
-### Step 1: Download the Binary
-
-```bash
-# For Linux (amd64)
-curl -LO https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic
-# Make owlistic executable
-chmod +x owlistic
-
-curl -L https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic-app.zip -o owlistic-app.zip
-# Extract the UI files
-unzip owlistic-app.zip -d owlistic-app
-```
-
-### Step 2: Configure Environment Variables
-
-Set the required environment variables:
-
-```bash
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USER=admin
-export DB_PASSWORD=admin
-export DB_NAME=postgres
-export KAFKA_BROKER=localhost:9092
-```
-
-### Step 3: Run the Application
-
-```bash
-# Start the backend application
-./owlistic
-
-# Serve the UI using a simple HTTP server
-cd owlistic-app
-python3 -m http.server 80
-```
-
-## Docker Installation
-
-### Using Pre-built Images
-
-```bash
-# Pull the backend image
-docker pull ghcr.io/owlistic-notes/owlistic:latest
-
-# Pull the frontend image
-docker pull ghcr.io/owlistic-notes/owlistic-app:latest
-
-# Run the backend
-docker run -d \
-  --name owlistic \
-  -p 8080:8080 \
-  -e APP_PORT=8080 \
-  -e DB_PORT=5432 \
-  -e DB_USER=admin \
-  -e DB_PASSWORD=admin \
-  -e DB_NAME=postgres \
-  -e KAFKA_BROKER=kafka:9092 \
-  ghcr.io/owlistic-notes/owlistic:latest
-
-# Run the frontend
-docker run -d \
-  --name owlistic-app \
-  -p 80:80 \
-  ghcr.io/owlistic-notes/owlistic-app:latest
-```
-
-Note: The above commands assume you have PostgreSQL and Kafka running and accessible.
-
-## Docker Compose Installation (Recommended)
+## Steps
 
 ### Step 1: Create Docker Compose File
 

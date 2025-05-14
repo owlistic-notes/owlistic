@@ -10,11 +10,11 @@ Owlistic is a self-hosted solution designed to help users manage their notes and
 
 ## How do I install the app?
 
-You can install the app by following the instructions in the [Installation Guide](getting-started/installation.md).
+You can install the app using your preferred [installation method](../installation/).
 
 ## What are the system requirements?
 
-The system requirements for running the app can be found in the [System Requirements](getting-started/system-requirements.md) section.
+The system requirements for running the app can be found in the [System Requirements](../installation/system-requirements.md) section.
 
 ## How do I create notes?
 
