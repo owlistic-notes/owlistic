@@ -124,9 +124,9 @@ func (s *SyncHandlerService) handleSyncEvent(eventType string, data []byte) erro
 
 // handleBlockCreated creates a task when a task block is created
 func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) error {
-	blockIDStr, ok := payload["id"].(string)
+	blockIDStr, ok := payload["block_id"].(string)
 	if !ok {
-		return errors.New("missing id in block event payload")
+		return errors.New("missing block_id in block event payload")
 	}
 
 	// Get block type to ensure it's a task block
@@ -194,10 +194,10 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 
 // handleBlockUpdated syncs changes from a block to its associated task
 func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) error {
-	blockIDStr, ok := payload["id"].(string)
+	blockIDStr, ok := payload["block_id"].(string)
 	if !ok {
 		log.Printf("Payload: %v", payload)
-		return errors.New("missing id in block event payload")
+		return errors.New("missing block_id in block event payload")
 	}
 
 	// Get the full block to check current type
@@ -284,7 +284,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 
 	// Check for completion status in metadata
 	isCompleted := task.IsCompleted // Default to current value
-	
+
 	// Get completed status from block metadata
 	if block.Metadata != nil {
 		if completed, exists := block.Metadata["is_completed"].(bool); exists {
@@ -307,9 +307,9 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 
 // handleBlockDeleted removes associated tasks when a block is deleted
 func (s *SyncHandlerService) handleBlockDeleted(payload map[string]interface{}) error {
-	blockIDStr, ok := payload["id"].(string)
+	blockIDStr, ok := payload["block_id"].(string)
 	if !ok {
-		return errors.New("missing id in block event payload")
+		return errors.New("missing block_id in block event payload")
 	}
 
 	// Find all tasks associated with this block
@@ -330,9 +330,9 @@ func (s *SyncHandlerService) handleBlockDeleted(payload map[string]interface{}) 
 
 // handleTaskCreated links a task to a block if possible
 func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) error {
-	taskIDStr, ok := payload["id"].(string)
+	taskIDStr, ok := payload["task_id"].(string)
 	if !ok {
-		return errors.New("missing id in task event payload")
+		return errors.New("missing task_id in task event payload")
 	}
 
 	// Check if task already has a block_id
@@ -362,8 +362,8 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 				"text": task.Title,
 			},
 			"metadata": models.BlockMetadata{
-				"is_completed":   task.IsCompleted,
-				"task_id":     task.ID.String(),
+				"is_completed": task.IsCompleted,
+				"task_id":      task.ID.String(),
 				"_sync_source": "task",
 			},
 		}
@@ -442,7 +442,7 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 			"text": task.Title,
 		},
 		"metadata": models.BlockMetadata{
-			"is_completed":    task.IsCompleted,
+			"is_completed": task.IsCompleted,
 			"task_id":      task.ID.String(), // Add task ID reference
 			"_sync_source": "task",
 		},
@@ -474,9 +474,9 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 
 // handleTaskUpdated syncs changes from a task to its associated block
 func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) error {
-	taskIDStr, ok := payload["id"].(string)
+	taskIDStr, ok := payload["task_id"].(string)
 	if !ok {
-		return errors.New("missing id in task event payload")
+		return errors.New("missing task_id in task event payload")
 	}
 
 	// Get the complete task
@@ -506,7 +506,7 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 				"text": task.Title,
 			},
 			"metadata": models.BlockMetadata{
-				"is_completed":    task.IsCompleted,
+				"is_completed": task.IsCompleted,
 				"task_id":      task.ID.String(),
 				"_sync_source": "task",
 			},
@@ -547,30 +547,30 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 	if statusUpdated {
 		// Start with existing metadata
 		metadataMap := models.BlockMetadata{}
-		
+
 		// Copy existing metadata
 		if block.Metadata != nil {
 			for k, v := range block.Metadata {
 				metadataMap[k] = v
 			}
 		}
-		
+
 		metadataMap["is_completed"] = isCompleted
 		metadataMap["_sync_source"] = "task"
-		
+
 		blockData["metadata"] = metadataMap
 		needsUpdate = true
 	} else if needsUpdate {
 		// If we're updating content but not metadata, still add sync marker
 		metadataMap := models.BlockMetadata{}
-		
+
 		// Copy existing metadata
 		if block.Metadata != nil {
 			for k, v := range block.Metadata {
 				metadataMap[k] = v
 			}
 		}
-		
+
 		metadataMap["_sync_source"] = "task"
 		blockData["metadata"] = metadataMap
 	}
@@ -592,9 +592,9 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 
 // handleTaskDeleted handles cleanup when a task is deleted
 func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) error {
-	taskIDStr, ok := payload["id"].(string)
+	taskIDStr, ok := payload["task_id"].(string)
 	if !ok {
-		return errors.New("missing id in task event payload")
+		return errors.New("missing task_id in task event payload")
 	}
 
 	// We need to find the block_id from the task data
@@ -619,7 +619,7 @@ func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) e
 
 	// Update block metadata to reflect task deletion
 	metadataMap := models.BlockMetadata{}
-	
+
 	// Copy existing metadata
 	if block.Metadata != nil {
 		for k, v := range block.Metadata {
@@ -628,13 +628,13 @@ func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) e
 			}
 		}
 	}
-	
+
 	// Add task deletion markers
 	metadataMap["task_deleted"] = true
 	metadataMap["_sync_source"] = "task"
 	metadataMap["task_id"] = taskIDStr
 	metadataMap["deleted_at"] = time.Now().Format(time.RFC3339)
-	
+
 	blockData := map[string]interface{}{
 		"metadata": metadataMap,
 	}
