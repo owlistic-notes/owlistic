@@ -41,10 +41,20 @@ jobs:
           if-no-files-found: error
 
   retag-server-images:
-    name: Retag Server Docker Images
+    name: Retag Server Docker Images (${{ matrix.platform }})
     runs-on: ubuntu-latest
     permissions:
       packages: write
+    strategy:
+      matrix:
+        platform: [arm64, amd64]
+        include:
+          - platform: arm64
+            suffix: ""
+            is_default: true
+          - platform: amd64
+            suffix: "-amd64"
+            is_default: false
     steps:
       # Checkout code to get the commit SHA
       - name: Checkout Code
@@ -71,12 +81,11 @@ jobs:
         id: get-tag
         run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
-      # Retag and push ARM64 server image
-      - name: Retag and push ARM64 server image
+      # Retag and push server image based on platform
+      - name: Retag and push ${{ matrix.platform }} server image
         run: |
-          SOURCE_IMAGE="ghcr.io/${{ github.repository }}:${{ steps.get-sha.outputs.sha }}"
-          VERSION_TAG="ghcr.io/${{ github.repository }}:${{ steps.get-tag.outputs.tag }}"
-          LATEST_TAG="ghcr.io/${{ github.repository }}:latest"
+          SOURCE_IMAGE="ghcr.io/${{ github.repository }}:${{ steps.get-sha.outputs.sha }}${{ matrix.suffix }}"
+          VERSION_TAG="ghcr.io/${{ github.repository }}:${{ steps.get-tag.outputs.tag }}${{ matrix.suffix }}"
           
           echo "Pulling source image: ${SOURCE_IMAGE}"
           docker pull ${SOURCE_IMAGE}
@@ -84,33 +93,34 @@ jobs:
           echo "Tagging with version: ${VERSION_TAG}"
           docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
           
-          echo "Tagging as latest: ${LATEST_TAG}"
-          docker tag ${SOURCE_IMAGE} ${LATEST_TAG}
-          
-          echo "Pushing tags"
+          # Push version tag
+          echo "Pushing version tag"
           docker push ${VERSION_TAG}
-          docker push ${LATEST_TAG}
-
-      # Retag and push AMD64 server image
-      - name: Retag and push AMD64 server image
-        run: |
-          SOURCE_IMAGE="ghcr.io/${{ github.repository }}:${{ steps.get-sha.outputs.sha }}-amd64"
-          VERSION_TAG="ghcr.io/${{ github.repository }}:${{ steps.get-tag.outputs.tag }}-amd64"
           
-          echo "Pulling source image: ${SOURCE_IMAGE}"
-          docker pull ${SOURCE_IMAGE}
-          
-          echo "Tagging with version: ${VERSION_TAG}"
-          docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
-          
-          echo "Pushing tag"
-          docker push ${VERSION_TAG}
+          # Tag as latest only for the default platform (ARM64)
+          if [[ "${{ matrix.is_default }}" == "true" ]]; then
+            LATEST_TAG="ghcr.io/${{ github.repository }}:latest"
+            echo "Tagging as latest: ${LATEST_TAG}"
+            docker tag ${SOURCE_IMAGE} ${LATEST_TAG}
+            echo "Pushing latest tag"
+            docker push ${LATEST_TAG}
+          fi
 
   retag-frontend-images:
-    name: Retag Frontend Docker Images
+    name: Retag Frontend Docker Images (${{ matrix.platform }})
     runs-on: ubuntu-latest
     permissions:
       packages: write
+    strategy:
+      matrix:
+        platform: [arm64, amd64]
+        include:
+          - platform: arm64
+            suffix: ""
+            is_default: true
+          - platform: amd64
+            suffix: "-amd64"
+            is_default: false
     steps:
       # Checkout code to get the commit SHA
       - name: Checkout Code
@@ -137,12 +147,11 @@ jobs:
         id: get-tag
         run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
-      # Retag and push ARM64 frontend image
-      - name: Retag and push ARM64 frontend image
+      # Retag and push frontend image based on platform
+      - name: Retag and push ${{ matrix.platform }} frontend image
         run: |
-          SOURCE_IMAGE="ghcr.io/${{ github.repository }}-app:${{ steps.get-sha.outputs.sha }}"
-          VERSION_TAG="ghcr.io/${{ github.repository }}-app:${{ steps.get-tag.outputs.tag }}"
-          LATEST_TAG="ghcr.io/${{ github.repository }}-app:latest"
+          SOURCE_IMAGE="ghcr.io/${{ github.repository }}-app:${{ steps.get-sha.outputs.sha }}${{ matrix.suffix }}"
+          VERSION_TAG="ghcr.io/${{ github.repository }}-app:${{ steps.get-tag.outputs.tag }}${{ matrix.suffix }}"
           
           echo "Pulling source image: ${SOURCE_IMAGE}"
           docker pull ${SOURCE_IMAGE}
@@ -150,27 +159,18 @@ jobs:
           echo "Tagging with version: ${VERSION_TAG}"
           docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
           
-          echo "Tagging as latest: ${LATEST_TAG}"
-          docker tag ${SOURCE_IMAGE} ${LATEST_TAG}
-          
-          echo "Pushing tags"
+          # Push version tag
+          echo "Pushing version tag"
           docker push ${VERSION_TAG}
-          docker push ${LATEST_TAG}
-
-      # Retag and push AMD64 frontend image
-      - name: Retag and push AMD64 frontend image
-        run: |
-          SOURCE_IMAGE="ghcr.io/${{ github.repository }}-app:${{ steps.get-sha.outputs.sha }}-amd64"
-          VERSION_TAG="ghcr.io/${{ github.repository }}-app:${{ steps.get-tag.outputs.tag }}-amd64"
           
-          echo "Pulling source image: ${SOURCE_IMAGE}"
-          docker pull ${SOURCE_IMAGE}
-          
-          echo "Tagging with version: ${VERSION_TAG}"
-          docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
-          
-          echo "Pushing tag"
-          docker push ${VERSION_TAG}
+          # Tag as latest only for the default platform (ARM64)
+          if [[ "${{ matrix.is_default }}" == "true" ]]; then
+            LATEST_TAG="ghcr.io/${{ github.repository }}-app:latest"
+            echo "Tagging as latest: ${LATEST_TAG}"
+            docker tag ${SOURCE_IMAGE} ${LATEST_TAG}
+            echo "Pushing latest tag"
+            docker push ${LATEST_TAG}
+          fi
           
   frontend-package:
     name: Frontend Package and Archive
@@ -229,6 +229,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Web App
-          path: src/frontend/web
+          path: src/frontend/build/web
           retention-days: 7
           if-no-files-found: error
