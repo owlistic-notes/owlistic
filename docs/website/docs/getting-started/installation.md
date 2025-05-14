@@ -23,9 +23,9 @@ curl -LO https://github.com/owlistic-notes/owlistic/releases/latest/download/owl
 # Make owlistic executable
 chmod +x owlistic
 
-curl -L https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic-ui.zip -o owlistic-ui.zip
+curl -L https://github.com/owlistic-notes/owlistic/releases/latest/download/owlistic-app.zip -o owlistic-app.zip
 # Extract the UI files
-unzip owlistic-ui.zip -d owlistic-ui
+unzip owlistic-app.zip -d owlistic-app
 ```
 
 ### Step 2: Configure Environment Variables
@@ -48,7 +48,7 @@ export KAFKA_BROKER=localhost:9092
 ./owlistic
 
 # Serve the UI using a simple HTTP server
-cd owlistic-ui
+cd owlistic-app
 python3 -m http.server 80
 ```
 
@@ -58,10 +58,10 @@ python3 -m http.server 80
 
 ```bash
 # Pull the backend image
-docker pull daviderutigliano/owlistic:latest
+docker pull ghcr.io/owlistic-notes/owlistic:latest
 
 # Pull the frontend image
-docker pull daviderutigliano/owlistic-ui:latest
+docker pull ghcr.io/owlistic-notes/owlistic-app:latest
 
 # Run the backend
 docker run -d \
@@ -73,13 +73,13 @@ docker run -d \
   -e DB_PASSWORD=admin \
   -e DB_NAME=postgres \
   -e KAFKA_BROKER=kafka:9092 \
-  daviderutigliano/owlistic:latest
+  ghcr.io/owlistic-notes/owlistic:latest
 
 # Run the frontend
 docker run -d \
-  --name owlistic-ui \
+  --name owlistic-app \
   -p 80:80 \
-  daviderutigliano/owlistic-ui:latest
+  ghcr.io/owlistic-notes/owlistic-app:latest
 ```
 
 Note: The above commands assume you have PostgreSQL and Kafka running and accessible.
@@ -95,7 +95,7 @@ version: '3.8'
 
 services:
   owlistic:
-    image: daviderutigliano/owlistic:latest
+    image: ghcr.io/owlistic-notes/owlistic:latest
     ports:
       - "8080:8080"
     depends_on:
@@ -109,8 +109,8 @@ services:
       - DB_PASSWORD=admin
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
-  owlistic-ui:
-    image: daviderutigliano/owlistic-ui:latest
+  owlistic-app:
+    image: ghcr.io/owlistic-notes/owlistic-app:latest
     ports:
       - "80:80"
     depends_on:
@@ -178,13 +178,13 @@ replicaCount: 2
 
 backend:
   image:
-    repository: daviderutigliano/owlistic
+    repository: ghcr.io/owlistic-notes/owlistic
     tag: main-arm64
     pullPolicy: Always
 
 frontend:
   image:
-    repository: daviderutigliano/owlistic-ui
+    repository: ghcr.io/owlistic-notes/owlistic-app
     tag: main-arm64
     pullPolicy: Always
 
@@ -265,7 +265,7 @@ You can deploy the Flutter web build by hosting it locally or using a basic web 
 cd build/web
 
 # Serve using Python's built-in HTTP server (for testing)
-python3 -m http.server 8000
+python3 -m http.server 80
 ```
 
 ## Post-Installation
