@@ -3,6 +3,7 @@ import 'package:super_editor/super_editor.dart' hide Logger;
 import '../models/block.dart';
 import '../utils/logger.dart';
 import '../utils/attributed_text_utils.dart';
+import '../utils/block_node_mapping.dart';
 
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
@@ -10,6 +11,9 @@ class DocumentBuilder {
   
   // Add instance of AttributedTextUtils
   final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
+  
+  // Add BlockNodeMapping instance
+  final BlockNodeMapping _blockNodeMapping = BlockNodeMapping();
   
   // Document components
   late MutableDocument document;
@@ -23,12 +27,6 @@ class DocumentBuilder {
   // Document scroller for programmatic scrolling
   late DocumentScroller documentScroller;
   
-  // Mapping between document node IDs and block IDs
-  final Map<String, String> nodeToBlockMap = {};
-  
-  // Track nodes that don't yet have server blocks
-  final Map<String, DateTime> uncommittedNodes = {};
-  
   // Track last known node count to detect new nodes
   int _lastKnownNodeCount = 0;
   
@@ -37,15 +35,6 @@ class DocumentBuilder {
   
   // Flag to prevent recursive document updates
   bool _updatingDocument = false;
-  
-  // Track locally modified blocks with timestamps to optimize server updates
-  final Map<String, DateTime> _locallyModifiedBlocks = {};
-  
-  // Track blocks that were explicitly modified by user (not just by server sync)
-  final Set<String> _userModifiedBlockIds = {};
-  
-  // Track blocks that have been fetched from the server
-  final Map<String, Block> _serverFetchedBlocks = {};
   
   // Last known selection data for robust position restoration
   String? _lastKnownNodeId;
@@ -57,11 +46,16 @@ class DocumentBuilder {
   final DateTime _lastEdit = DateTime.now();
   
   // Callback for updating block content on the server
-  // This should be set by the parent component that uses DocumentBuilder
   Function(String blockId, Map<String, dynamic> content, {String? type, bool immediate})? onUpdateBlockContent;
   
   // Get the set of blocks that were explicitly modified by user interaction
-  Set<String> get userModifiedBlockIds => Set.from(_userModifiedBlockIds);
+  Set<String> get userModifiedBlockIds => _blockNodeMapping.userModifiedBlockIds;
+  
+  // Map of node IDs to block IDs (read-only access)
+  Map<String, String> get nodeToBlockMap => _blockNodeMapping.nodeToBlockMap;
+  
+  // Uncommitted nodes map (read-only access)
+  Map<String, DateTime> get uncommittedNodes => _blockNodeMapping.uncommittedNodes;
   
   DocumentBuilder() {
     _initialize();
@@ -181,7 +175,7 @@ class DocumentBuilder {
         // Capture block ID of the focused node to help with position restoration
         String? previousBlockId;
         if (previousNodeId != null) {
-          previousBlockId = nodeToBlockMap[previousNodeId];
+          previousBlockId = _blockNodeMapping.getBlockIdForNode(previousNodeId);
           _logger.debug('Saving position in block: $previousBlockId, node: $previousNodeId, offset: $previousTextOffset');
         }
       } catch (e) {
@@ -194,7 +188,7 @@ class DocumentBuilder {
         for (final nodeId in nodeIds) {
           deleteNode(nodeId);
         }
-        nodeToBlockMap.clear();
+        _blockNodeMapping.clearMappings();
       } catch (e) {
         _logger.error('Error clearing document: $e');
         // Try to recreate document if clearing fails
@@ -220,16 +214,16 @@ class DocumentBuilder {
             try {
               insertNode(node);
               // Map node ID to block ID
-              nodeToBlockMap[node.id] = block.id;
+              _blockNodeMapping.linkNodeToBlock(node.id, block.id);
               blockToNodeMap[block.id] = node.id;
               
               // Register this block as from server
-              registerServerBlock(block);
+              registerServerBlock(block, node.id);
               
               // Only mark blocks as modified if explicitly requested
               // This allows us to differentiate between initial load and user edits
               if (markAsModified) {
-                _locallyModifiedBlocks[block.id] = DateTime.now();
+                _blockNodeMapping.markBlockAsModified(block.id);
               }
               
             } catch (e) {
@@ -301,7 +295,7 @@ class DocumentBuilder {
           
           // STRATEGY 2: Try to find a node mapping to the same block ID
           if (!positionRestored && previousNodeId != null) {
-            final previousBlockId = nodeToBlockMap[previousNodeId];
+            final previousBlockId = _blockNodeMapping.getBlockIdForNode(previousNodeId);
             if (previousBlockId != null && blockToNodeMap.containsKey(previousBlockId)) {
               _logger.debug('Found different node for same block, restoring position');
               
@@ -431,13 +425,13 @@ class DocumentBuilder {
   // Handle newly created nodes (like from pressing Enter to split a paragraph)
   bool shouldCreateBlockForNode(String nodeId) {
     // Skip if this node is already mapped to a block
-    if (nodeToBlockMap.containsKey(nodeId)) {
+    if (_blockNodeMapping.getBlockIdForNode(nodeId) != null) {
       _logger.debug('Node $nodeId already mapped to a block, skipping');
       return false;
     }
     
     // Skip if we're already processing this node
-    if (uncommittedNodes.containsKey(nodeId)) {
+    if (_blockNodeMapping.isNodeUncommitted(nodeId)) {
       _logger.debug('Node $nodeId is already being processed, skipping');
       return false;
     }
@@ -450,7 +444,7 @@ class DocumentBuilder {
     }
     
     // Mark as uncommitted
-    uncommittedNodes[nodeId] = DateTime.now();
+    _blockNodeMapping.markNodeAsUncommitted(nodeId);
     return true;
   }
   
@@ -489,7 +483,7 @@ class DocumentBuilder {
     
     // Find previous block's order
     if (prevNodeId != null) {
-      final prevBlockId = nodeToBlockMap[prevNodeId];
+      final prevBlockId = _blockNodeMapping.getBlockIdForNode(prevNodeId);
       if (prevBlockId != null) {
         final prevBlock = blocks.firstWhere(
           (b) => b.id == prevBlockId,
@@ -501,7 +495,7 @@ class DocumentBuilder {
     
     // Find next block's order
     if (nextNodeId != null) {
-      final nextBlockId = nodeToBlockMap[nextNodeId];
+      final nextBlockId = _blockNodeMapping.getBlockIdForNode(nextNodeId);
       if (nextBlockId != null) {
         final nextBlock = blocks.firstWhere(
           (b) => b.id == nextBlockId, 
@@ -517,74 +511,35 @@ class DocumentBuilder {
   
   // Mark a block as locally modified to optimize server updates
   void markBlockAsModified(String blockId) {
-    _locallyModifiedBlocks[blockId] = DateTime.now();
-    _userModifiedBlockIds.add(blockId);
+    _blockNodeMapping.markBlockAsModified(blockId);
     _logger.debug('Block $blockId marked as explicitly modified by user');
   }
   
   /// Register a block as being fetched from the server
   /// This helps track which blocks should be considered as "server source of truth"
-  void registerServerBlock(Block block) {
-    _serverFetchedBlocks[block.id] = block;
-    // If this block was previously marked as user-modified but is now
-    // being updated from the server with a newer timestamp, remove the user-modified flag
-    if (_userModifiedBlockIds.contains(block.id)) {
-      final modifiedAt = _locallyModifiedBlocks[block.id];
-      if (modifiedAt != null && block.updatedAt.isAfter(modifiedAt)) {
-        _userModifiedBlockIds.remove(block.id);
-        _locallyModifiedBlocks.remove(block.id);
-        _logger.debug('Block ${block.id} user modifications overridden by newer server version');
-      }
-    }
+  void registerServerBlock(Block block, [String nodeId = '']) {
+    _blockNodeMapping.registerServerBlock(block, nodeId);
   }
 
   /// Check if this block should be updated from the server version
   /// Returns true if the server version is newer than any local changes
   bool shouldUpdateFromServer(String blockId, Block serverBlock) {
-    // If no local modifications, always update from server
-    if (!_locallyModifiedBlocks.containsKey(blockId)) {
-      return true;
-    }
-    
-    // Get local modification time
-    final localModTime = _locallyModifiedBlocks[blockId]!;
-    
-    // Compare with server timestamp - only update if server is newer
-    return serverBlock.updatedAt.isAfter(localModTime);
+    return _blockNodeMapping.shouldUpdateFromServer(blockId, serverBlock);
   }
   
   /// Check if we should send a block update to the server
   bool shouldSendBlockUpdate(String blockId, Block serverBlock) {
     // If not modified locally, don't send update
-    if (!_locallyModifiedBlocks.containsKey(blockId)) {
+    if (!_blockNodeMapping.isBlockModifiedByUser(blockId)) {
       return false;
     }
     
-    // If explicitly modified by user, always send update
-    if (_userModifiedBlockIds.contains(blockId)) {
-      return true;
-    }
-    
-    // Get local modification time
-    final localModTime = _locallyModifiedBlocks[blockId]!;
-    
-    // Compare with server timestamp
-    final serverUpdateTime = serverBlock.updatedAt;
-    
-    // Only update if local changes are newer
-    if (localModTime.isAfter(serverUpdateTime)) {
-      _logger.debug('Block $blockId has newer local changes (local: $localModTime, server: $serverUpdateTime)');
-      return true;
-    } else {
-      _logger.debug('Block $blockId server version is newer or same, skipping update');
-      return false;
-    }
+    return true;
   }
   
   // Clear modification tracking after successful update
   void clearModificationTracking(String blockId) {
-    _locallyModifiedBlocks.remove(blockId);
-    _userModifiedBlockIds.remove(blockId);
+    _blockNodeMapping.clearModificationTracking(blockId);
   }
   
   // Extract content from a node in the format expected by the API
@@ -687,8 +642,97 @@ class DocumentBuilder {
       };
     }
     
-    // Mark this block as modified with current timestamp
-    markBlockAsModified(blockId);
+    return content;
+  }
+
+  /// Extract content from a node in a standardized format for API usage
+  Map<String, dynamic> extractNodeContent(DocumentNode node, Block? originalBlock) {
+    // Initialize with a base structure
+    Map<String, dynamic> content = {'text': ''};
+    Map<String, dynamic> metadata = {'_sync_source': 'block'};
+    
+    // Preserve original content values if available
+    if (originalBlock != null && originalBlock.content is Map) {
+      // Clone the original content to avoid modifying it directly
+      content = Map<String, dynamic>.from(originalBlock.content);
+    }
+    
+    if (node is ParagraphNode) {
+      // Basic text content
+      content['text'] = node.text.toPlainText();
+      
+      // Extract spans/formatting information
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      content['spans'] = spans; // Always include spans array
+      
+      // Process block type and metadata
+      final blockType = node.metadata['blockType'];
+      String blockTypeStr = '';
+      
+      if (blockType is NamedAttribution) {
+        blockTypeStr = blockType.id;
+      } else if (blockType is String) {
+        blockTypeStr = blockType;
+      }
+      
+      // Handle specific block types
+      if (blockTypeStr.startsWith('heading')) {
+        // Extract heading level from blockType like "heading1"
+        final levelStr = blockTypeStr.substring(7);
+        final level = int.tryParse(levelStr) ?? 1;
+        metadata['blockType'] = 'heading';
+        metadata['headingLevel'] = level;
+        content['level'] = level;
+      } 
+      else if (blockTypeStr == 'code') {
+        metadata['blockType'] = 'code';
+        content['language'] = node.metadata['language'] ?? 'plain';
+        metadata['language'] = node.metadata['language'] ?? 'plain';
+      }
+      else if (blockTypeStr.isNotEmpty) {
+        metadata['blockType'] = blockTypeStr;
+      }
+      
+      // Add styling information
+      metadata['styling'] = {
+        'spans': spans,
+        'version': 1,
+      };
+    } 
+    else if (node is TaskNode) {
+      // Handle task nodes
+      content['text'] = node.text.toPlainText();
+      content['is_completed'] = node.isComplete;
+      
+      // Extract spans for formatting
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      content['spans'] = spans;
+      
+      metadata['blockType'] = 'task';
+      metadata['is_completed'] = node.isComplete;
+      metadata['styling'] = {
+        'spans': spans,
+        'version': 1,
+      };
+    } 
+    else if (node is ListItemNode) {
+      content['text'] = node.text.toPlainText();
+      content['checked'] = node.type == ListItemType.ordered;
+      
+      // Extract spans for list items
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      content['spans'] = spans;
+      
+      metadata['blockType'] = 'listItem';
+      metadata['listType'] = node.type == ListItemType.ordered ? 'ordered' : 'unordered';
+      metadata['styling'] = {
+        'spans': spans,
+        'version': 1,
+      };
+    }
+    
+    // Store metadata in content object
+    content['metadata'] = metadata;
     
     return content;
   }
@@ -797,7 +841,7 @@ class DocumentBuilder {
     final node = nodes.first;
     
     // Map the node to the block
-    nodeToBlockMap[node.id] = block.id;
+    _blockNodeMapping.linkNodeToBlock(node.id, block.id);
     
     // Insert at specific index if provided, otherwise add to end
     if (index != null && index >= 0 && index <= document.length) {
@@ -816,18 +860,13 @@ class DocumentBuilder {
   // New method: Delete a node for a specific block
   bool deleteBlockNode(String blockId) {
     // Find the node ID for this block
-    String? nodeId;
-    nodeToBlockMap.forEach((nId, bId) {
-      if (bId == blockId) {
-        nodeId = nId;
-      }
-    });
+    String? nodeId = _blockNodeMapping.getNodeIdForBlock(blockId);
     
     if (nodeId != null) {
       _updatingDocument = true;
       try {
-        document.deleteNode(nodeId!);
-        nodeToBlockMap.remove(nodeId);
+        document.deleteNode(nodeId);
+        _blockNodeMapping.removeBlockMapping(blockId);
         _logger.info('Node deleted for block $blockId');
         return true;
       } catch (e) {
@@ -841,22 +880,14 @@ class DocumentBuilder {
   
   // New method: Update a node for a specific block
   bool updateBlockNode(Block block) {
-    // Find any nodes for this block
-    List<String> nodeIds = [];
-    nodeToBlockMap.forEach((nId, bId) {
-      if (bId == block.id) {
-        nodeIds.add(nId);
-      }
-    });
+    // Find node for this block
+    String? nodeId = _blockNodeMapping.getNodeIdForBlock(block.id);
     
-    if (nodeIds.isEmpty) {
+    if (nodeId == null || nodeId.isEmpty) {
       // No nodes for this block - must be a new block
       _logger.debug('No existing node for block ${block.id}, will insert a new one');
       return false;
     }
-    
-    // Get the first node (should usually be only one)
-    final nodeId = nodeIds.first;
     
     // Create new nodes from updated block
     final newNodes = createNodesFromBlock(block);
@@ -868,8 +899,8 @@ class DocumentBuilder {
       document.replaceNodeById(nodeId, newNodes.first);
       
       // Update mapping
-      nodeToBlockMap.remove(nodeId);
-      nodeToBlockMap[newNodes.first.id] = block.id;
+      _blockNodeMapping.removeNodeMapping(nodeId);
+      _blockNodeMapping.linkNodeToBlock(newNodes.first.id, block.id);
       
       _logger.debug('Node updated for block ${block.id}');
       return true;
@@ -883,8 +914,8 @@ class DocumentBuilder {
   
   // New method: Find the index where a block should be inserted based on order
   int findInsertIndexForBlock(Block block, List<Block> allBlocks) {
-    // Get all block IDs that have nodes
-    final nodeBlockIds = nodeToBlockMap.values.toList();
+    // Get all blocks that have nodes
+    final nodeBlockIds = _blockNodeMapping.nodeToBlockMap.values.toSet().toList();
     
     // If no blocks with nodes, insert at the beginning
     if (nodeBlockIds.isEmpty) {
@@ -901,7 +932,7 @@ class DocumentBuilder {
     for (int i = 0; i < visibleBlocks.length; i++) {
       if (block.order < visibleBlocks[i].order) {
         // Find node index for this block
-        final targetNodeId = _getNodeIdForBlock(visibleBlocks[i].id);
+        final targetNodeId = _blockNodeMapping.getNodeIdForBlock(visibleBlocks[i].id);
         if (targetNodeId != null) {
           final index = document.getNodeIndexById(targetNodeId);
           return index;
@@ -913,33 +944,18 @@ class DocumentBuilder {
     return document.length;
   }
   
-  // Helper to get node ID for a block ID
-  String? _getNodeIdForBlock(String blockId) {
-    for (final entry in nodeToBlockMap.entries) {
-      if (entry.value == blockId) {
-        return entry.key;
-      }
-    }
-    return null;
-  }
-  
   // New method: Move a node for a block to a new position
   bool moveBlockNode(String blockId, int targetIndex) {
     // Find the node ID for this block
-    String? nodeId;
-    nodeToBlockMap.forEach((nId, bId) {
-      if (bId == blockId) {
-        nodeId = nId;
-      }
-    });
+    String? nodeId = _blockNodeMapping.getNodeIdForBlock(blockId);
     
     if (nodeId != null) {
-      final currentIndex = document.getNodeIndexById(nodeId!);
+      final currentIndex = document.getNodeIndexById(nodeId);
       if (currentIndex != targetIndex) {
         _updatingDocument = true;
         try {
-          final node = document.getNodeById(nodeId!)!;
-          document.deleteNode(nodeId!);
+          final node = document.getNodeById(nodeId)!;
+          document.deleteNode(nodeId);
           
           // Adjust target index if needed (if moving forward)
           final adjustedIndex = targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
@@ -970,7 +986,7 @@ class DocumentBuilder {
       for (final block in blocks) {
         // Check if a node for this block already exists
         bool nodeExists = false;
-        nodeToBlockMap.forEach((nodeId, blockId) {
+        _blockNodeMapping.nodeToBlockMap.forEach((nodeId, blockId) {
           if (blockId == block.id) {
             nodeExists = true;
           }

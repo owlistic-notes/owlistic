@@ -472,102 +472,17 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   
   // Extract content from a node in the format expected by the API
   Map<String, dynamic> _extractNodeContentForApi(DocumentNode node) {
-    // Initialize with a base structure that includes required fields
-    Map<String, dynamic> content = {'text': ''};
-    Map<String, dynamic> metadata = {'_sync_source': 'block'};
-    
-    if (node is ParagraphNode) {
-      // Basic text content
-      content['text'] = node.text.toPlainText();
-      
-      // Extract spans/formatting information - make sure spans are always included
-      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
-      content['spans'] = spans; // Always include spans array, even if empty
-      
-      // Add styling information to metadata
-      metadata['styling'] = {
-        'spans': spans,
-        'version': 1,
-      };
-      
-      // Add metadata based on node.metadata
-      if (node.metadata.isNotEmpty) {
-        final blockType = node.metadata['blockType'];
-        String blockTypeStr = '';
-        
-        // Convert blockType to string if it's a NamedAttribution
-        if (blockType is NamedAttribution) {
-          blockTypeStr = blockType.id;
-          if (blockTypeStr.startsWith('heading')) {
-            // Extract heading level from blockType like "heading1"
-            final levelStr = blockTypeStr.substring(7);
-            final level = int.tryParse(levelStr) ?? 1;
-            metadata['blockType'] = 'heading';
-            metadata['headingLevel'] = level;
-            content['level'] = level;
-          } else {
-            metadata['blockType'] = blockTypeStr;
-          }
-        } else if (blockType is String) {
-          blockTypeStr = blockType;
-          metadata['blockType'] = blockTypeStr;
-          
-          // Check if it's a heading with pattern "heading1", "heading2", etc.
-          if (blockTypeStr.startsWith('heading') && blockTypeStr.length > 7) {
-            final levelStr = blockTypeStr.substring(7);
-            final level = int.tryParse(levelStr) ?? 1;
-            metadata['blockType'] = 'heading';
-            metadata['headingLevel'] = level;
-            content['level'] = level;
-          }
-        }
-        
-        // Add type-specific properties
-        if (blockTypeStr.startsWith('heading') || metadata['blockType'] == 'heading') {
-          content['level'] = metadata['headingLevel'] ?? node.metadata['headingLevel'] ?? 1;
-        } else if (blockTypeStr == 'code') {
-          content['language'] = node.metadata['language'] ?? 'plain';
-          metadata['language'] = node.metadata['language'] ?? 'plain';
-        }
-      }
-    } else if (node is TaskNode) {
-      // Handle task nodes
-      content['text'] = node.text.toPlainText();
-      content['is_completed'] = node.isComplete;
-      
-      // Extract spans for tasks - always include spans
-      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
-      content['spans'] = spans;
-      
-      metadata['blockType'] = 'task';
-      metadata['is_completed'] = node.isComplete;
-      metadata['styling'] = {
-        'spans': spans,
-        'version': 1,
-      };
-    } else if (node is ListItemNode) {
-      content['text'] = node.text.toPlainText();
-      content['checked'] = node.type == ListItemType.ordered;
-      
-      // Extract spans for list items - always include spans
-      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
-      content['spans'] = spans;
-      
-      metadata['blockType'] = 'listItem';
-      metadata['listType'] = node.type == ListItemType.ordered ? 'ordered' : 'unordered';
-      metadata['styling'] = {
-        'spans': spans,
-        'version': 1,
-      };
+    // Get the block ID if this is an existing node
+    String? blockId;
+    if (node.id != null) {
+      blockId = _documentBuilder.nodeToBlockMap[node.id];
     }
     
-    // Store metadata in the content object
-    content['metadata'] = metadata;
+    // Get the original block if it exists
+    Block? originalBlock = blockId != null ? _blocks[blockId] : null;
     
-    return {
-      'content': content,
-      'metadata': metadata
-    };
+    // Use the unified extraction method from DocumentBuilder
+    return _documentBuilder.extractNodeContent(node, originalBlock);
   }
 
   // DocumentChangeListener implementation for content changes
