@@ -13,28 +13,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  path-filter:
+    name: Path Filter
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v2
+        with:
+          filters: |
+            backend:
+              - 'src/backend/**'
+            frontend:
+              - 'src/frontend/**'
+
   server-binary:
     name: Server binary Package and Archive
     runs-on: ubuntu-latest
+    needs: path-filter
+    if: ${{ needs.path-filter.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
-      # Checkout code
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Set up Go environment
+          
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: "1.23"
 
-      # Build Golang binary
       - name: Build Golang Binary
         run: |
           cd src/backend
           go build -o owlistic ./cmd/main.go
 
-      # Archive Go binary as artifact
       - name: Archive Go Binary
         uses: actions/upload-artifact@v4
         with:
@@ -43,24 +64,31 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  server-docker-arm64:
-    name: Server Docker Build and Push (ARM64)
+  server-docker:
+    name: Server Docker Build and Push (${{ matrix.platform }})
     runs-on: ubuntu-latest
+    needs: [path-filter, server-binary]
+    if: ${{ needs.path-filter.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
+    strategy:
+      matrix:
+        platform: [arm64, amd64]
+        include:
+          - platform: arm64
+            suffix: ""
+          - platform: amd64
+            suffix: "-amd64"
     steps:
-      # Checkout code
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Set up QEMU for cross-platform builds
+          
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -68,155 +96,88 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=sha,format=short,prefix=
+            type=sha,format=short,prefix=,suffix=${{ matrix.suffix }}
 
-      # Build Docker Image for arm64
-      - name: Build Backend Docker Image (ARM64)
+      - name: Build Backend Docker Image
         uses: docker/build-push-action@v5
         with:
           push: false
           context: src/backend
-          platforms: linux/arm64
+          platforms: linux/${{ matrix.platform }}
           file: src/backend/Dockerfile
           build-args: |
-            TARGETARCH=arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  server-docker-amd64:
-    name: Server Docker Build and Push (AMD64)
-    runs-on: ubuntu-latest
-    steps:
-      # Checkout code
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Log in to Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=sha,format=short,prefix=,suffix=-amd64
-
-      # Build Docker Image for amd64
-      - name: Build Backend Docker Image (AMD64)
-        uses: docker/build-push-action@v5
-        with:
-          push: false
-          context: src/backend
-          platforms: linux/amd64
-          file: src/backend/Dockerfile
-          build-args: |
-            TARGETARCH=amd64
+            TARGETARCH=${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
   frontend-package:
     name: Frontend Package and Archive
     runs-on: ubuntu-latest
-
+    needs: path-filter
+    if: ${{ needs.path-filter.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
-      # Checkout code
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      # Setup Flutter environment
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
 
-      # Install Dependencies
       - name: Install Flutter Dependencies
         run: |
           cd src/frontend
           flutter pub get
 
-      # Build Flutter Apps for Multiple Platforms
       - name: Build Client Apps
         run: |
           cd src/frontend
-
-          # Configure Flutter for web
           flutter config --enable-web
-          # --enable-android --enable-ios --enable-macos-desktop  --enable-linux-desktop --enable-linux-desktop
-
-          # Get Flutter packages
           flutter pub get
-
-          # Initialize web project (creates index.html if missing)
-          flutter create --platforms=web . #,android,ios,macos,linux
-          
-          # Build web app
+          flutter create --platforms=web .
           flutter build web --release
-
-          # Build Android app
-          # flutter build apk --release
-
-          # Build iOS app
-          # flutter build ios --release
-
-          # Build macOS app
-          # flutter build macos --release
-
-          # Build macOS app
-          # flutter build linux --release
           
-      # Archive Flutter web build as artifact
       - name: Archive Web App
         uses: actions/upload-artifact@v4
         with:
           name: Web App
-          path: src/frontend/web
+          path: src/frontend/build/web
           retention-days: 7
           if-no-files-found: error
 
-  frontend-docker-arm64:
-    name: Frontend Docker Build and Push (ARM64)
+  frontend-docker:
+    name: Frontend Docker Build and Push (${{ matrix.platform }})
     runs-on: ubuntu-latest
+    needs: [path-filter, frontend-package]
+    if: ${{ needs.path-filter.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch' }}
+    strategy:
+      matrix:
+        platform: [arm64, amd64]
+        include:
+          - platform: arm64
+            suffix: ""
+          - platform: amd64
+            suffix: "-amd64"
     steps:
-      # Checkout code
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Set up QEMU for cross-platform builds
+          
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -224,72 +185,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: ghcr.io/${{ github.repository }}-app
           tags: |
-            type=sha,format=short,prefix=,suffix=
+            type=sha,format=short,prefix=,suffix=${{ matrix.suffix }}
+            type=raw,value=latest,enable=${{ matrix.platform == 'amd64' }}
 
-      # Build Docker Image for arm64
-      - name: Build Frontend Docker Image (ARM64)
+      - name: Build Frontend Docker Image
         uses: docker/build-push-action@v5
         with:
           push: false
           context: src/frontend
-          platforms: linux/arm64
+          platforms: linux/${{ matrix.platform }}
           file: src/frontend/Dockerfile
           build-args: |
-            TARGETARCH=arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  frontend-docker-amd64:
-    name: Frontend Docker Build and Push (AMD64)
-    runs-on: ubuntu-latest
-    steps:
-      # Checkout code
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Log in to Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}-app
-          tags: |
-            type=sha,format=short,prefix=,suffix=-amd64
-            type=raw,value=latest,enable=false
-
-      # Build Docker Image for amd64
-      - name: Build Frontend Docker Image (AMD64)
-        uses: docker/build-push-action@v5
-        with:
-          push: false
-          context: src/frontend
-          platforms: linux/amd64
-          file: src/frontend/Dockerfile
-          build-args: |
-            TARGETARCH=amd64
+            TARGETARCH=${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
