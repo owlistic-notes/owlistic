@@ -20,7 +20,7 @@ type MockTaskService struct{}
 // Add GetTasks method for query parameter support
 func (m *MockTaskService) GetTasks(db *database.Database, params map[string]interface{}) ([]models.Task, error) {
 	userID, hasUserID := params["user_id"].(string)
-	completed, hasCompleted := params["completed"].(string)
+	completed, hasCompleted := params["is_completed"].(string)
 
 	tasks := []models.Task{
 		{

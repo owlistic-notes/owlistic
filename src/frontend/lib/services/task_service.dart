@@ -14,7 +14,7 @@ class TaskService extends BaseService {
     try {
       final Map<String, dynamic> params = {};
       
-      if (completed != null) params['completed'] = completed;
+      if (completed != null) params['is_completed'] = completed;
       if (noteId != null) params['note_id'] = noteId;
       
       if (!(queryParams != null && queryParams.containsKey('include_deleted'))) {

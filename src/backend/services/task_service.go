@@ -145,7 +145,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 				"block_id":     block.ID.String(),
 				"note_id":      noteID.String(),
 				"user_id":      userID.String(),
-				"type":		    string(models.TaskBlock),
+				"type":         string(models.TaskBlock),
 				"content":      block.Content,
 				"metadata":     block.Metadata,
 				"_sync_source": "task",
@@ -383,7 +383,7 @@ func (s *TaskService) GetTasks(db *database.Database, params map[string]interfac
 		query = query.Where("user_id = ?", userID)
 	}
 
-	if completed, ok := params["completed"].(string); ok && completed != "" {
+	if completed, ok := params["is_completed"].(string); ok && completed != "" {
 		query = query.Where("is_completed = ?", completed == "true")
 	}
 
