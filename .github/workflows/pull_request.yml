@@ -46,6 +46,8 @@ jobs:
   server-docker-arm64:
     name: Server Docker Build and Push (ARM64)
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       # Checkout code
       - name: Checkout Code
@@ -93,6 +95,8 @@ jobs:
   server-docker-amd64:
     name: Server Docker Build and Push (AMD64)
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       # Checkout code
       - name: Checkout Code
@@ -202,6 +206,8 @@ jobs:
   frontend-docker-arm64:
     name: Frontend Docker Build and Push (ARM64)
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       # Checkout code
       - name: Checkout Code
@@ -249,6 +255,8 @@ jobs:
   frontend-docker-amd64:
     name: Frontend Docker Build and Push (AMD64)
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       # Checkout code
       - name: Checkout Code
