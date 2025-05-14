@@ -40,104 +40,138 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  server-docker-arm64:
-    name: Server Docker Build and Push (ARM64)
+  retag-server-images:
+    name: Retag Server Docker Images
     runs-on: ubuntu-latest
     permissions:
       packages: write
     steps:
-      # Checkout code
+      # Checkout code to get the commit SHA
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          fetch-depth: 0
 
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # Get the commit SHA
+      - name: Get commit SHA
+        id: get-sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      # Log in to Docker Hub
-      - name: Log in to Docker Hub
+      # Log in to Github Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          
+      # Get the version tag without the 'v' prefix
+      - name: Extract version tag
+        id: get-tag
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      # Retag and push ARM64 server image
+      - name: Retag and push ARM64 server image
+        run: |
+          SOURCE_IMAGE="ghcr.io/${{ github.repository }}:${{ steps.get-sha.outputs.sha }}"
+          VERSION_TAG="ghcr.io/${{ github.repository }}:${{ steps.get-tag.outputs.tag }}"
+          LATEST_TAG="ghcr.io/${{ github.repository }}:latest"
+          
+          echo "Pulling source image: ${SOURCE_IMAGE}"
+          docker pull ${SOURCE_IMAGE}
+          
+          echo "Tagging with version: ${VERSION_TAG}"
+          docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
+          
+          echo "Tagging as latest: ${LATEST_TAG}"
+          docker tag ${SOURCE_IMAGE} ${LATEST_TAG}
+          
+          echo "Pushing tags"
+          docker push ${VERSION_TAG}
+          docker push ${LATEST_TAG}
 
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=tag,enable=true,prefix=,suffix=
+      # Retag and push AMD64 server image
+      - name: Retag and push AMD64 server image
+        run: |
+          SOURCE_IMAGE="ghcr.io/${{ github.repository }}:${{ steps.get-sha.outputs.sha }}-amd64"
+          VERSION_TAG="ghcr.io/${{ github.repository }}:${{ steps.get-tag.outputs.tag }}-amd64"
+          
+          echo "Pulling source image: ${SOURCE_IMAGE}"
+          docker pull ${SOURCE_IMAGE}
+          
+          echo "Tagging with version: ${VERSION_TAG}"
+          docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
+          
+          echo "Pushing tag"
+          docker push ${VERSION_TAG}
 
-      # Build Docker Image for arm64
-      - name: Build Backend Docker Image (ARM64)
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: src/backend
-          platforms: linux/arm64
-          file: src/backend/Dockerfile
-          build-args: |
-            TARGETARCH=arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  server-docker-amd64:
-    name: Server Docker Build and Push (AMD64)
+  retag-frontend-images:
+    name: Retag Frontend Docker Images
     runs-on: ubuntu-latest
     permissions:
       packages: write
     steps:
-      # Checkout code
+      # Checkout code to get the commit SHA
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          fetch-depth: 0
 
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # Get the commit SHA
+      - name: Get commit SHA
+        id: get-sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      # Log in to Docker Hub
-      - name: Log in to Docker Hub
+      # Log in to Github Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          
+      # Get the version tag without the 'v' prefix
+      - name: Extract version tag
+        id: get-tag
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      # Retag and push ARM64 frontend image
+      - name: Retag and push ARM64 frontend image
+        run: |
+          SOURCE_IMAGE="ghcr.io/${{ github.repository }}-app:${{ steps.get-sha.outputs.sha }}"
+          VERSION_TAG="ghcr.io/${{ github.repository }}-app:${{ steps.get-tag.outputs.tag }}"
+          LATEST_TAG="ghcr.io/${{ github.repository }}-app:latest"
+          
+          echo "Pulling source image: ${SOURCE_IMAGE}"
+          docker pull ${SOURCE_IMAGE}
+          
+          echo "Tagging with version: ${VERSION_TAG}"
+          docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
+          
+          echo "Tagging as latest: ${LATEST_TAG}"
+          docker tag ${SOURCE_IMAGE} ${LATEST_TAG}
+          
+          echo "Pushing tags"
+          docker push ${VERSION_TAG}
+          docker push ${LATEST_TAG}
 
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=tag,enable=true,prefix=,suffix=
-
-      # Build Docker Image for amd64
-      - name: Build Backend Docker Image (AMD64)
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: src/backend
-          platforms: linux/amd64
-          file: src/backend/Dockerfile
-          build-args: |
-            TARGETARCH=amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
+      # Retag and push AMD64 frontend image
+      - name: Retag and push AMD64 frontend image
+        run: |
+          SOURCE_IMAGE="ghcr.io/${{ github.repository }}-app:${{ steps.get-sha.outputs.sha }}-amd64"
+          VERSION_TAG="ghcr.io/${{ github.repository }}-app:${{ steps.get-tag.outputs.tag }}-amd64"
+          
+          echo "Pulling source image: ${SOURCE_IMAGE}"
+          docker pull ${SOURCE_IMAGE}
+          
+          echo "Tagging with version: ${VERSION_TAG}"
+          docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
+          
+          echo "Pushing tag"
+          docker push ${VERSION_TAG}
+          
   frontend-package:
     name: Frontend Package and Archive
     runs-on: ubuntu-latest
@@ -198,101 +232,3 @@ jobs:
           path: src/frontend/web
           retention-days: 7
           if-no-files-found: error
-
-  frontend-docker-arm64:
-    name: Frontend Docker Build and Push (ARM64)
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      # Checkout code
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Log in to Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}-app
-          tags: |
-            type=ref,event=tag,enable=true,priority=600,prefix=,suffix=
-
-      # Build Docker Image for arm64
-      - name: Build Frontend Docker Image (ARM64)
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: src/frontend
-          platforms: linux/arm64
-          file: src/frontend/Dockerfile
-          build-args: |
-            TARGETARCH=arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  frontend-docker-amd64:
-    name: Frontend Docker Build and Push (AMD64)
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      # Checkout code
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      # Set up QEMU for cross-platform builds
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Log in to Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}-app
-          tags: |
-            type=ref,event=tag,enable=true,prefix=,suffix=
-
-      # Build Docker Image for amd64
-      - name: Build Frontend Docker Image (AMD64)
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: src/frontend
-          platforms: linux/amd64
-          file: src/frontend/Dockerfile
-          build-args: |
-            TARGETARCH=amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
