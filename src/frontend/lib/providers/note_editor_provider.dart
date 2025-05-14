@@ -9,6 +9,7 @@ import '../services/note_service.dart';
 import '../models/block.dart';
 import '../models/note.dart';
 import '../utils/document_builder.dart';
+import '../utils/attributed_text_utils.dart';
 import '../utils/logger.dart';
 import '../utils/websocket_message_parser.dart';
 import '../viewmodel/note_editor_viewmodel.dart';
@@ -16,6 +17,8 @@ import '../services/app_state_service.dart';
 
 class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   final Logger _logger = Logger('NoteEditorProvider');
+  
+  final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
   
   // State variables
   bool _isLoading = false;
@@ -478,7 +481,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       content['text'] = node.text.toPlainText();
       
       // Extract spans/formatting information - make sure spans are always included
-      final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
       content['spans'] = spans; // Always include spans array, even if empty
       
       // Add styling information to metadata
@@ -533,7 +536,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       content['is_completed'] = node.isComplete;
       
       // Extract spans for tasks - always include spans
-      final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
       content['spans'] = spans;
       
       metadata['blockType'] = 'task';
@@ -547,7 +550,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       content['checked'] = node.type == ListItemType.ordered;
       
       // Extract spans for list items - always include spans
-      final spans = _documentBuilder.extractSpansFromAttributedText(node.text);
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
       content['spans'] = spans;
       
       metadata['blockType'] = 'listItem';
@@ -1792,8 +1795,8 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     if (node == null || block == null) return;
     
-    // Detect the type from document builder
-    final detectedType = _documentBuilder.detectBlockTypeFromNode(node);
+    // Detect the type from AttributedTextUtils
+    final detectedType = _attributedTextUtils.detectBlockTypeFromNode(node);
     
     // Check if block type should be updated
     if (detectedType != block.type) {

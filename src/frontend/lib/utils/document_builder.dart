@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import '../models/block.dart';
 import '../utils/logger.dart';
+import '../utils/attributed_text_utils.dart';
 
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
   final Logger _logger = Logger('DocumentBuilder');
+  
+  // Add instance of AttributedTextUtils
+  final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
   
   // Document components
   late MutableDocument document;
@@ -595,8 +599,8 @@ class DocumentBuilder {
       // Always update the text field with current content from editor
       content['text'] = plainText;
       
-      // Extract spans/formatting information
-      final spans = extractSpansFromAttributedText(node.text);
+      // Extract spans/formatting information using AttributedTextUtils
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
       // Always include spans field to maintain formatting consistency
       content['spans'] = spans;
       
@@ -654,8 +658,8 @@ class DocumentBuilder {
       content['text'] = plainText;
       content['checked'] = node.type == ListItemType.ordered;
       
-      // Extract spans for list items as well
-      final spans = extractSpansFromAttributedText(node.text);
+      // Extract spans for list items using AttributedTextUtils
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
       // Always include spans field to maintain formatting consistency
       content['spans'] = spans;
       
@@ -671,8 +675,8 @@ class DocumentBuilder {
       content['text'] = plainText;
       content['is_completed'] = node.isComplete;
       
-      // Extract spans for tasks
-      final spans = extractSpansFromAttributedText(node.text);
+      // Extract spans for tasks using AttributedTextUtils
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
       content['spans'] = spans;
       
       // Add task specific metadata directly to content
@@ -687,131 +691,6 @@ class DocumentBuilder {
     markBlockAsModified(blockId);
     
     return content;
-  }
-
-  // Helper method to determine node's block type
-  String detectBlockTypeFromNode(DocumentNode node) {
-    if (node is ParagraphNode) {
-      final blockType = node.metadata['blockType'];
-      
-      String blockTypeStr = '';
-      // Convert blockType to string if it's a NamedAttribution
-      if (blockType is NamedAttribution) {
-        blockTypeStr = blockType.id;
-      } else if (blockType is String) {
-        blockTypeStr = blockType;
-      }
-      
-      if (blockTypeStr == 'heading') {
-        return 'heading';
-      } else if (blockTypeStr == 'code') {
-        return 'code';
-      }
-    } 
-    else if (node is TaskNode) {
-      return 'task';
-    }
-    
-    // Default type
-    return 'text';
-  }
-
-  // Extract spans (formatting information) from AttributedText with better handling
-  List<Map<String, dynamic>> extractSpansFromAttributedText(AttributedText attributedText) {
-    final List<Map<String, dynamic>> spans = [];
-    final text = attributedText.toPlainText();
-    
-    // If text is empty, return empty spans
-    if (text.isEmpty) {
-      return [];
-    }
-    
-    // Use the same attribution types that SuperEditor uses in defaultStyleBuilder
-    final attributions = [
-      const NamedAttribution('bold'),
-      const NamedAttribution('italic'),
-      const NamedAttribution('underline'),
-      const NamedAttribution('strikethrough')
-    ];
-    
-    // Extract spans for each standard attribution type
-    for (final attribution in attributions) {
-      final attributionSpans = attributedText.getAttributionSpans({attribution});
-      for (final span in attributionSpans) {
-        // Ensure span bounds are valid
-        if (span.start >= 0 && span.end <= text.length && span.end > span.start) {
-          spans.add({
-            'start': span.start,
-            'end': span.end,
-            'type': attribution.id,
-          });
-        }
-      }
-    }
-    
-    // Handle links separately as they're a different type of attribution
-    for (int i = 0; i < text.length; i++) {
-      final attributionsAtPosition = attributedText.getAllAttributionsAt(i);
-      for (final attribution in attributionsAtPosition) {
-        if (attribution is LinkAttribution) {
-          int end = i;
-          while (end < text.length && 
-                attributedText.getAllAttributionsAt(end).contains(attribution)) {
-            end++;
-          }
-          
-          // Only add if span bounds are valid
-          if (i >= 0 && end <= text.length && end > i) {
-            spans.add({
-              'start': i,
-              'end': end,
-              'type': 'link',
-              'href': attribution.url,
-            });
-          }
-          
-          i = end - 1;
-          break;
-        }
-      }
-    }
-    
-    // Merge adjacent spans of the same type to optimize storage
-    return _mergeAdjacentSpans(spans);
-  }
-  
-  // Improved helper method to merge adjacent spans of the same type
-  List<Map<String, dynamic>> _mergeAdjacentSpans(List<Map<String, dynamic>> spans) {
-    if (spans.isEmpty) return [];
-    
-    // Sort spans by start position for easier processing
-    spans.sort((a, b) => a['start'].compareTo(b['start']));
-    
-    final List<Map<String, dynamic>> mergedSpans = [];
-    Map<String, dynamic>? currentSpan;
-    
-    for (final span in spans) {
-      if (currentSpan == null) {
-        currentSpan = Map<String, dynamic>.from(span);
-      } else if (currentSpan['end'] >= span['start'] && 
-                 currentSpan['type'] == span['type'] &&
-                 // For links, only merge if they have the same href
-                 (span['type'] != 'link' || currentSpan['href'] == span['href'])) {
-        // Merge by extending the end of the current span
-        currentSpan['end'] = span['end'] > currentSpan['end'] ? span['end'] : currentSpan['end'];
-      } else {
-        // Different type or non-adjacent spans, add current and start a new one
-        mergedSpans.add(currentSpan);
-        currentSpan = Map<String, dynamic>.from(span);
-      }
-    }
-    
-    // Add the last span if it exists
-    if (currentSpan != null) {
-      mergedSpans.add(currentSpan);
-    }
-    
-    return mergedSpans;
   }
 
   // Creates nodes from a block
@@ -846,7 +725,7 @@ class DocumentBuilder {
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
+            text: _attributedTextUtils.createAttributedTextFromContent(text, content),
             metadata: {
               'blockType': NamedAttribution("heading$levelInt"), 
             },
@@ -871,7 +750,7 @@ class DocumentBuilder {
         return [
           TaskNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
+            text: _attributedTextUtils.createAttributedTextFromContent(text, content),
             isComplete: isCompleted,
           ),
         ];
@@ -881,7 +760,7 @@ class DocumentBuilder {
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
+            text: _attributedTextUtils.createAttributedTextFromContent(text, content),
             metadata: const {
               'blockType': NamedAttribution("code")
             },
@@ -903,105 +782,11 @@ class DocumentBuilder {
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
+            text: _attributedTextUtils.createAttributedTextFromContent(text, content),
             metadata: metadata,
           ),
         ];
     }
-  }
-  
-  // Create AttributedText from content including spans with better error handling
-  AttributedText createAttributedTextFromContent(String text, dynamic content) {
-    // Safety check for empty text
-    if (text.isEmpty) {
-      return AttributedText('');
-    }
-    
-    final attributedText = AttributedText(text);
-    
-    try {
-      // Process spans if available
-      List? spans;
-      if (content is Map) {
-        if (content.containsKey('spans')) {
-          spans = content['spans'] as List?;
-        } else if (content.containsKey('inlineStyles')) {
-          spans = content['inlineStyles'] as List?;
-        } else if (content.containsKey('metadata')) {
-          // Check if spans are in metadata.styling
-          final metadata = content['metadata'] as Map?;
-          if (metadata != null && metadata.containsKey('styling')) {
-            final styling = metadata['styling'] as Map?;
-            if (styling != null && styling.containsKey('spans')) {
-              spans = styling['spans'] as List?;
-            }
-          }
-        }
-      }
-      
-      if (spans != null) {
-        for (final span in spans) {
-          if (span is Map && 
-              span.containsKey('start') && 
-              span.containsKey('end') && 
-              span.containsKey('type')) {
-            try {
-              final start = span['start'] is int ? span['start'] : int.tryParse(span['start'].toString()) ?? 0;
-              final end = span['end'] is int ? span['end'] : int.tryParse(span['end'].toString()) ?? 0;
-              final type = span['type'] as String? ?? '';
-              
-              // Validate span range to avoid errors
-              if (start >= 0 && end > start && end <= text.length) {
-                // Apply attributions based on the type
-                switch (type) {
-                  case 'bold':
-                    attributedText.addAttribution(
-                      const NamedAttribution('bold'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                  case 'italic':
-                    attributedText.addAttribution(
-                      const NamedAttribution('italic'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                  case 'link':
-                    final href = span['href'] as String?;
-                    if (href != null) {
-                      attributedText.addAttribution(
-                        LinkAttribution(href), 
-                        SpanRange(start, end)
-                      );
-                    }
-                    break;
-                  case 'underline':
-                    attributedText.addAttribution(
-                      const NamedAttribution('underline'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                  case 'strikethrough':
-                    attributedText.addAttribution(
-                      const NamedAttribution('strikethrough'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                }
-              }
-            } catch (e) {
-              _logger.warning('Error processing span: $e');
-              // Continue with next span
-            }
-          }
-        }
-      }
-    } catch (e) {
-      _logger.error('Error processing text spans: $e');
-      // Return plain text if span processing fails
-    }
-    
-    return attributedText;
   }
 
   // New method: Create a node for a specific block and insert it at the right position
@@ -1120,7 +905,7 @@ class DocumentBuilder {
         if (targetNodeId != null) {
           final index = document.getNodeIndexById(targetNodeId);
           return index;
-                }
+        }
       }
     }
     
@@ -1176,6 +961,10 @@ class DocumentBuilder {
   void updateDocumentWithBlocks(List<Block> blocks, List<Block> allBlocks) {
     if (blocks.isEmpty) return;
     
+    // Save current selection state
+    final currentSelection = composer.selection;
+    final hadFocus = focusNode.hasFocus;
+    
     _updatingDocument = true;
     try {
       for (final block in blocks) {
@@ -1194,6 +983,16 @@ class DocumentBuilder {
           // Insert new node at the correct position
           final insertIndex = findInsertIndexForBlock(block, allBlocks);
           insertBlockNode(block, index: insertIndex);
+        }
+      }
+      
+      // After updates, restore selection if it was lost
+      if (currentSelection != null && composer.selection == null) {
+        tryRestoreSelection(currentSelection);
+        
+        // If selection restoration failed but we had focus, at least restore focus
+        if (hadFocus && !focusNode.hasFocus) {
+          focusNode.requestFocus();
         }
       }
     } finally {
