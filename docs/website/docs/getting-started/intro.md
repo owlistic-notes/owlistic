@@ -2,7 +2,7 @@
 sidebar_position: 1
 ---
 
-# Introduction to Owlistic
+# Introduction
 
 ![Owlistic Logo](/img/logo-192x192.png)
 

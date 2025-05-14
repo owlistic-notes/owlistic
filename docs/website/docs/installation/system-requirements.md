@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Requirements
 
 To ensure optimal performance and functionality of the Owlistic, please ensure your system meets the following requirements:
