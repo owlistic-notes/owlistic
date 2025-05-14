@@ -10,7 +10,7 @@ Owlistic is a self-hosted solution designed to help users manage their notes and
 
 ## How do I install the app?
 
-You can install the app using your preferred [installation method](../installation/).
+You can install the app using your preferred [installation method](/docs/category/installation).
 
 ## What are the system requirements?
 
