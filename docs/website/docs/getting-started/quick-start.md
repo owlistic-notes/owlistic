@@ -8,7 +8,7 @@ Welcome to the Quick Start Guide for our self-hosted Owlistic! This guide will h
 
 ## Step 1: Installation
 
-Before you begin, ensure that you have completed the installation process using your preferred [install option](../installation/).
+Before you begin, ensure that you have completed the installation process using your preferred [install option](/docs/category/installation).
 
 ## Step 2: Launch the Application
 
