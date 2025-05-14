@@ -229,9 +229,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}-app
           tags: |
-            type=sha,format=short,prefix=,suffix=-ui
+            type=sha,format=short,prefix=,suffix=
 
       # Build Docker Image for arm64
       - name: Build Frontend Docker Image (ARM64)
@@ -276,9 +276,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}-app
           tags: |
-            type=sha,format=short,prefix=,suffix=-ui-amd64
+            type=sha,format=short,prefix=,suffix=-amd64
             type=raw,value=latest,enable=false
 
       # Build Docker Image for amd64

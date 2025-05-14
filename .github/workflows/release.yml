@@ -231,7 +231,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}-app
           tags: |
             type=ref,event=tag,enable=true,priority=600,prefix=,suffix=
 
@@ -280,7 +280,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}-app
           tags: |
             type=ref,event=tag,enable=true,prefix=,suffix=
 

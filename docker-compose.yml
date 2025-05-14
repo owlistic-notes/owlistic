@@ -19,7 +19,7 @@ services:
       - DB_PASSWORD=admin
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
-  owlistic-ui:
+  owlistic-app:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
