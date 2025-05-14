@@ -48,4 +48,8 @@ This section addresses some of the most common issues users may encounter while 
 
 ## Additional Help
 
-If you continue to experience issues, consider checking the [FAQ](./faq.md) or reaching out to the community for support.
+If you continue to experience issues try the following:
+
+1. Check the [FAQs](FAQ.md).
+2. Read through the [Release Notes](https://github.com/owlistic-notes/owlistic/releases).
+3. Search through existing [GitHub Issues](https://github.com/owlistic-notes/owlistic/issues).
