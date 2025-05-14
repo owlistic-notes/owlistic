@@ -31,4 +31,4 @@ In a world of proprietary note-taking solutions that lock your data into walled 
 
 ## Contributing
 
-Owlistic is developed by the community, for the community. We welcome contributions of all kinds - from code improvements to documentation updates. Check out our [Contributing Guide](../contributing/development-setup) to learn how you can help.
+Owlistic is developed by the community, for the community. We welcome contributions of all kinds - from code improvements to documentation updates. Check out our [Contributing Guide](/docs/category/contributing) to learn how you can help.
