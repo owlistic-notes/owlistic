@@ -132,7 +132,7 @@ class AttributedTextUtils {
   }
 
   // Create AttributedText from content including spans with better error handling
-  AttributedText createAttributedTextFromContent(String text, dynamic content) {
+  AttributedText createAttributedTextFromContent(String text, Map<String, dynamic> content) {
     // Safety check for empty text
     if (text.isEmpty) {
       return AttributedText('');
@@ -141,25 +141,20 @@ class AttributedTextUtils {
     final attributedText = AttributedText(text);
     
     try {
-      // Process spans if available
+      // Process spans if available - ONLY look in metadata (correct location)
       List? spans;
+      
       if (content is Map) {
-        if (content.containsKey('spans')) {
-          spans = content['spans'] as List?;
-        } else if (content.containsKey('inlineStyles')) {
-          spans = content['inlineStyles'] as List?;
-        } else if (content.containsKey('metadata')) {
-          // Check if spans are in metadata.styling
-          final metadata = content['metadata'] as Map?;
-          if (metadata != null && metadata.containsKey('styling')) {
-            final styling = metadata['styling'] as Map?;
-            if (styling != null && styling.containsKey('spans')) {
-              spans = styling['spans'] as List?;
-            }
+        // Always check metadata first for spans (correct location)
+        if (content.containsKey('metadata') && content['metadata'] is Map) {
+          final metadata = content['metadata'] as Map;
+          if (metadata.containsKey('spans')) {
+            spans = metadata['spans'] as List?;
           }
         }
       }
       
+      // Process spans if found
       if (spans != null) {
         for (final span in spans) {
           if (span is Map && 

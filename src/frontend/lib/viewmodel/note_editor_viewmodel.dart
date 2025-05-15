@@ -30,7 +30,7 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   Future<Block?> fetchBlockById(String blockId);
   Future<Block> createBlock(String type);
   Future<void> deleteBlock(String blockId);
-  void updateBlockContent(String id, dynamic content, {
+  void updateBlockContent(String id, Map<String, dynamic> content, {
     String? type, 
     double? order,
     bool immediate = false,

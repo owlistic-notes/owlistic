@@ -10,7 +10,7 @@ class DataConverter {
 
   /// Convert dynamic JSON content to a standardized Map format
   /// Ensures consistent content structure regardless of input format
-  static Map<String, dynamic> normalizeContent(dynamic content) {
+  static Map<String, dynamic> normalizeContent(Map<String, dynamic> content) {
     try {
       if (content is Map) {
         // Create a new map to avoid modifying the original
@@ -32,9 +32,6 @@ class DataConverter {
         
         _logger.debug('Normalized content: $result');
         return result;
-      } else if (content is String) {
-        // Convert legacy string content to the new format
-        return {'text': content};
       } else if (content == null) {
         return {'text': ''};
       }
@@ -48,11 +45,9 @@ class DataConverter {
   }
 
   /// Extract text content from a content object (either Map or String)
-  static String extractTextContent(dynamic content) {
+  static String extractTextContent(Map<String, dynamic> content) {
     try {
-      if (content is String) {
-        return content;
-      } else if (content is Map) {
+      if (content is Map) {
         return content['text']?.toString() ?? '';
       }
       return '';
@@ -137,7 +132,7 @@ class DataConverter {
   }
 
   /// Extract formatting spans from rich text content
-  static List<Map<String, dynamic>>? extractSpans(dynamic content) {
+  static List<Map<String, dynamic>>? extractSpans(Map<String, dynamic> content) {
     final Map<String, dynamic> contentMap = normalizeContent(content);
     if (contentMap.containsKey('spans')) {
       final spans = contentMap['spans'];

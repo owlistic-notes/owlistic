@@ -3,10 +3,9 @@ class Task {
   final String title;
   final bool isCompleted;
   final String userId;
+  final String noteId;
   final String? description;
   final String? dueDate;
-  final String? noteId;
-  final String? blockId;
   final Map<String, dynamic>? metadata;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -17,10 +16,9 @@ class Task {
     required this.title,
     required this.isCompleted,
     required this.userId,
+    required this.noteId,
     this.description,
     this.dueDate,
-    this.noteId,
-    this.blockId,
     this.metadata,
     this.createdAt,
     this.updatedAt,
@@ -67,15 +65,22 @@ class Task {
       title: json['title'] ?? '',
       isCompleted: json['is_completed'] ?? false,
       userId: json['user_id'] ?? '',
+      noteId: json['note_id'] ?? '',
       description: json['description'],
       dueDate: json['due_date'],
-      noteId: json['note_id'],
-      blockId: json['block_id'],
       metadata: metadata,
       createdAt: createdAt,
       updatedAt: updatedAt,
       deletedAt: deletedAt,
     );
+  }
+  
+  // Helper method to get blockId from metadata
+  String? getBlockId() {
+    if (metadata != null && metadata!.containsKey('block_id')) {
+      return metadata!['block_id'];
+    }
+    return null;
   }
   
   Map<String, dynamic> toJson() {
@@ -84,10 +89,9 @@ class Task {
       'title': title,
       'is_completed': isCompleted,
       'user_id': userId,
+      'note_id': noteId,
       if (description != null) 'description': description,
       if (dueDate != null) 'due_date': dueDate,
-      if (noteId != null) 'note_id': noteId,
-      if (blockId != null) 'block_id': blockId,
       if (metadata != null) 'metadata': metadata,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
       if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
@@ -103,7 +107,6 @@ class Task {
     String? description,
     String? dueDate,
     String? noteId,
-    String? blockId,
     Map<String, dynamic>? metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -117,7 +120,6 @@ class Task {
       description: description ?? this.description,
       dueDate: dueDate ?? this.dueDate,
       noteId: noteId ?? this.noteId,
-      blockId: blockId ?? this.blockId,
       metadata: metadata ?? this.metadata,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

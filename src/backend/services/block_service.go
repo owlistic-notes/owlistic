@@ -105,12 +105,8 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 	// Process content based on input type
 	var content models.BlockContent
 	if contentData, ok := blockData["content"].(map[string]interface{}); ok {
-		// If we get a structured content object, use it directly
+		// If content is a map, use it directly
 		content = models.BlockContent(contentData)
-	} else if contentStr, ok := blockData["content"].(string); ok {
-		// If content is provided as a string, maintain backward compatibility
-		// by storing it as {"text": content} in the JSONB field
-		content = models.BlockContent{"text": contentStr}
 	} else {
 		tx.Rollback()
 		return models.Block{}, ErrInvalidInput
@@ -238,23 +234,17 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 
 	// Handle content updates
 	if contentInterface, exists := blockData["content"]; exists {
-		var updatedContent models.BlockContent
-
-		switch content := contentInterface.(type) {
-		case map[string]interface{}:
-			// If we get a structured content object, use it directly
-			updatedContent = models.BlockContent(content)
-		case string:
-			// If content is provided as a string, convert to proper format
-			updatedContent = models.BlockContent{"text": content}
-		default:
+		if contentMap, ok := contentInterface.(map[string]interface{}); ok {
+			// Process content as a map
+			updatedContent := models.BlockContent(contentMap)
+			
+			// Set the processed content to both blockData and eventData
+			eventData["content"] = updatedContent
+			blockData["content"] = updatedContent
+		} else {
 			tx.Rollback()
 			return models.Block{}, ErrInvalidInput
 		}
-
-		// Set the processed content to both blockData and eventData
-		eventData["content"] = updatedContent
-		blockData["content"] = updatedContent
 	}
 
 	// Handle metadata separately - don't merge into content

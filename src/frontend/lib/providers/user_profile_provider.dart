@@ -128,7 +128,7 @@ class UserProfileProvider with ChangeNotifier implements UserProfileViewModel {
       try {
         final jsonStr = match.group(1);
         if (jsonStr != null) {
-          final errorMap = json.decode(jsonStr) as Map<String, dynamic>;
+          final errorMap = json.decode(jsonStr);
           if (errorMap.containsKey('error')) {
             return errorMap['error'];
           }

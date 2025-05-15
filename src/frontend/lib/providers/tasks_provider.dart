@@ -413,7 +413,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
       _tasksMap[taskId] = task;
       notifyListeners();
     } catch (error) {
-      print('Error fetching task from event: $error');
+      _logger.error('Error fetching task from event: $error');
     }
   }
 
@@ -428,7 +428,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
         notifyListeners();
       }
     } catch (error) {
-      print('Error adding task from event: $error');
+      _logger.error('Error adding task from event: $error');
     }
   }
 

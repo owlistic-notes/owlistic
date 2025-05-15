@@ -57,7 +57,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   bool _hasPendingNotification = false;
   
   // Event callbacks
-  void Function(String blockId, dynamic content)? _onBlockContentChanged;
+  void Function(String blockId, Map<String, dynamic> content)? _onBlockContentChanged;
   void Function(List<String> blockIds)? _onMultiBlockOperation;
   void Function(String blockId)? _onBlockDeleted;
   void Function()? _onFocusLost;
@@ -412,7 +412,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         if (blockTypeAttr is NamedAttribution) {
           blockTypeStr = blockTypeAttr.id;
         } else if (blockTypeAttr is String) {
-          blockTypeStr = blockTypeAttr;
+          blockTypeStr = blockTypeStr;
         }
         
         if (blockTypeStr == 'heading') {
@@ -428,7 +428,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Extract content from node in the format needed by API
       final extractedData = _extractNodeContentForApi(node);
-      final content = extractedData['content'] as Map<String, dynamic>;
+      final content = extractedData['content'];
       
       // Calculate a fractional order value using the document builder
       double order = await _documentBuilder.calculateOrderForNewNode(nodeId, blocks);
@@ -532,29 +532,30 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     if (block == null || block.type != 'task') return;
     
     // Compare with current state to see if it actually changed
-    final bool wasComplete = block.content is Map && 
-                            block.content['is_completed'] == true;
+    final bool wasComplete = block.metadata != null && 
+                            block.metadata!['is_completed'] == true;
     
     if (wasComplete != isComplete) {
       _logger.info('Task completion changed: nodeId=$nodeId, blockId=$blockId, isComplete=$isComplete');
       
-      // Create updated content with new completion status
-      final updatedContent = Map<String, dynamic>.from(block.content is Map ? 
-                            block.content : {'text': block.getTextContent()});
-      updatedContent['is_completed'] = isComplete;
+      // FIXED: Create properly structured payload with content and metadata
+      // Content ONLY contains text
+      final content = {'text': block.getTextContent()};
       
-      // Ensure we have metadata with _sync_source
-      if (!updatedContent.containsKey('metadata')) {
-        updatedContent['metadata'] = {};
-      }
-      if (updatedContent['metadata'] is Map) {
-        (updatedContent['metadata'] as Map)['_sync_source'] = 'block';
-      } else {
-        updatedContent['metadata'] = {'_sync_source': 'block'};
-      }
+      // Metadata contains everything else
+      final metadata = Map<String, dynamic>.from(block.metadata ?? {});
+      metadata['_sync_source'] = 'block';
+      metadata['is_completed'] = isComplete;
+      metadata['block_id'] = blockId;
       
-      // Send immediate update to server
-      updateBlockContent(blockId, updatedContent, immediate: true);
+      // Create properly structured payload
+      final payload = {
+        'content': content,
+        'metadata': metadata
+      };
+      
+      // Send immediate update to server with standardized format
+      updateBlockContent(blockId, payload, immediate: true);
     }
   }
 
@@ -662,10 +663,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
               final updatedBlock = Block(
                 id: blockId,
                 noteId: existingBlock.noteId,
-                content: parsedMessage.payload['content'],
-                type: parsedMessage.payload['block_type'] as String? ?? existingBlock.type,
+                type: existingBlock.type,
                 order: existingBlock.order,
-                metadata: parsedMessage.payload['metadata'] as Map<String, dynamic>?,
+                content: parsedMessage.payload['content'],
+                metadata: parsedMessage.payload['metadata'],
                 updatedAt: DateTime.now(),
                 createdAt: existingBlock.createdAt
               );
@@ -940,10 +941,11 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Initial content based on type
     Map<String, dynamic> content = {'text': ''};
+    Map<String, dynamic> metadata = {};
     if (type == 'heading') {
-      content['level'] = 1;
+      metadata['level'] = 1;
     } else if (type == 'task') {
-      content['is_completed'] = false;
+      metadata['is_completed'] = false;
     }
     
     // Create block on server
@@ -1025,7 +1027,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   @override
-  void updateBlockContent(String id, dynamic content, {
+  void updateBlockContent(String id, Map<String, dynamic> content, {
     String? type, 
     double? order,
     bool immediate = false,
@@ -1046,30 +1048,15 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     final Block existingBlock = _blocks[id]!;
     
     // Process content to proper format
-    Map<String, dynamic> contentMap;
-    Map<String, dynamic>? metadata;
-    
-    if (content is String) {
-      contentMap = {'text': content};
-    } else if (content is Map) {
-      contentMap = Map<String, dynamic>.from(content);
-      
-      // Check if there's metadata in the content that should be extracted
-      if (contentMap.containsKey('_metadata')) {
-        metadata = Map<String, dynamic>.from(contentMap['_metadata']);
-        contentMap.remove('_metadata');
-      }
-    } else {
-      _logger.error('Unsupported content type: ${content.runtimeType}');
-      return;
-    }
+    Map<String, dynamic> contentMap = Map<String, dynamic>.from(content['content']);
+    Map<String, dynamic>? metadataMap = Map<String, dynamic>.from(content['metadata']);
     
     // Always include spans field in content update to preserve formatting
     // If spans aren't in the new content but are in the existing block, preserve them
-    if (!contentMap.containsKey('spans') && existingBlock.content is Map) {
-      final existingContent = existingBlock.content as Map;
-      if (existingContent.containsKey('spans')) {
-        contentMap['spans'] = existingContent['spans'];
+    if (!metadataMap.containsKey('spans')) {
+      final existingMetadata = existingBlock.metadata as Map;
+      if (existingMetadata.containsKey('spans')) {
+        contentMap['spans'] = existingMetadata['spans'];
       }
     }
     
@@ -1090,7 +1077,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       content: contentMap,
       type: type ?? existingBlock.type,
       order: order ?? existingBlock.order,
-      metadata: metadata ?? existingBlock.metadata,
+      metadata: metadataMap,
     );
     
     // Track this as a user modification
@@ -1107,17 +1094,18 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // For full updates, use debounced saving to reduce API calls
     if (immediate) {
       // If immediate, save now
-      _saveBlockToBackend(id, contentMap, metadata: metadata, type: type, order: order);
+      _saveBlockToBackend(id, contentMap, metadata: metadataMap, type: type, order: order);
     } else {
       // Otherwise, debounce for 1 second
       _saveTimers[id] = Timer(const Duration(seconds: 1), () {
-        _saveBlockToBackend(id, contentMap, metadata: metadata, type: type, order: order);
+        _saveBlockToBackend(id, contentMap, metadata: metadataMap, type: type, order: order);
       });
     }
   }
 
   // Method to persist block changes to backend
-  Future<void> _saveBlockToBackend(String id, dynamic content, {
+  Future<void> _saveBlockToBackend(String id,
+    Map<String, dynamic> content, {
     Map<String, dynamic>? metadata,
     String? type, 
     double? order
@@ -1127,25 +1115,15 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     try {
       _logger.debug('Saving block $id to server');
       
-      // Prepare content properly structured for the API
-      Map<String, dynamic> payload = {};
+      // FIXED: Create properly structured payload
+      final payload = <String, dynamic>{};
       
-      // Content must be inside the content field
-      Map<String, dynamic> contentMap;
-      if (content is Map) {
-        contentMap = Map<String, dynamic>.from(content);
-      } else if (content is String) {
-        contentMap = {'text': content};
-      } else {
-        contentMap = {'text': content.toString()};
-      }
+      // Set content in payload
+      payload['content'] = content;
       
-      // Create properly structured payload
-      payload['content'] = contentMap;
-      
-      // Add block_type if specified
+      // Add block type if specified
       if (type != null) {
-        payload['block_type'] = type;
+        payload['type'] = type;
       }
       
       // Add order if specified
@@ -1153,10 +1131,13 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         payload['order'] = order;
       }
       
-      // Add metadata if specified
-      if (metadata != null) {
-        payload['metadata'] = metadata;
-      }
+      // Setup metadata - always ensure _sync_source
+      Map<String, dynamic> metadataMap = metadata ?? {};
+      metadataMap['_sync_source'] = 'block';
+      metadataMap['block_id'] = id;
+      
+      // Add metadata to payload
+      payload['metadata'] = metadataMap;
       
       _logger.debug('Sending payload to server: $payload');
       

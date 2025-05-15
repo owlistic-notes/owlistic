@@ -45,19 +45,22 @@ class TaskService extends BaseService {
 
   Future<Task> createTask(String title, String noteId, {String? blockId}) async {
     try {
-      // Create metadata with _sync_source instead of adding directly
-      final metadata = {'_sync_source': 'task'};
-      
-      final taskData = {
-        'title': title,
-        'is_completed': false,
-        'note_id': noteId,
-        'metadata': metadata,
+      // Create metadata with sync source
+      final metadata = <String, dynamic>{
+        '_sync_source': 'task',
       };
       
+      // Add block_id to metadata if provided
       if (blockId != null && blockId.isNotEmpty) {
-        taskData['block_id'] = blockId;
+        metadata['block_id'] = blockId;
       }
+      
+      final taskData = <String, dynamic>{
+        'title': title,
+        'is_completed': false,
+        'note_id': noteId, // Direct note_id field
+        'metadata': metadata,
+      };
 
       final response = await authenticatedPost('/api/v1/tasks', taskData);
 
@@ -87,24 +90,49 @@ class TaskService extends BaseService {
     }
   }
 
-  Future<Task> updateTask(String id, {String? title, bool? isCompleted}) async {
+  Future<Task> updateTask(String id, {String? title, bool? isCompleted, String? noteId}) async {
     try {
-      // Create metadata with _sync_source
-      final Map<String, dynamic> metadata = {'_sync_source': 'task'};
+      // Get existing task to maintain metadata
+      Task existingTask;
+      try {
+        existingTask = await getTask(id);
+      } catch (e) {
+        _logger.error('Failed to fetch existing task before update', e);
+        existingTask = Task(
+          id: id,
+          title: '',
+          isCompleted: false,
+          userId: '',
+          noteId: '',
+          metadata: {},
+        );
+      }
       
-      final Map<String, dynamic> updates = {
+      // Create metadata with task_id and keep existing metadata
+      final metadata = <String, dynamic>{
+        '_sync_source': 'task',
+      };
+      
+      // Copy existing metadata
+      if (existingTask.metadata != null) {
+        metadata.addAll(existingTask.metadata!);
+      }
+      
+      final updates = <String, dynamic>{
         'metadata': metadata,
       };
       
+      // Add basic task properties
       if (title != null) updates['title'] = title;
       if (isCompleted != null) updates['is_completed'] = isCompleted;
+      if (noteId != null) updates['note_id'] = noteId;
 
       final response = await authenticatedPut('/api/v1/tasks/$id', updates);
 
       if (response.statusCode == 200) {
         return Task.fromJson(json.decode(response.body));
       } else {
-        _logger.error('Failed to update task: ${response.statusCode}, ${response.body}');
+        _logger.error('Failed to update task: ${response.statusCode}');
         throw Exception('Failed to update task: ${response.statusCode}');
       }
     } catch (e) {
