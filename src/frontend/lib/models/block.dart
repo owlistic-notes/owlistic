@@ -141,22 +141,6 @@ class Block {
     
     return null;
   }
-
-  // Get block type for rendering
-  String getBlockType() {
-    switch (type) {
-      case 'heading':
-        final level = getHeadingLevel();
-        return 'heading$level';
-      case 'task':
-        return 'task';
-      case 'code':
-        return 'codeBlock';
-      case 'text':
-      default:
-        return 'paragraph';
-    }
-  }
   
   // Check if this is a task and whether it's completed
   bool isTaskCompleted() {

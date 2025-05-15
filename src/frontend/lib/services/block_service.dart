@@ -42,8 +42,6 @@ class BlockService extends BaseService {
       Map<String, dynamic> contentMap = {};
       Map<String, dynamic> metadataMap = {'_sync_source': 'block'};
       
-      // Handle different content types
-      if (content is Map) {
         // Extract content and metadata from structured input
         final inputMap = Map<String, dynamic>.from(content);
         
@@ -63,7 +61,6 @@ class BlockService extends BaseService {
         
         
         contentMap = inputMap;
-      }
       
       final requestBody = {
         'note_id': noteId,
@@ -87,41 +84,7 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> createTaskBlock(String noteId, String text, bool isCompleted, String? taskId, double order) async {
-    try {
-      // Create metadata specific for task blocks
-      final metadataMap = <String, dynamic>{
-        '_sync_source': 'block',
-        'is_completed': isCompleted,
-      };
-      
-      // Add task ID if provided
-      if (taskId != null && taskId.isNotEmpty) {
-        metadataMap['task_id'] = taskId;
-      }
-      
-      final requestBody = {
-        'note_id': noteId,
-        'type': 'task',
-        'content': {'text': text},
-        'metadata': metadataMap,
-        'order': order,
-      };
-      
-      final response = await authenticatedPost('/api/v1/blocks', requestBody);
-      
-      if (response.statusCode == 201) {
-        return Block.fromJson(jsonDecode(response.body));
-      } else {
-        _logger.error('Failed to create task block: ${response.statusCode}, ${response.body}');
-        throw Exception('Failed to create task block: ${response.statusCode}');
-      }
-    } catch (e) {
-      _logger.error('Error creating task block', e);
-      rethrow;
-    }
-  }
-
+  
   Future<void> deleteBlock(String id) async {
     try {
       final response = await authenticatedDelete('/api/v1/blocks/$id');

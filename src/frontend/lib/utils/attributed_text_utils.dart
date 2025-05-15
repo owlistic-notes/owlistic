@@ -141,19 +141,17 @@ class AttributedTextUtils {
     final attributedText = AttributedText(text);
     
     try {
-      // Process spans if available - ONLY look in metadata (correct location)
+      // Process spans if available
       List? spans;
       
-      if (content is Map) {
-        // Always check metadata first for spans (correct location)
-        if (content.containsKey('metadata') && content['metadata'] is Map) {
-          final metadata = content['metadata'] as Map;
-          if (metadata.containsKey('spans')) {
-            spans = metadata['spans'] as List?;
-          }
+      // Always check metadata first for spans
+      if (content.containsKey('metadata') && content['metadata'] is Map) {
+        final metadata = content['metadata'] as Map;
+        if (metadata.containsKey('spans')) {
+          spans = metadata['spans'] as List?;
         }
       }
-      
+    
       // Process spans if found
       if (spans != null) {
         for (final span in spans) {
@@ -171,14 +169,11 @@ class AttributedTextUtils {
                 // Apply attributions based on the type
                 switch (type) {
                   case 'bold':
-                    attributedText.addAttribution(
-                      const NamedAttribution('bold'), 
-                      SpanRange(start, end)
-                    );
-                    break;
                   case 'italic':
+                  case 'underline':
+                  case 'strikethrough':
                     attributedText.addAttribution(
-                      const NamedAttribution('italic'), 
+                      NamedAttribution(type), 
                       SpanRange(start, end)
                     );
                     break;
@@ -190,18 +185,6 @@ class AttributedTextUtils {
                         SpanRange(start, end)
                       );
                     }
-                    break;
-                  case 'underline':
-                    attributedText.addAttribution(
-                      const NamedAttribution('underline'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                  case 'strikethrough':
-                    attributedText.addAttribution(
-                      const NamedAttribution('strikethrough'), 
-                      SpanRange(start, end)
-                    );
                     break;
                 }
               }

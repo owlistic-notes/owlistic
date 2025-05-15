@@ -607,7 +607,6 @@ class DocumentBuilder {
       }
     } 
     else if (node is TaskNode) {
-      // ONLY text in content
       content['text'] = node.text.toPlainText();
       
       // Task state in metadata
