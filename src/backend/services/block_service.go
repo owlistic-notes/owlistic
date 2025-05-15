@@ -141,13 +141,13 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		"create",
 		actorID,
 		map[string]interface{}{
-			"block_id": block.ID.String(),
-			"note_id":  block.NoteID.String(),
-			"user_id":  block.UserID.String(),
-			"type":     string(block.Type),
-			"order":    block.Order,
-			"content":  block.Content,
-			"metadata": block.Metadata,
+			"block_id":   block.ID.String(),
+			"note_id":    block.NoteID.String(),
+			"user_id":    block.UserID.String(),
+			"block_type": string(block.Type),
+			"order":      block.Order,
+			"content":    block.Content,
+			"metadata":   block.Metadata,
 		},
 	)
 
@@ -237,7 +237,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 		if contentMap, ok := contentInterface.(map[string]interface{}); ok {
 			// Process content as a map
 			updatedContent := models.BlockContent(contentMap)
-			
+
 			// Set the processed content to both blockData and eventData
 			eventData["content"] = updatedContent
 			blockData["content"] = updatedContent

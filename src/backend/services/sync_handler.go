@@ -130,7 +130,7 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 	}
 
 	// Get block type to ensure it's a task block
-	blockType, ok := payload["type"].(string)
+	blockType, ok := payload["block_type"].(string)
 	if !ok || blockType != string(models.TaskBlock) {
 		return nil // Not a task block, nothing to do
 	}
@@ -213,7 +213,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 	}
 
 	// Check if the block type has changed
-	updatedType, hasType := payload["type"].(string)
+	updatedType, hasType := payload["block_type"].(string)
 	typeChanged := hasType && string(block.Type) != updatedType
 
 	// If block type changed from task to another type, delete the associated task
