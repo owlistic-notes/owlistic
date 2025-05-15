@@ -20,7 +20,7 @@ abstract class TasksViewModel extends BaseViewModel {
   Future<void> loadAvailableNotes();
   
   /// Create a new task
-  Future<void> createTask(String title, String noteId, {String? blockId});
+  Future<void> createTask(String title, String noteId);
   
   /// Delete a task
   Future<void> deleteTask(String id);

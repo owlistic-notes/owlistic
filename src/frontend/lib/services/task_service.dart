@@ -111,6 +111,7 @@ class TaskService extends BaseService {
       // Create metadata with task_id and keep existing metadata
       final metadata = <String, dynamic>{
         '_sync_source': 'task',
+        'task_id': id,
       };
       
       // Copy existing metadata

@@ -648,8 +648,6 @@ class DocumentBuilder {
     // Preserve original metadata values if available
     if (originalBlock != null && originalBlock.metadata != null) {
       metadata = Map<String, dynamic>.from(originalBlock.metadata!);
-      // Ensure _sync_source is present
-      metadata['_sync_source'] = 'block';
     }
     
     if (node is ParagraphNode) {

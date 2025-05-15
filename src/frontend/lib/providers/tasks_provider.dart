@@ -151,7 +151,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
-      final String? taskId = WebSocketModelExtractor.extractBlockId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
+      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
       
       if (taskId != null && taskId.isNotEmpty) {
         _fetchSingleTask(taskId);
@@ -169,21 +169,12 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
-      final payload = parsedMessage.payload;
-      final data = payload['data'];
+      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
       
-      String taskId = '';
-      String noteId = '';
-      
-      // Extract IDs - tasks don't have a specific extractor yet
-      if (data != null && data is Map) {
-        taskId = data['id']?.toString() ?? data['task_id']?.toString() ?? '';
-        noteId = data['note_id']?.toString() ?? '';
-      }
-      
-      if (taskId.isNotEmpty) {
+      if (taskId != null && taskId.isNotEmpty) {
         // Only fetch if we have tasks for this note already or if we're showing all tasks
-        if (noteId.isEmpty || _tasksMap.values.any((task) => task.noteId == noteId)) {
+        if ((noteId != null && noteId.isEmpty) || _tasksMap.values.any((task) => task.noteId == noteId)) {
           _fetchSingleTask(taskId);
         }
       } else {
@@ -304,10 +295,10 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   // Create task - updated to include optimistic update
   @override
-  Future<void> createTask(String title, String noteId, {String? blockId}) async {
+  Future<void> createTask(String title, String noteId) async {
     try {
       // Create task on server
-      final task = await _taskService.createTask(title, noteId, blockId: blockId);
+      final task = await _taskService.createTask(title, noteId);
       
       // Optimistic update - add task to local state immediately
       _tasksMap[task.id] = task;
