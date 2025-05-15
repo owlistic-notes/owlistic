@@ -151,12 +151,14 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
-      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
+      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage);
       
       if (taskId != null && taskId.isNotEmpty) {
+        // Always fetch the task when it's updated
         _fetchSingleTask(taskId);
+        _logger.debug('Processing task update for task ID: $taskId');
       } else {
-        _logger.warning('Could not extract task_id from message');
+        _logger.warning('Could not extract task_id from message: ${message.toString().substring(0, 100)}...');
       }
     } catch (e) {
       _logger.error('Error handling task update: $e');
@@ -174,7 +176,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
       
       if (taskId != null && taskId.isNotEmpty) {
         // Only fetch if we have tasks for this note already or if we're showing all tasks
-        if ((noteId != null && noteId.isEmpty) || _tasksMap.values.any((task) => task.noteId == noteId)) {
+        if ((noteId != null && noteId.isNotEmpty) || _tasksMap.values.any((task) => task.noteId == noteId)) {
           _fetchSingleTask(taskId);
         }
       } else {
@@ -215,6 +217,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   Future<void> _fetchSingleTask(String taskId) async {
     _logger.debug('Fetching single task: $taskId');
+    
     try {
       // Fetch the task from the service
       final task = await _taskService.getTask(taskId);

@@ -106,11 +106,14 @@ class BlockService extends BaseService {
       // Create a copy of the content to avoid modifying the original
       final payload = Map<String, dynamic>.from(content);
       
+      // Ensure metadata structure is correct with proper sync timestamps
+      Map<String, dynamic> metadataMap = {
+        '_sync_source': 'block', 
+        'block_id': blockId,
+        'last_synced': DateTime.now().toIso8601String() // Add current timestamp
+      };
       
-      // Ensure metadata structure is correct
-      Map<String, dynamic> metadataMap = {'_sync_source': 'block', 'block_id': blockId};
-      
-      // If there's existing metadata, merge it
+      // If there's existing metadata, merge it but preserve our sync fields
       if (payload.containsKey('metadata')) {
         if (payload['metadata'] is Map) {
           metadataMap.addAll(Map<String, dynamic>.from(payload['metadata']));
@@ -126,8 +129,6 @@ class BlockService extends BaseService {
           metadataMap['spans'] = contentMap['spans'];
           contentMap.remove('spans');
         }
-        
-        // Remove handling of blockType - it should be part of the block's 'type' field
         
         // Move any nested metadata to top-level metadata
         if (contentMap.containsKey('metadata')) {
@@ -171,6 +172,7 @@ class BlockService extends BaseService {
     updatedMetadata['_sync_source'] = 'block';
     updatedMetadata['block_id'] = block.id;
     updatedMetadata['is_completed'] = isCompleted;
+    updatedMetadata['last_synced'] = DateTime.now().toIso8601String();
     
     final payload = <String, dynamic>{
       'content': block.content,

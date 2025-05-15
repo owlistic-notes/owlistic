@@ -111,21 +111,23 @@ class TaskService extends BaseService {
       // Create metadata with task_id and keep existing metadata
       final metadata = <String, dynamic>{
         '_sync_source': 'task',
-        'task_id': id,
       };
       
       // Copy existing metadata
       if (existingTask.metadata != null) {
         metadata.addAll(existingTask.metadata!);
       }
-      
+
+      metadata['task_id'] = id;
+      metadata['last_synced'] = DateTime.now().toIso8601String();
+      if (isCompleted != null) metadata['is_completed'] = isCompleted;
+
       final updates = <String, dynamic>{
         'metadata': metadata,
       };
       
       // Add basic task properties
       if (title != null) updates['title'] = title;
-      if (isCompleted != null) updates['is_completed'] = isCompleted;
       if (noteId != null) updates['note_id'] = noteId;
 
       final response = await authenticatedPut('/api/v1/tasks/$id', updates);
