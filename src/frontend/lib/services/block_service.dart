@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../models/block.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/utils/logger.dart';
 import 'base_service.dart';
 
 class BlockService extends BaseService {

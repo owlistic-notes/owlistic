@@ -1,5 +1,5 @@
 import 'dart:async';
-import '../utils/logger.dart';
+import 'package:owlistic/utils/logger.dart';
 
 /// Service for handling application-wide state changes and cross-provider communication
 class AppStateService {

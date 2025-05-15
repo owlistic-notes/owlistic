@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../viewmodel/theme_viewmodel.dart';
+import 'package:owlistic/viewmodel/theme_viewmodel.dart';
 
 /// A widget that provides a button to toggle between light and dark themes
 class ThemeSwitcher extends StatelessWidget {

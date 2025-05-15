@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import '../utils/logger.dart';
-import '../models/subscription.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/models/subscription.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WebSocketService {

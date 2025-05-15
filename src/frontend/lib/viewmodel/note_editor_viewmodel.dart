@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../models/block.dart';
-import '../models/note.dart';
-import '../utils/document_builder.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/utils/document_builder.dart';
 import 'base_viewmodel.dart';
 
 abstract class NoteEditorViewModel extends BaseViewModel {

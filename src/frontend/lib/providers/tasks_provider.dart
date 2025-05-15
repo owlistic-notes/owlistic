@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../models/note.dart';
-import '../models/task.dart';
-import '../services/note_service.dart';
-import '../services/task_service.dart';
-import '../services/auth_service.dart';
-import '../services/websocket_service.dart';
-import '../utils/logger.dart';
-import '../utils/websocket_message_parser.dart';
-import '../services/app_state_service.dart';
-import '../viewmodel/tasks_viewmodel.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/services/note_service.dart';
+import 'package:owlistic/services/task_service.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/utils/websocket_message_parser.dart';
+import 'package:owlistic/services/app_state_service.dart';
+import 'package:owlistic/viewmodel/tasks_viewmodel.dart';
 
 class TasksProvider with ChangeNotifier implements TasksViewModel {
   // Change to Map to prevent duplicates and enable O(1) lookups

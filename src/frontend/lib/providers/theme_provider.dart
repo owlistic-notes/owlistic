@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:owlistic/core/theme.dart';
-import '../viewmodel/theme_viewmodel.dart';
-import '../services/theme_service.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/viewmodel/theme_viewmodel.dart';
+import 'package:owlistic/services/theme_service.dart';
+import 'package:owlistic/utils/logger.dart';
 
 class ThemeProvider with ChangeNotifier implements ThemeViewModel {
   final Logger _logger = Logger('ThemeProvider');

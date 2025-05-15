@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/empty_state.dart';
-import '../viewmodel/tasks_viewmodel.dart';
-import '../models/task.dart';
-import '../core/theme.dart';
-import '../widgets/app_bar_common.dart';
-import '../utils/logger.dart';
-import '../widgets/theme_switcher.dart';
+import 'package:owlistic/widgets/app_drawer.dart';
+import 'package:owlistic/widgets/empty_state.dart';
+import 'package:owlistic/viewmodel/tasks_viewmodel.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/core/theme.dart';
+import 'package:owlistic/widgets/app_bar_common.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/widgets/theme_switcher.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});

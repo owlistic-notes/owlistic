@@ -1,4 +1,4 @@
-import '../utils/logger.dart';
+import 'package:owlistic/utils/logger.dart';
 
 /// DataConverter provides utility methods for converting between different data formats
 /// throughout the application to ensure consistency and reduce code duplication.

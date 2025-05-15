@@ -1,5 +1,5 @@
-import '../models/task.dart';
-import '../models/note.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/models/note.dart';
 import 'base_viewmodel.dart';
 
 /// Interface for task management functionality

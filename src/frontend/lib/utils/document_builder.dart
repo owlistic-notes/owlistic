@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:owlistic/utils/data_converter.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
-import '../models/block.dart';
-import '../utils/logger.dart';
-import '../utils/attributed_text_utils.dart';
-import '../utils/block_node_mapping.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/utils/attributed_text_utils.dart';
+import 'package:owlistic/utils/block_node_mapping.dart';
 
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
@@ -672,7 +673,7 @@ class DocumentBuilder {
       if (blockTypeStr.startsWith('heading')) {
         // Extract heading level from blockType like "heading1"
         final levelStr = blockTypeStr.substring(7);
-        final level = int.tryParse(levelStr) ?? 1;
+        final level = DataConverter.parseIntSafely(levelStr) ?? 1;
         metadata['level'] = level;
       } 
       else if (blockTypeStr == 'code') {

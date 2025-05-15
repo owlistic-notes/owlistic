@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/user.dart';
+import 'package:owlistic/models/user.dart';
 import 'base_viewmodel.dart';
 
 /// Interface for login functionality

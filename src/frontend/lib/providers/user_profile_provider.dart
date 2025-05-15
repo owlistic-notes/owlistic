@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../models/user.dart';
-import '../services/user_service.dart';
-import '../services/auth_service.dart';
-import '../services/app_state_service.dart';
-import '../utils/logger.dart';
-import '../viewmodel/user_profile_viewmodel.dart';
+import 'package:owlistic/models/user.dart';
+import 'package:owlistic/services/user_service.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/app_state_service.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/viewmodel/user_profile_viewmodel.dart';
 
 class UserProfileProvider with ChangeNotifier implements UserProfileViewModel {
   final Logger _logger = Logger('UserProfileProvider');

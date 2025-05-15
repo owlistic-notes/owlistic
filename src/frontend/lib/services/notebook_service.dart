@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../models/notebook.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/models/notebook.dart';
+import 'package:owlistic/utils/logger.dart';
 import 'base_service.dart';
 
 class NotebookService extends BaseService {

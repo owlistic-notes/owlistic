@@ -2,18 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 
-import '../services/block_service.dart';
-import '../services/auth_service.dart';
-import '../services/websocket_service.dart';
-import '../services/note_service.dart';
-import '../models/block.dart';
-import '../models/note.dart';
-import '../utils/document_builder.dart';
-import '../utils/attributed_text_utils.dart';
-import '../utils/logger.dart';
-import '../utils/websocket_message_parser.dart';
-import '../viewmodel/note_editor_viewmodel.dart';
-import '../services/app_state_service.dart';
+import 'package:owlistic/services/block_service.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/services/note_service.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/utils/document_builder.dart';
+import 'package:owlistic/utils/attributed_text_utils.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/utils/websocket_message_parser.dart';
+import 'package:owlistic/viewmodel/note_editor_viewmodel.dart';
+import 'package:owlistic/services/app_state_service.dart';
 
 class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   final Logger _logger = Logger('NoteEditorProvider');

@@ -1,5 +1,5 @@
 import 'package:super_editor/super_editor.dart' hide Logger;
-import '../utils/logger.dart';
+import 'package:owlistic/utils/logger.dart';
 
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class AttributedTextUtils {

@@ -1,4 +1,4 @@
-import '../utils/data_converter.dart';
+import 'package:owlistic/utils/data_converter.dart';
 
 class Block {
   final String id;

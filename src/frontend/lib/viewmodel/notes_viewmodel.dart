@@ -1,4 +1,4 @@
-import '../models/note.dart';
+import 'package:owlistic/models/note.dart';
 import 'base_viewmodel.dart';
 
 abstract class NotesViewModel extends BaseViewModel {

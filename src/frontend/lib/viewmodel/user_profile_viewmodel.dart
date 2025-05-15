@@ -1,4 +1,4 @@
-import '../models/user.dart';
+import 'package:owlistic/models/user.dart';
 import 'base_viewmodel.dart';
 
 /// Interface for user profile management functionality

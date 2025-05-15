@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import '../viewmodel/user_profile_viewmodel.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/app_bar_common.dart';
-import '../widgets/theme_switcher.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/viewmodel/user_profile_viewmodel.dart';
+import 'package:owlistic/widgets/app_drawer.dart';
+import 'package:owlistic/widgets/app_bar_common.dart';
+import 'package:owlistic/widgets/theme_switcher.dart';
+import 'package:owlistic/utils/logger.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({Key? key}) : super(key: key);

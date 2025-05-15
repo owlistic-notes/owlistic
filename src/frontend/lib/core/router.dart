@@ -3,18 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../viewmodel/login_viewmodel.dart';
-import '../screens/home_screen.dart';
-import '../screens/login_screen.dart';
-import '../screens/register_screen.dart';
-import '../screens/notebooks_screen.dart';
-import '../screens/notebook_detail_screen.dart';
-import '../screens/notes_screen.dart';
-import '../screens/note_editor_screen.dart';
-import '../screens/tasks_screen.dart';
-import '../screens/trash_screen.dart';
-import '../screens/user_profile_screen.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/viewmodel/login_viewmodel.dart';
+import 'package:owlistic/screens/home_screen.dart';
+import 'package:owlistic/screens/login_screen.dart';
+import 'package:owlistic/screens/register_screen.dart';
+import 'package:owlistic/screens/notebooks_screen.dart';
+import 'package:owlistic/screens/notebook_detail_screen.dart';
+import 'package:owlistic/screens/notes_screen.dart';
+import 'package:owlistic/screens/note_editor_screen.dart';
+import 'package:owlistic/screens/tasks_screen.dart';
+import 'package:owlistic/screens/trash_screen.dart';
+import 'package:owlistic/screens/user_profile_screen.dart';
+import 'package:owlistic/utils/logger.dart';
 
 class AppRouter {
   final Logger _logger = Logger('AppRouter');

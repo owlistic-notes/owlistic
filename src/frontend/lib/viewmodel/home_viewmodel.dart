@@ -1,7 +1,7 @@
-import '../models/note.dart';
-import '../models/notebook.dart';
-import '../models/task.dart';
-import '../models/user.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/models/notebook.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/models/user.dart';
 import 'base_viewmodel.dart';
 
 /// Interface for home screen functionality.

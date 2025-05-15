@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:owlistic/viewmodel/notes_viewmodel.dart';
-import '../models/note.dart';
-import '../services/note_service.dart';
-import '../services/auth_service.dart';
-import '../services/websocket_service.dart';
-import '../services/base_service.dart';
-import '../utils/websocket_message_parser.dart';
-import '../utils/logger.dart';
-import '../services/block_service.dart';
-import '../services/app_state_service.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/services/note_service.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/services/base_service.dart';
+import 'package:owlistic/utils/websocket_message_parser.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/services/block_service.dart';
+import 'package:owlistic/services/app_state_service.dart';
 
 class NotesProvider with ChangeNotifier implements NotesViewModel {
   final Logger _logger = Logger('NotesProvider');

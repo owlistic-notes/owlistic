@@ -1,4 +1,4 @@
-import '../utils/logger.dart';
+import 'package:owlistic/utils/logger.dart';
 
 /// Class to represent a standardized WebSocket message with RBAC information
 class WebSocketMessage {

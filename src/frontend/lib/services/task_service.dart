@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../models/task.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/utils/logger.dart';
 import 'base_service.dart';
 
 class TaskService extends BaseService {

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../services/auth_service.dart';
-import '../services/websocket_service.dart'; // Add import for WebSocketService
-import '../viewmodel/register_viewmodel.dart';
-import '../models/user.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/websocket_service.dart'; // Add import for WebSocketService
+import 'package:owlistic/viewmodel/register_viewmodel.dart';
+import 'package:owlistic/models/user.dart';
+import 'package:owlistic/utils/logger.dart';
 
 class RegisterProvider with ChangeNotifier implements RegisterViewModel {
   final Logger _logger = Logger('RegisterProvider');

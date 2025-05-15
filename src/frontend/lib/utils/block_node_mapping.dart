@@ -1,5 +1,5 @@
-import '../models/block.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/utils/logger.dart';
 
 /// Represents a mapping between a node in the document and a block in the database
 class BlockNodeEntry {

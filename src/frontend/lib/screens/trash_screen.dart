@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/card_container.dart';
-import '../widgets/empty_state.dart';
-import '../viewmodel/trash_viewmodel.dart';
-import '../models/note.dart';
-import '../models/notebook.dart';
-import '../utils/logger.dart';
-import '../widgets/app_bar_common.dart';
+import 'package:owlistic/widgets/app_drawer.dart';
+import 'package:owlistic/widgets/card_container.dart';
+import 'package:owlistic/widgets/empty_state.dart';
+import 'package:owlistic/viewmodel/trash_viewmodel.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/models/notebook.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/widgets/app_bar_common.dart';
 import 'package:intl/intl.dart';
-import '../widgets/theme_switcher.dart';
+import 'package:owlistic/widgets/theme_switcher.dart';
 
 class TrashScreen extends StatefulWidget {
   const TrashScreen({super.key});
