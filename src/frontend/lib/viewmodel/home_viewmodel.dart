@@ -30,7 +30,7 @@ abstract class HomeViewModel extends BaseViewModel {
   // Tasks functionality
   List<Task> get recentTasks;
   Future<void> fetchRecentTasks();
-  Future<Task?> createTask(String title, String category);
+  Future<Task?> createTask(String title, String noteId);
   Future<void> toggleTaskCompletion(String taskId, bool isCompleted);
 
   // WebSocket connection

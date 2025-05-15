@@ -674,7 +674,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Create task through HomeViewModel
                 final homeViewModel = context.read<HomeViewModel>();
                 try {
-                  await homeViewModel.createTask(titleController.text, 'general');
+                  await homeViewModel.createTask(
+                    titleController.text, homeViewModel.recentNotes.first.id
+                  );
                   Navigator.pop(context);
                 } catch (e) {
                   _logger.error('Error creating task', e);

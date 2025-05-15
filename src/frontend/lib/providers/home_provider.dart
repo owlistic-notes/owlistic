@@ -298,18 +298,14 @@ class HomeProvider with ChangeNotifier implements HomeViewModel {
   }
   
   @override
-  Future<Task?> createTask(String title, String category) async {
+  Future<Task?> createTask(String title, String noteId) async {
     _isLoading = true;
     notifyListeners();
     
     try {
-      // First note ID or default
-      final String noteId = _recentNotes.isNotEmpty 
-          ? _recentNotes.first.id 
-          : '00000000-0000-0000-0000-000000000000';
-      
+      // Create task
       final task = await _taskService.createTask(title, noteId);
-      
+  
       // Add to recent tasks
       _recentTasks = [task, ..._recentTasks];
       // Keep only most recent 5

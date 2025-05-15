@@ -271,11 +271,12 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 		if lastSyncStr, exists := block.Metadata["last_synced"].(string); exists {
 			lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
 			if err == nil {
-				// If block was updated by task sync less than 2 seconds ago, skip this update
-				if time.Since(lastSync) < 2*time.Second {
-					log.Printf("Block %s was recently updated by task sync, skipping update", blockIDStr)
-					return nil
-				}
+				// Compare actual timestamps instead of using arbitrary time window
+				if block.UpdatedAt.Compare(lastSync) <= 0 {
+                    log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update", 
+                        blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+                    return nil
+                }
 			}
 		}
 	}
@@ -572,11 +573,12 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 		if lastSyncStr, exists := task.Metadata["last_synced"].(string); exists {
 			lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
 			if err == nil {
-				// If task was updated by block sync less than 2 seconds ago, skip this update
-				if time.Since(lastSync) < 2*time.Second {
-					log.Printf("Task %s was recently updated by block sync, skipping update", taskIDStr)
-					return nil
-				}
+				// Compare actual timestamps instead of using arbitrary time window
+				if block.UpdatedAt.Compare(lastSync) <= 0 {
+                    log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update", 
+                        blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+                    return nil
+                }
 			}
 		}
 	}
