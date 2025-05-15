@@ -423,7 +423,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       } else if (node is TaskNode) {
         blockType = 'task';
       } else if (node is ListItemNode) {
-        blockType = 'text'; // ListItems should map to text blocks
+        blockType = 'text';
       }
       
       // Extract content from node in the format needed by API
@@ -473,9 +473,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   Map<String, dynamic> _extractNodeContentForApi(DocumentNode node) {
     // Get the block ID if this is an existing node
     String? blockId;
-    if (node.id != null) {
-      blockId = _documentBuilder.nodeToBlockMap[node.id];
-    }
+    blockId = _documentBuilder.nodeToBlockMap[node.id];
     
     // Get the original block if it exists
     Block? originalBlock = blockId != null ? _blocks[blockId] : null;

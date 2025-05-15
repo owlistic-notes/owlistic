@@ -38,5 +38,6 @@ abstract class UserProfileViewModel extends BaseViewModel {
   bool passwordsMatch(String password, String confirmPassword);
   
   // State management
+  @override
   void resetState();
 }

@@ -88,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final isLoading = registerViewModel.isLoading;
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       // Remove the AppBar completely
       body: Center(
         child: SingleChildScrollView(
