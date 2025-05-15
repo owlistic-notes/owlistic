@@ -428,7 +428,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Extract content from node in the format needed by API
       final extractedData = _extractNodeContentForApi(node);
-      final content = extractedData['content'];
       
       // Calculate a fractional order value using the document builder
       double order = await _documentBuilder.calculateOrderForNewNode(nodeId, blocks);
@@ -438,7 +437,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Create block through BlockService
       final block = await _blockService.createBlock(
         noteId!, 
-        content,
+        extractedData,  // Pass the complete object with content and metadata
         blockType,
         order
       );

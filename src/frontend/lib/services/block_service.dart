@@ -40,27 +40,29 @@ class BlockService extends BaseService {
     try {
       // Initialize content and metadata properly
       Map<String, dynamic> contentMap = {};
-      Map<String, dynamic> metadataMap = {'_sync_source': 'block'};
+      Map<String, dynamic> metadataMap = {
+        '_sync_source': 'block',
+      };
       
-        // Extract content and metadata from structured input
-        final inputMap = Map<String, dynamic>.from(content);
-        
-        // Move any metadata fields from content to top-level metadata
-        if (inputMap.containsKey('metadata')) {
-          if (inputMap['metadata'] is Map) {
-            metadataMap.addAll(Map<String, dynamic>.from(inputMap['metadata']));
-            inputMap.remove('metadata');
-          }
+      // Extract content and metadata from structured input
+      final inputMap = Map<String, dynamic>.from(content);
+      
+      // Move any metadata fields from content to top-level metadata
+      if (inputMap.containsKey('metadata')) {
+        if (inputMap['metadata'] is Map) {
+          metadataMap.addAll(Map<String, dynamic>.from(inputMap['metadata']));
+          inputMap.remove('metadata');
         }
-        
-        // Move spans to metadata if present in content
-        if (inputMap.containsKey('spans')) {
-          metadataMap['spans'] = inputMap['spans'];
-          inputMap.remove('spans');
-        }
-        
-        
-        contentMap = inputMap;
+      }
+      
+      // Move spans to metadata if present in content
+      if (inputMap.containsKey('spans')) {
+        metadataMap['spans'] = inputMap['spans'];
+        inputMap.remove('spans');
+      }
+      
+      
+      contentMap = inputMap;
       
       final requestBody = {
         'note_id': noteId,
@@ -84,7 +86,7 @@ class BlockService extends BaseService {
     }
   }
 
-  
+
   Future<void> deleteBlock(String id) async {
     try {
       final response = await authenticatedDelete('/api/v1/blocks/$id');
