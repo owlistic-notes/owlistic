@@ -35,7 +35,7 @@ func TestBlockWithTasks(t *testing.T) {
 	task := Task{
 		ID:          uuid.New(),
 		UserID:      uuid.New(),
-		BlockID:     uuid.New(),
+		NoteID:      uuid.New(),
 		Title:       "Test Task",
 		Description: "Test Description",
 	}

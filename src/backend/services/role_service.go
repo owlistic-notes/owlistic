@@ -145,14 +145,14 @@ func (s *RoleService) HasAccess(db *database.Database, userID uuid.UUID, resourc
 				return false, err
 			}
 			// If task is linked to a note via a block
-			if task.BlockID != uuid.Nil {
+			if task.Metadata["block_id"] != uuid.Nil {
 				var block models.Block
-				if err := db.DB.First(&block, "id = ?", task.BlockID).Error; err != nil {
+				if err := db.DB.First(&block, "id = ?", task.Metadata["block_id"]).Error; err != nil {
 					return false, err
 				}
 				parentID = block.NoteID
 				log.Printf("Found parent note %s for task %s through block %s",
-					parentID, resourceID, task.BlockID)
+					parentID, resourceID, task.Metadata["block_id"])
 			} else {
 				// Stand-alone task
 				log.Printf("Task %s is standalone with no parent note", resourceID)

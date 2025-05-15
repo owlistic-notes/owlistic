@@ -91,7 +91,7 @@ func TestCreateTask_Success(t *testing.T) {
 	createdTask, err := service.CreateTask(db, taskData)
 	assert.NoError(t, err)
 	assert.Equal(t, taskData["title"], createdTask.Title)
-	assert.Equal(t, blockID, createdTask.BlockID)
+	assert.Equal(t, blockID, createdTask.NoteID)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -176,7 +176,7 @@ func TestCreateTask_CreateNewBlock(t *testing.T) {
 	createdTask, err := service.CreateTask(db, taskData)
 	assert.NoError(t, err)
 	assert.Equal(t, taskData["title"], createdTask.Title)
-	assert.NotEqual(t, uuid.Nil, createdTask.BlockID)
+	assert.NotEqual(t, uuid.Nil, createdTask.NoteID)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

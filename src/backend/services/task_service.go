@@ -87,7 +87,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 			// Verify the block exists
 			var block models.Block
 			if err := tx.First(&block, "id = ?", blockID).Error; err == nil {
-				task.BlockID = blockID
+				task.Metadata["block_id"] = blockID
 				blockIDProvided = true
 			} else {
 				tx.Rollback()
@@ -133,7 +133,7 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 		}
 
 		// Now set the block_id on the task
-		task.BlockID = block.ID
+		task.Metadata["block_id"] = block.ID.String()
 
 		// Create event for block creation
 		blockEvent, err := models.NewEvent(
@@ -197,8 +197,8 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 	}
 
 	// Only include block_id if it's set
-	if task.BlockID != uuid.Nil {
-		eventPayload["block_id"] = task.BlockID.String()
+	if blockIDStr, ok := task.Metadata["block_id"].(string); ok && blockIDStr != "" {
+		eventPayload["block_id"] = blockIDStr
 	}
 
 	// Include note_id in event payload if it exists
@@ -266,7 +266,7 @@ func (s *TaskService) UpdateTask(db *database.Database, id string, updatedData m
 	eventPayload := map[string]interface{}{
 		"task_id":      task.ID.String(),
 		"user_id":      task.UserID.String(),
-		"block_id":     task.BlockID.String(),
+		"block_id":     task.Metadata["block_id"],
 		"title":        task.Title,
 		"is_completed": task.IsCompleted,
 	}
@@ -322,7 +322,7 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 	eventData := map[string]interface{}{
 		"task_id":  task.ID.String(),
 		"user_id":  task.UserID.String(),
-		"block_id": task.BlockID.String(),
+		"block_id": task.Metadata["block_id"],
 	}
 
 	// Delete task
@@ -387,13 +387,13 @@ func (s *TaskService) GetTasks(db *database.Database, params map[string]interfac
 		query = query.Where("is_completed = ?", completed == "true")
 	}
 
+	// Use metadata for block_id filter
 	if blockID, ok := params["block_id"].(string); ok && blockID != "" {
-		query = query.Where("block_id = ?", blockID)
+		query = query.Where("metadata->>'block_id' = ?", blockID)
 	}
 
 	if noteID, ok := params["note_id"].(string); ok && noteID != "" {
-		// Filter tasks by note ID (from metadata)
-		query = query.Where("CAST(metadata->>'note_id' AS TEXT) = ?", noteID)
+		query = query.Where("note_id = ?", noteID)
 	}
 
 	// Standardize on include_deleted parameter

@@ -72,17 +72,17 @@ func (m *MockTaskService) CreateTask(db *database.Database, taskData map[string]
 		userID = uuid.Must(uuid.Parse(userIDStr))
 	}
 
-	blockID := uuid.New()
+	noteID := uuid.New()
 	noteIDStr, noteIDExists := taskData["note_id"].(string)
 	if noteIDExists && noteIDStr != "" {
 		// Simulate finding or creating a block for the note
-		blockID = uuid.New()
+		noteID = uuid.New()
 	}
 
 	return models.Task{
 		ID:      uuid.New(),
 		UserID:  userID,
-		BlockID: blockID,
+		NoteID:  noteID,
 		Title:   title,
 	}, nil
 }

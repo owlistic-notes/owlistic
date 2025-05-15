@@ -7,6 +7,7 @@ class Task {
   final String? dueDate;
   final String? noteId;
   final String? blockId;
+  final Map<String, dynamic>? metadata;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final DateTime? deletedAt;
@@ -20,19 +21,20 @@ class Task {
     this.dueDate,
     this.noteId,
     this.blockId,
+    this.metadata,
     this.createdAt,
     this.updatedAt,
     this.deletedAt,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
-    // Parse createdAt and deletedAt
+    // Parse datetime fields
     DateTime? createdAt;
     if (json['created_at'] != null) {
       try {
         createdAt = DateTime.parse(json['created_at']);
       } catch (e) {
-        print('Error parsing created_at: $e');
+        createdAt = DateTime.now();
       }
     }
 
@@ -41,7 +43,7 @@ class Task {
       try {
         updatedAt = DateTime.parse(json['updated_at']);
       } catch (e) {
-        print('Error parsing updated_at: $e');
+        updatedAt = DateTime.now();
       }
     }
 
@@ -50,8 +52,14 @@ class Task {
       try {
         deletedAt = DateTime.parse(json['deleted_at']);
       } catch (e) {
-        print('Error parsing deleted_at: $e');
+        updatedAt = DateTime.now();
       }
+    }
+    
+    // Parse metadata if available
+    Map<String, dynamic>? metadata;
+    if (json['metadata'] != null && json['metadata'] is Map) {
+      metadata = Map<String, dynamic>.from(json['metadata']);
     }
 
     return Task(
@@ -63,6 +71,7 @@ class Task {
       dueDate: json['due_date'],
       noteId: json['note_id'],
       blockId: json['block_id'],
+      metadata: metadata,
       createdAt: createdAt,
       updatedAt: updatedAt,
       deletedAt: deletedAt,
@@ -79,23 +88,13 @@ class Task {
       if (dueDate != null) 'due_date': dueDate,
       if (noteId != null) 'note_id': noteId,
       if (blockId != null) 'block_id': blockId,
+      if (metadata != null) 'metadata': metadata,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
       if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
       if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
     };
   }
 
-  /// Creates a payload specifically for task updates
-  Map<String, dynamic> toUpdatePayload() {
-    return {
-      'title': title,
-      'is_completed': isCompleted,
-      if (description != null) 'description': description,
-      if (dueDate != null) 'due_date': dueDate,
-    };
-  }
-
-  /// Creates a copy of this task with the given fields replaced with the new values
   Task copyWith({
     String? id,
     String? title,
@@ -105,6 +104,7 @@ class Task {
     String? dueDate,
     String? noteId,
     String? blockId,
+    Map<String, dynamic>? metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? deletedAt,
@@ -118,6 +118,7 @@ class Task {
       dueDate: dueDate ?? this.dueDate,
       noteId: noteId ?? this.noteId,
       blockId: blockId ?? this.blockId,
+      metadata: metadata ?? this.metadata,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
