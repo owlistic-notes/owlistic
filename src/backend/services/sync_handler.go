@@ -99,8 +99,9 @@ func (s *SyncHandlerService) handleSyncEvent(eventType string, data []byte) erro
 	}
 
 	// Check if this is a sync event to prevent infinite loops
-	if _, isSync := message.Payload["_sync_source"]; isSync {
-		// Skip events that were triggered by sync operations
+	syncSource, isSync := message.Payload["_sync_source"].(string)
+	if isSync {
+		log.Printf("Skipping %s event from sync source: %s", eventType, syncSource)
 		return nil
 	}
 
@@ -179,8 +180,12 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 		"metadata": models.TaskMetadata{
 			"_sync_source": "block",
 			"block_id":     blockIDStr,
+			"last_synced":  time.Now().Format(time.RFC3339),
 		},
 	}
+
+	// Log key creation events
+	log.Printf("Creating task from block %s with sync marker", blockIDStr)
 
 	// Extract completed status from metadata
 	if block.Metadata != nil {
@@ -217,7 +222,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 	typeChanged := hasType && string(block.Type) != updatedType
 
 	// If block type changed from task to another type, delete the associated task
-	if typeChanged && string(block.Type) == string(models.TaskBlock) && updatedType != string(models.TaskBlock) {
+	if typeChanged && updatedType != string(models.TaskBlock) {
 		log.Printf("Block type changed from TaskBlock to %s, deleting associated task", updatedType)
 		// Find any tasks associated with this block and delete them
 		var tasks []models.Task
@@ -260,6 +265,21 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 		return s.handleBlockCreated(payload)
 	}
 
+	// Check if this update originated from a task sync
+	if syncSource, exists := block.Metadata["_sync_source"]; exists && syncSource == "task" {
+		// Get last sync timestamp
+		if lastSyncStr, exists := block.Metadata["last_synced"].(string); exists {
+			lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
+			if err == nil {
+				// If block was updated by task sync less than 2 seconds ago, skip this update
+				if time.Since(lastSync) < 2*time.Second {
+					log.Printf("Block %s was recently updated by task sync, skipping update", blockIDStr)
+					return nil
+				}
+			}
+		}
+	}
+
 	// Update task with block data
 	updateData := models.Task{}
 
@@ -300,6 +320,9 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 
 	updateData.IsCompleted = isCompleted
 
+	// Always include the sync timestamp
+	updateData.Metadata["last_synced"] = time.Now().Format(time.RFC3339)
+
 	// Only update if there are changes to apply
 	if updateData.Title != "" || updateData.IsCompleted != task.IsCompleted || len(updateData.Metadata) > 0 {
 		_, err := s.taskService.UpdateTask(s.db, task.ID.String(), updateData)
@@ -336,63 +359,71 @@ func (s *SyncHandlerService) handleBlockDeleted(payload map[string]interface{}) 
 
 // handleTaskCreated links a task to a block if possible
 func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) error {
-    taskIDStr, ok := payload["task_id"].(string)
-    if !ok {
-        return errors.New("missing task_id in task event payload")
-    }
+	taskIDStr, ok := payload["task_id"].(string)
+	if !ok {
+		return errors.New("missing task_id in task event payload")
+	}
 
-    // Check if task already has a block_id
-    var task models.Task
-    if err := s.db.DB.Where("id = ?", taskIDStr).First(&task).Error; err != nil {
-        return err
-    }
+	// Check if task already has a block_id
+	var task models.Task
+	if err := s.db.DB.Where("id = ?", taskIDStr).First(&task).Error; err != nil {
+		return err
+	}
 
-    // Check if block_id exists in metadata and is valid
-    blockIDStr, hasBlockID := task.Metadata["block_id"].(string)
-    if !hasBlockID || blockIDStr == "" {
-        // No valid block ID, create a block for this task
-        return s.createBlockForTask(task)
-    }
+	// Check if sync source exists - this is a key issue that's causing loops
+	if syncSource, exists := task.Metadata["_sync_source"]; exists {
+		if syncSource == "block" {
+			log.Printf("Task %s was created by block sync, skipping block creation", taskIDStr)
+			return nil // Skip creating a block since this task was created from a block
+		}
+	}
 
-    // If task has a block ID, check if the block exists and is of type TaskBlock
-    var block models.Block
-    blockID, err := uuid.Parse(blockIDStr)
-    if err != nil {
-        // Invalid block ID format, create a new block
-        return s.createBlockForTask(task)
-    }
+	// Check if block_id exists in metadata and is valid
+	blockIDStr, hasBlockID := task.Metadata["block_id"].(string)
+	if !hasBlockID || blockIDStr == "" {
+		// No valid block ID, create a block for this task
+		return s.createBlockForTask(task)
+	}
 
-    if err := s.db.DB.Where("id = ?", blockID).First(&block).Error; err != nil {
-        // Block doesn't exist - create a new one
-        return s.createBlockForTask(task)
-    }
+	// If task has a block ID, check if the block exists and is of type TaskBlock
+	var block models.Block
+	blockID, err := uuid.Parse(blockIDStr)
+	if err != nil {
+		// Invalid block ID format, create a new block
+		return s.createBlockForTask(task)
+	}
 
-    // If block exists but is not a task block, update it
-    if block.Type != models.TaskBlock {
-        // Update block type to task block
-        blockData := map[string]interface{}{
-            "type": string(models.TaskBlock),
-            "content": models.BlockContent{
-                "text": task.Title,
-            },
-            "metadata": models.BlockMetadata{
-                "is_completed": task.IsCompleted,
-                "task_id":      task.ID.String(),
-                "_sync_source": "task",
-            },
-        }
+	if err := s.db.DB.Where("id = ?", blockID).First(&block).Error; err != nil {
+		// Block doesn't exist - create a new one
+		return s.createBlockForTask(task)
+	}
 
-        params := map[string]interface{}{
-            "user_id": task.UserID.String(),
-        }
+	// If block exists but is not a task block, update it
+	if block.Type != models.TaskBlock {
+		// Update block type to task block
+		blockData := map[string]interface{}{
+			"type": string(models.TaskBlock),
+			"content": models.BlockContent{
+				"text": task.Title,
+			},
+			"metadata": models.BlockMetadata{
+				"is_completed": task.IsCompleted,
+				"task_id":      task.ID.String(),
+				"_sync_source": "task",
+			},
+		}
 
-        _, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
-        if err != nil {
-            return err
-        }
-    }
+		params := map[string]interface{}{
+			"user_id": task.UserID.String(),
+		}
 
-    return nil
+		_, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // createBlockForTask creates a new block for a task that doesn't have one
@@ -478,7 +509,7 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 		NoteID: noteID,
 		Metadata: models.TaskMetadata{
 			"_sync_source": "task",
-			"block_id":   block.ID.String(),
+			"block_id":     block.ID.String(),
 		},
 	}
 
@@ -488,121 +519,137 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 
 // handleTaskUpdated syncs changes from a task to its associated block
 func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) error {
-    taskIDStr, ok := payload["task_id"].(string)
-    if !ok {
-        return errors.New("missing task_id in task event payload")
-    }
+	taskIDStr, ok := payload["task_id"].(string)
+	if !ok {
+		return errors.New("missing task_id in task event payload")
+	}
 
-    // Get the complete task
-    var task models.Task
-    if err := s.db.DB.Where("id = ?", taskIDStr).First(&task).Error; err != nil {
-        return err
-    }
+	// Get the complete task
+	var task models.Task
+	if err := s.db.DB.Where("id = ?", taskIDStr).First(&task).Error; err != nil {
+		return err
+	}
 
-    // Skip if no block ID is associated
-    blockIDStr, hasBlockID := task.Metadata["block_id"].(string)
-    if !hasBlockID || blockIDStr == "" {
-        // Create a block for this task
-        return s.createBlockForTask(task)
-    }
+	// Skip if no block ID is associated
+	blockIDStr, hasBlockID := task.Metadata["block_id"].(string)
+	if !hasBlockID || blockIDStr == "" {
+		// Create a block for this task
+		return s.createBlockForTask(task)
+	}
 
-    // Get the associated block
-    var block models.Block
-    if err := s.db.DB.Where("id = ?", blockIDStr).First(&block).Error; err != nil {
-        // Block doesn't exist anymore - create a new one
-        return s.createBlockForTask(task)
-    }
+	// Get the associated block
+	var block models.Block
+	if err := s.db.DB.Where("id = ?", blockIDStr).First(&block).Error; err != nil {
+		// Block doesn't exist anymore - create a new one
+		return s.createBlockForTask(task)
+	}
 
-    // Check if block type matches - if not, update it to task block
-    if block.Type != models.TaskBlock {
-        blockData := map[string]interface{}{
-            "type": string(models.TaskBlock),
-            "content": models.BlockContent{
-                "text": task.Title,
-            },
-            "metadata": models.BlockMetadata{
-                "is_completed": task.IsCompleted,
-                "task_id":      task.ID.String(),
-                "_sync_source": "task",
-            },
-        }
+	// Check if block type matches - if not, update it to task block
+	if block.Type != models.TaskBlock {
+		blockData := map[string]interface{}{
+			"type": string(models.TaskBlock),
+			"content": models.BlockContent{
+				"text": task.Title,
+			},
+			"metadata": models.BlockMetadata{
+				"is_completed": task.IsCompleted,
+				"task_id":      task.ID.String(),
+				"_sync_source": "task",
+			},
+		}
 
-        params := map[string]interface{}{
-            "user_id": task.UserID.String(),
-        }
+		params := map[string]interface{}{
+			"user_id": task.UserID.String(),
+		}
 
-        _, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
-        return err
-    }
+		_, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
+		return err
+	}
 
-    // Prepare block update
-    needsUpdate := false
-    blockData := map[string]interface{}{}
+	// Skip if this task was just updated by block sync
+	if syncSource, exists := task.Metadata["_sync_source"]; exists && syncSource == "block" {
+		// Get last sync timestamp
+		if lastSyncStr, exists := task.Metadata["last_synced"].(string); exists {
+			lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
+			if err == nil {
+				// If task was updated by block sync less than 2 seconds ago, skip this update
+				if time.Since(lastSync) < 2*time.Second {
+					log.Printf("Task %s was recently updated by block sync, skipping update", taskIDStr)
+					return nil
+				}
+			}
+		}
+	}
 
-    // Check if title was updated
-    title, titleUpdated := payload["title"].(string)
-    var currentText string
-    if textVal, exists := block.Content["text"]; exists {
-        if textStr, ok := textVal.(string); ok {
-            currentText = textStr
-        }
-    }
+	// Prepare block update
+	needsUpdate := false
+	blockData := map[string]interface{}{}
 
-    if titleUpdated && title != currentText {
-        blockData["content"] = models.BlockContent{
-            "text": title,
-        }
-        needsUpdate = true
-    }
+	// Check if title was updated
+	title, titleUpdated := payload["title"].(string)
+	var currentText string
+	if textVal, exists := block.Content["text"]; exists {
+		if textStr, ok := textVal.(string); ok {
+			currentText = textStr
+		}
+	}
 
-    // Check if completion status was updated
-    isCompleted, statusUpdated := payload["is_completed"].(bool)
+	if titleUpdated && title != currentText {
+		blockData["content"] = models.BlockContent{
+			"text": title,
+		}
+		needsUpdate = true
+	}
 
-    // If completion status has changed, update metadata
-    if statusUpdated {
-        // Start with existing metadata
-        metadataMap := models.BlockMetadata{}
+	// Check if completion status was updated
+	isCompleted, statusUpdated := payload["is_completed"].(bool)
 
-        // Copy existing metadata
-        if block.Metadata != nil {
-            for k, v := range block.Metadata {
-                metadataMap[k] = v
-            }
-        }
+	// If completion status has changed, update metadata
+	if statusUpdated {
+		// Start with existing metadata
+		metadataMap := models.BlockMetadata{}
 
-        metadataMap["is_completed"] = isCompleted
-        metadataMap["_sync_source"] = "task"
+		// Copy existing metadata
+		if block.Metadata != nil {
+			for k, v := range block.Metadata {
+				metadataMap[k] = v
+			}
+		}
 
-        blockData["metadata"] = metadataMap
-        needsUpdate = true
-    } else if needsUpdate {
-        // If we're updating content but not metadata, still add sync marker
-        metadataMap := models.BlockMetadata{}
+		metadataMap["is_completed"] = isCompleted
+		metadataMap["_sync_source"] = "task"
 
-        // Copy existing metadata
-        if block.Metadata != nil {
-            for k, v := range block.Metadata {
-                metadataMap[k] = v
-            }
-        }
+		blockData["metadata"] = metadataMap
+		needsUpdate = true
+	} else if needsUpdate {
+		// If we're updating content but not metadata, still add sync marker
+		metadataMap := models.BlockMetadata{}
 
-        metadataMap["_sync_source"] = "task"
-        blockData["metadata"] = metadataMap
-    }
+		// Copy existing metadata
+		if block.Metadata != nil {
+			for k, v := range block.Metadata {
+				metadataMap[k] = v
+			}
+		}
 
-    // Only update if something changed
-    if !needsUpdate {
-        return nil
-    }
+		metadataMap["_sync_source"] = "task"
+		metadataMap["last_synced"] = time.Now().Format(time.RFC3339)
+		blockData["metadata"] = metadataMap
+	}
 
-    // Get user_id for permissions check
-    params := map[string]interface{}{
-        "user_id": task.UserID.String(),
-    }
+	// Only update if something changed
+	if !needsUpdate {
+		return nil
+	}
 
-    // Update block with task data
-    _, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
-    return err
+	// Get user_id for permissions check
+	params := map[string]interface{}{
+		"user_id": task.UserID.String(),
+	}
+
+	// Update block with task data
+	_, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
+	return err
 }
 
 // handleTaskDeleted handles cleanup when a task is deleted

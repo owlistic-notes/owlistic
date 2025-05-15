@@ -112,13 +112,16 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, ErrInvalidInput
 	}
 
+	blockID := uuid.New()
+
 	// Handle metadata if provided
 	metadata := models.BlockMetadata{}
 	if metaData, ok := blockData["metadata"].(map[string]interface{}); ok {
 		metadata = models.BlockMetadata(metaData)
+		metadata["_sync_source"] = "block"
+		metadata["block_id"] = blockID
 	}
 
-	blockID := uuid.New()
 	block := models.Block{
 		ID:       blockID,
 		NoteID:   uuid.Must(uuid.Parse(noteIDStr)),

@@ -148,7 +148,6 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 				"type":         string(models.TaskBlock),
 				"content":      block.Content,
 				"metadata":     block.Metadata,
-				"_sync_source": "task",
 			},
 		)
 		if err != nil {
