@@ -13,12 +13,16 @@ services:
       - postgres
       - kafka
     environment:
+      - APP_ORIGINS=http://owlistic*,http://owlistic-app*
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=admin
       - DB_PASSWORD=admin
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
+    networks:
+      - owlistic
+
   owlistic-app:
     build:
       context: ./src/frontend
@@ -29,6 +33,9 @@ services:
       - "80:80"
     depends_on:
       - owlistic
+    networks:
+      - owlistic
+
   postgres:
     image: postgres:15
     environment:
@@ -38,6 +45,9 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - owlistic
+
   kafka:
     image: bitnami/kafka:3
     environment:
@@ -51,12 +61,21 @@ services:
       - "9092:9092"
     depends_on:
       - zookeeper
+    networks:
+      - owlistic
+
   zookeeper:
     image: bitnami/zookeeper:3
     environment:
       ALLOW_ANONYMOUS_LOGIN: yes
     ports:
       - "2181:2181"
+    networks:
+      - owlistic
 
 volumes:
   postgres_data:
+
+networks:
+  owlistic:
+    driver: bridge

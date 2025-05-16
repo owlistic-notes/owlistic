@@ -8,36 +8,21 @@ import (
 )
 
 // CORSMiddleware adds the required headers to allow cross-origin requests
-func CORSMiddleware(AllowedOrigins string) gin.HandlerFunc {
+func CORSMiddleware(AppOrigins string) gin.HandlerFunc {
 
 	// Set up CORS configuration
-	corsConfig := cors.Config{
-		AllowOrigins:     strings.Split(AllowedOrigins, ","),
-		// AllowAllOrigins:  true,
-		AllowWildcard:    true,
-		AllowWebSockets:  true,
-		AllowCredentials: true,
-		AllowMethods: []string{
-			"GET",
-			"POST",
-			"PUT",
-			"PATCH",
-			"DELETE",
-			"OPTIONS",
-		},
-		AllowHeaders: []string{
-			"Authorization",
-			"Accept",
-			"Origin",
-			"Accept-Encoding",
-			"Content-Type",
-			"Content-Length",
-			"Cache-Control",
-			"X-CSRF-Token",
-			"X-Requested-With",
-		},
-		MaxAge: 12 * 3600, // 12 hours
-	}
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = strings.Split(AppOrigins, ",")
+	corsConfig.AllowWildcard = true
+	corsConfig.AllowWebSockets = true
+	corsConfig.AllowCredentials = true
+	corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, []string{
+		"Accept",
+		"Authorization",
+		"Accept-Encoding",
+		"X-CSRF-Token",
+		"X-Requested-With",
+	}...)
 
 	return cors.New(corsConfig)
 }

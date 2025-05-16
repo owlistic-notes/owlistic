@@ -22,7 +22,7 @@ type Config struct {
 	RedisPort          string
 	JWTSecret          string
 	JWTExpirationHours int
-	AllowedOrigins     string
+	AppOrigins         string
 }
 
 func getEnv(key, defaultValue string) string {
@@ -49,7 +49,7 @@ func Load() Config {
 	return Config{
 		AppEnv:             getEnv("APP_ENV", "development"),
 		AppPort:            getEnv("APP_PORT", "8080"),
-		AllowedOrigins:     getEnv("ALLOWED_ORIGINS", "*"),
+		AppOrigins:         getEnv("APP_ORIGINS", "*"),
 		KafkaBroker:        getEnv("KAFKA_BROKER", "localhost:9092"),
 		KafkaTopic:         getEnv("KAFKA_TOPIC", "default-topic"),
 		DBHost:             getEnv("DB_HOST", "localhost"),
@@ -59,8 +59,6 @@ func Load() Config {
 		DBName:             getEnv("DB_NAME", "owlistic"),
 		DBMaxIdleConns:     getEnvAsInt("DB_MAX_IDLE_CONNS", 10),
 		DBMaxOpenConns:     getEnvAsInt("DB_MAX_OPEN_CONNS", 100),
-		RedisHost:          getEnv("REDIS_HOST", "localhost"),
-		RedisPort:          getEnv("REDIS_PORT", "6379"),
 		JWTSecret:          getEnv("JWT_SECRET", "your-super-secret-key-change-this-in-production"),
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
 	}
