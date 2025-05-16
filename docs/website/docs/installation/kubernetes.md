@@ -14,12 +14,12 @@ Before installation, ensure you have:
 
 ## Kubernetes/Helm Installation
 
-Owlistic supports deployment on Kubernetes using Helm. Follow these steps to install [Owlistic helm chart](https://github.com/owlistic-notes/owlistic/tree/main/charts/owlistic) on your Kubernetes cluster.
+Owlistic supports deployment on Kubernetes using Helm. Follow these steps to install [Owlistic helm chart](https://github.com/owlistic-notes/helm-charts) on your Kubernetes cluster.
 
 ### Step 1: Add the Owlistic Helm Repository
 
 ```bash
-helm repo add owlistic oci://ghcr.io/owlistic-notes/owlistic
+helm repo add owlistic oci://ghcr.io/owlistic-notes/helm-charts
 helm repo update
 ```
 
