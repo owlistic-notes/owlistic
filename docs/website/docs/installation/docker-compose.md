@@ -4,14 +4,12 @@ sidebar_position: 3
 
 # Docker Compose Installation (Recommended)
 
-Owlistic is a Go-based application that can be deployed in several ways. Choose the method that best suits your environment and requirements.
-
 ## Prerequisites
 
 Before installation, ensure you have:
 
 - Read the [System Requirements](system-requirements.md)
-- Set up PostgreSQL and Kafka (required for storage and real-time synchronization)
+- Docker installed on your system
 
 ## Steps
 
@@ -31,19 +29,21 @@ services:
       - postgres
       - kafka
     environment:
-      - APP_PORT=8080
+      - APP_ORIGINS=http://owlistic*,http://owlistic-app*
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=admin
       - DB_PASSWORD=admin
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
+
   owlistic-app:
     image: ghcr.io/owlistic-notes/owlistic-app:latest
     ports:
       - "80:80"
     depends_on:
       - owlistic
+
   postgres:
     image: postgres:15
     environment:
@@ -53,6 +53,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
   kafka:
     image: bitnami/kafka:3
     environment:
@@ -82,119 +83,6 @@ volumes:
 
 ```bash
 docker-compose up -d
-```
-
-## Kubernetes/Helm Installation
-
-### Step 1: Add the Owlistic Helm Repository
-
-```bash
-helm repo add owlistic https://owlistic-notes.github.io/helm-charts
-helm repo update
-```
-
-### Step 2: Install Using Helm
-
-```bash
-# Create a values file (values.yaml) for your configuration
-helm install owlistic owlistic/owlistic -f values.yaml
-```
-
-Example `values.yaml`:
-
-```yaml
-replicaCount: 2
-
-backend:
-  image:
-    repository: ghcr.io/owlistic-notes/owlistic
-    tag: main-arm64
-    pullPolicy: Always
-
-frontend:
-  image:
-    repository: ghcr.io/owlistic-notes/owlistic-app
-    tag: main-arm64
-    pullPolicy: Always
-
-service:
-  backend:
-    type: ClusterIP
-    port: 8080
-  frontend:
-    type: ClusterIP
-    port: 80
-
-environment:
-  APP_PORT: 8080
-  DB_HOST: postgres-service
-  DB_PORT: 5432
-  DB_USER: admin
-  DB_PASSWORD: admin
-  DB_NAME: postgres
-  KAFKA_BROKER: kafka-service:9092
-
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-  requests:
-    cpu: 500m
-    memory: 512Mi
-```
-
-### Step 3: Verify the Installation
-
-```bash
-kubectl get pods -l app.kubernetes.io/name=owlistic
-kubectl get services -l app.kubernetes.io/name=owlistic
-```
-
-## Building from Source
-
-If you prefer to build from source:
-
-```bash
-# Clone the repository
-git clone https://github.com/owlistic-notes/owlistic.git
-cd owlistic
-```
-
-### Building the backend server
-
-```
-# Build the backend
-cd src/backend
-go build -o owlistic cmd/main.go
-```
-
-### Building the Flutter Web UI
-
-To build the frontend Flutter web application:
-
-```bash
-# Navigate to the frontend directory
-cd src/frontend
-
-# Ensure Flutter dependencies are installed
-flutter pub get
-
-# Build the web release
-flutter build web --release
-```
-
-This will generate the web artifacts in the `build/web` directory, which can be deployed to any web server.
-
-#### Deploying the Web UI
-
-You can deploy the Flutter web build by hosting it locally or using a basic web server:
-
-```bash
-# Navigate to the build directory
-cd build/web
-
-# Serve using Python's built-in HTTP server (for testing)
-python3 -m http.server 80
 ```
 
 ## Post-Installation

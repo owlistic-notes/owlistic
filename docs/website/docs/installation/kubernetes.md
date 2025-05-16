@@ -2,23 +2,24 @@
 sidebar_position: 2
 ---
 
-# Kubernetes (Recommended)
-
-Owlistic is a Go-based application that can be deployed in several ways. Choose the method that best suits your environment and requirements.
+# Kubernetes Installation (Recommended)
 
 ## Prerequisites
 
 Before installation, ensure you have:
 
 - Read the [System Requirements](system-requirements.md)
-- Set up PostgreSQL and Kafka (required for storage and real-time synchronization)
+- A running Kubernetes cluster
+- [Helm](https://helm.sh) installed locally
 
 ## Kubernetes/Helm Installation
+
+Owlistic supports deployment on Kubernetes using Helm. Follow these steps to install [Owlistic helm chart](https://github.com/owlistic-notes/owlistic/tree/main/charts/owlistic) on your Kubernetes cluster.
 
 ### Step 1: Add the Owlistic Helm Repository
 
 ```bash
-helm repo add owlistic https://owlistic-notes.github.io/helm-charts
+helm repo add owlistic oci://ghcr.io/owlistic-notes/owlistic
 helm repo update
 ```
 
@@ -32,44 +33,58 @@ helm install owlistic owlistic/owlistic -f values.yaml
 Example `values.yaml`:
 
 ```yaml
-replicaCount: 2
-
-backend:
-  image:
-    repository: ghcr.io/owlistic-notes/owlistic
-    tag: main-arm64
-    pullPolicy: Always
-
-frontend:
-  image:
-    repository: ghcr.io/owlistic-notes/owlistic-app
-    tag: main-arm64
-    pullPolicy: Always
-
-service:
-  backend:
+rserver:
+  enabled: true
+  service:
+    enabled: true
     type: ClusterIP
     port: 8080
-  frontend:
+  persistence:
+    data:
+      enabled: true
+      existingClaim: <your-persistent-volume-claim-name>
+  env:
+    DB_HOST: postgresql
+    DB_PORT: 5432
+    DB_NAME: owlistic
+    DB_USER: owlistic
+    DB_PASSWORD: owlistic
+    KAFKA_BROKER: kafka:9092
+
+app:
+  enabled: true
+  service:
+    enabled: true
     type: ClusterIP
     port: 80
 
-environment:
-  APP_PORT: 8080
-  DB_HOST: postgres-service
-  DB_PORT: 5432
-  DB_USER: admin
-  DB_PASSWORD: admin
-  DB_NAME: postgres
-  KAFKA_BROKER: kafka-service:9092
+postgresql:
+  enabled: true
+  global:
+    postgresql:
+      auth:
+        username: owlistic
+        password: owlistic
+        database: owlistic
 
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-  requests:
-    cpu: 500m
-    memory: 512Mi
+zookeeper:
+  enabled: true
+
+kafka:
+  enabled: true
+  extraEnvVars:
+    - name: KAFKA_BROKER_ID
+      value: "1"
+    - name: KAFKA_ZOOKEEPER_CONNECT
+      value: zookeeper:2181
+    - name: ALLOW_PLAINTEXT_LISTENER
+      value: yes
+    - name: KAFKA_ADVERTISED_LISTENERS
+      value: PLAINTEXT://kafka:9092
+    - name: KAFKA_LISTENERS
+      value: PLAINTEXT://
+    - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+      value: PLAINTEXT:PLAINTEXT
 ```
 
 ### Step 3: Verify the Installation
