@@ -135,7 +135,7 @@ class DocumentBuilder {
   }
 
   // Convert blocks to document nodes and populate the document
-  void populateDocumentFromBlocks(List<Block> blocks, {bool markAsModified = true}) {
+  void populateDocumentFromBlocks(List<Block> blocks) {
     if (_updatingDocument) {
       _logger.debug('Already updating document, skipping');
       return;
@@ -220,13 +220,6 @@ class DocumentBuilder {
               
               // Register this block as from server
               registerServerBlock(block, node.id);
-              
-              // Only mark blocks as modified if explicitly requested
-              // This allows us to differentiate between initial load and user edits
-              if (markAsModified) {
-                _blockNodeMapping.markBlockAsModified(block.id);
-              }
-              
             } catch (e) {
               _logger.error('Error adding node to document: $e');
               // Continue with next node
@@ -838,7 +831,6 @@ class DocumentBuilder {
       document.replaceNodeById(nodeId, newNodes.first);
       
       // Update mapping
-      _blockNodeMapping.removeNodeMapping(nodeId);
       _blockNodeMapping.linkNodeToBlock(newNodes.first.id, block.id);
       
       _logger.debug('Node updated for block ${block.id}');
@@ -1169,6 +1161,26 @@ class DocumentBuilder {
       _logger.error('Error getting node position for $nodeId: $e');
       return null;
     }
+  }
+
+  void linkNodeToBlock(String nodeId, String blockId) {
+    // Remove mapping for this node
+    _blockNodeMapping.linkNodeToBlock(nodeId, blockId);
+  }
+
+  void removeNodeMapping(String nodeId) {
+    // Remove mapping for this node
+    _blockNodeMapping.removeNodeMapping(nodeId);
+  }
+
+  void removeBlockMapping(String blockId) {
+    // Remove mapping for this node
+    _blockNodeMapping.removeBlockMapping(blockId);
+  }
+
+  void removeUncommittedNode(String nodeId) {
+    // Remove uncommitted nodes from the mapping
+    _blockNodeMapping.removeUncommittedNode(nodeId);
   }
   
   // Create Super Editor with configured components and keyboard handlers

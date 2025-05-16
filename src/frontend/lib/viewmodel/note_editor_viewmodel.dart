@@ -72,7 +72,6 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   // Server sync and events
   void updateBlockCache(List<Block> blocks);
   void commitAllContent();
-  void markBlockAsModified(String blockId);
   Future<void> fetchBlockFromEvent(String blockId);
   
   // Focus handling

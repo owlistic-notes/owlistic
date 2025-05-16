@@ -369,14 +369,14 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Check if this is a node we were trying to create
     if (_documentBuilder.uncommittedNodes.containsKey(nodeId)) {
       _logger.info('Node $nodeId was deleted before it was committed, removing from uncommitted nodes');
-      _documentBuilder.uncommittedNodes.remove(nodeId);
+      _documentBuilder.removeUncommittedNode(nodeId);
       return;
     }
     
     _logger.info('Node $nodeId was deleted, will delete block $blockId on server');
     
     // Remove from our mappings
-    _documentBuilder.nodeToBlockMap.remove(nodeId);
+    _documentBuilder.removeNodeMapping(nodeId);
     
     // Remove from blocks list if it exists
     _blocks.remove(blockId);
@@ -437,13 +437,13 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Create block through BlockService
       final block = await _blockService.createBlock(
         noteId!, 
-        extractedData,  // Pass the complete object with content and metadata
+        extractedData,
         blockType,
         order
       );
       
       // Update our mappings
-      _documentBuilder.nodeToBlockMap[nodeId] = block.id;
+      _documentBuilder.linkNodeToBlock(nodeId, block.id);
       _blocks[block.id] = block;
       
       // Add to note blocks map
@@ -453,7 +453,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       // Remove from uncommitted nodes
-      _documentBuilder.uncommittedNodes.remove(nodeId);
+      _documentBuilder.removeUncommittedNode(nodeId);
       
       // Subscribe to this block
       _webSocketService.subscribe('block', id: block.id);
@@ -465,7 +465,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     } catch (e) {
       _logger.error('Failed to create block for node $nodeId: $e');
       // Remove from uncommitted nodes to prevent infinite retry loops
-      _documentBuilder.uncommittedNodes.remove(nodeId);
+      _documentBuilder.removeUncommittedNode(nodeId);
     }
   }
   
@@ -653,30 +653,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
                          (_activeNoteIds.contains(eventNoteId ?? ''));
       
       if (shouldUpdate) {
-        try {
-            // Try to construct block from event payload
-            final existingBlock = _blocks[blockId];
-            if (existingBlock != null) {
-              final updatedBlock = Block(
-                id: blockId,
-                noteId: existingBlock.noteId,
-                type: existingBlock.type,
-                order: existingBlock.order,
-                content: parsedMessage.payload['content'],
-                metadata: parsedMessage.payload['metadata'],
-                updatedAt: DateTime.now(),
-                createdAt: existingBlock.createdAt
-              );
-              
-              _blocks[blockId] = updatedBlock;
-              _updateDocumentWithBlock(updatedBlock);
-              _enqueueNotification();
-              return;
-            }
-          } catch (e) {
-            _logger.error('Error creating block from payload: $e');
-            // Fall back to fetching the block
-        }
         fetchBlockById(blockId).then((block) {
           if (block != null) {
             _updateDocumentWithBlock(block);
@@ -799,8 +775,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     if (!_noteBlocksMap[block.noteId]!.contains(block.id)) {
       _noteBlocksMap[block.noteId]!.add(block.id);
     }
-    
-    // Let _updateDocumentWithBlock handle the document update logic
+
     _updateDocumentWithBlock(block);
   }
 
@@ -944,11 +919,16 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     } else if (type == 'task') {
       metadata['is_completed'] = false;
     }
+
+    final payload = {
+      "metadata": metadata,
+      "content": content,
+    };
     
     // Create block on server
     final block = await _blockService.createBlock(
       _noteId!,
-      content,
+      payload,
       type,
       order
     );
@@ -994,7 +974,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
           if (node != null) {
             _documentBuilder.document.deleteNode(nodeId);
           }
-          _documentBuilder.nodeToBlockMap.remove(nodeId);
+          _documentBuilder.removeNodeMapping(nodeId);
         }
       } finally {
         _updatingDocument = false;
@@ -1588,14 +1568,9 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         await _createBlockForNode(nodeId, node);
       } else {
         // Node no longer exists, remove from tracking
-        _documentBuilder.uncommittedNodes.remove(nodeId);
+        _documentBuilder.removeUncommittedNode(nodeId);
       }
     }
-  }
-  
-  @override
-  void markBlockAsModified(String blockId) {
-    _documentBuilder.markBlockAsModified(blockId);
   }
 
   @override
