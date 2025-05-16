@@ -1,14 +1,14 @@
-import '../utils/data_converter.dart';
+import 'package:owlistic/utils/data_converter.dart';
 
 class Block {
   final String id;
   final String noteId;
-  final dynamic content;
+  final Map<String, dynamic> content; // Changed from dynamic to Map<String, dynamic>
+  final Map<String, dynamic>? metadata; // Keep metadata as optional Map
   final String type;
-  final double order;  // Changed from int to double
+  final double order;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final Map<String, dynamic>? metadata;
 
   Block({
     required this.id,
@@ -23,10 +23,10 @@ class Block {
        updatedAt = updatedAt ?? DateTime.now();
 
   factory Block.fromJson(Map<String, dynamic> json) {
-    // Use DataConverter for parsing numeric values as double
+    // Parse order as double
     final double orderValue = DataConverter.parseDoubleSafely(json['order']);
     
-    // Parse datetime fields with appropriate fallback
+    // Parse datetime fields
     DateTime? createdAt;
     if (json['created_at'] != null) {
       try {
@@ -45,17 +45,23 @@ class Block {
       }
     }
     
+    // Ensure content is a map
+    Map<String, dynamic> contentMap = {};
+    if (json['content'] is Map) {
+      contentMap = Map<String, dynamic>.from(json['content']);
+    } else if (json['content'] is String) {
+      contentMap = {'text': json['content']};
+    }
+    
     // Parse metadata if available
     Map<String, dynamic>? metadata;
-    if (json['metadata'] != null) {
-      metadata = json['metadata'] is Map 
-          ? Map<String, dynamic>.from(json['metadata']) 
-          : null;
+    if (json['metadata'] != null && json['metadata'] is Map) {
+      metadata = Map<String, dynamic>.from(json['metadata']);
     }
     
     return Block(
       id: json['id'] ?? '',
-      content: json['content'], // Store as-is, will handle conversion when accessing
+      content: contentMap,
       type: json['type'] ?? 'text',
       noteId: json['note_id'] ?? '',
       order: orderValue,
@@ -70,7 +76,7 @@ class Block {
       'id': id,
       'note_id': noteId,
       'content': content,
-      'block_type': type, // Always use block_type for API serialization
+      'type': type,
       'metadata': metadata,
       'order': order,
       'created_at': createdAt.toIso8601String(),
@@ -78,109 +84,54 @@ class Block {
     };
   }
 
-  /// Creates a block update with new content text
+  // Helper method to extract text content
+  String getTextContent() {
+    if (content.containsKey('text') && content['text'] is String) {
+      return content['text'] as String;
+    }
+    return '';
+  }
+  
+  // Creates update data with new text
   Map<String, dynamic> createUpdateWithText(String text) {
-    final Map<String, dynamic> contentMap = DataConverter.normalizeContent(content);
-    contentMap['text'] = text;
+    final updatedContent = Map<String, dynamic>.from(content);
+    updatedContent['text'] = text;
     
     return {
       'note_id': noteId,
-      'block_type': type, // Always use block_type
-      'content': contentMap,
+      'type': type,
+      'content': updatedContent,
       'order': order,
     };
   }
-
-  // Helper method to extract text content from various block types
-  String getTextContent() {
-    return DataConverter.extractTextContent(content);
-  }
   
-  /// Gets the raw content as a Map, handling both formats
-  Map<String, dynamic> getContentMap() {
-    return DataConverter.normalizeContent(content);
-  }
-  
-  /// Creates a content map for updating the block
-  Map<String, dynamic> createContentMap(String text) {
-    final Map<String, dynamic> contentMap = DataConverter.normalizeContent(content);
-    contentMap['text'] = text;
-    return contentMap;
-  }
-  
-  /// Gets the heading level if this is a heading block
+  // Gets the heading level if this is a heading block
   int getHeadingLevel() {
     if (type == 'heading') {
-      final contentMap = getContentMap();
-      return DataConverter.parseIntSafely(contentMap['level'], defaultValue: 1);
+      // First check metadata (preferred location)
+      if (metadata != null && metadata!.containsKey('level')) {
+        return DataConverter.parseIntSafely(metadata!['level'], defaultValue: 1);
+      }
     }
     return 0;
   }
   
-  /// Get code block language if this is a code block
+  // Get code block language
   String getCodeLanguage() {
     if (type == 'code') {
-      final contentMap = getContentMap();
-      return contentMap['language']?.toString() ?? 'plain';
+      // First check metadata (preferred location)
+      if (metadata != null && metadata!.containsKey('language')) {
+        return metadata!['language']?.toString() ?? 'plain';
+      }
     }
     return 'plain';
   }
   
-  /// Extract span/formatting information from content
+  // Extract spans/formatting
   List<Map<String, dynamic>>? getSpans() {
-    return DataConverter.extractSpans(content);
-  }
-
-  /// Get the document blockType for rendering
-  String getBlockType() {
-    // First check metadata if it contains blockType
-    if (metadata != null && metadata!.containsKey('blockType')) {
-      return metadata!['blockType'].toString();
-    }
-    
-    // Fallback to inferring from block type
-    switch (type) {
-      case 'heading':
-        final level = getHeadingLevel();
-        return 'heading$level';
-      case 'task':
-        return 'task';
-      case 'code':
-        return 'codeBlock';
-      case 'text':
-      default:
-        return 'paragraph';
-    }
-  }
-  
-  /// Check if this is a task and whether it's completed
-  bool isTaskCompleted() {
-    if (type == 'task') {
-      final contentMap = getContentMap();
-      return contentMap['is_completed'] == true;
-    }
-    return false;
-  }
-
-  /// Get raw markdown if available
-  String? getRawMarkdown() {
     // First check metadata (preferred location)
-    if (metadata != null && metadata!.containsKey('raw_markdown')) {
-      return metadata!['raw_markdown']?.toString();
-    }
-    
-    // Fallback to checking content for backward compatibility
-    final contentMap = getContentMap();
-    return contentMap['raw_markdown']?.toString();
-  }
-
-  /// Get inline styles for text formatting
-  List<Map<String, dynamic>>? getInlineStyles() {
-    final contentMap = getContentMap();
-    
-    // Try to get styles from spans in content
-    if (contentMap.containsKey('spans')) {
-      final spans = contentMap['spans'];
+    if (metadata != null && metadata!.containsKey('spans')) {
+      final spans = metadata!['spans'];
       if (spans is List) {
         return List<Map<String, dynamic>>.from(
           spans.map((span) => span is Map ? Map<String, dynamic>.from(span) : {})
@@ -190,8 +141,27 @@ class Block {
     
     return null;
   }
+  
+  // Check if this is a task and whether it's completed
+  bool isTaskCompleted() {
+    if (type == 'task') {
+      if (metadata != null && metadata!.containsKey('is_completed')) {
+        return metadata!['is_completed'] == true;
+      }
+    }
+    return false;
+  }
 
-  // Add a copyWith method to make local updates easier
+  // Get task ID for task blocks
+  String? getTaskId() {
+    if (type == 'task') {
+      if (metadata != null && metadata!.containsKey('task_id')) {
+        return metadata!['task_id']?.toString();
+      }
+    }
+    return null;
+  }
+
   Block copyWith({
     String? id,
     String? noteId,
@@ -199,7 +169,7 @@ class Block {
     String? type,
     Map<String, dynamic>? content,
     Map<String, dynamic>? metadata,
-    double? order,  // Changed from int to double
+    double? order,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -207,25 +177,12 @@ class Block {
       id: id ?? this.id,
       noteId: noteId ?? this.noteId,
       type: type ?? this.type,
-      content: content ?? this.content,
-      metadata: metadata ?? this.metadata,
+      content: content ?? Map<String, dynamic>.from(this.content),
+      metadata: metadata ?? (this.metadata != null ? Map<String, dynamic>.from(this.metadata!) : null),
       order: order ?? this.order,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
   }
-
-  // Add a method to handle style metadata
-  List<Map<String, dynamic>>? getStyleSpans() {
-    // First try to get from metadata (preferred location)
-    if (metadata != null && 
-        metadata!.containsKey('styling') && 
-        metadata!['styling'] is Map &&
-        metadata!['styling']['spans'] is List) {
-      return List<Map<String, dynamic>>.from(metadata!['styling']['spans']);
-    }
-    
-    // Fallback to content spans
-    return getSpans();
-  }
+ 
 }

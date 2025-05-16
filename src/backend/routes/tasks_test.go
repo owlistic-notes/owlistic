@@ -20,7 +20,7 @@ type MockTaskService struct{}
 // Add GetTasks method for query parameter support
 func (m *MockTaskService) GetTasks(db *database.Database, params map[string]interface{}) ([]models.Task, error) {
 	userID, hasUserID := params["user_id"].(string)
-	completed, hasCompleted := params["completed"].(string)
+	completed, hasCompleted := params["is_completed"].(string)
 
 	tasks := []models.Task{
 		{
@@ -72,17 +72,17 @@ func (m *MockTaskService) CreateTask(db *database.Database, taskData map[string]
 		userID = uuid.Must(uuid.Parse(userIDStr))
 	}
 
-	blockID := uuid.New()
+	noteID := uuid.New()
 	noteIDStr, noteIDExists := taskData["note_id"].(string)
 	if noteIDExists && noteIDStr != "" {
 		// Simulate finding or creating a block for the note
-		blockID = uuid.New()
+		noteID = uuid.New()
 	}
 
 	return models.Task{
 		ID:      uuid.New(),
 		UserID:  userID,
-		BlockID: blockID,
+		NoteID:  noteID,
 		Title:   title,
 	}, nil
 }

@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../models/subscription.dart';
-import '../services/websocket_service.dart';
-import '../services/auth_service.dart';
-import '../utils/logger.dart';
-import '../models/user.dart';
-import '../viewmodel/websocket_viewmodel.dart';
+import 'package:owlistic/models/subscription.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/models/user.dart';
+import 'package:owlistic/viewmodel/websocket_viewmodel.dart';
 
 class WebSocketProvider with ChangeNotifier implements WebSocketViewModel {
   // Singleton WebSocket service

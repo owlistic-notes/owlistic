@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../viewmodel/register_viewmodel.dart';
-import '../utils/logger.dart';
-import '../widgets/app_logo.dart';
+import 'package:owlistic/viewmodel/register_viewmodel.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/widgets/app_logo.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -88,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final isLoading = registerViewModel.isLoading;
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       // Remove the AppBar completely
       body: Center(
         child: SingleChildScrollView(

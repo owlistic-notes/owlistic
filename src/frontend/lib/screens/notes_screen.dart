@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/card_container.dart';
-import '../widgets/empty_state.dart';
-import '../models/note.dart';
-import '../viewmodel/notes_viewmodel.dart';
-import '../viewmodel/notebooks_viewmodel.dart';
-import '../utils/logger.dart';
-import '../core/theme.dart';
+import 'package:owlistic/widgets/app_drawer.dart';
+import 'package:owlistic/widgets/card_container.dart';
+import 'package:owlistic/widgets/empty_state.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/viewmodel/notes_viewmodel.dart';
+import 'package:owlistic/viewmodel/notebooks_viewmodel.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/core/theme.dart';
 import 'note_editor_screen.dart';
-import '../widgets/app_bar_common.dart';
-import '../widgets/theme_switcher.dart';
+import 'package:owlistic/widgets/app_bar_common.dart';
+import 'package:owlistic/widgets/theme_switcher.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});

@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../models/note.dart';
-import '../models/task.dart';
-import '../services/note_service.dart';
-import '../services/task_service.dart';
-import '../services/auth_service.dart';
-import '../services/websocket_service.dart';
-import '../utils/logger.dart';
-import '../utils/websocket_message_parser.dart';
-import '../services/app_state_service.dart';
-import '../viewmodel/tasks_viewmodel.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/services/note_service.dart';
+import 'package:owlistic/services/task_service.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/utils/websocket_message_parser.dart';
+import 'package:owlistic/services/app_state_service.dart';
+import 'package:owlistic/viewmodel/tasks_viewmodel.dart';
 
 class TasksProvider with ChangeNotifier implements TasksViewModel {
   // Change to Map to prevent duplicates and enable O(1) lookups
@@ -151,12 +151,14 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
-      final String? taskId = WebSocketModelExtractor.extractBlockId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
+      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage);
       
       if (taskId != null && taskId.isNotEmpty) {
+        // Always fetch the task when it's updated
         _fetchSingleTask(taskId);
+        _logger.debug('Processing task update for task ID: $taskId');
       } else {
-        _logger.warning('Could not extract task_id from message');
+        _logger.warning('Could not extract task_id from message: ${message.toString().substring(0, 100)}...');
       }
     } catch (e) {
       _logger.error('Error handling task update: $e');
@@ -169,21 +171,12 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
-      final payload = parsedMessage.payload;
-      final data = payload['data'];
+      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
       
-      String taskId = '';
-      String noteId = '';
-      
-      // Extract IDs - tasks don't have a specific extractor yet
-      if (data != null && data is Map) {
-        taskId = data['id']?.toString() ?? data['task_id']?.toString() ?? '';
-        noteId = data['note_id']?.toString() ?? '';
-      }
-      
-      if (taskId.isNotEmpty) {
+      if (taskId != null && taskId.isNotEmpty) {
         // Only fetch if we have tasks for this note already or if we're showing all tasks
-        if (noteId.isEmpty || _tasksMap.values.any((task) => task.noteId == noteId)) {
+        if ((noteId != null && noteId.isNotEmpty) || _tasksMap.values.any((task) => task.noteId == noteId)) {
           _fetchSingleTask(taskId);
         }
       } else {
@@ -224,6 +217,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   Future<void> _fetchSingleTask(String taskId) async {
     _logger.debug('Fetching single task: $taskId');
+    
     try {
       // Fetch the task from the service
       final task = await _taskService.getTask(taskId);
@@ -304,10 +298,10 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   // Create task - updated to include optimistic update
   @override
-  Future<void> createTask(String title, String noteId, {String? blockId}) async {
+  Future<void> createTask(String title, String noteId) async {
     try {
       // Create task on server
-      final task = await _taskService.createTask(title, noteId, blockId: blockId);
+      final task = await _taskService.createTask(title, noteId);
       
       // Optimistic update - add task to local state immediately
       _tasksMap[task.id] = task;
@@ -413,7 +407,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
       _tasksMap[taskId] = task;
       notifyListeners();
     } catch (error) {
-      print('Error fetching task from event: $error');
+      _logger.error('Error fetching task from event: $error');
     }
   }
 
@@ -428,7 +422,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
         notifyListeners();
       }
     } catch (error) {
-      print('Error adding task from event: $error');
+      _logger.error('Error adding task from event: $error');
     }
   }
 

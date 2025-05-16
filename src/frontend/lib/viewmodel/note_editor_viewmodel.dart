@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../models/block.dart';
-import '../models/note.dart';
-import '../utils/document_builder.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/utils/document_builder.dart';
 import 'base_viewmodel.dart';
 
 abstract class NoteEditorViewModel extends BaseViewModel {
@@ -30,7 +30,7 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   Future<Block?> fetchBlockById(String blockId);
   Future<Block> createBlock(String type);
   Future<void> deleteBlock(String blockId);
-  void updateBlockContent(String id, dynamic content, {
+  void updateBlockContent(String id, Map<String, dynamic> content, {
     String? type, 
     double? order,
     bool immediate = false,
@@ -72,7 +72,6 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   // Server sync and events
   void updateBlockCache(List<Block> blocks);
   void commitAllContent();
-  void markBlockAsModified(String blockId);
   Future<void> fetchBlockFromEvent(String blockId);
   
   // Focus handling

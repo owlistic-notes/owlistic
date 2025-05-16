@@ -171,8 +171,8 @@ func GetTasks(c *gin.Context, db *database.Database, taskService services.TaskSe
 		params["block_id"] = blockID
 	}
 
-	if completed := c.Query("completed"); completed != "" {
-		params["completed"] = completed
+	if completed := c.Query("is_completed"); completed != "" {
+		params["is_completed"] = completed
 	}
 
 	if title := c.Query("title"); title != "" {

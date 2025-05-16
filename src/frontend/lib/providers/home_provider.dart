@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import '../models/note.dart';
-import '../models/notebook.dart';
-import '../models/task.dart';
-import '../models/user.dart';
-import '../services/auth_service.dart';
-import '../services/note_service.dart';
-import '../services/notebook_service.dart';
-import '../services/task_service.dart';
-import '../services/theme_service.dart';
-import '../services/websocket_service.dart';
-import '../utils/logger.dart';
-import '../viewmodel/home_viewmodel.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/models/notebook.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/models/user.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/note_service.dart';
+import 'package:owlistic/services/notebook_service.dart';
+import 'package:owlistic/services/task_service.dart';
+import 'package:owlistic/services/theme_service.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/viewmodel/home_viewmodel.dart';
 
 class HomeProvider with ChangeNotifier implements HomeViewModel {
   final Logger _logger = Logger('HomeProvider');
@@ -298,18 +298,14 @@ class HomeProvider with ChangeNotifier implements HomeViewModel {
   }
   
   @override
-  Future<Task?> createTask(String title, String category) async {
+  Future<Task?> createTask(String title, String noteId) async {
     _isLoading = true;
     notifyListeners();
     
     try {
-      // First note ID or default
-      final String noteId = _recentNotes.isNotEmpty 
-          ? _recentNotes.first.id 
-          : '00000000-0000-0000-0000-000000000000';
-      
+      // Create task
       final task = await _taskService.createTask(title, noteId);
-      
+  
       // Add to recent tasks
       _recentTasks = [task, ..._recentTasks];
       // Keep only most recent 5

@@ -1,40 +1,40 @@
 import 'package:provider/provider.dart';
 import 'package:nested/nested.dart';
 import 'package:owlistic/services/trash_service.dart';
-import '../services/auth_service.dart';
-import '../services/note_service.dart';
-import '../services/notebook_service.dart';
-import '../services/task_service.dart';
-import '../services/theme_service.dart';
-import '../services/websocket_service.dart';
-import '../services/app_state_service.dart';
-import '../services/block_service.dart';
-import '../services/user_service.dart';
-import '../utils/document_builder.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/note_service.dart';
+import 'package:owlistic/services/notebook_service.dart';
+import 'package:owlistic/services/task_service.dart';
+import 'package:owlistic/services/theme_service.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/services/app_state_service.dart';
+import 'package:owlistic/services/block_service.dart';
+import 'package:owlistic/services/user_service.dart';
+import 'package:owlistic/utils/document_builder.dart';
 
 // Import ViewModels
-import '../viewmodel/notebooks_viewmodel.dart';
-import '../viewmodel/notes_viewmodel.dart';
-import '../viewmodel/note_editor_viewmodel.dart';
-import '../viewmodel/tasks_viewmodel.dart';
-import '../viewmodel/theme_viewmodel.dart';
-import '../viewmodel/trash_viewmodel.dart';
-import '../viewmodel/login_viewmodel.dart';
-import '../viewmodel/register_viewmodel.dart';
-import '../viewmodel/home_viewmodel.dart';
-import '../viewmodel/user_profile_viewmodel.dart';
+import 'package:owlistic/viewmodel/notebooks_viewmodel.dart';
+import 'package:owlistic/viewmodel/notes_viewmodel.dart';
+import 'package:owlistic/viewmodel/note_editor_viewmodel.dart';
+import 'package:owlistic/viewmodel/tasks_viewmodel.dart';
+import 'package:owlistic/viewmodel/theme_viewmodel.dart';
+import 'package:owlistic/viewmodel/trash_viewmodel.dart';
+import 'package:owlistic/viewmodel/login_viewmodel.dart';
+import 'package:owlistic/viewmodel/register_viewmodel.dart';
+import 'package:owlistic/viewmodel/home_viewmodel.dart';
+import 'package:owlistic/viewmodel/user_profile_viewmodel.dart';
 
 // ViewModels implementations
-import '../providers/notebooks_provider.dart';
-import '../providers/notes_provider.dart';
-import '../providers/note_editor_provider.dart';
-import '../providers/tasks_provider.dart';
-import '../providers/theme_provider.dart';
-import '../providers/trash_provider.dart';
-import '../providers/login_provider.dart';
-import '../providers/register_provider.dart';
-import '../providers/home_provider.dart';
-import '../providers/user_profile_provider.dart';
+import 'package:owlistic/providers/notebooks_provider.dart';
+import 'package:owlistic/providers/notes_provider.dart';
+import 'package:owlistic/providers/note_editor_provider.dart';
+import 'package:owlistic/providers/tasks_provider.dart';
+import 'package:owlistic/providers/theme_provider.dart';
+import 'package:owlistic/providers/trash_provider.dart';
+import 'package:owlistic/providers/login_provider.dart';
+import 'package:owlistic/providers/register_provider.dart';
+import 'package:owlistic/providers/home_provider.dart';
+import 'package:owlistic/providers/user_profile_provider.dart';
 
 /// ServiceLocator for dependency injection
 class ServiceLocator {

@@ -1,4 +1,4 @@
-import '../utils/logger.dart';
+import 'package:owlistic/utils/logger.dart';
 
 /// Class to represent a standardized WebSocket message with RBAC information
 class WebSocketMessage {
@@ -74,15 +74,6 @@ class WebSocketModelExtractor {
       return payload['note_id']?.toString();
     }
     
-    // Check in data structure if present
-    if (payload.containsKey('data')) {
-      final data = payload['data'];
-      if (data is Map) {
-        return data['note_id']?.toString() ?? 
-               data['id']?.toString();
-      }
-    }
-    
     return null;
   }
 
@@ -100,15 +91,6 @@ class WebSocketModelExtractor {
       return payload['notebook_id']?.toString();
     }
     
-    // Check in data structure if present
-    if (payload.containsKey('data')) {
-      final data = payload['data'];
-      if (data is Map) {
-        return data['notebook_id']?.toString() ?? 
-               data['id']?.toString();
-      }
-    }
-    
     return null;
   }
 
@@ -122,60 +104,28 @@ class WebSocketModelExtractor {
     final payload = message.payload;
     
     // Check direct payload fields
-    if (payload.containsKey('id')) {
-      return payload['id']?.toString();
-    }
-    
-    // Check in data structure if present
-    if (payload.containsKey('data')) {
-      final data = payload['data'];
-      if (data is Map) {
-        return data['block_id']?.toString() ?? 
-               data['id']?.toString();
-      }
+    if (payload.containsKey('block_id')) {
+      return payload['block_id']?.toString();
     }
     
     return null;
   }
 
-  // Extract timestamp from event data
-  static DateTime? extractTimestamp(WebSocketMessage message) {
-    try {
-      final payload = message.payload;
-      
-      // Try finding timestamp in various locations
-      String? timestampStr;
-      
-      // Option 1: Direct timestamp field
-      if (payload['timestamp'] != null) {
-        timestampStr = payload['timestamp'].toString();
-      } 
-      // Option 2: Updated_at field
-      else if (payload['updated_at'] != null) {
-        timestampStr = payload['updated_at'].toString();
-      }
-      // Option 3: Created_at field (fallback)
-      else if (payload['created_at'] != null) {
-        timestampStr = payload['created_at'].toString();
-      }
-      // Option 4: Event data may contain a model with timestamp
-      else if (payload['data'] is Map) {
-        final data = payload['data'] as Map;
-        if (data['updated_at'] != null) {
-          timestampStr = data['updated_at'].toString();
-        } else if (data['created_at'] != null) {
-          timestampStr = data['created_at'].toString();
-        }
-      }
-      
-      // Parse the timestamp if found
-      if (timestampStr != null) {
-        return DateTime.parse(timestampStr);
-      }
-      
-      return null;
-    } catch (e) {
-      return null;
+  /// Extract task ID from message payload
+  static String? extractTaskId(WebSocketMessage message) {
+    // First check if resourceId is already set and resource type is block
+    if (message.resourceType == 'task' && message.resourceId != null) {
+      return message.resourceId;
     }
+    
+    final payload = message.payload;
+    
+    // Check direct payload fields
+    if (payload.containsKey('task_id')) {
+      return payload['task_id']?.toString();
+    }
+    
+    return null;
   }
+
 }

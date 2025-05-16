@@ -1,6 +1,6 @@
 import 'dart:async';
-import '../models/subscription.dart';
-import '../models/user.dart';
+import 'package:owlistic/models/subscription.dart';
+import 'package:owlistic/models/user.dart';
 import 'base_viewmodel.dart';
 
 abstract class WebSocketViewModel extends BaseViewModel {

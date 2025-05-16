@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/notebook.dart';
-import '../models/note.dart';
-import '../utils/logger.dart';
-import '../widgets/app_bar_common.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/empty_state.dart';
-import '../viewmodel/notebooks_viewmodel.dart';
-import '../widgets/theme_switcher.dart';
+import 'package:owlistic/models/notebook.dart';
+import 'package:owlistic/models/note.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/widgets/app_bar_common.dart';
+import 'package:owlistic/widgets/app_drawer.dart';
+import 'package:owlistic/widgets/empty_state.dart';
+import 'package:owlistic/viewmodel/notebooks_viewmodel.dart';
+import 'package:owlistic/widgets/theme_switcher.dart';
 import 'note_editor_screen.dart';
 
 class NotebooksScreen extends StatefulWidget {

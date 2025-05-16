@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/auth_service.dart';
-import '../services/websocket_service.dart';
-import '../viewmodel/login_viewmodel.dart';
-import '../models/user.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/services/auth_service.dart';
+import 'package:owlistic/services/websocket_service.dart';
+import 'package:owlistic/viewmodel/login_viewmodel.dart';
+import 'package:owlistic/models/user.dart';
+import 'package:owlistic/utils/logger.dart';
 
 class LoginProvider with ChangeNotifier implements LoginViewModel {
   final Logger _logger = Logger('LoginProvider');

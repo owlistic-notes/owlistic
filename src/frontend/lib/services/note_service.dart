@@ -1,7 +1,7 @@
 import 'dart:convert';
-import '../models/note.dart';
+import 'package:owlistic/models/note.dart';
 import 'base_service.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/utils/logger.dart';
 
 class NoteService extends BaseService {
   final Logger _logger = Logger('NoteService');

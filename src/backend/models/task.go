@@ -39,7 +39,7 @@ func (tm *TaskMetadata) Scan(value interface{}) error {
 type Task struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID      uuid.UUID      `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
-	BlockID     uuid.UUID      `gorm:"type:uuid;constraint:OnDelete:CASCADE;" json:"block_id"`
+	NoteID      uuid.UUID      `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"note_id"` // Direct note relationship
 	Title       string         `gorm:"not null" json:"title"`
 	Description string         `json:"description"`
 	IsCompleted bool           `gorm:"default:false" json:"is_completed"`

@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:owlistic/utils/data_converter.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
-import '../models/block.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/utils/logger.dart';
+import 'package:owlistic/utils/attributed_text_utils.dart';
+import 'package:owlistic/utils/block_node_mapping.dart';
 
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
   final Logger _logger = Logger('DocumentBuilder');
+  
+  // Add instance of AttributedTextUtils
+  final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
+  
+  // Add BlockNodeMapping instance
+  final BlockNodeMapping _blockNodeMapping = BlockNodeMapping();
   
   // Document components
   late MutableDocument document;
@@ -19,12 +28,6 @@ class DocumentBuilder {
   // Document scroller for programmatic scrolling
   late DocumentScroller documentScroller;
   
-  // Mapping between document node IDs and block IDs
-  final Map<String, String> nodeToBlockMap = {};
-  
-  // Track nodes that don't yet have server blocks
-  final Map<String, DateTime> uncommittedNodes = {};
-  
   // Track last known node count to detect new nodes
   int _lastKnownNodeCount = 0;
   
@@ -33,15 +36,6 @@ class DocumentBuilder {
   
   // Flag to prevent recursive document updates
   bool _updatingDocument = false;
-  
-  // Track locally modified blocks with timestamps to optimize server updates
-  final Map<String, DateTime> _locallyModifiedBlocks = {};
-  
-  // Track blocks that were explicitly modified by user (not just by server sync)
-  final Set<String> _userModifiedBlockIds = {};
-  
-  // Track blocks that have been fetched from the server
-  final Map<String, Block> _serverFetchedBlocks = {};
   
   // Last known selection data for robust position restoration
   String? _lastKnownNodeId;
@@ -53,11 +47,16 @@ class DocumentBuilder {
   final DateTime _lastEdit = DateTime.now();
   
   // Callback for updating block content on the server
-  // This should be set by the parent component that uses DocumentBuilder
   Function(String blockId, Map<String, dynamic> content, {String? type, bool immediate})? onUpdateBlockContent;
   
   // Get the set of blocks that were explicitly modified by user interaction
-  Set<String> get userModifiedBlockIds => Set.from(_userModifiedBlockIds);
+  Set<String> get userModifiedBlockIds => _blockNodeMapping.userModifiedBlockIds;
+  
+  // Map of node IDs to block IDs (read-only access)
+  Map<String, String> get nodeToBlockMap => _blockNodeMapping.nodeToBlockMap;
+  
+  // Uncommitted nodes map (read-only access)
+  Map<String, DateTime> get uncommittedNodes => _blockNodeMapping.uncommittedNodes;
   
   DocumentBuilder() {
     _initialize();
@@ -136,7 +135,7 @@ class DocumentBuilder {
   }
 
   // Convert blocks to document nodes and populate the document
-  void populateDocumentFromBlocks(List<Block> blocks, {bool markAsModified = true}) {
+  void populateDocumentFromBlocks(List<Block> blocks) {
     if (_updatingDocument) {
       _logger.debug('Already updating document, skipping');
       return;
@@ -177,7 +176,7 @@ class DocumentBuilder {
         // Capture block ID of the focused node to help with position restoration
         String? previousBlockId;
         if (previousNodeId != null) {
-          previousBlockId = nodeToBlockMap[previousNodeId];
+          previousBlockId = _blockNodeMapping.getBlockIdForNode(previousNodeId);
           _logger.debug('Saving position in block: $previousBlockId, node: $previousNodeId, offset: $previousTextOffset');
         }
       } catch (e) {
@@ -190,7 +189,7 @@ class DocumentBuilder {
         for (final nodeId in nodeIds) {
           deleteNode(nodeId);
         }
-        nodeToBlockMap.clear();
+        _blockNodeMapping.clearMappings();
       } catch (e) {
         _logger.error('Error clearing document: $e');
         // Try to recreate document if clearing fails
@@ -216,18 +215,11 @@ class DocumentBuilder {
             try {
               insertNode(node);
               // Map node ID to block ID
-              nodeToBlockMap[node.id] = block.id;
+              _blockNodeMapping.linkNodeToBlock(node.id, block.id);
               blockToNodeMap[block.id] = node.id;
               
               // Register this block as from server
-              registerServerBlock(block);
-              
-              // Only mark blocks as modified if explicitly requested
-              // This allows us to differentiate between initial load and user edits
-              if (markAsModified) {
-                _locallyModifiedBlocks[block.id] = DateTime.now();
-              }
-              
+              registerServerBlock(block, node.id);
             } catch (e) {
               _logger.error('Error adding node to document: $e');
               // Continue with next node
@@ -297,7 +289,7 @@ class DocumentBuilder {
           
           // STRATEGY 2: Try to find a node mapping to the same block ID
           if (!positionRestored && previousNodeId != null) {
-            final previousBlockId = nodeToBlockMap[previousNodeId];
+            final previousBlockId = _blockNodeMapping.getBlockIdForNode(previousNodeId);
             if (previousBlockId != null && blockToNodeMap.containsKey(previousBlockId)) {
               _logger.debug('Found different node for same block, restoring position');
               
@@ -427,13 +419,13 @@ class DocumentBuilder {
   // Handle newly created nodes (like from pressing Enter to split a paragraph)
   bool shouldCreateBlockForNode(String nodeId) {
     // Skip if this node is already mapped to a block
-    if (nodeToBlockMap.containsKey(nodeId)) {
+    if (_blockNodeMapping.getBlockIdForNode(nodeId) != null) {
       _logger.debug('Node $nodeId already mapped to a block, skipping');
       return false;
     }
     
     // Skip if we're already processing this node
-    if (uncommittedNodes.containsKey(nodeId)) {
+    if (_blockNodeMapping.isNodeUncommitted(nodeId)) {
       _logger.debug('Node $nodeId is already being processed, skipping');
       return false;
     }
@@ -446,7 +438,7 @@ class DocumentBuilder {
     }
     
     // Mark as uncommitted
-    uncommittedNodes[nodeId] = DateTime.now();
+    _blockNodeMapping.markNodeAsUncommitted(nodeId);
     return true;
   }
   
@@ -485,7 +477,7 @@ class DocumentBuilder {
     
     // Find previous block's order
     if (prevNodeId != null) {
-      final prevBlockId = nodeToBlockMap[prevNodeId];
+      final prevBlockId = _blockNodeMapping.getBlockIdForNode(prevNodeId);
       if (prevBlockId != null) {
         final prevBlock = blocks.firstWhere(
           (b) => b.id == prevBlockId,
@@ -497,7 +489,7 @@ class DocumentBuilder {
     
     // Find next block's order
     if (nextNodeId != null) {
-      final nextBlockId = nodeToBlockMap[nextNodeId];
+      final nextBlockId = _blockNodeMapping.getBlockIdForNode(nextNodeId);
       if (nextBlockId != null) {
         final nextBlock = blocks.firstWhere(
           (b) => b.id == nextBlockId, 
@@ -513,340 +505,220 @@ class DocumentBuilder {
   
   // Mark a block as locally modified to optimize server updates
   void markBlockAsModified(String blockId) {
-    _locallyModifiedBlocks[blockId] = DateTime.now();
-    _userModifiedBlockIds.add(blockId);
+    _blockNodeMapping.markBlockAsModified(blockId);
     _logger.debug('Block $blockId marked as explicitly modified by user');
   }
   
   /// Register a block as being fetched from the server
   /// This helps track which blocks should be considered as "server source of truth"
-  void registerServerBlock(Block block) {
-    _serverFetchedBlocks[block.id] = block;
-    // If this block was previously marked as user-modified but is now
-    // being updated from the server with a newer timestamp, remove the user-modified flag
-    if (_userModifiedBlockIds.contains(block.id)) {
-      final modifiedAt = _locallyModifiedBlocks[block.id];
-      if (modifiedAt != null && block.updatedAt.isAfter(modifiedAt)) {
-        _userModifiedBlockIds.remove(block.id);
-        _locallyModifiedBlocks.remove(block.id);
-        _logger.debug('Block ${block.id} user modifications overridden by newer server version');
-      }
-    }
+  void registerServerBlock(Block block, [String nodeId = '']) {
+    _blockNodeMapping.registerServerBlock(block, nodeId);
   }
 
   /// Check if this block should be updated from the server version
   /// Returns true if the server version is newer than any local changes
   bool shouldUpdateFromServer(String blockId, Block serverBlock) {
-    // If no local modifications, always update from server
-    if (!_locallyModifiedBlocks.containsKey(blockId)) {
-      return true;
-    }
-    
-    // Get local modification time
-    final localModTime = _locallyModifiedBlocks[blockId]!;
-    
-    // Compare with server timestamp - only update if server is newer
-    return serverBlock.updatedAt.isAfter(localModTime);
+    return _blockNodeMapping.shouldUpdateFromServer(blockId, serverBlock);
   }
   
   /// Check if we should send a block update to the server
   bool shouldSendBlockUpdate(String blockId, Block serverBlock) {
     // If not modified locally, don't send update
-    if (!_locallyModifiedBlocks.containsKey(blockId)) {
+    if (!_blockNodeMapping.isBlockModifiedByUser(blockId)) {
       return false;
     }
     
-    // If explicitly modified by user, always send update
-    if (_userModifiedBlockIds.contains(blockId)) {
-      return true;
+    // Get node associated with this block
+    String? nodeId = _blockNodeMapping.getNodeIdForBlock(blockId);
+    if (nodeId == null) {
+      _logger.debug('Block $blockId has no associated node, skipping update');
+      return false;
     }
     
-    // Get local modification time
-    final localModTime = _locallyModifiedBlocks[blockId]!;
+    // Get the node from document
+    final node = document.getNodeById(nodeId);
+    if (node == null) {
+      _logger.debug('Node $nodeId not found in document, skipping update');
+      return false;
+    }
     
-    // Compare with server timestamp
-    final serverUpdateTime = serverBlock.updatedAt;
-    
-    // Only update if local changes are newer
-    if (localModTime.isAfter(serverUpdateTime)) {
-      _logger.debug('Block $blockId has newer local changes (local: $localModTime, server: $serverUpdateTime)');
+    // Check if content actually changed compared to server block
+    if (hasNodeContentChanged(node, blockId, serverBlock)) {
+      _logger.debug('Block $blockId content has changed, sending update');
       return true;
     } else {
-      _logger.debug('Block $blockId server version is newer or same, skipping update');
+      _logger.debug('Block $blockId content unchanged, skipping update');
+      _blockNodeMapping.clearModificationTracking(blockId); // Clear modification flag since no real changes
       return false;
     }
   }
   
   // Clear modification tracking after successful update
   void clearModificationTracking(String blockId) {
-    _locallyModifiedBlocks.remove(blockId);
-    _userModifiedBlockIds.remove(blockId);
+    _blockNodeMapping.clearModificationTracking(blockId);
   }
   
   // Extract content from a node in the format expected by the API
   Map<String, dynamic> extractContentFromNode(DocumentNode node, String blockId, Block originalBlock) {
-    // Initialize with original content to preserve metadata and prevent empty content
-    Map<String, dynamic> content = Map<String, dynamic>.from(originalBlock.content);
+    // Initialize with strict format
+    Map<String, dynamic> content = {'text': ''};
+    Map<String, dynamic> metadata = {'_sync_source': 'block', 'block_id': blockId};
     
-    if (node is ParagraphNode) {
-      // Get text content and ensure it's not null
-      final plainText = node.text.toPlainText();
-      
-      // Always update the text field with current content from editor
-      content['text'] = plainText;
-      
-      // Extract spans/formatting information
-      final spans = extractSpansFromAttributedText(node.text);
-      // Always include spans field to maintain formatting consistency
-      content['spans'] = spans;
-      
-      // Check for block type metadata changes and update content accordingly
-      final blockType = node.metadata['blockType'];
-      String blockTypeStr = '';
-      
-      // Convert blockType to string if it's a NamedAttribution
-      if (blockType is NamedAttribution) {
-        blockTypeStr = blockType.id;
-      } else if (blockType is String) {
-        blockTypeStr = blockType;
-      }
-      
-      // Update content based on block type
-      if (blockTypeStr == 'heading') {
-        // Get heading level from metadata or default to 1
-        final headingLevel = node.metadata['headingLevel'] ?? 1;
-        content['level'] = headingLevel;
-      }
-      else if (blockTypeStr == 'code') {
-        // Preserve or set default language
-        content['language'] = content['language'] ?? 'plain';
-      }
-      
-      // Store styling and block metadata directly in content object
-      Map<String, dynamic> blockMetadata = {};
-      if (blockTypeStr.isNotEmpty) {
-        blockMetadata['blockType'] = blockTypeStr;  // Store as STRING for API
-        
-        // For headings, also store the level in metadata
-        if (blockTypeStr == 'heading') {
-          blockMetadata['headingLevel'] = node.metadata['headingLevel'] ?? 1;
-        }
-        
-        // For code blocks, store the language in metadata
-        if (blockTypeStr == 'code') {
-          blockMetadata['language'] = content['language'] ?? 'plain';
-        }
-      }
-      
-      // Add styling information to metadata
-      if (spans.isNotEmpty) {
-        blockMetadata['styling'] = {
-          'spans': spans,
-          'version': 1,
-        };
-      }
-      
-      // Store metadata directly in the content object
-      content['metadata'] = blockMetadata;
-    } else if (node is ListItemNode) {
-      // Get text content and ensure it's not null
-      final plainText = node.text.toPlainText();
-      content['text'] = plainText;
-      content['checked'] = node.type == ListItemType.ordered;
-      
-      // Extract spans for list items as well
-      final spans = extractSpansFromAttributedText(node.text);
-      // Always include spans field to maintain formatting consistency
-      content['spans'] = spans;
-      
-      // Add list item specific metadata directly to content
-      content['metadata'] = {
-        'blockType': 'listItem',
-        'listType': node.type == ListItemType.ordered ? 'ordered' : 'unordered',
-        'styling': spans.isNotEmpty ? {'spans': spans, 'version': 1} : null,
-      };
-    } else if (node is TaskNode) {
-      // Handle task nodes
-      final plainText = node.text.toPlainText();
-      content['text'] = plainText;
-      content['is_completed'] = node.isComplete;
-      
-      // Extract spans for tasks
-      final spans = extractSpansFromAttributedText(node.text);
-      content['spans'] = spans;
-      
-      // Add task specific metadata directly to content
-      content['metadata'] = {
-        'blockType': 'task',
-        'is_completed': node.isComplete,
-        'styling': spans.isNotEmpty ? {'spans': spans, 'version': 1} : null,
-      };
+    // Extract metadata from original block
+    if (originalBlock.metadata != null) {
+      metadata.addAll(Map<String, dynamic>.from(originalBlock.metadata!));
     }
     
-    // Mark this block as modified with current timestamp
-    markBlockAsModified(blockId);
-    
-    return content;
-  }
-
-  // Helper method to determine node's block type
-  String detectBlockTypeFromNode(DocumentNode node) {
     if (node is ParagraphNode) {
-      final blockType = node.metadata['blockType'];
+      // ONLY text goes in content
+      content['text'] = node.text.toPlainText();
       
+      // Extract spans/formatting information for metadata
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      if (spans.isNotEmpty) {
+        metadata['spans'] = spans;
+      }
+      
+      // Extract node blockType for determining block.type 
+      // DO NOT store blockType in metadata - it's a property of the block model
+      final blockType = node.metadata['blockType'];
       String blockTypeStr = '';
-      // Convert blockType to string if it's a NamedAttribution
+      
       if (blockType is NamedAttribution) {
         blockTypeStr = blockType.id;
       } else if (blockType is String) {
         blockTypeStr = blockType;
       }
       
-      if (blockTypeStr == 'heading') {
-        return 'heading';
-      } else if (blockTypeStr == 'code') {
-        return 'code';
+      // Extract specific metadata based on node type
+      if (blockTypeStr.startsWith('heading')) {
+        final levelStr = blockTypeStr.substring(7);
+        final level = int.tryParse(levelStr) ?? 1;
+        metadata['level'] = level;
+      }
+      else if (blockTypeStr == 'code') {
+        metadata['language'] = node.metadata['language'] ?? 'plain';
       }
     } 
     else if (node is TaskNode) {
-      return 'task';
+      content['text'] = node.text.toPlainText();
+      
+      // Task state in metadata
+      metadata['is_completed'] = node.isComplete;
+      
+      // Extract spans
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      if (spans.isNotEmpty) {
+        metadata['spans'] = spans;
+      }
+    } 
+    else if (node is ListItemNode) {
+      // ONLY text in content
+      content['text'] = node.text.toPlainText();
+      
+      // List metadata
+      metadata['listType'] = node.type == ListItemType.ordered ? 'ordered' : 'unordered';
+      
+      // Extract spans
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      if (spans.isNotEmpty) {
+        metadata['spans'] = spans;
+      }
     }
     
-    // Default type
-    return 'text';
+    return {
+      'content': content,
+      'metadata': metadata
+    };
   }
 
-  // Extract spans (formatting information) from AttributedText with better handling
-  List<Map<String, dynamic>> extractSpansFromAttributedText(AttributedText attributedText) {
-    final List<Map<String, dynamic>> spans = [];
-    final text = attributedText.toPlainText();
+  /// Extract content from a node in a standardized format for API usage
+  Map<String, dynamic> extractNodeContent(DocumentNode node, Block? originalBlock) {
+    // Initialize with a base structure
+    Map<String, dynamic> content = {'text': ''};
+    Map<String, dynamic> metadata = {'_sync_source': 'block'};
     
-    // If text is empty, return empty spans
-    if (text.isEmpty) {
-      return [];
+    // Preserve original metadata values if available
+    if (originalBlock != null && originalBlock.metadata != null) {
+      metadata = Map<String, dynamic>.from(originalBlock.metadata!);
     }
     
-    // Use the same attribution types that SuperEditor uses in defaultStyleBuilder
-    final attributions = [
-      const NamedAttribution('bold'),
-      const NamedAttribution('italic'),
-      const NamedAttribution('underline'),
-      const NamedAttribution('strikethrough')
-    ];
-    
-    // Extract spans for each standard attribution type
-    for (final attribution in attributions) {
-      final attributionSpans = attributedText.getAttributionSpans({attribution});
-      for (final span in attributionSpans) {
-        // Ensure span bounds are valid
-        if (span.start >= 0 && span.end <= text.length && span.end > span.start) {
-          spans.add({
-            'start': span.start,
-            'end': span.end,
-            'type': attribution.id,
-          });
-        }
+    if (node is ParagraphNode) {
+      content['text'] = node.text.toPlainText();
+      
+      // Extract spans/formatting information
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      metadata['spans'] = spans; // Always include spans array
+      
+      // Process node blockType for determining block type
+      final blockType = node.metadata['blockType'];
+      String blockTypeStr = '';
+      
+      if (blockType is NamedAttribution) {
+        blockTypeStr = blockType.id;
+      } else if (blockType is String) {
+        blockTypeStr = blockType;
       }
-    }
-    
-    // Handle links separately as they're a different type of attribution
-    for (int i = 0; i < text.length; i++) {
-      final attributionsAtPosition = attributedText.getAllAttributionsAt(i);
-      for (final attribution in attributionsAtPosition) {
-        if (attribution is LinkAttribution) {
-          int end = i;
-          while (end < text.length && 
-                attributedText.getAllAttributionsAt(end).contains(attribution)) {
-            end++;
-          }
-          
-          // Only add if span bounds are valid
-          if (i >= 0 && end <= text.length && end > i) {
-            spans.add({
-              'start': i,
-              'end': end,
-              'type': 'link',
-              'href': attribution.url,
-            });
-          }
-          
-          i = end - 1;
-          break;
-        }
+      
+      // Handle specific block types - extract additional metadata but don't include blockType
+      if (blockTypeStr.startsWith('heading')) {
+        // Extract heading level from blockType like "heading1"
+        final levelStr = blockTypeStr.substring(7);
+        final level = DataConverter.parseIntSafely(levelStr) ?? 1;
+        metadata['level'] = level;
+      } 
+      else if (blockTypeStr == 'code') {
+        metadata['language'] = node.metadata['language'] ?? 'plain';
       }
+    } 
+    else if (node is TaskNode) {
+      content['text'] = node.text.toPlainText();
+      
+      metadata['is_completed'] = node.isComplete;
+      
+      // Extract spans for formatting
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      metadata['spans'] = spans;
+    } 
+    else if (node is ListItemNode) {
+      content['text'] = node.text.toPlainText();
+      
+      // Extract spans for list items
+      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
+      metadata['spans'] = spans;
+      
+      metadata['listType'] = node.type == ListItemType.ordered ? 'ordered' : 'unordered';
     }
     
-    // Merge adjacent spans of the same type to optimize storage
-    return _mergeAdjacentSpans(spans);
-  }
-  
-  // Improved helper method to merge adjacent spans of the same type
-  List<Map<String, dynamic>> _mergeAdjacentSpans(List<Map<String, dynamic>> spans) {
-    if (spans.isEmpty) return [];
-    
-    // Sort spans by start position for easier processing
-    spans.sort((a, b) => a['start'].compareTo(b['start']));
-    
-    final List<Map<String, dynamic>> mergedSpans = [];
-    Map<String, dynamic>? currentSpan;
-    
-    for (final span in spans) {
-      if (currentSpan == null) {
-        currentSpan = Map<String, dynamic>.from(span);
-      } else if (currentSpan['end'] >= span['start'] && 
-                 currentSpan['type'] == span['type'] &&
-                 // For links, only merge if they have the same href
-                 (span['type'] != 'link' || currentSpan['href'] == span['href'])) {
-        // Merge by extending the end of the current span
-        currentSpan['end'] = span['end'] > currentSpan['end'] ? span['end'] : currentSpan['end'];
-      } else {
-        // Different type or non-adjacent spans, add current and start a new one
-        mergedSpans.add(currentSpan);
-        currentSpan = Map<String, dynamic>.from(span);
-      }
-    }
-    
-    // Add the last span if it exists
-    if (currentSpan != null) {
-      mergedSpans.add(currentSpan);
-    }
-    
-    return mergedSpans;
+    return {
+      'content': content,
+      'metadata': metadata
+    };
   }
 
-  // Creates nodes from a block
+  // Creates nodes from a block with proper metadata handling
   List<DocumentNode> createNodesFromBlock(Block block) {
     final content = block.content;
+    final metadata = block.metadata;
     String blockType = block.type;
     
-    // Extract metadata if available
-    Map<String, dynamic>? metadata;
-    Map<String, dynamic>? contentMetadata;
+    // Get text content (only thing that should be in content)
+    final text = content['text']?.toString() ?? '';
     
-    if (content is Map && content.containsKey('metadata')) {
-      contentMetadata = content['metadata'] as Map<String, dynamic>?;
-      
-      // Check if there's a blockType in the metadata
-      if (contentMetadata != null && contentMetadata.containsKey('blockType')) {
-        final metadataBlockType = contentMetadata['blockType'];
-        if (metadataBlockType != null && metadataBlockType.toString().isNotEmpty) {
-          // Override the block type with metadata value
-          blockType = metadataBlockType.toString();
-        }
-      }
-    }
+    // Use block.type directly - don't look for blockType in metadata
+    // This is because blockType is not a property of block.metadata
     
     // Create node based on block type
     switch (blockType) {
       case 'heading':
-        final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
-        final level = content is Map ? (content['level'] ?? 1) : 1;
+        // Get heading level from metadata
+        final level = metadata != null ? metadata['level'] ?? 1 : 1;
         final levelInt = level is int ? level : int.tryParse(level.toString()) ?? 1;
         
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
+            text: _attributedTextUtils.createAttributedTextFromContent(text, {'metadata': metadata}),
             metadata: {
               'blockType': NamedAttribution("heading$levelInt"), 
             },
@@ -854,154 +726,43 @@ class DocumentBuilder {
         ];
         
       case 'task':
-        final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
-        
-        // Get checked status from content - prefer is_completed over checked
+        // Get completion status from metadata
         bool isCompleted = false;
-        if (content is Map) {
-          if (content.containsKey('is_completed')) {
-            isCompleted = content['is_completed'] == true;
-          } else if (content.containsKey('checked')) {
-            isCompleted = content['checked'] == true;
-          } else if (contentMetadata != null) {
-            isCompleted = contentMetadata['is_completed'] == true;
-          }
+        if (metadata != null && metadata.containsKey('is_completed')) {
+          isCompleted = metadata['is_completed'] == true;
         }
         
         return [
           TaskNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
+            text: _attributedTextUtils.createAttributedTextFromContent(text, {'metadata': metadata}),
             isComplete: isCompleted,
           ),
         ];
         
       case 'code':
-        final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
+        final language = metadata != null ? metadata['language']?.toString() ?? 'plain' : 'plain';
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
-            metadata: const {
-              'blockType': NamedAttribution("code")
+            text: _attributedTextUtils.createAttributedTextFromContent(text, {'metadata': metadata}),
+            metadata: {
+              'blockType': const NamedAttribution("code"),
+              'language': language
             },
           ),
         ];
         
       case 'text':
       default:
-        final text = content is Map ? (content['text']?.toString() ?? '') : (content is String ? content : '');
-        
-        // Get blockType from metadata if available
-        if (contentMetadata != null && contentMetadata.containsKey('blockType')) {
-          final metadataBlockType = contentMetadata['blockType'];
-          if (metadataBlockType != null && metadataBlockType.toString().isNotEmpty) {
-            metadata = {'blockType': NamedAttribution(metadataBlockType)};
-          }
-        }
-        
         return [
           ParagraphNode(
             id: Editor.createNodeId(),
-            text: createAttributedTextFromContent(text, content),
-            metadata: metadata,
+            text: _attributedTextUtils.createAttributedTextFromContent(text, {'metadata': metadata}),
+            metadata: const {'blockType': NamedAttribution("paragraph")},
           ),
         ];
     }
-  }
-  
-  // Create AttributedText from content including spans with better error handling
-  AttributedText createAttributedTextFromContent(String text, dynamic content) {
-    // Safety check for empty text
-    if (text.isEmpty) {
-      return AttributedText('');
-    }
-    
-    final attributedText = AttributedText(text);
-    
-    try {
-      // Process spans if available
-      List? spans;
-      if (content is Map) {
-        if (content.containsKey('spans')) {
-          spans = content['spans'] as List?;
-        } else if (content.containsKey('inlineStyles')) {
-          spans = content['inlineStyles'] as List?;
-        } else if (content.containsKey('metadata')) {
-          // Check if spans are in metadata.styling
-          final metadata = content['metadata'] as Map?;
-          if (metadata != null && metadata.containsKey('styling')) {
-            final styling = metadata['styling'] as Map?;
-            if (styling != null && styling.containsKey('spans')) {
-              spans = styling['spans'] as List?;
-            }
-          }
-        }
-      }
-      
-      if (spans != null) {
-        for (final span in spans) {
-          if (span is Map && 
-              span.containsKey('start') && 
-              span.containsKey('end') && 
-              span.containsKey('type')) {
-            try {
-              final start = span['start'] is int ? span['start'] : int.tryParse(span['start'].toString()) ?? 0;
-              final end = span['end'] is int ? span['end'] : int.tryParse(span['end'].toString()) ?? 0;
-              final type = span['type'] as String? ?? '';
-              
-              // Validate span range to avoid errors
-              if (start >= 0 && end > start && end <= text.length) {
-                // Apply attributions based on the type
-                switch (type) {
-                  case 'bold':
-                    attributedText.addAttribution(
-                      const NamedAttribution('bold'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                  case 'italic':
-                    attributedText.addAttribution(
-                      const NamedAttribution('italic'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                  case 'link':
-                    final href = span['href'] as String?;
-                    if (href != null) {
-                      attributedText.addAttribution(
-                        LinkAttribution(href), 
-                        SpanRange(start, end)
-                      );
-                    }
-                    break;
-                  case 'underline':
-                    attributedText.addAttribution(
-                      const NamedAttribution('underline'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                  case 'strikethrough':
-                    attributedText.addAttribution(
-                      const NamedAttribution('strikethrough'), 
-                      SpanRange(start, end)
-                    );
-                    break;
-                }
-              }
-            } catch (e) {
-              _logger.warning('Error processing span: $e');
-              // Continue with next span
-            }
-          }
-        }
-      }
-    } catch (e) {
-      _logger.error('Error processing text spans: $e');
-      // Return plain text if span processing fails
-    }
-    
-    return attributedText;
   }
 
   // New method: Create a node for a specific block and insert it at the right position
@@ -1012,7 +773,7 @@ class DocumentBuilder {
     final node = nodes.first;
     
     // Map the node to the block
-    nodeToBlockMap[node.id] = block.id;
+    _blockNodeMapping.linkNodeToBlock(node.id, block.id);
     
     // Insert at specific index if provided, otherwise add to end
     if (index != null && index >= 0 && index <= document.length) {
@@ -1031,18 +792,13 @@ class DocumentBuilder {
   // New method: Delete a node for a specific block
   bool deleteBlockNode(String blockId) {
     // Find the node ID for this block
-    String? nodeId;
-    nodeToBlockMap.forEach((nId, bId) {
-      if (bId == blockId) {
-        nodeId = nId;
-      }
-    });
+    String? nodeId = _blockNodeMapping.getNodeIdForBlock(blockId);
     
     if (nodeId != null) {
       _updatingDocument = true;
       try {
-        document.deleteNode(nodeId!);
-        nodeToBlockMap.remove(nodeId);
+        document.deleteNode(nodeId);
+        _blockNodeMapping.removeBlockMapping(blockId);
         _logger.info('Node deleted for block $blockId');
         return true;
       } catch (e) {
@@ -1056,22 +812,14 @@ class DocumentBuilder {
   
   // New method: Update a node for a specific block
   bool updateBlockNode(Block block) {
-    // Find any nodes for this block
-    List<String> nodeIds = [];
-    nodeToBlockMap.forEach((nId, bId) {
-      if (bId == block.id) {
-        nodeIds.add(nId);
-      }
-    });
+    // Find node for this block
+    String? nodeId = _blockNodeMapping.getNodeIdForBlock(block.id);
     
-    if (nodeIds.isEmpty) {
+    if (nodeId == null || nodeId.isEmpty) {
       // No nodes for this block - must be a new block
       _logger.debug('No existing node for block ${block.id}, will insert a new one');
       return false;
     }
-    
-    // Get the first node (should usually be only one)
-    final nodeId = nodeIds.first;
     
     // Create new nodes from updated block
     final newNodes = createNodesFromBlock(block);
@@ -1083,8 +831,7 @@ class DocumentBuilder {
       document.replaceNodeById(nodeId, newNodes.first);
       
       // Update mapping
-      nodeToBlockMap.remove(nodeId);
-      nodeToBlockMap[newNodes.first.id] = block.id;
+      _blockNodeMapping.linkNodeToBlock(newNodes.first.id, block.id);
       
       _logger.debug('Node updated for block ${block.id}');
       return true;
@@ -1098,8 +845,8 @@ class DocumentBuilder {
   
   // New method: Find the index where a block should be inserted based on order
   int findInsertIndexForBlock(Block block, List<Block> allBlocks) {
-    // Get all block IDs that have nodes
-    final nodeBlockIds = nodeToBlockMap.values.toList();
+    // Get all blocks that have nodes
+    final nodeBlockIds = _blockNodeMapping.nodeToBlockMap.values.toSet().toList();
     
     // If no blocks with nodes, insert at the beginning
     if (nodeBlockIds.isEmpty) {
@@ -1116,11 +863,11 @@ class DocumentBuilder {
     for (int i = 0; i < visibleBlocks.length; i++) {
       if (block.order < visibleBlocks[i].order) {
         // Find node index for this block
-        final targetNodeId = _getNodeIdForBlock(visibleBlocks[i].id);
+        final targetNodeId = _blockNodeMapping.getNodeIdForBlock(visibleBlocks[i].id);
         if (targetNodeId != null) {
           final index = document.getNodeIndexById(targetNodeId);
           return index;
-                }
+        }
       }
     }
     
@@ -1128,33 +875,18 @@ class DocumentBuilder {
     return document.length;
   }
   
-  // Helper to get node ID for a block ID
-  String? _getNodeIdForBlock(String blockId) {
-    for (final entry in nodeToBlockMap.entries) {
-      if (entry.value == blockId) {
-        return entry.key;
-      }
-    }
-    return null;
-  }
-  
   // New method: Move a node for a block to a new position
   bool moveBlockNode(String blockId, int targetIndex) {
     // Find the node ID for this block
-    String? nodeId;
-    nodeToBlockMap.forEach((nId, bId) {
-      if (bId == blockId) {
-        nodeId = nId;
-      }
-    });
+    String? nodeId = _blockNodeMapping.getNodeIdForBlock(blockId);
     
     if (nodeId != null) {
-      final currentIndex = document.getNodeIndexById(nodeId!);
+      final currentIndex = document.getNodeIndexById(nodeId);
       if (currentIndex != targetIndex) {
         _updatingDocument = true;
         try {
-          final node = document.getNodeById(nodeId!)!;
-          document.deleteNode(nodeId!);
+          final node = document.getNodeById(nodeId)!;
+          document.deleteNode(nodeId);
           
           // Adjust target index if needed (if moving forward)
           final adjustedIndex = targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
@@ -1176,12 +908,16 @@ class DocumentBuilder {
   void updateDocumentWithBlocks(List<Block> blocks, List<Block> allBlocks) {
     if (blocks.isEmpty) return;
     
+    // Save current selection state
+    final currentSelection = composer.selection;
+    final hadFocus = focusNode.hasFocus;
+    
     _updatingDocument = true;
     try {
       for (final block in blocks) {
         // Check if a node for this block already exists
         bool nodeExists = false;
-        nodeToBlockMap.forEach((nodeId, blockId) {
+        _blockNodeMapping.nodeToBlockMap.forEach((nodeId, blockId) {
           if (blockId == block.id) {
             nodeExists = true;
           }
@@ -1194,6 +930,16 @@ class DocumentBuilder {
           // Insert new node at the correct position
           final insertIndex = findInsertIndexForBlock(block, allBlocks);
           insertBlockNode(block, index: insertIndex);
+        }
+      }
+      
+      // After updates, restore selection if it was lost
+      if (currentSelection != null && composer.selection == null) {
+        tryRestoreSelection(currentSelection);
+        
+        // If selection restoration failed but we had focus, at least restore focus
+        if (hadFocus && !focusNode.hasFocus) {
+          focusNode.requestFocus();
         }
       }
     } finally {
@@ -1355,51 +1101,34 @@ class DocumentBuilder {
   
   /// Check if the content of a node has changed compared to its corresponding block
   bool hasNodeContentChanged(DocumentNode node, String blockId, Block block) {
-    final Map<String, dynamic> nodeContent = extractContentFromNode(node, blockId, block);
+    final extractedData = extractContentFromNode(node, blockId, block);
+    final content = extractedData['content'];
+    final metadata = extractedData['metadata'];
     
-    // Compare the extracted content with the block's content
-    // This requires a deep comparison, not just toString()
-    if (block.content is Map) {
-      // Compare important fields like 'text' and 'spans'
-      if (block.content['text'] != nodeContent['text']) {
-        return true;
-      }
-      
-      // Check if task completion status changed - add specific check for task blocks
-      if (block.type == 'task' && node is TaskNode) {
-        // Check if is_completed changed in content
-        if (block.content['is_completed'] != nodeContent['is_completed']) {
-          return true;
-        }
-      }
-      
-      // Check if spans have changed (requires deeper comparison)
-      final blockSpans = block.content['spans'];
-      final nodeSpans = nodeContent['spans'];
-      
-      if ((blockSpans == null && nodeSpans != null && nodeSpans.isNotEmpty) ||
-          (blockSpans != null && blockSpans.isNotEmpty && nodeSpans == null) ||
-          (blockSpans != null && nodeSpans != null && 
-           blockSpans.toString() != nodeSpans.toString())) {
-        return true;
-      }
-      
-      // Check other type-specific fields
-      if (block.type == 'heading' && 
-          block.content['level'] != nodeContent['level']) {
-        return true;
-      }
-      
-      if (block.type == 'code' && 
-          block.content['language'] != nodeContent['language']) {
-        return true;
-      }
-      
-      return false;
-    } else {
-      // Fall back to string comparison for simple content
-      return block.content.toString() != nodeContent.toString();
+    // Compare text content only from content object
+    if (block.content['text'] != content['text']) {
+      _logger.debug('Block $blockId text changed');
+      return true;
     }
+    
+    // For task blocks, check completion status from metadata
+    if (block.type == 'task' && block.metadata != null && metadata['is_completed'] != block.metadata!['is_completed']) {
+      _logger.debug('Block $blockId task completion status changed');
+      return true;
+    }
+    
+    // Check spans in metadata
+    final blockSpans = block.metadata != null ? block.metadata!['spans'] : null;
+    final nodeSpans = metadata['spans'];
+    
+    if ((blockSpans == null && nodeSpans != null && nodeSpans.isNotEmpty) ||
+        (blockSpans != null && blockSpans.isNotEmpty && nodeSpans == null) ||
+        (blockSpans != null && nodeSpans != null && blockSpans.toString() != nodeSpans.toString())) {
+      _logger.debug('Block $blockId spans changed');
+      return true;
+    }
+    
+    return false;
   }
 
   /// Gets the position information for a node from a document layout
@@ -1432,6 +1161,26 @@ class DocumentBuilder {
       _logger.error('Error getting node position for $nodeId: $e');
       return null;
     }
+  }
+
+  void linkNodeToBlock(String nodeId, String blockId) {
+    // Remove mapping for this node
+    _blockNodeMapping.linkNodeToBlock(nodeId, blockId);
+  }
+
+  void removeNodeMapping(String nodeId) {
+    // Remove mapping for this node
+    _blockNodeMapping.removeNodeMapping(nodeId);
+  }
+
+  void removeBlockMapping(String blockId) {
+    // Remove mapping for this node
+    _blockNodeMapping.removeBlockMapping(blockId);
+  }
+
+  void removeUncommittedNode(String nodeId) {
+    // Remove uncommitted nodes from the mapping
+    _blockNodeMapping.removeUncommittedNode(nodeId);
   }
   
   // Create Super Editor with configured components and keyboard handlers

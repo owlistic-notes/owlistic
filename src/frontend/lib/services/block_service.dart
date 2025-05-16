@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../models/block.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/models/block.dart';
+import 'package:owlistic/utils/logger.dart';
 import 'base_service.dart';
 
 class BlockService extends BaseService {
@@ -36,29 +36,39 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> createBlock(String noteId, dynamic content, String blockType, double order) async {
+  Future<Block> createBlock(String noteId, Map<String, dynamic> content, String blockType, double order) async {
     try {
-      // Convert content to proper format for API
-      Map<String, dynamic> contentMap;
-      if (content is String) {
-        contentMap = {'text': content};
-      } else if (content is Map) {
-        contentMap = Map<String, dynamic>.from(content);
-      } else {
-        contentMap = {'text': content.toString()};
+      // Initialize content and metadata properly
+      Map<String, dynamic> contentMap = {};
+      Map<String, dynamic> metadataMap = {
+        '_sync_source': 'block',
+      };
+      
+      // Extract content and metadata from structured input
+      final inputMap = Map<String, dynamic>.from(content);
+      
+      // Move any metadata fields from content to top-level metadata
+      if (inputMap.containsKey('metadata')) {
+        if (inputMap['metadata'] is Map) {
+          metadataMap.addAll(Map<String, dynamic>.from(inputMap['metadata']));
+          inputMap.remove('metadata');
+        }
       }
       
-      // Make sure metadata exists and contains _sync_source
-      if (!contentMap.containsKey('metadata')) {
-        contentMap['metadata'] = {'_sync_source': 'block'};
-      } else if (contentMap['metadata'] is Map) {
-        (contentMap['metadata'] as Map)['_sync_source'] = 'block';
+      // Move spans to metadata if present in content
+      if (inputMap.containsKey('spans')) {
+        metadataMap['spans'] = inputMap['spans'];
+        inputMap.remove('spans');
       }
+      
+      
+      contentMap = inputMap;
       
       final requestBody = {
         'note_id': noteId,
-        'block_type': blockType,
+        'type': blockType,
         'content': contentMap,
+        'metadata': metadataMap,
         'order': order,
       };
       
@@ -75,6 +85,7 @@ class BlockService extends BaseService {
       rethrow;
     }
   }
+
 
   Future<void> deleteBlock(String id) async {
     try {
@@ -95,16 +106,43 @@ class BlockService extends BaseService {
       // Create a copy of the content to avoid modifying the original
       final payload = Map<String, dynamic>.from(content);
       
-      // Make sure _sync_source is inside metadata, not at the top level
+      // Ensure metadata structure is correct with proper sync timestamps
+      Map<String, dynamic> metadataMap = {
+        '_sync_source': 'block', 
+        'block_id': blockId,
+        'last_synced': DateTime.now().toIso8601String() // Add current timestamp
+      };
+      
+      // If there's existing metadata, merge it but preserve our sync fields
       if (payload.containsKey('metadata')) {
         if (payload['metadata'] is Map) {
-          (payload['metadata'] as Map)['_sync_source'] = 'block';
-        } else {
-          payload['metadata'] = {'_sync_source': 'block'};
+          metadataMap.addAll(Map<String, dynamic>.from(payload['metadata']));
         }
-      } else {
-        payload['metadata'] = {'_sync_source': 'block'};
       }
+      
+      // Move any nested metadata from content to top-level
+      if (payload.containsKey('content') && payload['content'] is Map) {
+        final contentMap = Map<String, dynamic>.from(payload['content']);
+        
+        // Move spans to metadata if present in content
+        if (contentMap.containsKey('spans')) {
+          metadataMap['spans'] = contentMap['spans'];
+          contentMap.remove('spans');
+        }
+        
+        // Move any nested metadata to top-level metadata
+        if (contentMap.containsKey('metadata')) {
+          if (contentMap['metadata'] is Map) {
+            metadataMap.addAll(Map<String, dynamic>.from(contentMap['metadata']));
+          }
+          contentMap.remove('metadata');
+        }
+        
+        payload['content'] = contentMap;
+      }
+      
+      // Update the metadata in the payload
+      payload['metadata'] = metadataMap;
       
       _logger.debug('Sending update for block $blockId: $payload');
       
@@ -121,6 +159,32 @@ class BlockService extends BaseService {
       rethrow;
     }
   }
+
+  Future<Block> updateTaskCompletion(String blockId, bool isCompleted) async {
+  try {
+    // Get existing block
+    Block block = await getBlock(blockId);
+    
+    // Manually create update payload
+    final updatedMetadata = block.metadata != null ? 
+        Map<String, dynamic>.from(block.metadata!) : <String, dynamic>{};
+    
+    updatedMetadata['_sync_source'] = 'block';
+    updatedMetadata['block_id'] = block.id;
+    updatedMetadata['is_completed'] = isCompleted;
+    updatedMetadata['last_synced'] = DateTime.now().toIso8601String();
+    
+    final payload = <String, dynamic>{
+      'content': block.content,
+      'metadata': updatedMetadata,
+    };
+    
+    return await updateBlock(blockId, payload);
+  } catch (e) {
+    _logger.error('Error updating task completion', e);
+    rethrow;
+  }
+}
 
   Future<Block> getBlock(String id) async {
     try {

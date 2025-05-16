@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
-import '../utils/logger.dart';
+import 'package:owlistic/models/user.dart';
+import 'package:owlistic/utils/logger.dart';
 import 'base_service.dart';
 
 class AuthService extends BaseService {

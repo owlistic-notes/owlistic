@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../core/theme.dart';
-import '../viewmodel/home_viewmodel.dart';
+import 'package:owlistic/core/theme.dart';
+import 'package:owlistic/viewmodel/home_viewmodel.dart';
 import 'app_logo.dart';
 
 class AppDrawer extends StatelessWidget {

@@ -1,5 +1,5 @@
-import '../models/task.dart';
-import '../models/note.dart';
+import 'package:owlistic/models/task.dart';
+import 'package:owlistic/models/note.dart';
 import 'base_viewmodel.dart';
 
 /// Interface for task management functionality
@@ -20,7 +20,7 @@ abstract class TasksViewModel extends BaseViewModel {
   Future<void> loadAvailableNotes();
   
   /// Create a new task
-  Future<void> createTask(String title, String noteId, {String? blockId});
+  Future<void> createTask(String title, String noteId);
   
   /// Delete a task
   Future<void> deleteTask(String id);

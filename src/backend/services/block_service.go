@@ -22,7 +22,6 @@ type BlockServiceInterface interface {
 	DeleteBlock(db *database.Database, id string, params map[string]interface{}) error
 	ListBlocksByNote(db *database.Database, noteID string, params map[string]interface{}) ([]models.Block, error)
 	GetBlocks(db *database.Database, params map[string]interface{}) ([]models.Block, error)
-	GetBlockWithStyles(db *database.Database, id string, params map[string]interface{}) (models.Block, map[string]interface{}, error)
 }
 
 type BlockService struct{}
@@ -33,7 +32,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, tx.Error
 	}
 
-	blockType, ok := blockData["block_type"].(string)
+	blockType, ok := blockData["type"].(string)
 	if !ok {
 		return models.Block{}, ErrInvalidBlockType
 	}
@@ -106,24 +105,23 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 	// Process content based on input type
 	var content models.BlockContent
 	if contentData, ok := blockData["content"].(map[string]interface{}); ok {
-		// If we get a structured content object, use it directly
-		content = contentData
-	} else if contentStr, ok := blockData["content"].(string); ok {
-		// If content is provided as a string, maintain backward compatibility
-		// by storing it as {"text": content} in the JSONB field
-		content = models.BlockContent{"text": contentStr}
+		// If content is a map, use it directly
+		content = models.BlockContent(contentData)
 	} else {
 		tx.Rollback()
 		return models.Block{}, ErrInvalidInput
 	}
 
+	blockID := uuid.New()
+
 	// Handle metadata if provided
-	metadata := models.BlockContent{}
+	metadata := models.BlockMetadata{}
 	if metaData, ok := blockData["metadata"].(map[string]interface{}); ok {
-		metadata = metaData
+		metadata = models.BlockMetadata(metaData)
+		metadata["_sync_source"] = "block"
+		metadata["block_id"] = blockID
 	}
 
-	blockID := uuid.New()
 	block := models.Block{
 		ID:       blockID,
 		NoteID:   uuid.Must(uuid.Parse(noteIDStr)),
@@ -141,7 +139,7 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 
 	actorID, _ := blockData["user_id"].(string)
 	event, err := models.NewEvent(
-		string(broker.BlockCreated), // Use standard event type
+		string(broker.BlockCreated),
 		"block",
 		"create",
 		actorID,
@@ -231,7 +229,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 	}
 
 	eventData := map[string]interface{}{
-		"block_id":   block.ID.String(), // Use block_id instead of id
+		"block_id":   block.ID.String(),
 		"note_id":    block.NoteID.String(),
 		"user_id":    block.UserID.String(),
 		"updated_at": time.Now().UTC(),
@@ -239,40 +237,29 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 
 	// Handle content updates
 	if contentInterface, exists := blockData["content"]; exists {
-		var updatedContent models.BlockContent
+		if contentMap, ok := contentInterface.(map[string]interface{}); ok {
+			// Process content as a map
+			updatedContent := models.BlockContent(contentMap)
 
-		switch content := contentInterface.(type) {
-		case map[string]interface{}:
-			// If we get a structured content object, use it directly
-			updatedContent = models.BlockContent(content)
-		case string:
-			// If content is provided as a string, convert to proper format
-			updatedContent = models.BlockContent{"text": content}
-		default:
+			// Set the processed content to both blockData and eventData
+			eventData["content"] = updatedContent
+			blockData["content"] = updatedContent
+		} else {
 			tx.Rollback()
 			return models.Block{}, ErrInvalidInput
 		}
-
-		// Set the processed content to both blockData and eventData
-		eventData["content"] = updatedContent
-		blockData["content"] = updatedContent
 	}
 
-	// If there's a separate metadata field, merge it into content.metadata
-	if metadataInterface, exists := blockData["metadata"]; exists && blockData["content"] != nil {
-		contentMap, ok := blockData["content"].(models.BlockContent)
-		if ok {
-			// Add metadata to content object
-			contentMap["metadata"] = metadataInterface
-			blockData["content"] = contentMap
-
-			// Remove separate metadata field
-			delete(blockData, "metadata")
+	// Handle metadata separately - don't merge into content
+	if metadataInterface, exists := blockData["metadata"]; exists {
+		if metadataMap, ok := metadataInterface.(map[string]interface{}); ok {
+			blockData["metadata"] = models.BlockMetadata(metadataMap)
+			eventData["metadata"] = models.BlockMetadata(metadataMap)
 		}
 	}
 
-	if blockType, ok := blockData["block_type"].(string); ok {
-		eventData["block_type"] = blockType
+	if blockType, ok := blockData["type"].(string); ok {
+		eventData["type"] = blockType
 	}
 
 	// Create the event
@@ -461,7 +448,7 @@ func (s *BlockService) GetBlocks(db *database.Database, params map[string]interf
 		log.Printf("Filtering by note_id: %s", noteID)
 	}
 
-	if blockType, ok := params["block_type"].(string); ok && blockType != "" {
+	if blockType, ok := params["type"].(string); ok && blockType != "" {
 		query = query.Where("type = ?", blockType)
 	}
 
@@ -536,19 +523,3 @@ func NewBlockService() BlockServiceInterface {
 
 // Don't initialize here, will be set properly in main.go
 var BlockServiceInstance BlockServiceInterface
-
-// GetBlockWithStyles returns a block with its style information separately
-func (s *BlockService) GetBlockWithStyles(db *database.Database, id string, params map[string]interface{}) (models.Block, map[string]interface{}, error) {
-	// First get the block
-	block, err := s.GetBlockById(db, id, params)
-	if err != nil {
-		return models.Block{}, nil, err
-	}
-
-	// Extract style information
-	styleInfo := map[string]interface{}{
-		"styles": block.GetInlineStyles(),
-	}
-
-	return block, styleInfo, nil
-}

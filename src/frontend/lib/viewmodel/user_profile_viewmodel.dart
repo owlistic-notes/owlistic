@@ -1,4 +1,4 @@
-import '../models/user.dart';
+import 'package:owlistic/models/user.dart';
 import 'base_viewmodel.dart';
 
 /// Interface for user profile management functionality
@@ -38,5 +38,6 @@ abstract class UserProfileViewModel extends BaseViewModel {
   bool passwordsMatch(String password, String confirmPassword);
   
   // State management
+  @override
   void resetState();
 }
