@@ -361,6 +361,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         title: '',  // Empty title as we have our own title field
         showBackButton: false,  // No back button in app bar
         actions: [
+           IconButton(
+            icon: const Icon(Icons.refresh_outlined),
+            tooltip: 'Refresh note content',
+            onPressed: () => _noteEditorViewModel.updateBlocks(
+              _noteEditorViewModel.blocks,
+              preserveFocus: true,
+              markAsModified: false,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.upload_file),
             tooltip: 'Import Markdown',

@@ -1528,17 +1528,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   @override
-  void updateBlockCache(List<Block> blocks) {
-    for (final block in blocks) {
-      // Only update if this block belongs to an active note
-      if (_noteId == block.noteId || _activeNoteIds.contains(block.noteId)) {
-        _blocks[block.id] = block;
-        _documentBuilder.registerServerBlock(block);
-      }
-    }
-  }
-
-  @override
   void commitAllContent() {
     _logger.debug('Committing content for all blocks');
     

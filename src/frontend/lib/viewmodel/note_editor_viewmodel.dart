@@ -70,7 +70,6 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   Map<String, dynamic> getPaginationInfo(String noteId);
   
   // Server sync and events
-  void updateBlockCache(List<Block> blocks);
   void commitAllContent();
   Future<void> fetchBlockFromEvent(String blockId);
   
