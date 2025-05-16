@@ -1,4 +1,0 @@
-{{- $ctx := deepCopy . -}}
-{{- $_ := get .Values "app" | mergeOverwrite $ctx.Values -}}
-{{- $_ = include "owlistic.app.values" . | fromYaml | merge $ctx.Values -}}
-{{- include "bjw-s.common.loader.all" $ctx }}
