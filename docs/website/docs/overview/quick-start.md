@@ -28,13 +28,29 @@ Stay tuned for Mobile and Desktop apps soon!
 
 ![Login screen](img/login.png)
 
-## Create a new notebook
+## Organize notes in Notebooks
 
-## Create a new note
+![Notebooks screen](img/notebooks.png)
+
+## Notes
+
+![Notes screen](img/notes.png)
 
 ## Edit a note
 
-## Add a task to your note
+![Editor screen](img/editor.png)
+
+### Import from Markdown file
+
+![Import button](img/import.png)
+
+## Add tasks
+
+![Task screen](img/tasks.png)
+
+## Trash
+
+![Trash screen](img/trash.png)
 
 ## Explore Features
 

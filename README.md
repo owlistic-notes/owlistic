@@ -15,21 +15,16 @@
 
 ## Table of Contents
 
-- [Intro & motivation](#intro-and-motivation)
 - [Quick Links](#quick-links)
-- [Install](#install)
-- [Usage](#usage)
+- [Features](#features)
+- [Installation](#install)
 - [Maintainers](#maintainers)
 - [Contributing](#contributing)
 - [License](#license)
 
-## Intro and motivation
-
-TODO: add motivation
-
 ## Quick Links
 
-- [Installation](https://owlistic-notes.github.io/owlistic/docs/overview/installation)
+- [Installation](https://owlistic-notes.github.io/owlistic/docs/category/installation)
 - [Quick Start](https://owlistic-notes.github.io/owlistic/docs/overview/quick-start)
 - [FAQ](https://owlistic-notes.github.io/owlistic/docs/troubleshooting/faq)
 <!--
@@ -46,15 +41,13 @@ TODO: add motivation
 - 🔒 Role-based access control
 - 🗑 Trash
 - 🌓 Dark/Light mode
-- ⬇️ Import markdown notes
+- ⬇️ Import markdown note
+
+Please have a look at the [features](https://owlistic-notes.github.io/owlistic/docs/category/features) for details.
 
 ## Install
 
-Please follow the [installation instructions](https://owlistic-notes.github.io/owlistic/docs/overview/installation).
-
-## Usage
-
-Please follow the [usage instructions](https://owlistic-notes.github.io/owlistic/docs/category/usage).
+Spin up Owlistic in minutes using your preferred [installation method](https://owlistic-notes.github.io/owlistic/docs/category/installation).
 
 ## Maintainers
 
@@ -69,4 +62,4 @@ Small note: If editing the README, please conform to the
 
 ## License
 
-MIT © 2025 owlistic-notes
+GPLv3.0 © 2025 owlistic-notes
