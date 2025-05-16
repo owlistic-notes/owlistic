@@ -79,7 +79,7 @@ export default {
           items: [
             {
               label: 'Getting Started',
-              to: '/docs/getting-started/intro',
+              to: '/docs/overview/intro',
             },
           ],
         },

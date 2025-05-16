@@ -5,7 +5,7 @@
   # 🦉 Open-source real-time notetaking & todo app 🔄⚡️🚀
 
   [![Release](https://img.shields.io/github/release/owlistic-notes/owlistic?style=flat-square)](https://github.com/owlistic-notes/owlistic/releases/latest)
-  [![Docs](https://img.shields.io/badge/docs-online-blue.svg?style=flat-square)](https://owlistic-notes.github.io/owlistic/docs/category/getting-started)
+  [![Docs](https://img.shields.io/badge/docs-online-blue.svg?style=flat-square)](https://owlistic-notes.github.io/owlistic/docs/category/overview)
   [![License](https://img.shields.io/badge/license-GPLv3-blue.svg?style=flat-square)](LICENSE)
   [![standard-readme](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
@@ -29,8 +29,8 @@ TODO: add motivation
 
 ## Quick Links
 
-- [Installation](https://owlistic-notes.github.io/owlistic/docs/getting-started/installation)
-- [Quick Start](https://owlistic-notes.github.io/owlistic/docs/getting-started/quick-start)
+- [Installation](https://owlistic-notes.github.io/owlistic/docs/overview/installation)
+- [Quick Start](https://owlistic-notes.github.io/owlistic/docs/overview/quick-start)
 - [FAQ](https://owlistic-notes.github.io/owlistic/docs/troubleshooting/faq)
 <!--
 - [Api Reference](https://owlistic-notes.github.io/owlistic/docs/category/api-reference)
@@ -50,7 +50,7 @@ TODO: add motivation
 
 ## Install
 
-Please follow the [installation instructions](https://owlistic-notes.github.io/owlistic/docs/getting-started/installation).
+Please follow the [installation instructions](https://owlistic-notes.github.io/owlistic/docs/overview/installation).
 
 ## Usage
 
