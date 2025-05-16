@@ -35,4 +35,10 @@ abstract class NotesViewModel extends BaseViewModel {
 
   /// Move a note from one notebook to another
   Future<void> moveNote(String noteId, String newNotebookId);
+
+  /// Import a markdown file and create a new note with its content
+  Future<Note?> importMarkdownFile(String content, String fileName, String notebookId);
+  
+  /// Export a note to markdown format
+  Future<String> exportNoteToMarkdown(String noteId);
 }
