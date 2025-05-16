@@ -6,28 +6,21 @@ sidebar_position: 1
 
 ![Owlistic Logo](/img/logo-192x192.png)
 
-Welcome to Owlistic - a free open-source Owlistic with real-time synchronization.
+## Welcome to Owlistic!
 
-## What is Owlistic?
+Hi, I'm the creator of **Owlistic**, an open-source, event-driven note-taking app that I originally built for myself.
 
-Owlistic is a self-hosted application designed to help you capture, organize, and access your thoughts from anywhere. With real-time synchronization capabilities, your notes are always up-to-date across all your devices.
+Owlistic started out of a simple need: I have been a long time user the _Best Note Taking App_ that not-so-recently became almost unusable without paid subscription. Also, since I started my self-hosting journey, I was already looking for an alternative that was free and open-source, without loosing the user experience and performance of such _Best Note Taking App_.
 
-## Key Features
+So that's where things paired up. I needed a simple-to-use note-taking app with a native desktop/mobile app, with support for inline tasks, that was blazing fast at synchronizing notes and tasks across my devices. And so, I started building Owlistic and took it as my personal deep dive into event-driven system design.
 
-- **Real-time synchronization** across all your devices
-- **Markdown support** for rich text formatting
-- **Self-hosted** solution for complete privacy and data control
-- **Open-source** and free to use under MIT license
-- **Customizable** to fit your workflow
-- **Secure** by design, with your data under your control
+By contributing Owlistic to the open-source community, I'd like to think I am also giving back to the open-source community from which I have greatly benefit. It's a small way for me to pay it forward and help others build their own solutions, free from the limitations of proprietary software.
+
+I'm excited to share this project with the community and invite you to join me in making it even better!
 
 ## Getting Started
 
-Ready to start using Owlistic? Check out our [Quick Start Guide](./quick-start) to get up and running in minutes.
-
-## Why Owlistic?
-
-In a world of proprietary note-taking solutions that lock your data into walled gardens, Owlistic stands out by putting you in control. Host it on your own infrastructure, customize it to your needs, and never worry about a service shutting down or changing its terms.
+Ready to start using Owlistic? Check out the [Quick Start Guide](./quick-start) to get it up and running.
 
 ## Contributing
 
