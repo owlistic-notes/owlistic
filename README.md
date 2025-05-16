@@ -9,7 +9,7 @@
   [![License](https://img.shields.io/badge/license-GPLv3-blue.svg?style=flat-square)](LICENSE)
   [![standard-readme](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-  [![Activity](https://img.shields.io/github/commit-activity/m/badges/shields)](https://github.com/owlistic-notes/owlistic/pulse)
+  [![Activity](https://img.shields.io/github/commit-activity/m/owlistic-notes/owlistic)](https://github.com/owlistic-notes/owlistic/pulse)
 
 </div>
 
