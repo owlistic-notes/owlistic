@@ -12,7 +12,6 @@ import 'package:owlistic/utils/logger.dart';
 import 'package:owlistic/services/block_service.dart';
 import 'package:owlistic/services/app_state_service.dart';
 import 'package:super_editor_markdown/super_editor_markdown.dart';
-import 'package:super_editor/super_editor.dart' hide Logger;
 
 class NotesProvider with ChangeNotifier implements NotesViewModel {
   final Logger _logger = Logger('NotesProvider');
@@ -549,16 +548,16 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       final note = await _noteService.createNote(notebookId, title);
       _logger.debug('Created note: ${note.id} for markdown import');
       
-      final _documentBuilder = DocumentBuilder();
+      final documentBuilder = DocumentBuilder();
 
       // Create blocks for each node
-      final document = _documentBuilder.deserializeMarkdownContent(content);
+      final document = documentBuilder.deserializeMarkdownContent(content);
 
       // Create blocks for each node
       int order = 0;
       for (final node in document) {
         try {
-          final blockContent = _documentBuilder.buildBlockContent(node);
+          final blockContent = documentBuilder.buildBlockContent(node);
           
           final blockType = blockContent['type'];
           final payload = {
@@ -601,10 +600,8 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       
       // Fetch note if not already in memory
       Note? note = _notesMap[noteId];
-      if (note == null) {
-        note = await fetchNoteById(noteId);
-      }
-      
+      note = await fetchNoteById(noteId);
+
       if (note == null) {
         throw Exception("Note not found");
       }

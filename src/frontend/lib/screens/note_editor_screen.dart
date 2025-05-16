@@ -366,11 +366,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             tooltip: 'Import Markdown',
             onPressed: _importMarkdown,
           ),
-          IconButton(
-            icon: const Icon(Icons.download_outlined),
-            tooltip: 'Export as Markdown',
-            onPressed: _exportToMarkdown,
-          ),
           const ThemeSwitcher(),
         ],
       ),

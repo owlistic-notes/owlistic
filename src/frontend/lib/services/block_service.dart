@@ -61,7 +61,6 @@ class BlockService extends BaseService {
         inputMap.remove('spans');
       }
       
-      
       contentMap = inputMap;
       
       final requestBody = {

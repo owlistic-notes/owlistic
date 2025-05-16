@@ -336,21 +336,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   );
                 } else if (value == 'move') {
                   _showMoveNoteDialog(context, note);
-                } else if (value == 'export') {
-                  _exportNoteToMarkdown(note);
                 }
               },
               itemBuilder: (BuildContext context) => [
-                const PopupMenuItem<String>(
-                  value: 'export',
-                  child: ListTile(
-                    leading: Icon(Icons.download_outlined),
-                    title: Text('Export as Markdown'),
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
                 const PopupMenuItem<String>(
                   value: 'move',
                   child: ListTile(
