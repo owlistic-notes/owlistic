@@ -1,6 +1,6 @@
-# Development Setup
+# Setup
 
-To contribute to Owlistic, you'll need to set up your development environment. Follow the steps below to get started.
+Follow the steps below to set up your development environment. 
 
 ## Prerequisites
 
@@ -10,7 +10,6 @@ Before you begin, ensure you have the following installed:
 - **Flutter** (latest stable version) for the frontend
 - **Git** (for version control)
 - **Docker** and **Docker Compose** (for local deployment with dependencies)
-- **PostgreSQL** and **Kafka** (required for storage and real-time synchronization)
 - A code editor of your choice (e.g., Visual Studio Code)
 
 ## Cloning the Repository
