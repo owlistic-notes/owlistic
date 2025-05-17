@@ -2,12 +2,14 @@
 sidebar_position: 2
 ---
 
-# Backend
+# Server
 
-## Authentication
+Owlistic backend is built using Go, a statically typed, compiled language. The main reason for choosing Go is its strong support for concurrency and efficient memory management, which are crucial for event-driven systems. It also uses the PostgreSQL database for data persistence and Apache Kafka as an event streaming system to push real-time updates to clients.
 
-## Storage
+## Design
 
-## Client-Server Communication (REST APIs)
+### Data Models
 
-## Event Stream (Websocket)
+### Core Services
+
+### API Gateway and Websocket
