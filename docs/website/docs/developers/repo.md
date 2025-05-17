@@ -9,6 +9,14 @@ sidebar_position: 3
 
 The repository is organized into several directories to facilitate code organization and maintainability. Here's a breakdown of the main directories:
 
+| Folder              | Description                                                                         |
+| :------------------ | :---------------------------------------------------------------------------------- |
+| `.github`           | Github repo templates and action workflows                                          |
+| `src/backend`       | Source code for the mobile app                                                      |
+| `src/frontend`      | Source code for the server app                                                      |
+| `docs/diagrams`     | High level design diagrams for the project                                          |
+| `docs/website`      | Source code for the [Owlistic website](https://owlistic-notes.github.io/owlistic/)  |
+
 ### Server
 
 ```text
@@ -37,5 +45,4 @@ src/frontend/lib
 ├── viewmodel
 ├── widgets
 └── utils
-
 ```
