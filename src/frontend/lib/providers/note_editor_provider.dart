@@ -150,7 +150,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       // Use debounced notification
-      _enqueueNotification();
+      notifyListeners();
       
       return note;
     } catch (error) {
@@ -299,9 +299,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Register document event listeners
     _documentBuilder.addDocumentStructureListener(_documentStructureChangeListener);
     _documentBuilder.addDocumentContentListener(_documentChangeListener);
-    
-    // Add listener for attribute/style changes
-    _setupDocumentAttributeListener();
+    _documentBuilder.focusNode.addListener(_handleFocusChange);
     
     // Subscribe to events when activated
     if (_webSocketService.isConnected) {
@@ -320,8 +318,8 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Remove listeners
     _documentBuilder.removeDocumentStructureListener(_documentStructureChangeListener);
     _documentBuilder.removeDocumentContentListener(_documentChangeListener);
-    _documentBuilder.document.removeListener(_handleDocumentAttributeChange);
-    
+    _documentBuilder.focusNode.removeListener(_handleFocusChange);
+
     // Cancel any pending timers when deactivated
     for (final timer in _saveTimers.values) {
       timer.cancel();
@@ -390,7 +388,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _blockService.deleteBlock(blockId);
     
     // Notify listeners
-    _enqueueNotification();
+    notifyListeners();
   }
 
   // Create a server block for a new node created in the editor
@@ -459,7 +457,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       _webSocketService.subscribe('block', id: block.id);
       
       // Notify listeners
-      _enqueueNotification();
+      notifyListeners();
       
       _logger.info('Successfully created block ${block.id} for node $nodeId');
     } catch (e) {
@@ -535,7 +533,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     if (wasComplete != isComplete) {
       _logger.info('Task completion changed: nodeId=$nodeId, blockId=$blockId, isComplete=$isComplete');
       
-      // FIXED: Create properly structured payload with content and metadata
       // Content ONLY contains text
       final content = {'text': block.getTextContent()};
       
@@ -576,15 +573,14 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Mark the block as modified by the user
     _documentBuilder.markBlockAsModified(blockId);
     _documentBuilder.markNodeAsUncommitted(nodeId);
-    
-    // Debounce updates for regular content changes
-    // Future.delayed(const Duration(milliseconds: 500), () {
-    //   // Only update if this is still the most recent edit
-    //   if (DateTime.now().difference(_lastEdit).inMilliseconds >= 500 && 
-    //       blockId == _currentEditingBlockId) {
-    //     _commitBlockContentChange(nodeId);
-    //   }
-    // });
+  }
+
+  // Handle focus change
+  void _handleFocusChange() {
+    if (!_documentBuilder.focusNode.hasFocus) {
+      // Commit any pending changes
+      _commitUncommittedNodes();
+    }
   }
 
   // Commit changes for a specific node
@@ -608,23 +604,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     updateBlockContent(blockId, content);
   }
   
-  // Debounced notification mechanism to avoid rapid UI refreshes
-  void _enqueueNotification() {
-    _hasPendingNotification = true;
-    
-    // Cancel existing timer
-    _notificationDebouncer?.cancel();
-    
-    // Create new timer that will fire the notification after the debounce period
-    _notificationDebouncer = Timer(const Duration(milliseconds: 300), () {
-      if (_hasPendingNotification) {
-        _updateCount++;
-        notifyListeners();
-        _hasPendingNotification = false;
-      }
-    });
-  }
-  
   // WebSocket event handlers
   void _handleBlockUpdate(Map<String, dynamic> message) {
     try {
@@ -646,7 +625,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         fetchBlockById(blockId).then((block) {
           if (block != null) {
             _updateDocumentWithBlock(block);
-            _enqueueNotification();
+            notifyListeners();
           }
         });
       }
@@ -666,7 +645,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         fetchBlockById(blockId).then((block) {
           if (block != null) {
             _addBlockToDocument(block);
-            _enqueueNotification();
+            notifyListeners();
           }
         });
       }
@@ -699,7 +678,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         _webSocketService.unsubscribe('block', id: blockId);
         
         // Notify UI
-        _enqueueNotification();
+        notifyListeners();
       }
     } catch (e) {
       _logger.error('Error handling block delete', e);
@@ -877,7 +856,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       // Use debounced notification
-      _enqueueNotification();
+      notifyListeners();
       
       return block;
     } catch (error) {
@@ -934,7 +913,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _addBlockToDocument(block);
     
     // Notify listeners
-    _enqueueNotification();
+    notifyListeners();
     
     return block;
   }
@@ -1051,7 +1030,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _documentBuilder.markBlockAsModified(id);
     
     // Notify listeners for UI responsiveness
-    _enqueueNotification();
+    notifyListeners();
     
     // If only updating locally, don't send to backend
     if (updateLocalOnly) {
@@ -1117,7 +1096,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Clear modification tracking since we've sent the update
       _documentBuilder.clearModificationTracking(id);
       
-      _enqueueNotification();
+      notifyListeners();
     } catch (error) {
       _logger.error('Error saving block $id', error);
     }
@@ -1215,7 +1194,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         _logger.debug('Empty response, marking pagination complete for $_noteId');
       }
       
-      _enqueueNotification(); // Notify listeners about the update
+      notifyListeners(); // Notify listeners about the update
       
     } catch (e) {
       _logger.error('Error loading more blocks for note $_noteId: $e');
@@ -1254,8 +1233,8 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Remove document listeners
     _documentBuilder.removeDocumentStructureListener(_documentStructureChangeListener);
     _documentBuilder.removeDocumentContentListener(_documentChangeListener);
-    _documentBuilder.document.removeListener(_handleDocumentAttributeChange);
-    
+    _documentBuilder.focusNode.removeListener(_handleFocusChange);
+  
     // Remove scroll listener
     if (_scrollController != null) {
       _scrollController!.removeListener(_handleScroll);
@@ -1554,46 +1533,5 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _documentBuilder = _documentBuilderFactory();
     
     notifyListeners();
-  }
-
-  // Add this method to listen for document attribute changes
-  void _setupDocumentAttributeListener() {
-    // Listen for document attribute changes
-    _documentBuilder.document.addListener(_handleDocumentAttributeChange);
-  }
-  
-  void _handleDocumentAttributeChange(_) {
-    // Skip if we're in the middle of an update operation
-    if (_updatingDocument) return;
-    
-    // Get current selection to identify the node being edited
-    final selection = _documentBuilder.composer.selection;
-    if (selection == null) return;
-    
-    // Get the current node ID
-    final nodeId = selection.extent.nodeId;
-    
-    // Find the associated block
-    final blockId = _documentBuilder.nodeToBlockMap[nodeId];
-    if (blockId == null) return;
-    
-    // Get the current node and block
-    final node = _documentBuilder.document.getNodeById(nodeId);
-    final block = getBlock(blockId);
-    
-    if (node == null || block == null) return;
-    
-    // Detect the type from AttributedTextUtils
-    final detectedType = _attributedTextUtils.detectBlockTypeFromNode(node);
-    
-    // Check if block type should be updated
-    if (detectedType != block.type) {
-      // Extract content with proper metadata
-      final content = _documentBuilder.extractContentFromNode(node, blockId, block);
-      
-      // Update with the detected type
-      updateBlockContent(blockId, content, type: detectedType  );
-      _logger.debug('Block type changed from ${block.type} to $detectedType');
-    }
   }
 }

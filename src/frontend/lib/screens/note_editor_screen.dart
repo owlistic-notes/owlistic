@@ -218,10 +218,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
            IconButton(
             icon: const Icon(Icons.refresh_outlined),
             tooltip: 'Refresh note content',
-            onPressed: () => _noteEditorViewModel.updateBlocks(
-              _noteEditorViewModel.blocks,
-              preserveFocus: true,
-              markAsModified: false,
+            onPressed: () => _noteEditorViewModel.fetchBlocksForNote(
+              _noteEditorViewModel.noteId?? '',
+              refresh: true
             ),
           ),
           const ThemeSwitcher(),
