@@ -8,7 +8,7 @@ class AppTheme {
   static const dangerColor = Colors.red;
   static const warningColor = Colors.orange;
   static const successColor = Colors.green;
-  static const selectionColor = Color.fromARGB(255, 244, 185, 255) ;
+  static const selectionColor = Color(0xFFFC6C85);
   static const backgroundLight = Colors.white;
   static const backgroundDark = Color(0xFF121212);
   static const cardLight = Colors.white;
