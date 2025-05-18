@@ -258,6 +258,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Remember me'),
                         value: _rememberMe,
+                        checkboxShape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(5.0)),
+                        ),
                         onChanged: (value) {
                           setState(() {
                             _rememberMe = value ?? false;
