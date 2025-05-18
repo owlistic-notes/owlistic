@@ -105,8 +105,7 @@ class BlockNodeMapping {
       entry.lastModified = DateTime.now();
       entry.userModified = true;
       _blockEntries[blockId] = entry;
-    }
-    
+    }   
     _logger.debug('Block $blockId marked as modified by user');
   }
   

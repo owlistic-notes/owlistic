@@ -7,7 +7,6 @@ import 'package:owlistic/utils/attributed_text_utils.dart';
 import 'package:owlistic/utils/block_node_mapping.dart';
 import 'package:super_editor_markdown/super_editor_markdown.dart';
 
-
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
   final Logger _logger = Logger('DocumentBuilder');
@@ -523,6 +522,11 @@ class DocumentBuilder {
   void markBlockAsModified(String blockId) {
     _blockNodeMapping.markBlockAsModified(blockId);
     _logger.debug('Block $blockId marked as explicitly modified by user');
+  }
+
+  void markNodeAsUncommitted(String nodeId) {
+    _blockNodeMapping.markNodeAsUncommitted(nodeId);
+    _logger.debug('Node $nodeId marked as explicitly modified by user');
   }
 
   /// Register a block as being fetched from the server

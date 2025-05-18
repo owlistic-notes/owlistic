@@ -26,7 +26,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   Note? _note;
-  Timer? _autoSaveTimer;
   bool _titleEdited = false;
   final TextEditingController _titleController = TextEditingController();
   final FocusNode _titleFocusNode = FocusNode();
@@ -53,11 +52,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _note = widget.note;
       _titleController.text = _note!.title;
     }
-    
-    // Set up autoSave timer
-    _autoSaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      _autoSaveTitleIfNeeded();
-    });
     
     // Setup title focus listener
     _titleFocusNode.addListener(_handleTitleFocusChange);
@@ -139,7 +133,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   void dispose() {
     // Clean up
-    _autoSaveTimer?.cancel();
     _titleFocusNode.removeListener(_handleTitleFocusChange);
     _titleFocusNode.dispose();
     _titleController.dispose();
@@ -218,141 +211,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     );
   }
 
-  // Add new methods for import/export
-  Future<void> _importMarkdown() async {
-    try {
-      // Use FilePicker to pick a markdown file
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['md', 'markdown'],
-      );
-
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        
-        // Show loading indicator
-        _showLoadingDialog(context, 'Importing markdown...');
-        
-        // Read file content
-        String content;
-        if (file.bytes != null) {
-          // Web platform returns bytes
-          content = String.fromCharCodes(file.bytes!);
-        } else if (file.path != null) {
-          // Mobile/desktop platforms return a file path
-          final fileObj = File(file.path!);
-          content = await fileObj.readAsString();
-        } else {
-          throw Exception('Unable to read file content');
-        }
-        
-        // Import markdown content
-        await _noteEditorViewModel.importMarkdownContent(content);
-        
-        // Close loading dialog
-        Navigator.of(context, rootNavigator: true).pop();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Markdown content imported successfully')),
-        );
-      }
-    } catch (e) {
-      // Close loading dialog if open
-      if (Navigator.of(context, rootNavigator: true).canPop()) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      
-      _logger.error('Error importing markdown file', e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    }
-  }
-
-  Future<void> _exportToMarkdown() async {
-    try {
-      if (_note == null) {
-        throw Exception('Note not available for export');
-      }
-      
-      // Show loading indicator
-      _showLoadingDialog(context, 'Exporting markdown...');
-      
-      // Get markdown content
-      final markdown = await _noteEditorViewModel.exportToMarkdown();
-      
-      // Close loading dialog
-      Navigator.of(context, rootNavigator: true).pop();
-      
-      // Generate filename
-      final filename = '${_note!.title.replaceAll(RegExp(r'[^\w\s.-]'), '_')}.md';
-      
-      // Share the file on mobile platforms or save on desktop
-      if (Platform.isAndroid || Platform.isIOS) {
-        // Save to temp directory and share
-        final directory = await getTemporaryDirectory();
-        final file = File('${directory.path}/$filename');
-        await file.writeAsString(markdown);
-        
-        // Share the file
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          subject: _note!.title,
-          text: 'Exported note as Markdown',
-        );
-      } else {
-        // Use file picker to save the file on desktop platforms
-        final path = await FilePicker.platform.saveFile(
-          dialogTitle: 'Save Markdown File',
-          fileName: filename,
-          type: FileType.custom,
-          allowedExtensions: ['md'],
-        );
-        
-        if (path != null) {
-          final file = File(path);
-          await file.writeAsString(markdown);
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Saved to ${file.path}')),
-          );
-        }
-      }
-    } catch (e) {
-      // Close loading dialog if open
-      if (Navigator.of(context, rootNavigator: true).canPop()) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      
-      _logger.error('Error exporting note to markdown', e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    }
-  }
-  
-  void _showLoadingDialog(BuildContext context, String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(width: 20),
-                Text(message),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -369,11 +227,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               preserveFocus: true,
               markAsModified: false,
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Import Markdown',
-            onPressed: _importMarkdown,
           ),
           const ThemeSwitcher(),
         ],
@@ -465,72 +318,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               },
             )
         ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddBlockMenu(context),
-        tooltip: 'Add block',
-        child: const Icon(Icons.add),
-      ),
     );
-  }
-
-  void _showAddBlockMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.text_fields),
-              title: const Text('Text'),
-              onTap: () {
-                Navigator.pop(context);
-                _createBlock('text');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.title),
-              title: const Text('Heading'),
-              onTap: () {
-                Navigator.pop(context);
-                _createBlock('heading');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.check_box),
-              title: const Text('Task'),
-              onTap: () {
-                Navigator.pop(context);
-                _createBlock('task');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.code),
-              title: const Text('Code'),
-              onTap: () {
-                Navigator.pop(context);
-                _createBlock('code');
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _createBlock(String blockType) async {
-    try {
-      // Make sure we wait for the block to actually be created on the server
-      final block = await _noteEditorViewModel.createBlock(blockType);
-      
-      // Request focus after the block is fully created
-      _noteEditorViewModel.setFocusToBlock(block.id);
-      _logger.info('Block created: ${block.id} of type $blockType');
-    } catch (e) {
-      _logger.error('Error creating block', e);
-    }
   }
 }

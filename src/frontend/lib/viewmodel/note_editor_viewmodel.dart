@@ -37,9 +37,6 @@ abstract class NoteEditorViewModel extends BaseViewModel {
     bool updateLocalOnly = false
   });
   
-  // New method - Move a block to a new position in the order
-  Future<void> moveBlock(String blockId, double newOrder);
-  
   // Document builder access
   DocumentBuilder get documentBuilder;
   FocusNode get focusNode;
@@ -48,7 +45,6 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   void setBlocks(List<Block> blocks);
   void updateBlocks(List<Block> blocks, {
     bool preserveFocus = false,
-    dynamic savedSelection,
     bool markAsModified = true
   });
   void addBlocks(List<Block> blocks);
@@ -88,10 +84,4 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   /// The provided ScrollController will be used to detect when the user 
   /// scrolls near the bottom to automatically load more blocks.
   void initScrollListener(ScrollController scrollController);
-  
-  /// Import markdown content into the current note
-  Future<void> importMarkdownContent(String markdown);
-  
-  /// Export the current note to markdown format
-  Future<String> exportToMarkdown();
 }

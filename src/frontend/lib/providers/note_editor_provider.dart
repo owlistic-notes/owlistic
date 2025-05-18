@@ -46,6 +46,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   // Document handling
   late DocumentBuilder _documentBuilder;
   
+  // Scroll controller
+  ScrollController? _scrollController;
+  bool _isLoadingMoreBlocks = false;
+
   // Active notes tracking
   final Set<String> _activeNoteIds = {};
   
@@ -60,8 +64,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   // Event callbacks
   void Function(String blockId, Map<String, dynamic> content)? _onBlockContentChanged;
   void Function(List<String> blockIds)? _onMultiBlockOperation;
-  void Function(String blockId)? _onBlockDeleted;
-  void Function()? _onFocusLost;
   
   // Focus request tracking
   String? _focusRequestedBlockId;
@@ -298,7 +300,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Register document event listeners
     _documentBuilder.addDocumentStructureListener(_documentStructureChangeListener);
     _documentBuilder.addDocumentContentListener(_documentChangeListener);
-    _documentBuilder.focusNode.addListener(_handleFocusChange);
     
     // Add listener for attribute/style changes
     _setupDocumentAttributeListener();
@@ -315,13 +316,12 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _logger.info('NoteEditorProvider deactivated');
     
     // Commit all content before deactivating
-    commitAllContent();
+    _commitUncommittedNodes();
     
     // Remove listeners
     _documentBuilder.removeDocumentStructureListener(_documentStructureChangeListener);
     _documentBuilder.removeDocumentContentListener(_documentChangeListener);
     _documentBuilder.document.removeListener(_handleDocumentAttributeChange);
-    _documentBuilder.focusNode.removeListener(_handleFocusChange);
     
     // Cancel any pending timers when deactivated
     for (final timer in _saveTimers.values) {
@@ -553,7 +553,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       };
       
       // Send immediate update to server with standardized format
-      updateBlockContent(blockId, payload, immediate: true);
+      updateBlockContent(blockId, payload);
     }
   }
 
@@ -576,15 +576,16 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Mark the block as modified by the user
     _documentBuilder.markBlockAsModified(blockId);
+    _documentBuilder.markNodeAsUncommitted(nodeId);
     
     // Debounce updates for regular content changes
-    Future.delayed(const Duration(milliseconds: 500), () {
-      // Only update if this is still the most recent edit
-      if (DateTime.now().difference(_lastEdit).inMilliseconds >= 500 && 
-          blockId == _currentEditingBlockId) {
-        _commitBlockContentChange(nodeId);
-      }
-    });
+    // Future.delayed(const Duration(milliseconds: 500), () {
+    //   // Only update if this is still the most recent edit
+    //   if (DateTime.now().difference(_lastEdit).inMilliseconds >= 500 && 
+    //       blockId == _currentEditingBlockId) {
+    //     _commitBlockContentChange(nodeId);
+    //   }
+    // });
   }
 
   // Commit changes for a specific node
@@ -605,18 +606,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     final content = _documentBuilder.extractContentFromNode(node, blockId, block);
     
     // Send content update with formats included
-    updateBlockContent(blockId, content, immediate: true);
-  }
-  
-  // Handle focus change
-  void _handleFocusChange() {
-    if (!_documentBuilder.focusNode.hasFocus) {
-      // Commit any pending changes
-      commitAllContent();
-      
-      // Call the focus lost handler if provided
-      _onFocusLost?.call();
-    }
+    updateBlockContent(blockId, content);
   }
   
   // Debounced notification mechanism to avoid rapid UI refreshes
@@ -1133,11 +1123,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       _logger.error('Error saving block $id', error);
     }
   }
-  
-  // Store scroll controller reference as class variable
-  ScrollController? _scrollController;
-  bool _isLoadingMoreBlocks = false; // Add dedicated flag for pagination loading
-  
+    
   @override
   void initScrollListener(ScrollController scrollController) {
     _logger.debug('Initializing scroll listener for pagination');
@@ -1257,7 +1243,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Commit any pending changes
     if (_isActive) {
-      commitAllContent();
+      _commitUncommittedNodes();
     }
     
     // Remove event listeners
@@ -1270,7 +1256,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _documentBuilder.removeDocumentStructureListener(_documentStructureChangeListener);
     _documentBuilder.removeDocumentContentListener(_documentChangeListener);
     _documentBuilder.document.removeListener(_handleDocumentAttributeChange);
-    _documentBuilder.focusNode.removeListener(_handleFocusChange);
     
     // Remove scroll listener
     if (_scrollController != null) {
@@ -1392,7 +1377,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   @override
   void updateBlocks(List<Block> blocks, {
     bool preserveFocus = false,
-    dynamic savedSelection,
     bool markAsModified = true
   }) {
     if (blocks.isEmpty) return;
@@ -1481,57 +1465,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     notifyListeners();
   }
 
-  // Implementation of the missing moveBlock method from NoteEditorViewModel
-  @override
-  Future<void> moveBlock(String blockId, double newOrder) async {
-    try {
-      final block = _blocks[blockId];
-      if (block == null) {
-        _logger.warning('Block $blockId not found, cannot move');
-        return;
-      }
-      
-      // Get current blocks to calculate position
-      final allBlocks = getBlocksForNote(block.noteId);
-      
-      // Update local order first for immediate response
-      final updatedBlock = block.copyWith(order: newOrder);
-      _blocks[blockId] = updatedBlock;
-      
-      // Find the new index position for this order value
-      int targetIndex = 0;
-      List<Block> sortedBlocks = List.from(allBlocks)..sort((a, b) => a.order.compareTo(b.order));
-      
-      for (int i = 0; i < sortedBlocks.length; i++) {
-        if (sortedBlocks[i].id == blockId) continue; // Skip the block itself
-        if (newOrder < sortedBlocks[i].order) {
-          targetIndex = i;
-          break;
-        }
-        targetIndex = i + 1;
-      }
-      
-      // Move node in document
-      final moved = _documentBuilder.moveBlockNode(blockId, targetIndex);
-      if (!moved) {
-        _logger.warning('Failed to move block node in document');
-      }
-      
-      // Call API to update the order
-      await _blockService.updateBlock(blockId, block.content);
-      
-      // Notify listeners
-      _enqueueNotification();
-    } catch (e) {
-      _logger.error('Error moving block $blockId: $e');
-    }
-  }
-
   @override
   void commitAllContent() {
     _logger.debug('Committing content for all blocks');
-    
-    // First commit any uncommitted nodes
+        // First commit any uncommitted nodes
     _commitUncommittedNodes();
     
     // Then commit content for all current blocks
@@ -1553,13 +1490,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     final nodeIds = List.from(_documentBuilder.uncommittedNodes.keys);
     
     for (final nodeId in nodeIds) {
-      final node = _documentBuilder.document.getNodeById(nodeId);
-      if (node != null) {
-        await _createBlockForNode(nodeId, node);
-      } else {
-        // Node no longer exists, remove from tracking
-        _documentBuilder.removeUncommittedNode(nodeId);
-      }
+      _commitBlockContentChange(nodeId);
     }
   }
 
@@ -1662,95 +1593,8 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       final content = _documentBuilder.extractContentFromNode(node, blockId, block);
       
       // Update with the detected type
-      updateBlockContent(blockId, content, type: detectedType, immediate: true);
+      updateBlockContent(blockId, content, type: detectedType  );
       _logger.debug('Block type changed from ${block.type} to $detectedType');
-    }
-  }
-  
-  @override
-  Future<void> importMarkdownContent(String markdown) async {
-    if (_noteId == null) {
-      throw Exception('Cannot import content: no active note');
-    }
-    
-    _isLoading = true;
-    notifyListeners();
-    
-    try {
-      _logger.info('Importing markdown content to note: $_noteId');
-      
-      // Delete all existing blocks for this note
-      final existingBlocks = getBlocksForNote(_noteId!);
-      for (final block in existingBlocks) {
-        await _blockService.deleteBlock(block.id);
-      }
-      
-      // Create blocks for each node
-      final document = _documentBuilder.deserializeMarkdownContent(markdown);
-
-      // Create blocks for each node
-      int order = 0;
-      for (final node in document) {
-        try {
-          final blockContent = _documentBuilder.buildBlockContent(node);
-          
-          final blockType = blockContent['type'];
-          final payload = {
-            "metadata": blockContent['metadata'],
-            "content": blockContent['content'],
-          };
-
-          // Create block through BlockService
-          await _blockService.createBlock(
-            _noteId!,
-            payload,
-            blockType,
-            (order + 1) * 1000.0  // Use increasing order with gaps
-          );
-          
-          order++;
-        } catch (e) {
-          _logger.error('Error creating block for imported markdown: $e');
-        }
-      }
-      
-      // Refresh blocks from server
-      await fetchBlocksForNote(_noteId!, refresh: true);
-      
-      _logger.info('Markdown content imported successfully');
-    } catch (e) {
-      _logger.error('Error importing markdown content', e);
-      _errorMessage = 'Failed to import markdown: ${e.toString()}';
-    } finally {
-      _isLoading = false;
-      _updateCount++;
-      notifyListeners();
-    }
-  }
-  
-  @override
-  Future<String> exportToMarkdown() async {
-    try {
-      if (_noteId == null) {
-        throw Exception('Cannot export: no active note');
-      }
-      
-      _logger.info('Exporting note $_noteId to markdown');
-      
-      // Make sure all content is committed
-      commitAllContent();
-      
-      // Serialize the document to markdown
-      final markdown = serializeDocumentToMarkdown(
-        _documentBuilder.document,
-        syntax: MarkdownSyntax.normal
-      );
-      
-      _logger.debug('Note exported to markdown successfully');
-      return markdown;
-    } catch (e) {
-      _logger.error('Error exporting to markdown', e);
-      throw Exception('Failed to export note: ${e.toString()}');
     }
   }
 }
