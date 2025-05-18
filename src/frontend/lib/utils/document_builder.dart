@@ -579,6 +579,11 @@ class DocumentBuilder {
     _blockNodeMapping.clearModificationTracking(blockId);
   }
 
+  String extractTypeFromNode(DocumentNode node) {
+    // Extract node blockType for determining block.type
+    return _attributedTextUtils.detectBlockTypeFromNode(node);
+  }
+
   // Extract content from a node in the format expected by the API
   Map<String, dynamic> extractContentFromNode(
       DocumentNode node, String blockId, Block originalBlock) {
@@ -606,7 +611,6 @@ class DocumentBuilder {
       }
 
       // Extract node blockType for determining block.type
-      // DO NOT store blockType in metadata - it's a property of the block model
       final blockType = node.metadata['blockType'];
       String blockTypeStr = '';
 
@@ -686,8 +690,7 @@ class DocumentBuilder {
       }
 
       // Handle specific block types - extract additional metadata but don't include blockType
-      if (blockTypeStr.startsWith('heading')) {
-        // Extract heading level from blockType like "heading1"
+      if (blockTypeStr.startsWith('header')) {
         final levelStr = blockTypeStr.substring(7);
         final level = DataConverter.parseIntSafely(levelStr);
         metadata['level'] = level;
@@ -727,9 +730,6 @@ class DocumentBuilder {
     // Get text content (only thing that should be in content)
     final text = content['text']?.toString() ?? '';
 
-    // Use block.type directly - don't look for blockType in metadata
-    // This is because blockType is not a property of block.metadata
-
     // Create node based on block type
     switch (blockType) {
       case 'heading':
@@ -744,7 +744,7 @@ class DocumentBuilder {
             text: _attributedTextUtils
                 .createAttributedTextFromContent(text, {'metadata': metadata}),
             metadata: {
-              'blockType': NamedAttribution("heading$levelInt"),
+              'blockType': NamedAttribution("header$levelInt"),
             },
           ),
         ];
@@ -1235,39 +1235,29 @@ class DocumentBuilder {
     // Extract content based on node type
     Map<String, dynamic> metadataMap = {};
     Map<String, dynamic> contentMap = {};
-    String blockType = 'text';
-    
+    String blockType = _attributedTextUtils.detectBlockTypeFromNode(node);
+
+    // Extract specific metadata based on node type
+    if (blockType.startsWith('header')) {
+      blockType = 'heading';
+      final levelStr = blockType.substring(7);
+      final level = int.tryParse(levelStr) ?? 1;
+      metadataMap['level'] = level;
+    } else if (blockType == 'code') {
+      metadataMap['language'] = node.metadata['language'] ?? 'plain';
+    }
+
     if (node is ParagraphNode) {
       contentMap['text'] = node.text.toPlainText();
       
       // Extract spans for formatting
       final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
       metadataMap['spans'] = spans;
-      
-      // Check for block type in metadata (headings, etc.)
-      if (node.metadata.containsKey('blockType')) {
-        final blockTypeAttr = node.metadata['blockType'];
-        if (blockTypeAttr is NamedAttribution) {
-          final attrId = blockTypeAttr.id;
-          if (attrId.startsWith('heading')) {
-            blockType = 'heading';
-            // Extract heading level (e.g. heading1 -> 1)
-            final levelStr = attrId.substring(7);
-            final level = int.tryParse(levelStr) ?? 1;
-            metadataMap['level'] = level;
-          } else if (attrId == 'code') {
-            blockType = 'code';
-            metadataMap['language'] = 'plain';
-          }
-        }
-      }
     } else if (node is TaskNode) {
       contentMap['text'] = node.text.toPlainText();
       metadataMap['is_completed'] = node.isComplete;
-      blockType = 'task';
     } else if (node is ListItemNode) {
       contentMap['text'] = node.text.toPlainText();
-      blockType = 'text';
     } else {
       contentMap['text'] = '';
     }

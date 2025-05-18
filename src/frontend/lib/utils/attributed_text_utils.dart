@@ -10,27 +10,12 @@ class AttributedTextUtils {
   String detectBlockTypeFromNode(DocumentNode node) {
     if (node is ParagraphNode) {
       final blockType = node.metadata['blockType'];
-      
-      String blockTypeStr = '';
-      // Convert blockType to string if it's a NamedAttribution
-      if (blockType is NamedAttribution) {
-        blockTypeStr = blockType.id;
-      } else if (blockType is String) {
-        blockTypeStr = blockType;
-      }
-      
-      if (blockTypeStr == 'heading') {
-        return 'heading';
-      } else if (blockTypeStr == 'code') {
-        return 'code';
-      }
-    } 
+      return blockType.id;
+    }
     else if (node is TaskNode) {
       return 'task';
     }
-    
-    // Default type
-    return 'text';
+    return 'paragraph';
   }
 
   // Extract spans (formatting information) from AttributedText with better handling

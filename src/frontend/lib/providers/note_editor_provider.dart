@@ -402,31 +402,24 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       // Determine block type based on node
-      String blockType = 'text';
-      if (node is ParagraphNode) {
-        final blockTypeAttr = node.metadata['blockType'];
-        String blockTypeStr = '';
-        
-        if (blockTypeAttr is NamedAttribution) {
-          blockTypeStr = blockTypeAttr.id;
-        } else if (blockTypeAttr is String) {
-          blockTypeStr = blockTypeStr;
-        }
-        
-        if (blockTypeStr == 'heading') {
-          blockType = 'heading';
-        } else if (blockTypeStr == 'code') {
-          blockType = 'code';
-        }
-      } else if (node is TaskNode) {
-        blockType = 'task';
-      } else if (node is ListItemNode) {
-        blockType = 'text';
-      }
-      
+      String blockType = _attributedTextUtils.detectBlockTypeFromNode(node);
+
+
       // Extract content from node in the format needed by API
       final extractedData = _extractNodeContentForApi(node);
       
+      // Extract specific metadata based on node type
+      if (blockType.startsWith('header')) {
+        blockType = 'heading';
+        final levelStr = blockType.substring(7);
+        final level = int.tryParse(levelStr) ?? 1;
+        extractedData['metadata']['level'] = level;
+      } else if (blockType == 'code') {
+        extractedData['metadata']['language'] = node.metadata['language'] ?? 'plain';
+      } else if (blockType == 'paragraph') {
+        blockType = 'text';
+      }
+
       // Calculate a fractional order value using the document builder
       double order = await _documentBuilder.calculateOrderForNewNode(nodeId, blocks);
       
@@ -549,7 +542,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       };
       
       // Send immediate update to server with standardized format
-      updateBlockContent(blockId, payload);
+      updateBlock(blockId, payload);
     }
   }
 
@@ -584,7 +577,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   // Commit changes for a specific node
-  void _commitBlockContentChange(String nodeId) {
+  void _commitNodeChange(String nodeId) {
     // Find block ID for this node
     final blockId = _documentBuilder.nodeToBlockMap[nodeId];
     if (blockId == null) return;
@@ -597,11 +590,25 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     final block = getBlock(blockId);
     if (block == null) return;
     
-    // Extract content from node with proper formatting
-    final content = _documentBuilder.extractContentFromNode(node, blockId, block);
+    // Extract node type for determining block.type
+    String blockType = _documentBuilder.extractTypeFromNode(node);
     
+    // Extract content from node with proper formatting
+    final extractedData = _documentBuilder.extractContentFromNode(node, blockId, block);
+
+    if (blockType.startsWith('header')) {
+      blockType = 'heading';
+      final levelStr = blockType.substring(7);
+      final level = int.tryParse(levelStr) ?? 1;
+      extractedData['metadata']['level'] = level;
+    } else if (blockType == 'code') {
+      extractedData['metadata']['language'] = node.metadata['language'] ?? 'plain';
+    } else if (blockType == 'paragraph') {
+      blockType = 'text';
+    }
+
     // Send content update with formats included
-    updateBlockContent(blockId, content);
+    updateBlock(blockId, extractedData, type: blockType);
   }
   
   // WebSocket event handlers
@@ -973,18 +980,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   @override
-  void updateBlockContent(String id, Map<String, dynamic> content, {
+  void updateBlock(String id, Map<String, dynamic> content, {
     String? type, 
     double? order,
-    bool immediate = false,
-    bool updateLocalOnly = false
   }) {
-    // Cancel any existing timer for this block
-    final Timer? timer = _saveTimers[id];
-    if (timer != null) {
-      timer.cancel();
-    }
-    
     // If the block doesn't exist, exit
     if (!_blocks.containsKey(id)) {
       _logger.warning('Attempted to update non-existent block: $id');
@@ -1031,26 +1030,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Notify listeners for UI responsiveness
     notifyListeners();
-    
-    // If only updating locally, don't send to backend
-    if (updateLocalOnly) {
-      return;
-    }
-    
-    // For full updates, use debounced saving to reduce API calls
-    if (immediate) {
-      // If immediate, save now
-      _saveBlockToBackend(id, contentMap, metadata: metadataMap, type: type, order: order);
-    } else {
-      // Otherwise, debounce for 1 second
-      _saveTimers[id] = Timer(const Duration(seconds: 1), () {
-        _saveBlockToBackend(id, contentMap, metadata: metadataMap, type: type, order: order);
-      });
-    }
+    _updateBlock(id, contentMap, metadata: metadataMap, type: type, order: order);
   }
 
-  // Method to persist block changes to backend
-  Future<void> _saveBlockToBackend(String id,
+  Future<void> _updateBlock(String id,
     Map<String, dynamic> content, {
     Map<String, dynamic>? metadata,
     String? type, 
@@ -1101,7 +1084,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       _logger.error('Error saving block $id', error);
     }
   }
-    
+
   @override
   void initScrollListener(ScrollController scrollController) {
     _logger.debug('Initializing scroll listener for pagination');
@@ -1353,47 +1336,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   @override
-  void updateBlocks(List<Block> blocks, {
-    bool preserveFocus = false,
-    bool markAsModified = true
-  }) {
-    if (blocks.isEmpty) return;
-    
-    // Get current selection and focus state if preserving focus
-    final currentSelection = preserveFocus ? 
-        _documentBuilder.composer.selection : null;
-    final hasFocus = preserveFocus && _documentBuilder.focusNode.hasFocus;
-    
-    // Update local storage
-    for (final block in blocks) {
-      _blocks[block.id] = block;
-      
-      // Update note blocks map
-      final noteId = block.noteId;
-      _noteBlocksMap[noteId] ??= [];
-      if (!_noteBlocksMap[noteId]!.contains(block.id)) {
-        _noteBlocksMap[noteId]!.add(block.id);
-      }
-    }
-    
-    // Update document
-    _documentBuilder.updateDocumentWithBlocks(blocks, this.blocks);
-    
-    // Simple focus restoration - if we're supposed to preserve it
-    if (hasFocus && currentSelection != null) {
-      Future.microtask(() {
-        // Try to restore selection directly
-        if (!_documentBuilder.tryRestoreSelection(currentSelection)) {
-          // If that fails, request focus on the editor
-          _documentBuilder.focusNode.requestFocus();
-        }
-      });
-    }
-    
-    notifyListeners();
-  }
-
-  @override
   void addBlocks(List<Block> blocks) {
     if (blocks.isEmpty) return;
     
@@ -1444,7 +1386,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   @override
-  void commitAllContent() {
+  void commitAllNodes() {
     _logger.debug('Committing content for all blocks');
         // First commit any uncommitted nodes
     _commitUncommittedNodes();
@@ -1453,7 +1395,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     for (final nodeId in _documentBuilder.document.map((node) => node.id).toList()) {
       final blockId = _documentBuilder.nodeToBlockMap[nodeId];
       if (blockId != null) {
-        _commitBlockContentChange(nodeId);
+        _commitNodeChange(nodeId);
       }
     }
   }
@@ -1468,7 +1410,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     final nodeIds = List.from(_documentBuilder.uncommittedNodes.keys);
     
     for (final nodeId in nodeIds) {
-      _commitBlockContentChange(nodeId);
+      _commitNodeChange(nodeId);
     }
   }
 

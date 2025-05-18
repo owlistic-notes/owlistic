@@ -135,7 +135,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     
     // Save any pending changes before disposing scroll controller
     _autoSaveTitleIfNeeded();
-    _noteEditorViewModel.commitAllContent();
+    _noteEditorViewModel.commitAllNodes();
     
     // Important: Dispose scroll controller AFTER using it to save content
     _scrollController.dispose();

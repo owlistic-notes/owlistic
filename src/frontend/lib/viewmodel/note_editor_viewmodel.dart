@@ -30,11 +30,9 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   Future<Block?> fetchBlockById(String blockId);
   Future<Block> createBlock(String type);
   Future<void> deleteBlock(String blockId);
-  void updateBlockContent(String id, Map<String, dynamic> content, {
+  void updateBlock(String id, Map<String, dynamic> content, {
     String? type, 
     double? order,
-    bool immediate = false,
-    bool updateLocalOnly = false
   });
   
   // Document builder access
@@ -43,10 +41,6 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   
   // Document management
   void setBlocks(List<Block> blocks);
-  void updateBlocks(List<Block> blocks, {
-    bool preserveFocus = false,
-    bool markAsModified = true
-  });
   void addBlocks(List<Block> blocks);
   
   // Active note management
@@ -66,7 +60,7 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   Map<String, dynamic> getPaginationInfo(String noteId);
   
   // Server sync and events
-  void commitAllContent();
+  void commitAllNodes();
   Future<void> fetchBlockFromEvent(String blockId);
   
   // Focus handling
