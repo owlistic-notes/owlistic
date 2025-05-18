@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:owlistic/models/note.dart';
@@ -7,9 +6,6 @@ import 'package:owlistic/utils/logger.dart';
 import 'package:owlistic/widgets/app_bar_common.dart';
 import 'package:owlistic/viewmodel/note_editor_viewmodel.dart';
 import 'package:owlistic/widgets/theme_switcher.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final String? noteId;

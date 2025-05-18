@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
-import 'package:super_editor_markdown/super_editor_markdown.dart';
 
 import 'package:owlistic/services/block_service.dart';
 import 'package:owlistic/services/auth_service.dart';
