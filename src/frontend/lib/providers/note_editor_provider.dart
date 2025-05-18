@@ -404,14 +404,13 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       // Determine block type based on node
       String blockType = _attributedTextUtils.detectBlockTypeFromNode(node);
 
-
       // Extract content from node in the format needed by API
       final extractedData = _extractNodeContentForApi(node);
-      
+
       // Extract specific metadata based on node type
       if (blockType.startsWith('header')) {
         blockType = 'heading';
-        final levelStr = blockType.substring(7);
+        final levelStr = blockType.substring(6);
         final level = int.tryParse(levelStr) ?? 1;
         extractedData['metadata']['level'] = level;
       } else if (blockType == 'code') {
@@ -598,7 +597,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
 
     if (blockType.startsWith('header')) {
       blockType = 'heading';
-      final levelStr = blockType.substring(7);
+      final levelStr = blockType.substring(6);
       final level = int.tryParse(levelStr) ?? 1;
       extractedData['metadata']['level'] = level;
     } else if (blockType == 'code') {
@@ -873,59 +872,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
   
   @override
-  Future<Block> createBlock(String type) async {
-    _logger.info('Creating new block of type: $type');
-    
-    if (_noteId == null) {
-      throw Exception('Cannot create block: noteId is null');
-    }
-    
-    // Calculate order for new block 
-    double order = 1.0;
-    if (blocks.isNotEmpty) {
-      // Place it at the end by default
-      order = blocks.map((b) => b.order).reduce((a, b) => a > b ? a : b) + 1.0;
-    }
-    
-    // Initial content based on type
-    Map<String, dynamic> content = {'text': ''};
-    Map<String, dynamic> metadata = {};
-    if (type == 'heading') {
-      metadata['level'] = 1;
-    } else if (type == 'task') {
-      metadata['is_completed'] = false;
-    }
-
-    final payload = {
-      "metadata": metadata,
-      "content": content,
-    };
-    
-    // Create block on server
-    final block = await _blockService.createBlock(
-      _noteId!,
-      payload,
-      type,
-      order
-    );
-    
-    // Add to local state
-    _blocks[block.id] = block;
-    
-    // Add to note blocks map
-    _noteBlocksMap[_noteId!] ??= [];
-    _noteBlocksMap[_noteId!]!.add(block.id);
-    
-    // Add to document
-    _addBlockToDocument(block);
-    
-    // Notify listeners
-    notifyListeners();
-    
-    return block;
-  }
-  
-  @override
   Future<void> deleteBlock(String blockId) async {
     try {
       final block = _blocks[blockId];
@@ -995,34 +941,13 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Process content to proper format
     Map<String, dynamic> contentMap = Map<String, dynamic>.from(content['content']);
     Map<String, dynamic>? metadataMap = Map<String, dynamic>.from(content['metadata']);
-    
-    // Always include spans field in content update to preserve formatting
-    // If spans aren't in the new content but are in the existing block, preserve them
-    if (!metadataMap.containsKey('spans')) {
-      final existingMetadata = existingBlock.metadata as Map;
-      if (existingMetadata.containsKey('spans')) {
-        contentMap['spans'] = existingMetadata['spans'];
-      }
-    }
-    
-    // Update block-specific fields if block type is changing
-    if (type != null && type != existingBlock.type) {
-      if (type == 'heading') {
-        // Ensure level is present for heading blocks
-        contentMap['level'] = contentMap['level'] ?? 1;
-      }
-      else if (type == 'code') {
-        // Ensure language is present for code blocks
-        contentMap['language'] = contentMap['language'] ?? 'plain';
-      }
-    }
-    
+
     // Update local block without waiting for server response
     _blocks[id] = existingBlock.copyWith(
       content: contentMap,
+      metadata: metadataMap,
       type: type ?? existingBlock.type,
       order: order ?? existingBlock.order,
-      metadata: metadataMap,
     );
     
     // Track this as a user modification

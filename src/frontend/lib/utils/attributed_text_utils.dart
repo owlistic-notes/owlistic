@@ -57,8 +57,9 @@ class AttributedTextUtils {
       for (final attribution in attributionsAtPosition) {
         if (attribution is LinkAttribution) {
           int end = i;
-          while (end < text.length && 
-                attributedText.getAllAttributionsAt(end).contains(attribution)) {
+          while (
+            end < text.length && 
+            attributedText.getAllAttributionsAt(end).contains(attribution)) {
             end++;
           }
           

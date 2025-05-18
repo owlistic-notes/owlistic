@@ -691,7 +691,7 @@ class DocumentBuilder {
 
       // Handle specific block types - extract additional metadata but don't include blockType
       if (blockTypeStr.startsWith('header')) {
-        final levelStr = blockTypeStr.substring(7);
+        final levelStr = blockType.substring(6);
         final level = DataConverter.parseIntSafely(levelStr);
         metadata['level'] = level;
       } else if (blockTypeStr == 'code') {
@@ -1240,7 +1240,7 @@ class DocumentBuilder {
     // Extract specific metadata based on node type
     if (blockType.startsWith('header')) {
       blockType = 'heading';
-      final levelStr = blockType.substring(7);
+      final levelStr = blockType.substring(6);
       final level = int.tryParse(levelStr) ?? 1;
       metadataMap['level'] = level;
     } else if (blockType == 'code') {
