@@ -402,22 +402,13 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       }
       
       // Determine block type based on node
-      String blockType = _attributedTextUtils.detectBlockTypeFromNode(node);
+      String blockType = DocumentBuilder.extractTypeFromNode(node);
 
       // Extract content from node in the format needed by API
-      final extractedData = _extractNodeContentForApi(node);
-
-      // Extract specific metadata based on node type
-      if (blockType.startsWith('header')) {
-        blockType = 'heading';
-        final levelStr = blockType.substring(6);
-        final level = int.tryParse(levelStr) ?? 1;
-        extractedData['metadata']['level'] = level;
-      } else if (blockType == 'code') {
-        extractedData['metadata']['language'] = node.metadata['language'] ?? 'plain';
-      } else if (blockType == 'paragraph') {
-        blockType = 'text';
-      }
+      final extractedData = DocumentBuilder.extractNodeContent(
+        node,
+        originalBlock: _blocks[_documentBuilder.nodeToBlockMap[node.id]]
+      );
 
       // Calculate a fractional order value using the document builder
       double order = await _documentBuilder.calculateOrderForNewNode(nodeId, blocks);
@@ -459,19 +450,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     }
   }
   
-  // Extract content from a node in the format expected by the API
-  Map<String, dynamic> _extractNodeContentForApi(DocumentNode node) {
-    // Get the block ID if this is an existing node
-    String? blockId;
-    blockId = _documentBuilder.nodeToBlockMap[node.id];
-    
-    // Get the original block if it exists
-    Block? originalBlock = blockId != null ? _blocks[blockId] : null;
-    
-    // Use the unified extraction method from DocumentBuilder
-    return _documentBuilder.extractNodeContent(node, originalBlock);
-  }
-
   // DocumentChangeListener implementation for content changes
   void _documentChangeListener(dynamic _) {
     if (_updatingDocument) return;
@@ -590,21 +568,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     if (block == null) return;
     
     // Extract node type for determining block.type
-    String blockType = _documentBuilder.extractTypeFromNode(node);
+    String blockType = DocumentBuilder.extractTypeFromNode(node);
     
     // Extract content from node with proper formatting
-    final extractedData = _documentBuilder.extractContentFromNode(node, blockId, block);
-
-    if (blockType.startsWith('header')) {
-      blockType = 'heading';
-      final levelStr = blockType.substring(6);
-      final level = int.tryParse(levelStr) ?? 1;
-      extractedData['metadata']['level'] = level;
-    } else if (blockType == 'code') {
-      extractedData['metadata']['language'] = node.metadata['language'] ?? 'plain';
-    } else if (blockType == 'paragraph') {
-      blockType = 'text';
-    }
+    final extractedData = DocumentBuilder.extractContentFromNode(node, blockId, block);
 
     // Send content update with formats included
     updateBlock(blockId, extractedData, type: blockType);

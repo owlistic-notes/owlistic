@@ -548,27 +548,20 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       final note = await _noteService.createNote(notebookId, title);
       _logger.debug('Created note: ${note.id} for markdown import');
       
-      final documentBuilder = DocumentBuilder();
-
       // Create blocks for each node
-      final document = documentBuilder.deserializeMarkdownContent(content);
+      final document = DocumentBuilder.deserializeMarkdownContent(content);
 
       // Create blocks for each node
       int order = 0;
       for (final node in document) {
         try {
-          final blockContent = documentBuilder.buildBlockContent(node);
-          
-          final blockType = blockContent['type'];
-          final payload = {
-            "metadata": blockContent['metadata'],
-            "content": blockContent['content'],
-          };
+          final blockType = DocumentBuilder.extractTypeFromNode(node);
+          final blockContent = DocumentBuilder.extractNodeContent(node);
 
           // Create block through BlockService
           await _blockService.createBlock(
             note.id,
-            payload,
+            blockContent,
             blockType,
             (order + 1) * 1000.0  // Use increasing order with gaps
           );
@@ -578,7 +571,7 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
           _logger.error('Error creating block for imported markdown: $e');
         }
       }
-      
+
       // Add note to local state
       _notesMap[note.id] = note;
       _updateCount++;
@@ -611,7 +604,7 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       
       // Create a document from the blocks
       final documentBuilder = DocumentBuilder();
-      
+
       // Convert blocks to document nodes
       documentBuilder.populateDocumentFromBlocks(blocks);
       

@@ -316,7 +316,7 @@ func TestGetBlocks_Success(t *testing.T) {
 	// Set up expectation for blocks retrieval
 	rows := sqlmock.NewRows([]string{"id", "note_id", "type", "content", "metadata", "order", "created_at", "updated_at"}).
 		AddRow(blockID1, noteID, "text", contentJSON1, metadataJSON, 1, now, now).
-		AddRow(blockID2, noteID, "heading", contentJSON2, metadataJSON, 2, now, now)
+		AddRow(blockID2, noteID, "header", contentJSON2, metadataJSON, 2, now, now)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "blocks" WHERE note_id = $1 AND type = $2 ORDER BY "order" asc`)).
 		WithArgs(noteID.String(), "text").

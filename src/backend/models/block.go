@@ -15,7 +15,7 @@ type BlockType string
 const (
 	TextBlock    BlockType = "text"
 	TaskBlock    BlockType = "task"
-	HeadingBlock BlockType = "heading"
+	HeadingBlock BlockType = "header"
 )
 
 type BlockContent map[string]interface{}
@@ -83,7 +83,7 @@ type Block struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }
 
-// GetHeadingLevel returns the heading level (for heading blocks)
+// GetHeadingLevel returns the header level (for header blocks)
 func (b *Block) GetHeadingLevel() int {
 	if b.Type != HeadingBlock {
 		return 0
@@ -92,7 +92,7 @@ func (b *Block) GetHeadingLevel() int {
 	if level, ok := b.Metadata["level"].(float64); ok {
 		return int(level)
 	}
-	return 1 // Default heading level
+	return 1 // Default header level
 }
 
 // GetSpans returns formatting spans from metadata

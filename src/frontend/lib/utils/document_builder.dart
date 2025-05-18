@@ -12,7 +12,7 @@ class DocumentBuilder {
   final Logger _logger = Logger('DocumentBuilder');
 
   // Add instance of AttributedTextUtils
-  final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
+  static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
 
   // Add BlockNodeMapping instance
   final BlockNodeMapping _blockNodeMapping = BlockNodeMapping();
@@ -579,13 +579,13 @@ class DocumentBuilder {
     _blockNodeMapping.clearModificationTracking(blockId);
   }
 
-  String extractTypeFromNode(DocumentNode node) {
+  static String extractTypeFromNode(DocumentNode node) {
     // Extract node blockType for determining block.type
     return _attributedTextUtils.detectBlockTypeFromNode(node);
   }
 
   // Extract content from a node in the format expected by the API
-  Map<String, dynamic> extractContentFromNode(
+  static Map<String, dynamic> extractContentFromNode(
       DocumentNode node, String blockId, Block originalBlock) {
     // Initialize with strict format
     Map<String, dynamic> content = {'text': ''};
@@ -621,8 +621,8 @@ class DocumentBuilder {
       }
 
       // Extract specific metadata based on node type
-      if (blockTypeStr.startsWith('heading')) {
-        final levelStr = blockTypeStr.substring(7);
+      if (blockTypeStr.startsWith('header')) {
+        final levelStr = blockTypeStr.substring(6);
         final level = int.tryParse(levelStr) ?? 1;
         metadata['level'] = level;
       } else if (blockTypeStr == 'code') {
@@ -660,8 +660,8 @@ class DocumentBuilder {
   }
 
   /// Extract content from a node in a standardized format for API usage
-  Map<String, dynamic> extractNodeContent(
-      DocumentNode node, Block? originalBlock) {
+  static Map<String, dynamic> extractNodeContent(
+      DocumentNode node, {Block? originalBlock}) {
     // Initialize with a base structure
     Map<String, dynamic> content = {'text': ''};
     Map<String, dynamic> metadata = {'_sync_source': 'block'};
@@ -680,26 +680,17 @@ class DocumentBuilder {
       metadata['spans'] = spans; // Always include spans array
 
       // Process node blockType for determining block type
-      final blockType = node.metadata['blockType'];
-      String blockTypeStr = '';
+      String blockType = _attributedTextUtils.detectBlockTypeFromNode(node);
 
-      if (blockType is NamedAttribution) {
-        blockTypeStr = blockType.id;
-      } else if (blockType is String) {
-        blockTypeStr = blockType;
-      }
-
-      // Handle specific block types - extract additional metadata but don't include blockType
-      if (blockTypeStr.startsWith('header')) {
+      if (blockType.startsWith('header')) {
+        blockType = 'header';
         final levelStr = blockType.substring(6);
-        final level = DataConverter.parseIntSafely(levelStr);
-        metadata['level'] = level;
-      } else if (blockTypeStr == 'code') {
+        metadata['level'] = DataConverter.parseIntSafely(levelStr);
+      } else if (blockType == 'code') {
         metadata['language'] = node.metadata['language'] ?? 'plain';
       }
     } else if (node is TaskNode) {
       content['text'] = node.text.toPlainText();
-
       metadata['is_completed'] = node.isComplete;
 
       // Extract spans for formatting
@@ -732,8 +723,8 @@ class DocumentBuilder {
 
     // Create node based on block type
     switch (blockType) {
-      case 'heading':
-        // Get heading level from metadata
+      case 'header':
+        // Get header level from metadata
         final level = metadata != null ? metadata['level'] ?? 1 : 1;
         final levelInt =
             level is int ? level : int.tryParse(level.toString()) ?? 1;
@@ -1224,48 +1215,10 @@ class DocumentBuilder {
     _blockNodeMapping.removeUncommittedNode(nodeId);
   }
 
-  MutableDocument deserializeMarkdownContent(String markdown) {
+  static MutableDocument deserializeMarkdownContent(String markdown) {
     // Parse markdown into a document
     final document = deserializeMarkdownToDocument(markdown);
-    _logger.debug('Parsed markdown into document with ${document.length} nodes');
     return document;
-  }
-
-  Map<String, dynamic> buildBlockContent(DocumentNode node)  {
-    // Extract content based on node type
-    Map<String, dynamic> metadataMap = {};
-    Map<String, dynamic> contentMap = {};
-    String blockType = _attributedTextUtils.detectBlockTypeFromNode(node);
-
-    // Extract specific metadata based on node type
-    if (blockType.startsWith('header')) {
-      blockType = 'heading';
-      final levelStr = blockType.substring(6);
-      final level = int.tryParse(levelStr) ?? 1;
-      metadataMap['level'] = level;
-    } else if (blockType == 'code') {
-      metadataMap['language'] = node.metadata['language'] ?? 'plain';
-    }
-
-    if (node is ParagraphNode) {
-      contentMap['text'] = node.text.toPlainText();
-      
-      // Extract spans for formatting
-      final spans = _attributedTextUtils.extractSpansFromAttributedText(node.text);
-      metadataMap['spans'] = spans;
-    } else if (node is TaskNode) {
-      contentMap['text'] = node.text.toPlainText();
-      metadataMap['is_completed'] = node.isComplete;
-    } else if (node is ListItemNode) {
-      contentMap['text'] = node.text.toPlainText();
-    } else {
-      contentMap['text'] = '';
-    }
-    return {
-      "type": blockType,
-      "metadata": metadataMap,
-      "content": contentMap
-    };
   }
 
   // Create Super Editor with configured components for SuperEditor 0.3.0

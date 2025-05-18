@@ -105,9 +105,9 @@ class Block {
     };
   }
   
-  // Gets the heading level if this is a heading block
+  // Gets the header level if this is a header block
   int getHeadingLevel() {
-    if (type == 'heading') {
+    if (type == 'header') {
       // First check metadata (preferred location)
       if (metadata != null && metadata!.containsKey('level')) {
         return DataConverter.parseIntSafely(metadata!['level'], defaultValue: 1);
