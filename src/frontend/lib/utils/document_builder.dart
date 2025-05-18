@@ -1291,7 +1291,21 @@ class DocumentBuilder {
       TaskComponentBuilder(editor),
     ];
 
-    // Determine if dark mode
+    final stylesheet = getStylesheet(themeData);
+
+    return SuperEditor(
+        editor: editor,
+        focusNode: focusNode,
+        scrollController: scrollController,
+        stylesheet: stylesheet,
+        componentBuilders: componentBuilders,
+        keyboardActions: defaultKeyboardActions,
+        plugins: {
+          MarkdownInlineUpstreamSyntaxPlugin(),
+        });
+  }
+
+  Stylesheet getStylesheet(themeData)  {
     final isDarkMode = themeData?.brightness == Brightness.dark;
 
     final addRulesAfter = [
@@ -1312,9 +1326,7 @@ class DocumentBuilder {
         StyleRule(BlockSelector.all, (doc, node) {
           return {
             Styles.textStyle: const TextStyle(
-              color: Color(0xFFEEEEEE),
-              fontSize: 18,
-              height: 1.4,
+              color: Colors.white,
             ),
           };
         })
@@ -1325,16 +1337,6 @@ class DocumentBuilder {
     final stylesheet = defaultStylesheet.copyWith(
       addRulesAfter: addRulesAfter,
     );
-
-    return SuperEditor(
-        editor: editor,
-        focusNode: focusNode,
-        scrollController: scrollController,
-        stylesheet: stylesheet,
-        componentBuilders: componentBuilders,
-        keyboardActions: defaultKeyboardActions,
-        plugins: {
-          MarkdownInlineUpstreamSyntaxPlugin(),
-        });
+    return stylesheet;
   }
 }

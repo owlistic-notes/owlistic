@@ -8,6 +8,7 @@ class AppTheme {
   static const dangerColor = Colors.red;
   static const warningColor = Colors.orange;
   static const successColor = Colors.green;
+  static const selectionColor = Color.fromARGB(255, 244, 185, 255) ;
   static const backgroundLight = Colors.white;
   static const backgroundDark = Color(0xFF121212);
   static const cardLight = Colors.white;
@@ -34,6 +35,9 @@ class AppTheme {
       bodyLarge: TextStyle(color: Colors.black87),
       bodyMedium: TextStyle(color: Colors.black87),
       bodySmall: TextStyle(color: Colors.black54),
+    ),
+    textSelectionTheme: const TextSelectionThemeData(
+      cursorColor: primaryColor,
     ),
     checkboxTheme: const CheckboxThemeData(
       shape: CircleBorder(),
@@ -73,6 +77,10 @@ class AppTheme {
       bodyLarge: TextStyle(color: Colors.white),
       bodyMedium: TextStyle(color: Colors.white),
       bodySmall: TextStyle(color: Colors.white70),
+    ),
+    textSelectionTheme: const TextSelectionThemeData(
+      cursorColor: primaryColor,
+      selectionColor: selectionColor,
     ),
     checkboxTheme: const CheckboxThemeData(
       shape: CircleBorder(),
