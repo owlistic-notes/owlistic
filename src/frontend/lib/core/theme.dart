@@ -35,6 +35,9 @@ class AppTheme {
       bodyMedium: TextStyle(color: Colors.black87),
       bodySmall: TextStyle(color: Colors.black54),
     ),
+    checkboxTheme: const CheckboxThemeData(
+      shape: CircleBorder(),
+    ),
     dividerTheme: DividerThemeData(
       color: Colors.grey[300],
       thickness: 1,
@@ -70,6 +73,9 @@ class AppTheme {
       bodyLarge: TextStyle(color: Colors.white),
       bodyMedium: TextStyle(color: Colors.white),
       bodySmall: TextStyle(color: Colors.white70),
+    ),
+    checkboxTheme: const CheckboxThemeData(
+      shape: CircleBorder(),
     ),
     dividerTheme: const DividerThemeData(
       color: Colors.white24,

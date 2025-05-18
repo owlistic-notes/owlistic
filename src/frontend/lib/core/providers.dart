@@ -104,7 +104,6 @@ final List<SingleChildWidget> appProviders = [
       themeService: context.read<ThemeService>(),
     )..initialize(),
   ),
-  
   ChangeNotifierProvider<RegisterViewModel>(
     create: (context) => RegisterProvider(
       authService: context.read<AuthService>(),

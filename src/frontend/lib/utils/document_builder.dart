@@ -7,6 +7,7 @@ import 'package:owlistic/utils/attributed_text_utils.dart';
 import 'package:owlistic/utils/block_node_mapping.dart';
 import 'package:super_editor_markdown/super_editor_markdown.dart';
 
+
 /// Class that handles mapping between Blocks and SuperEditor DocumentNodes
 class DocumentBuilder {
   final Logger _logger = Logger('DocumentBuilder');
@@ -1289,22 +1290,36 @@ class DocumentBuilder {
     // Determine if dark mode
     final isDarkMode = themeData?.brightness == Brightness.dark;
 
+    final addRulesAfter = [
+      StyleRule(
+        const BlockSelector("task"),
+        (document, node) {
+          if (node is! TaskNode) {
+            return {};
+          }
+          return {
+            Styles.padding: const CascadingPadding.only(top: 24),
+          };
+        },
+      )
+    ];
+    if (isDarkMode) {
+      addRulesAfter.add(
+        StyleRule(BlockSelector.all, (doc, node) {
+          return {
+            Styles.textStyle: const TextStyle(
+              color: Color(0xFFEEEEEE),
+              fontSize: 18,
+              height: 1.4,
+            ),
+          };
+        })
+      );
+    }
+
     // Create stylesheet
     final stylesheet = defaultStylesheet.copyWith(
-      // Add dark mode styles if needed
-      addRulesAfter: isDarkMode
-          ? [
-              StyleRule(BlockSelector.all, (doc, node) {
-                return {
-                  Styles.textStyle: const TextStyle(
-                    color: Color(0xFFEEEEEE),
-                    fontSize: 18,
-                    height: 1.4,
-                  ),
-                };
-              }),
-            ]
-          : [],
+      addRulesAfter: addRulesAfter,
     );
 
     return SuperEditor(

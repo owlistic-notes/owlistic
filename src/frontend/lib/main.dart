@@ -111,7 +111,7 @@ class _OwlisticAppWithProvidersState extends State<OwlisticAppWithProviders> {
         return MaterialApp.router(
           title: 'Owlistic',
           debugShowCheckedModeBanner: false,
-          theme: themeViewModel.theme,
+          theme: AppTheme.lightTheme,
           themeMode: themeViewModel.themeMode,
           darkTheme: AppTheme.darkTheme,
           routerConfig: _router,
