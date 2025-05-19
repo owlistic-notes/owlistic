@@ -1,7 +1,7 @@
-import useIsBrowser from '@docusaurus/useIsBrowser';
-import { mdiCheckboxBlankCircle, mdiCheckboxMarkedCircle } from '@mdi/js';
+import type {ReactNode} from 'react';
 import Icon from '@mdi/react';
-import { ReactNode } from 'react';
+import { mdiCheckboxBlankCircle, mdiCheckboxMarkedCircle } from '@mdi/js';
+import useIsBrowser from '@docusaurus/useIsBrowser';
 
 export type Item = {
   icon: string;

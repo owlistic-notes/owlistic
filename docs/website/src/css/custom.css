@@ -5,6 +5,7 @@
  */
 
 /* You can override the default Infima variables here. */
+
 :root {
   --ifm-color-primary: #2196F3; /* Flutter Colors.blue */
   --ifm-color-primary-dark: #1976D2; /* Blues.700 */

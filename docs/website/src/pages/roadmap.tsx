@@ -1,5 +1,5 @@
 import Layout from '@theme/Layout';
-import { JSX } from 'react';
+import type { ReactNode } from 'react';
 import { mdiPartyPopper } from '@mdi/js';
 import { Item, Timeline } from '../components/RoadmapFeatures/timeline';
 
@@ -52,7 +52,7 @@ const milestones: Item[] = [
     },
 ];
 
-export default function RoadmapPage(): JSX.Element {
+export default function RoadmapPage(): ReactNode {
     return (
         <Layout title={title} description={description}>
             <section className="my-8">
