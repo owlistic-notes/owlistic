@@ -1,7 +1,7 @@
 import useIsBrowser from '@docusaurus/useIsBrowser';
 import { mdiCheckboxBlankCircle, mdiCheckboxMarkedCircle } from '@mdi/js';
 import Icon from '@mdi/react';
-import { JSX } from 'react';
+import { ReactNode } from 'react';
 
 export type Item = {
   icon: string;
@@ -17,7 +17,7 @@ interface Props {
   items: Item[];
 }
 
-export function Timeline({ items }: Props): JSX.Element {
+export function Timeline({ items }: Props): ReactNode {
   const isBrowser = useIsBrowser();
 
   return (
