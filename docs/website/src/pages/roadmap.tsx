@@ -1,7 +1,8 @@
-import Layout from '@theme/Layout';
 import type { ReactNode } from 'react';
-import { mdiPartyPopper } from '@mdi/js';
+import * as mdiIcons from '@mdi/js';
 import { Item, Timeline } from '../components/RoadmapFeatures/timeline';
+import Layout from '@theme/Layout';
+import Heading from '@theme/Heading';
 
 const releases = {
     'v0.1.0': new Date(2025, 5, 19),
@@ -12,7 +13,10 @@ const description = 'A list of future plans and goals, as well as past achieveme
 
 const withLanguage = (date: Date) => (language: string) => date.toLocaleDateString(language);
 
-type Base = { icon: string; iconColor?: React.CSSProperties['color']; title: string; description: string };
+type Base = {
+    icon: string; iconColor?: React.CSSProperties['color']; title: string; description: string
+};
+
 const withRelease = ({
     icon,
     iconColor,
@@ -37,14 +41,21 @@ const roadmap: Item[] = [];
 
 const milestones: Item[] = [
     withRelease({
-        icon: mdiPartyPopper,
-        iconColor: 'deeppink',
+        icon: mdiIcons.mdiRocketLaunch,
+        iconColor: 'darkorange',
+        title: 'First beta release',
+        description: 'First Owlistic beta version.',
+        release: 'v0.1.0',
+    }),
+    withRelease({
+        icon: mdiIcons.mdiRocketLaunch,
+        iconColor: 'darkorange',
         title: 'First beta release',
         description: 'First Owlistic beta version.',
         release: 'v0.1.0',
     }),
     {
-        icon: mdiPartyPopper,
+        icon: mdiIcons.mdiPartyPopper,
         iconColor: 'deeppink',
         title: 'First commit',
         description: 'First commit on GitHub, Owlistic is born.',
@@ -52,18 +63,23 @@ const milestones: Item[] = [
     },
 ];
 
+function RoadmapHeader() {
+    return (
+    <header>
+        <Heading as="h1" className="hero__title">
+            Roadmap and Milestones
+        </Heading>
+    </header>
+    );
+}
+
 export default function RoadmapPage(): ReactNode {
     return (
         <Layout title={title} description={description}>
-            <section className="my-8">
-                <h1 className="md:text-6xl text-center mb-10 text-immich-primary dark:text-immich-dark-primary px-2">
-                    {title}
-                </h1>
-                <p className="text-center text-xl px-2">{description}</p>
-                <div className="flex justify-around mt-8 w-full max-w-full">
-                    <Timeline items={[...roadmap, ...milestones]} />
-                </div>
-            </section>
+            <RoadmapHeader />
+            <div className="container">
+                <Timeline items={[...milestones, ...roadmap]} />
+            </div>
         </Layout>
     );
 }

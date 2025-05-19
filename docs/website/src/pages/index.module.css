@@ -20,4 +20,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px 14px;
+}
+
+.buttons > * {
+  margin-right: 1rem;
+}
+
+.buttons > *:last-child {
+  margin-right: 0;
 }
