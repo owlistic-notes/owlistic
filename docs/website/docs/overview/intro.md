@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Introduction
 
-![Owlistic Logo](/img/logo/logo-192x192.png)
+![Owlistic Logo](@site/static/img/logo/logo-192x192.png)
 
 ## Welcome to Owlistic!
 
