@@ -67,7 +67,7 @@ export default {
         {
           to: '/roadmap',
           label: 'Roadmap',
-          position: 'right',
+          position: 'left',
         },
         {
           href: 'https://github.com/owlistic-notes/owlistic',
