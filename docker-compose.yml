@@ -2,12 +2,12 @@ version: '3.8'
 
 services:
   owlistic:
-    # image: ghcr.io/owlistic-notes/owlistic:0.1.0
-    build:
-      context: ./src/backend
-      dockerfile: Dockerfile
-      args:
-        TARGETARCH: ${TARGETARCH:-arm64}
+    image: ghcr.io/owlistic-notes/owlistic:0.1.0
+    # build:
+    #   context: ./src/backend
+    #   dockerfile: Dockerfile
+    #   args:
+    #     TARGETARCH: ${TARGETARCH:-arm64}
     ports:
       - "8080:8080"
     depends_on:
@@ -21,14 +21,18 @@ services:
       - DB_PASSWORD=admin
       - DB_NAME=postgres
       - KAFKA_BROKER=kafka:9092
+    networks:
+      - server
+      - events
+      - db
 
   owlistic-app:
-    # image: ghcr.io/owlistic-notes/owlistic-app:0.1.0
-    build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
-      args:
-        TARGETARCH: ${TARGETARCH:-arm64}
+    image: ghcr.io/owlistic-notes/owlistic-app:0.1.0
+    # build:
+    #   context: ./src/frontend
+    #   dockerfile: Dockerfile
+    #   args:
+    #     TARGETARCH: ${TARGETARCH:-arm64}
     ports:
       - "80:80"
     depends_on:
@@ -43,6 +47,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - db
 
   kafka:
     image: bitnami/kafka:3
@@ -57,6 +63,8 @@ services:
       - "9092:9092"
     depends_on:
       - zookeeper
+    networks:
+      - events
 
   zookeeper:
     image: bitnami/zookeeper:3
@@ -64,6 +72,16 @@ services:
       ALLOW_ANONYMOUS_LOGIN: yes
     ports:
       - "2181:2181"
+    networks:
+      - events
 
 volumes:
   postgres_data:
+
+networks:
+  server:
+    driver: bridge
+  events:
+    driver: bridge
+  db:
+    driver: bridge
