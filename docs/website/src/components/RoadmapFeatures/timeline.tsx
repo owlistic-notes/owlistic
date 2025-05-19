@@ -49,7 +49,7 @@ export function Timeline({ items }: Props): ReactNode {
               <div className="flex flex-col flex-grow justify-between gap-2">
                 <div className="flex gap-2 items-center">
                   {cardIcon === 'owlistic' ? (
-                    <img src="/img/logo/owlistic.svg" height="30" className="rounded-none" />
+                    <img src="@site/static/img/logo/owlistic.svg" height="30" className="rounded-none" />
                   ) : (
                     <Icon path={cardIcon} size={1} color={item.iconColor} />
                   )}
