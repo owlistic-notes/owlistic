@@ -55,7 +55,7 @@ export default {
       title: 'Owlistic',
       logo: {
         alt: 'Owlistic Logo',
-        src: 'img/logo.svg',
+        src: 'img/owlistic.svg',
       },
       items: [
         {
