@@ -65,6 +65,11 @@ export default {
           label: 'Documentation',
         },
         {
+          to: '/roadmap',
+          label: 'Roadmap',
+          position: 'right',
+        },
+        {
           href: 'https://github.com/owlistic-notes/owlistic',
           label: 'GitHub',
           position: 'right',
@@ -78,7 +83,7 @@ export default {
           title: 'Docs',
           items: [
             {
-              label: 'Getting Started',
+              label: 'Introduction',
               to: '/docs/overview/intro',
             },
           ],
@@ -102,6 +107,10 @@ export default {
             {
               label: 'GitHub',
               href: 'https://github.com/owlistic-notes/owlistic',
+            },
+            {
+              label: 'Helm Charts',
+              href: 'https://github.com/owlistic-notes/helm-charts',
             },
           ],
         },
