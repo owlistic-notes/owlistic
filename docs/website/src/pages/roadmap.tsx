@@ -47,13 +47,6 @@ const milestones: Item[] = [
         description: 'First Owlistic beta version.',
         release: 'v0.1.0',
     }),
-    withRelease({
-        icon: mdiIcons.mdiRocketLaunch,
-        iconColor: 'darkorange',
-        title: 'First beta release',
-        description: 'First Owlistic beta version.',
-        release: 'v0.1.0',
-    }),
     {
         icon: mdiIcons.mdiPartyPopper,
         iconColor: 'deeppink',
