@@ -8,7 +8,7 @@ Owlistic uses a traditional client-server design, with a dedicated database for 
 
 ## High Level Design
 
-![Architecture](@site/static/img/developers/architecture.png)
+![Architecture](/img/developers/architecture.png)
 
 The diagram shows clients communicating with the server REST APIs for CRUD (Create, Read, Update, Delete) operations and listening to server events over a websocket connection.
 

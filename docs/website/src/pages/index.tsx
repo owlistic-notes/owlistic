@@ -6,7 +6,7 @@ function HomepageHeader() {
   return (
     <header>
       <div>
-        <img src={'@site/static/img/logo/owlistic.svg'} className="h-[110%] w-[110%] mb-2 antialiased -z-10" alt="Owlistic logo" />
+        <img src={'/img/logo/owlistic.svg'} className="h-[110%] w-[110%] mb-2 antialiased -z-10" alt="Owlistic logo" />
       </div>
       <section className="text-center pt-12 sm:pt-24">
         <div className="mt-8">
