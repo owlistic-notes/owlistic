@@ -22,35 +22,35 @@ Stay tuned for Mobile and Desktop apps soon!
 
 ## Register into Owlistic
 
-![Register screen](@site/static/img/screenshoots/register.png)
+![Register screen](@site/static/img/screenshots/register.png)
 
 ## Login into Owlistic
 
-![Login screen](@site/static/img/screenshoots/login.png)
+![Login screen](@site/static/img/screenshots/login.png)
 
 ## Organize notes in Notebooks
 
-![Notebooks screen](@site/static/img/screenshoots/notebooks.png)
+![Notebooks screen](@site/static/img/screenshots/notebooks.png)
 
 ## Notes
 
-![Notes screen](@site/static/img/screenshoots/notes.png)
+![Notes screen](@site/static/img/screenshots/notes.png)
 
 ## Edit a note
 
-![Editor screen](@site/static/img/screenshoots/editor.png)
+![Editor screen](@site/static/img/screenshots/editor.png)
 
 ### Import from Markdown file
 
-![Import button](@site/static/img/screenshoots/import.png)
+![Import button](@site/static/img/screenshots/import.png)
 
 ## Add tasks
 
-![Task screen](@site/static/img/screenshoots/tasks.png)
+![Task screen](@site/static/img/screenshots/tasks.png)
 
 ## Trash
 
-![Trash screen](@site/static/img/screenshoots/trash.png)
+![Trash screen](@site/static/img/screenshots/trash.png)
 
 ## Explore Features
 
