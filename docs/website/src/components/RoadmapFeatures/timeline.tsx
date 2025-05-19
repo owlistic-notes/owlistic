@@ -32,24 +32,24 @@ export function Timeline({ items }: Props): JSX.Element {
 
         return (
           <li key={index} className={`flex min-h-24 w-[700px] max-w-[90vw] ${done ? '' : 'italic'}`}>
-            <div className="md:flex justify-start w-36 mr-8 items-center dark:text-immich-dark-primary text-immich-primary hidden">
+            <div className="md:flex justify-start w-36 mr-8 items-center hidden">
               {dateLabel}
             </div>
             <div className={`${isFirst && 'relative top-[50%]'} ${isLast && 'relative bottom-[50%]'}`}>
               <div
-                className={`h-full border-solid border-4 border-immich-primary dark:border-immich-dark-primary ${
+                className={`h-full border-solid border-4${
                   isFirst && 'rounded rounded-t-full'
                 } ${isLast && 'rounded rounded-b-full'}`}
               ></div>
             </div>
-            <div className="z-10 flex items-center bg-immich-primary dark:bg-immich-dark-primary border-2 border-solid rounded-full dark:text-black text-white relative top-[50%] left-[-3px] translate-y-[-50%] translate-x-[-50%] w-8 h-8 shadow-lg ">
+            <div className="z-10 flex items-center border-2 border-solid rounded-full dark:text-black text-white relative top-[50%] left-[-3px] translate-y-[-50%] translate-x-[-50%] w-8 h-8 shadow-lg ">
               {<Icon path={timelineIcon} size={1.25} />}
             </div>
-            <section className=" dark:bg-immich-dark-gray bg-immich-gray dark:border-0 border-gray-200 border border-solid rounded-2xl flex flex-row w-full gap-2 p-4 md:ml-4 my-2 hover:bg-immich-primary/10 dark:hover:bg-immich-dark-primary/10 transition-all">
+            <section className="dark:border-0 border-gray-200 border border-solid rounded-2xl flex flex-row w-full gap-2 p-4 md:ml-4 my-2 transition-all">
               <div className="flex flex-col flex-grow justify-between gap-2">
                 <div className="flex gap-2 items-center">
-                  {cardIcon === 'immich' ? (
-                    <img src="/img/immich-logo.svg" height="30" className="rounded-none" />
+                  {cardIcon === 'owlistic' ? (
+                    <img src="/img/logo/owlistic.svg" height="30" className="rounded-none" />
                   ) : (
                     <Icon path={cardIcon} size={1} color={item.iconColor} />
                   )}
@@ -60,7 +60,7 @@ export function Timeline({ items }: Props): JSX.Element {
                 <p className="m-0 text-sm text-gray-600 dark:text-gray-300">{item.description}</p>
               </div>
               <div className="flex flex-col justify-between place-items-end">
-                <span className="dark:text-immich-dark-primary text-immich-primary">
+                <span>
                   {item.link && (
                     <a href={item.link.url} target="_blank" rel="noopener">
                       [{item.link.text}]
