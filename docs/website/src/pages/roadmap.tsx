@@ -80,11 +80,14 @@ function MilestonesHeader() {
 export default function RoadmapPage(): ReactNode {
     return (
         <Layout title={title} description={description}>
-            <RoadmapHeader />
-            <div className="container">
-                <Timeline items={[...roadmap]} />
-            </div>
-            <MilestonesHeader />
+            {roadmap.length > 0 && <RoadmapHeader /> }
+             
+             <div className="container">
+                 <Timeline items={[...roadmap]} />
+             </div>
+            
+             {milestones.length > 0 && <MilestonesHeader /> }
+
             <div className="container">
                 <Timeline items={[...milestones]} />
             </div>
