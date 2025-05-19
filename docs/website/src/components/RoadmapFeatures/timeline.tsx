@@ -11,7 +11,7 @@ export type Item = {
   description?: string;
   link?: { url: string; text: string };
   done?: false;
-  getDateLabel: (language: string) => string;
+  getDateLabel?: (language: string) => string;
 };
 
 interface Props {
@@ -25,13 +25,13 @@ export function Timeline({ items }: Props): ReactNode {
         const isFirst = index === 0;
         const isLast = index === items.length - 1;
         const done = item.done ?? true;
-        const dateLabel = item.getDateLabel('en-US');
+        const dateLabel = item.getDateLabel? item.getDateLabel('en-US') : '';
         const timelineIcon = done ? mdiIcons.mdiCheckboxMarkedCircle : mdiIcons.mdiCheckboxBlankCircle;
         const cardIcon = item.icon;
 
         return (
           <li key={index} className={styles.timelineItem}>
-            <div className={styles.date}>{dateLabel}</div>
+            {dateLabel && <div className={styles.date}>{dateLabel}</div>}
 
             <div className={styles.lineWrapper}>
               {!isLast && <div className={`${styles.line} ${styles.lineTop}`} />}

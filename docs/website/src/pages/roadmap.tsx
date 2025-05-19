@@ -5,7 +5,7 @@ import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 
 const releases = {
-    'v0.1.0': new Date(2025, 5, 19),
+    'v0.1.0': new Date(2025, 4, 19),
 } as const;
 
 const title = 'Roadmap';
@@ -52,7 +52,7 @@ const milestones: Item[] = [
         iconColor: 'deeppink',
         title: 'First commit',
         description: 'First commit on GitHub, Owlistic is born.',
-        getDateLabel: withLanguage(new Date(2025, 4, 14)),
+        getDateLabel: withLanguage(new Date(2025, 3, 14)),
     },
 ];
 
@@ -60,18 +60,33 @@ function RoadmapHeader() {
     return (
     <header>
         <Heading as="h1" className="hero__title">
-            Roadmap and Milestones
+            Roadmap
         </Heading>
     </header>
     );
 }
+
+function MilestonesHeader() {
+    return (
+    <header>
+        <Heading as="h1" className="hero__title">
+            Milestones
+        </Heading>
+    </header>
+    );
+}
+
 
 export default function RoadmapPage(): ReactNode {
     return (
         <Layout title={title} description={description}>
             <RoadmapHeader />
             <div className="container">
-                <Timeline items={[...milestones, ...roadmap]} />
+                <Timeline items={[...roadmap]} />
+            </div>
+            <MilestonesHeader />
+            <div className="container">
+                <Timeline items={[...milestones]} />
             </div>
         </Layout>
     );
