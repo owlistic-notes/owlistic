@@ -88,7 +88,7 @@ jobs:
           VERSION_TAG="ghcr.io/${{ github.repository }}:${{ steps.get-tag.outputs.tag }}${{ matrix.suffix }}"
           
           echo "Pulling source image: ${SOURCE_IMAGE}"
-          docker pull ${SOURCE_IMAGE}
+          docker pull --platform ${matrix.platform} ${SOURCE_IMAGE}
           
           echo "Tagging with version: ${VERSION_TAG}"
           docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
@@ -154,7 +154,7 @@ jobs:
           VERSION_TAG="ghcr.io/${{ github.repository }}-app:${{ steps.get-tag.outputs.tag }}${{ matrix.suffix }}"
           
           echo "Pulling source image: ${SOURCE_IMAGE}"
-          docker pull ${SOURCE_IMAGE}
+          docker pull --platform ${matrix.platform} ${SOURCE_IMAGE}
           
           echo "Tagging with version: ${VERSION_TAG}"
           docker tag ${SOURCE_IMAGE} ${VERSION_TAG}
