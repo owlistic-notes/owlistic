@@ -15,6 +15,9 @@ class DocumentBuilder {
   // Add instance of AttributedTextUtils
   static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
 
+  final _popoverToolbarController = OverlayPortalController();
+  final _selectionLayerLinks = SelectionLayerLinks();
+  
   // Add BlockNodeMapping instance
   final BlockNodeMapping _blockNodeMapping = BlockNodeMapping();
 
@@ -23,12 +26,6 @@ class DocumentBuilder {
   late MutableDocumentComposer composer;
   late Editor editor;
   late FocusNode focusNode;
-
-  // Document layout key for accessing the document layout
-  final GlobalKey documentLayoutKey = GlobalKey();
-
-  // Document scroller for programmatic scrolling
-  late DocumentScroller documentScroller;
 
   // Track last known node count to detect new nodes
   int _lastKnownNodeCount = 0;
@@ -73,6 +70,7 @@ class DocumentBuilder {
 
     // Create composer
     composer = MutableDocumentComposer();
+    composer.selectionNotifier.addListener(_hideOrShowToolbar);
 
     // Create editor with our document and composer
     editor =
@@ -1237,25 +1235,142 @@ class DocumentBuilder {
     final stylesheet = getStylesheet(themeData);
     final selectionStyles = getSelectionStyles(themeData);
 
-    return SuperEditor(
-        editor: editor,
-        focusNode: focusNode,
-        scrollController: scrollController,
-        stylesheet: stylesheet,
-        selectionStyle: selectionStyles,
-        componentBuilders: componentBuilders,
-        keyboardActions: defaultKeyboardActions,
-        documentOverlayBuilders: [
-          DefaultCaretOverlayBuilder(
-            caretStyle: CaretStyle(
-              color: AppTheme.primaryColor,
-              borderRadius: BorderRadius.circular(2),
+    return OverlayPortal(
+      controller: _popoverToolbarController,
+      overlayChildBuilder: (context) => _buildPopoverToolbar(),
+      child: KeyedSubtree(
+        key: const Key('editor'),
+        child: SuperEditor(
+          editor: editor,
+          focusNode: focusNode,
+          scrollController: scrollController,
+          stylesheet: stylesheet,
+          selectionStyle: selectionStyles,
+          componentBuilders: componentBuilders,
+          keyboardActions: defaultKeyboardActions,
+          selectionLayerLinks: _selectionLayerLinks,
+          documentOverlayBuilders: [
+            DefaultCaretOverlayBuilder(
+              caretStyle: CaretStyle(
+                color: AppTheme.primaryColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
+          plugins: {
+            MarkdownInlineUpstreamSyntaxPlugin(),
+          }),
+      )
+    ); 
+  }
+
+  Widget _buildPopoverToolbar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Material(
+        elevation: 4,
+        color: AppTheme.primaryColor,
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              // Bold button
+              IconButton(
+                icon: const Icon(Icons.format_bold, color: Colors.white),
+                onPressed: () => _applyFormatting('bold'),
+              ),
+              
+              // Italic button
+              IconButton(
+                icon: const Icon(Icons.format_italic, color: Colors.white),
+                onPressed: () => _applyFormatting('italics'),
+              ),
+              
+              // Underline button
+              IconButton(
+                icon: const Icon(Icons.format_underline, color: Colors.white),
+                onPressed: () => _applyFormatting('underline'),
+              ),
+              
+
+              // Strikethrough button
+              IconButton(
+                icon: const Icon(Icons.format_strikethrough, color: Colors.white),
+                onPressed: () => _applyFormatting('strikethrough'),
+              ),
+              
+              // Spacer to push optional buttons to the right
+              const Spacer(),
+              
+              // Optional: Done button to hide toolbar
+              TextButton(
+                onPressed: () => _popoverToolbarController.hide(),
+                child: const Text('Done', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _applyFormatting(String format) {
+    Attribution attribution;
+    switch (format) {
+      case 'bold':
+        attribution = const NamedAttribution('bold');
+        break;
+      case 'italic':
+        attribution = const NamedAttribution('italic');
+        break;
+      case 'underline':
+        attribution = const NamedAttribution('underline');
+        break;
+      case 'strikethrough':
+        attribution = const NamedAttribution('strikethrough');
+        break;
+      default:
+        return;
+    }
+    
+    final documentSelection = composer.selection!;
+    document.getNodesInContentOrder(documentSelection).forEach((node) {
+      if (node is TextNode) {
+        document.replaceNodeById(node.id, node.copyTextNodeWith(
+          text: AttributedText(
+            node.text.toPlainText(),
+            AttributedSpans(
+              attributions: [
+                SpanMarker(attribution: attribution, offset: 0, markerType: SpanMarkerType.start),
+                SpanMarker(attribution: attribution, offset: node.text.length, markerType: SpanMarkerType.end),
+              ],
             ),
           ),
-        ],
-        plugins: {
-          MarkdownInlineUpstreamSyntaxPlugin(),
-        });
+        ));
+        markNodeAsUncommitted(node.id);
+      }
+    });
+  }
+
+  void _hideOrShowToolbar() {
+    final selection = composer.selection;
+    if (selection == null) {
+      // Nothing is selected. We don't want to show a toolbar in this case.
+      _popoverToolbarController.hide();
+      return;
+    }
+
+    if (selection.isCollapsed) {
+      // We only want to show the toolbar when a span of text
+      // is selected. Therefore, we ignore collapsed selections.
+      _popoverToolbarController.hide();
+      return;
+    }
+
+    _popoverToolbarController.show();
   }
 
   Stylesheet getStylesheet(themeData)  {
