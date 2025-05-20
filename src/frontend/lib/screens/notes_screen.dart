@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:owlistic/models/notebook.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:provider/provider.dart';
@@ -35,7 +36,6 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // ViewModels
   late NotesViewModel _notesViewModel;
-  late NotebooksViewModel _notebooksViewModel;
 
   @override
   void didChangeDependencies() {
@@ -46,7 +46,6 @@ class _NotesScreenState extends State<NotesScreen> {
 
       // Get ViewModel
       _notesViewModel = context.read<NotesViewModel>();
-      _notebooksViewModel = context.read<NotebooksViewModel>();
 
       // Initialize data
       _initializeData();
@@ -95,18 +94,7 @@ class _NotesScreenState extends State<NotesScreen> {
             // Replace Consumer with proper extension usage
             Builder(
               builder: (context) {
-                final notebooksViewModel = context.watch<NotebooksViewModel>();
-                final notebooks = notebooksViewModel.notebooks;
-
-                // Show loading if notebooks aren't loaded yet
-                if (notebooksViewModel.isLoading) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
-                  );
-                }
-
+                final notebooks = _notesViewModel.notebooks;
                 // If no notebooks, show message
                 if (notebooks.isEmpty) {
                   return const Padding(
@@ -168,8 +156,7 @@ class _NotesScreenState extends State<NotesScreen> {
                 try {
                   _logger.info('Creating note: ${titleController.text} in notebook: $selectedNotebookId');
                   
-                  final notebooksViewModel = context.read<NotebooksViewModel>();
-                  await notebooksViewModel.addNoteToNotebook(
+                  await _notesViewModel.addNoteToNotebook(
                     selectedNotebookId!,
                     titleController.text,
                   );
@@ -305,7 +292,9 @@ class _NotesScreenState extends State<NotesScreen> {
 
           final note = notesToDisplay[index];
           // Get notebook name
-          final notebookName = _getNotebookName(note.notebookId);
+          final notebookName = _notesViewModel.notebooks
+            .firstWhere((nb) => nb.id == note.notebookId)
+            .name;
           final lastEdited = note.updatedAt ?? note.createdAt;
           
           return CardContainer(
@@ -324,7 +313,7 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
             ),
             title: note.title,
-            subtitle: '${notebookName ?? "Unknown notebook"} · ${_formatDate(lastEdited)}',
+            subtitle: '$notebookName · ${_formatDate(lastEdited)}',
             trailing: PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) {
@@ -377,21 +366,15 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  // Helper to get notebook name - Add this method
-  String? _getNotebookName(String notebookId) {
-    final notebook = _notebooksViewModel.getNotebook(notebookId);
-    return notebook?.name;
-  }
-
   // Show dialog to move note to another notebook - Add this method
   void _showMoveNoteDialog(BuildContext context, Note note) {
     String? selectedNotebookId;
     
     // Get list of notebooks excluding current one
-    final notebooks = _notebooksViewModel.notebooks
-        .where((nb) => nb.id != note.notebookId)
-        .toList();
-        
+    final notebooks = _notesViewModel.notebooks
+          .where((nb) => nb.id != note.notebookId)
+          .toList();
+
     if (notebooks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No other notebooks available to move to'))
@@ -479,17 +462,7 @@ class _NotesScreenState extends State<NotesScreen> {
           children: [
             Builder(
               builder: (context) {
-                final notebooksViewModel = context.watch<NotebooksViewModel>();
-                final notebooks = notebooksViewModel.notebooks;
-
-                // Show loading if notebooks aren't loaded yet
-                if (notebooksViewModel.isLoading) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                  );
-                }
-
+                final notebooks = _notesViewModel.notebooks;
                 // If no notebooks, show message
                 if (notebooks.isEmpty) {
                   return const Padding(

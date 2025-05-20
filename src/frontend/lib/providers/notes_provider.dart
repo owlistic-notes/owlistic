@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:owlistic/models/notebook.dart';
+import 'package:owlistic/services/notebook_service.dart';
 import 'package:owlistic/utils/document_builder.dart';
 import 'package:owlistic/viewmodel/notes_viewmodel.dart';
 import 'package:owlistic/models/note.dart';
@@ -17,6 +19,8 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   final Logger _logger = Logger('NotesProvider');
   // Use a Map instead of a List to prevent duplicates
   final Map<String, Note> _notesMap = {};
+  List<Notebook> _notebooks = [];
+
   bool _isLoading = false;
   bool _isActive = false; // For lifecycle management
   bool _isInitialized = false;
@@ -25,6 +29,7 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   int _updateCount = 0;
   
   // Services
+  final NotebookService _notebookService;
   final NoteService _noteService;
   final AuthService _authService;
   final BlockService _blockService;
@@ -37,11 +42,13 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
 
   // Constructor with dependency injection - add WebSocketService parameter
   NotesProvider({
+    NotebookService? notebookService,
     NoteService? noteService, 
     AuthService? authService, 
     required BlockService blockService,
     required WebSocketService webSocketService
-  }) : _noteService = noteService ?? ServiceLocator.get<NoteService>(),
+  }) : _notebookService = notebookService ?? ServiceLocator.get<NotebookService>(),
+      _noteService = noteService ?? ServiceLocator.get<NoteService>(),
       _authService = authService ?? ServiceLocator.get<AuthService>(),
       _blockService = blockService,
       _webSocketService = webSocketService {
@@ -50,6 +57,8 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       resetState();
     });
     
+    _initializeNotebooks();
+
     // Initialize event listeners
     _initializeEventListeners();
     
@@ -63,6 +72,12 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
 
     // Mark initialization as complete
     _isInitialized = true;
+  }
+
+  void _initializeNotebooks() async {
+    final notebooks = await _notebookService.fetchNotebooks();
+    _logger.info('NotesProvider initialized');
+    _notebooks = notebooks;
   }
 
   // Getters
@@ -88,6 +103,27 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       return _notesMap[id];
     } catch (e) {
       return null;
+    }
+  }
+
+  @override
+  List<Notebook> get notebooks => _notebooks;
+
+  // Add a note to a notebook
+  @override
+  Future<Note?> addNoteToNotebook(String notebookId, String title) async {
+    try {
+      // Create the note via API
+      final note = await _noteService.createNote(notebookId, title);
+      
+      // Subscribe to the new note
+      _webSocketService.subscribe('note', id: note.id);
+      return note;
+    } catch (e) {
+      _logger.error('Error adding note to notebook', e);
+      _errorMessage = e.toString();
+      notifyListeners();
+      rethrow;
     }
   }
 

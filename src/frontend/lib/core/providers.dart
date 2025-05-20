@@ -136,6 +136,7 @@ final List<SingleChildWidget> appProviders = [
   ),
   ChangeNotifierProvider<NotesViewModel>(
     create: (context) => NotesProvider(
+      notebookService: context.read<NotebookService>(),
       noteService: context.read<NoteService>(),
       authService: context.read<AuthService>(),
       blockService: context.read<BlockService>(),

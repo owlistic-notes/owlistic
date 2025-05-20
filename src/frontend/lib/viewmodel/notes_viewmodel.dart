@@ -1,9 +1,11 @@
 import 'package:owlistic/models/note.dart';
+import 'package:owlistic/models/notebook.dart';
 import 'base_viewmodel.dart';
 
 abstract class NotesViewModel extends BaseViewModel {
   // Getters
   List<Note> get notes;
+  List<Notebook> get notebooks;
   bool get isEmpty;
   int get updateCount;
   List<Note> get recentNotes;
@@ -35,6 +37,9 @@ abstract class NotesViewModel extends BaseViewModel {
 
   /// Move a note from one notebook to another
   Future<void> moveNote(String noteId, String newNotebookId);
+
+  /// Get a notebook by ID from cache
+  Future<Note?> addNoteToNotebook(String notebookId, String title);
 
   /// Import a markdown file and create a new note with its content
   Future<Note?> importMarkdownFile(String content, String fileName, String notebookId);

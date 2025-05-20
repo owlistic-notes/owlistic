@@ -432,15 +432,13 @@ class NotebooksProvider with ChangeNotifier implements NotebooksViewModel {
       _subscribeToExistingNotebooks();
     }
     
-    fetchNotebooks(); // Load notebooks on activation
-    notifyListeners(); // Notify about activation state change
+    fetchNotebooks();
   }
   
   @override
   void deactivate() {
     _isActive = false;
     _logger.info('NotebooksProvider deactivated');
-    notifyListeners(); // Notify about deactivation state change
   }
   
   // WebSocket event handlers
