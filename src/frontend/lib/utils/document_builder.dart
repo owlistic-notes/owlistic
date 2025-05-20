@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:owlistic/core/theme.dart';
 import 'package:owlistic/utils/data_converter.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import 'package:owlistic/models/block.dart';
@@ -1243,6 +1244,14 @@ class DocumentBuilder {
         stylesheet: stylesheet,
         componentBuilders: componentBuilders,
         keyboardActions: defaultKeyboardActions,
+        documentOverlayBuilders: [
+          DefaultCaretOverlayBuilder(
+            caretStyle: CaretStyle(
+              color: AppTheme.primaryColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ],
         plugins: {
           MarkdownInlineUpstreamSyntaxPlugin(),
         });
