@@ -8,7 +8,8 @@ class AppTheme {
   static const dangerColor = Colors.red;
   static const warningColor = Colors.orange;
   static const successColor = Colors.green;
-  static const selectionColor = Color(0xFFFC6C85);
+  static const selectionLight = Color(0xFFACCEF7);
+  static const selectionDark = Color.fromARGB(255, 247, 172, 233);
   static const backgroundLight = Colors.white;
   static const backgroundDark = Color(0xFF121212);
   static const cardLight = Colors.white;
@@ -37,7 +38,8 @@ class AppTheme {
       bodySmall: TextStyle(color: Colors.black54),
     ),
     textSelectionTheme: const TextSelectionThemeData(
-      cursorColor: primaryColor,
+      cursorColor: accentColor,
+      selectionColor: selectionLight
     ),
     checkboxTheme: const CheckboxThemeData(
       shape: CircleBorder(),
@@ -79,8 +81,8 @@ class AppTheme {
       bodySmall: TextStyle(color: Colors.white70),
     ),
     textSelectionTheme: const TextSelectionThemeData(
-      cursorColor: primaryColor,
-      selectionColor: selectionColor,
+      cursorColor: accentColor,
+      selectionColor: selectionDark,
     ),
     checkboxTheme: const CheckboxThemeData(
       shape: CircleBorder(),
@@ -131,13 +133,4 @@ class AppTheme {
       foregroundColor: Colors.white,
     );
   }
-}
-
-/// Extension methods for easy theme access
-extension ThemeExtension on BuildContext {
-  ThemeData get theme => Theme.of(this);
-  bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
-  Color get primaryColor => Theme.of(this).primaryColor;
-  TextTheme get textTheme => Theme.of(this).textTheme;
-  ColorScheme get colorScheme => Theme.of(this).colorScheme;
 }

@@ -1236,12 +1236,14 @@ class DocumentBuilder {
     ];
 
     final stylesheet = getStylesheet(themeData);
+    final selectionStyles = getSelectionStyles(themeData);
 
     return SuperEditor(
         editor: editor,
         focusNode: focusNode,
         scrollController: scrollController,
         stylesheet: stylesheet,
+        selectionStyle: selectionStyles,
         componentBuilders: componentBuilders,
         keyboardActions: defaultKeyboardActions,
         documentOverlayBuilders: [
@@ -1290,5 +1292,18 @@ class DocumentBuilder {
       addRulesAfter: addRulesAfter,
     );
     return stylesheet;
+  }
+
+  SelectionStyles getSelectionStyles(themeData) {
+    final isDarkMode = themeData?.brightness == Brightness.dark;
+    if (isDarkMode) {
+      return const SelectionStyles(
+        selectionColor: AppTheme.selectionDark,
+      );
+    } else {
+      return const SelectionStyles(
+        selectionColor: AppTheme.selectionLight,
+      );
+    }
   }
 }
