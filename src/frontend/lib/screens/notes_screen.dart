@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:owlistic/models/notebook.dart';
+import 'package:owlistic/utils/data_converter.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:provider/provider.dart';
@@ -9,7 +9,6 @@ import 'package:owlistic/widgets/card_container.dart';
 import 'package:owlistic/widgets/empty_state.dart';
 import 'package:owlistic/models/note.dart';
 import 'package:owlistic/viewmodel/notes_viewmodel.dart';
-import 'package:owlistic/viewmodel/notebooks_viewmodel.dart';
 import 'package:owlistic/utils/logger.dart';
 import 'package:owlistic/core/theme.dart';
 import 'note_editor_screen.dart';
@@ -248,12 +247,6 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  // Format date for display - Add this method
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
-    return DateFormat('MMM d, yyyy').format(date);
-  }
-
   Widget _buildBody(NotesViewModel notesViewModel) {
     if (notesViewModel.isLoading && notesViewModel.notes.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -313,7 +306,7 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
             ),
             title: note.title,
-            subtitle: '$notebookName · ${_formatDate(lastEdited)}',
+            subtitle: '$notebookName · ${DataConverter.formatDate(lastEdited)}',
             trailing: PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) {

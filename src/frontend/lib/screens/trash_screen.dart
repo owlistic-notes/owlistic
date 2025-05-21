@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:owlistic/utils/data_converter.dart';
 import 'package:provider/provider.dart';
 import 'package:owlistic/widgets/app_drawer.dart';
 import 'package:owlistic/widgets/card_container.dart';
@@ -8,7 +9,6 @@ import 'package:owlistic/models/note.dart';
 import 'package:owlistic/models/notebook.dart';
 import 'package:owlistic/utils/logger.dart';
 import 'package:owlistic/widgets/app_bar_common.dart';
-import 'package:intl/intl.dart';
 import 'package:owlistic/widgets/theme_switcher.dart';
 
 class TrashScreen extends StatefulWidget {
@@ -155,7 +155,7 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   Widget _buildNoteItem(BuildContext context, Note note, TrashViewModel trashViewModel) {
-    final deletedOn = formatDate(note.deletedAt);
+    final deletedOn = DataConverter.formatDate(note.deletedAt);
     
     return CardContainer(
       title: note.title,
@@ -192,7 +192,7 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   Widget _buildNotebookItem(BuildContext context, Notebook notebook, TrashViewModel trashViewModel) {
-    final deletedOn = formatDate(notebook.deletedAt);
+    final deletedOn = DataConverter.formatDate(notebook.deletedAt);
     
     return CardContainer(
       title: notebook.name,
@@ -226,12 +226,6 @@ class _TrashScreenState extends State<TrashScreen> {
         ],
       ),
     );
-  }
-
-  String formatDate(DateTime? date) {
-    if (date == null) return 'Unknown date';
-    
-    return DateFormat.yMMMMd().add_jm().format(date);
   }
 
   Future<void> _restoreItem(

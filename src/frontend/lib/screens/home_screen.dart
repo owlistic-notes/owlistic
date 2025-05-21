@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import 'package:owlistic/utils/data_converter.dart';
 import 'package:provider/provider.dart';
 import 'package:owlistic/models/user.dart';
 import 'package:owlistic/widgets/theme_switcher.dart';
@@ -340,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
-                  '${notebookName ?? 'Unknown notebook'} · ${_formatDate(lastEdited)}',
+                  '${notebookName ?? 'Unknown notebook'} · ${DataConverter.formatDate(lastEdited)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -366,12 +366,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _getNotebookName(String notebookId) {
     final notebook = context.read<HomeViewModel>().getNotebook(notebookId);
     return notebook?.name;
-  }
-
-  // Format date for recent notes display
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Unknown date';
-    return DateFormat('MMM d, yyyy').format(date);
   }
 
   Widget _buildRecentTasks(BuildContext context) {

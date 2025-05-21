@@ -11,21 +11,6 @@ class DataConverter {
       return '';
     }
     
-    final dateString = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    if (!includeTime) {
-      return dateString;
-    }
-    
-    final timeString = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    return '$dateString $timeString';
-  }
-
-  /// Get relative time (e.g., "5 minutes ago") for display in the UI
-  static String getRelativeTime(DateTime? date) {
-    if (date == null) {
-      return '';
-    }
-    
     final now = DateTime.now();
     final difference = now.difference(date);
     
