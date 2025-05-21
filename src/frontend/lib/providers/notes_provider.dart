@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:owlistic/models/notebook.dart';
 import 'package:owlistic/services/notebook_service.dart';
+import 'package:owlistic/utils/data_converter.dart';
 import 'package:owlistic/utils/document_builder.dart';
 import 'package:owlistic/viewmodel/notes_viewmodel.dart';
 import 'package:owlistic/models/note.dart';
@@ -591,8 +592,14 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
       int order = 0;
       for (final node in document) {
         try {
-          final blockType = DocumentBuilder.extractTypeFromNode(node);
+          String blockType = DocumentBuilder.extractTypeFromNode(node);
           final blockContent = DocumentBuilder.extractNodeContent(node);
+
+          if (blockType.startsWith('header')) {
+            blockType = 'header';
+            final levelStr = blockType.substring(6);
+            blockContent['metadata']['level'] = DataConverter.parseIntSafely(levelStr);
+          }
 
           // Create block through BlockService
           await _blockService.createBlock(

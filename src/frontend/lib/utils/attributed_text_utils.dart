@@ -9,11 +9,7 @@ class AttributedTextUtils {
   // Helper method to determine node's block type
   String detectBlockTypeFromNode(DocumentNode node) {
     if (node is ParagraphNode) {
-      final blockType = node.metadata['blockType'].id;
-      if (blockType.startsWith('header')) {
-        return 'header';
-      }
-      return blockType;
+      return node.metadata['blockType'].id;
     }
     else if (node is TaskNode) {
       return 'task';

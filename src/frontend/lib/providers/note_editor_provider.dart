@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:owlistic/utils/data_converter.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 
 import 'package:owlistic/services/block_service.dart';
@@ -410,6 +411,12 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         originalBlock: _blocks[_documentBuilder.nodeToBlockMap[node.id]]
       );
 
+      if (blockType.startsWith('header')) {
+        blockType = 'header';
+        final levelStr = blockType.substring(6);
+        extractedData['metadata']['level'] = DataConverter.parseIntSafely(levelStr);
+      }
+
       // Calculate a fractional order value using the document builder
       double order = await _documentBuilder.calculateOrderForNewNode(nodeId, blocks);
       
@@ -572,6 +579,12 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Extract content from node with proper formatting
     final extractedData = DocumentBuilder.extractContentFromNode(node, blockId, block);
+
+    if (blockType.startsWith('header')) {
+      blockType = 'header';
+      final levelStr = blockType.substring(6);
+      extractedData['metadata']['level'] = DataConverter.parseIntSafely(levelStr);
+    }
 
     // Send content update with formats included
     updateBlock(blockId, extractedData, type: blockType);

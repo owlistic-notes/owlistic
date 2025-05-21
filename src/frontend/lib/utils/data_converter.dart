@@ -43,7 +43,7 @@ class DataConverter {
   }
 
   /// Handle numeric values in JSON that might be strings or numbers
-  static int parseIntSafely(dynamic value, {int defaultValue = 0}) {
+  static int parseIntSafely(dynamic value, {int defaultValue = 1}) {
     try {
       if (value == null) {
         return defaultValue;
