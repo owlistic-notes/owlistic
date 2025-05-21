@@ -646,7 +646,7 @@ class DocumentBuilder {
       content['text'] = node.text.toPlainText();
 
       // List metadata
-      metadata['listType'] =
+      metadata['item_type'] =
           node.type == ListItemType.ordered ? 'ordered' : 'unordered';
 
       // Extract spans
@@ -754,6 +754,16 @@ class DocumentBuilder {
             text: _attributedTextUtils
                 .createAttributedTextFromContent(text, {'metadata': metadata}),
             isComplete: isCompleted,
+          ),
+        ];
+      
+      case 'listItem':
+        return [
+          ListItemNode(
+            id: Editor.createNodeId(),
+            text: _attributedTextUtils
+                .createAttributedTextFromContent(text, {'metadata': metadata}),
+            itemType: metadata?['item_type'] == "ordered" ? ListItemType.ordered : ListItemType.unordered,
           ),
         ];
 

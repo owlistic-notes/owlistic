@@ -13,9 +13,10 @@ import (
 type BlockType string
 
 const (
-	TextBlock    BlockType = "text"
-	TaskBlock    BlockType = "task"
-	HeadingBlock BlockType = "header"
+	TextBlock     BlockType = "text"
+	TaskBlock     BlockType = "task"
+	HeadingBlock  BlockType = "header"
+	ListItemBlock BlockType = "listItem"
 )
 
 type BlockContent map[string]interface{}

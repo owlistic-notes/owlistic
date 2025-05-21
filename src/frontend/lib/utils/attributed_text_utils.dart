@@ -17,6 +17,8 @@ class AttributedTextUtils {
     }
     else if (node is TaskNode) {
       return 'task';
+    } else if (node is ListItemNode) {
+      return 'listItem';
     }
     return 'paragraph';
   }
