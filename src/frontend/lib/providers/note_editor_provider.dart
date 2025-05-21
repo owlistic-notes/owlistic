@@ -56,11 +56,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   // Pagination state
   final Map<String, Map<String, dynamic>> _paginationState = {};
   
-  // Debouncing mechanisms
-  final Map<String, Timer> _saveTimers = {};
-  Timer? _notificationDebouncer;
-  bool _hasPendingNotification = false;
-  
   // Event callbacks
   void Function(String blockId, Map<String, dynamic> content)? _onBlockContentChanged;
   void Function(List<String> blockIds)? _onMultiBlockOperation;
@@ -321,12 +316,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _documentBuilder.removeDocumentContentListener(_documentChangeListener);
     _documentBuilder.focusNode.removeListener(_handleFocusChange);
 
-    // Cancel any pending timers when deactivated
-    for (final timer in _saveTimers.values) {
-      timer.cancel();
-    }
-    _saveTimers.clear();
-    _notificationDebouncer?.cancel();
   }
   
   // Document structure change listener
@@ -1100,13 +1089,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     _resetSubscription?.cancel();
     _connectionSubscription?.cancel();
     
-    // Cancel all debounce timers
-    for (final timer in _saveTimers.values) {
-      timer.cancel();
-    }
-    _saveTimers.clear();
-    _notificationDebouncer?.cancel();
-    
     // Commit any pending changes
     if (_isActive) {
       _commitUncommittedNodes();
@@ -1187,16 +1169,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   void deactivateNote(String noteId) {
     _activeNoteIds.remove(noteId);
     
-    // Cancel any pending save timers for blocks in this note
-    final blocksForNote = getBlocksForNote(noteId);
-    for (final block in blocksForNote) {
-      final Timer? timer = _saveTimers[block.id];
-      if (timer != null) {
-        timer.cancel();
-        _saveTimers.remove(block.id);
-      }
-    }
-
     // Unsubscribe from resources
     if (_webSocketService.isConnected) {
       _webSocketService.unsubscribe('note', id: noteId);
@@ -1361,13 +1333,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   @override
   void resetState() {
     _logger.info('Resetting NoteEditorProvider state');
-    
-    // Cancel any pending timers
-    for (final timer in _saveTimers.values) {
-      timer.cancel();
-    }
-    _saveTimers.clear();
-    _notificationDebouncer?.cancel();
     
     // Clear data
     _blocks.clear();
