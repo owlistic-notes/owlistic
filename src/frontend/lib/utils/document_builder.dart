@@ -767,7 +767,7 @@ class DocumentBuilder {
         return [
           HorizontalRuleNode(
             id: Editor.createNodeId(),
-            metadata: metadata
+            // metadata: metadata
           ),
         ];
 
@@ -1230,6 +1230,7 @@ class DocumentBuilder {
     final componentBuilders = [
       const ParagraphComponentBuilder(),
       const ListItemComponentBuilder(),
+      const HorizontalRuleComponentBuilder(),
       TaskComponentBuilder(editor),
     ];
 

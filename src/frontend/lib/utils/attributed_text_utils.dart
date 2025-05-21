@@ -19,6 +19,8 @@ class AttributedTextUtils {
       return 'task';
     } else if (node is ListItemNode) {
       return 'listItem';
+    } else if (node is HorizontalRuleNode) {
+      return 'horizontalRule';
     }
     return 'paragraph';
   }
