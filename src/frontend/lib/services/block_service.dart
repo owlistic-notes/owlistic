@@ -38,30 +38,10 @@ class BlockService extends BaseService {
 
   Future<Block> createBlock(String noteId, Map<String, dynamic> content, String blockType, double order) async {
     try {
-      // Initialize content and metadata properly
-      Map<String, dynamic> contentMap = {};
-      Map<String, dynamic> metadataMap = {
-        '_sync_source': 'block',
-      };
-      
       // Extract content and metadata from structured input
       final inputMap = Map<String, dynamic>.from(content);
-      
-      // Move any metadata fields from content to top-level metadata
-      if (inputMap.containsKey('metadata')) {
-        if (inputMap['metadata'] is Map) {
-          metadataMap.addAll(Map<String, dynamic>.from(inputMap['metadata']));
-          inputMap.remove('metadata');
-        }
-      }
-      
-      // Move spans to metadata if present in content
-      if (inputMap.containsKey('spans')) {
-        metadataMap['spans'] = inputMap['spans'];
-        inputMap.remove('spans');
-      }
-      
-      contentMap = inputMap;
+      final contentMap = Map<String, dynamic>.from(inputMap['content']);
+      final metadataMap = Map<String, dynamic>.from(inputMap['metadata']);
       
       final requestBody = {
         'note_id': noteId,
