@@ -626,8 +626,6 @@ class DocumentBuilder {
         final levelStr = blockTypeStr.substring(6);
         final level = int.tryParse(levelStr) ?? 1;
         metadata['level'] = level;
-      } else if (blockTypeStr == 'code') {
-        metadata['language'] = node.metadata['language'] ?? 'plain';
       }
     } else if (node is TaskNode) {
       content['text'] = node.text.toPlainText();
@@ -687,8 +685,6 @@ class DocumentBuilder {
         blockType = 'header';
         final levelStr = blockType.substring(6);
         metadata['level'] = DataConverter.parseIntSafely(levelStr);
-      } else if (blockType == 'code') {
-        metadata['language'] = node.metadata['language'] ?? 'plain';
       }
     } else if (node is TaskNode) {
       content['text'] = node.text.toPlainText();
@@ -767,19 +763,11 @@ class DocumentBuilder {
           ),
         ];
 
-      case 'code':
-        final language = metadata != null
-            ? metadata['language']?.toString() ?? 'plain'
-            : 'plain';
+      case 'horizontalRule':
         return [
-          ParagraphNode(
+          HorizontalRuleNode(
             id: Editor.createNodeId(),
-            text: _attributedTextUtils
-                .createAttributedTextFromContent(text, {'metadata': metadata}),
-            metadata: {
-              'blockType': const NamedAttribution("code"),
-              'language': language
-            },
+            metadata: metadata
           ),
         ];
 

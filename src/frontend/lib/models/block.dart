@@ -104,63 +104,6 @@ class Block {
       'order': order,
     };
   }
-  
-  // Gets the header level if this is a header block
-  int getHeadingLevel() {
-    if (type == 'header') {
-      // First check metadata (preferred location)
-      if (metadata != null && metadata!.containsKey('level')) {
-        return DataConverter.parseIntSafely(metadata!['level'], defaultValue: 1);
-      }
-    }
-    return 0;
-  }
-  
-  // Get code block language
-  String getCodeLanguage() {
-    if (type == 'code') {
-      // First check metadata (preferred location)
-      if (metadata != null && metadata!.containsKey('language')) {
-        return metadata!['language']?.toString() ?? 'plain';
-      }
-    }
-    return 'plain';
-  }
-  
-  // Extract spans/formatting
-  List<Map<String, dynamic>>? getSpans() {
-    // First check metadata (preferred location)
-    if (metadata != null && metadata!.containsKey('spans')) {
-      final spans = metadata!['spans'];
-      if (spans is List) {
-        return List<Map<String, dynamic>>.from(
-          spans.map((span) => span is Map ? Map<String, dynamic>.from(span) : {})
-        );
-      }
-    }
-    
-    return null;
-  }
-  
-  // Check if this is a task and whether it's completed
-  bool isTaskCompleted() {
-    if (type == 'task') {
-      if (metadata != null && metadata!.containsKey('is_completed')) {
-        return metadata!['is_completed'] == true;
-      }
-    }
-    return false;
-  }
-
-  // Get task ID for task blocks
-  String? getTaskId() {
-    if (type == 'task') {
-      if (metadata != null && metadata!.containsKey('task_id')) {
-        return metadata!['task_id']?.toString();
-      }
-    }
-    return null;
-  }
 
   Block copyWith({
     String? id,
