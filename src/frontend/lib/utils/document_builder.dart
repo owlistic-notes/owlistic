@@ -110,6 +110,22 @@ class DocumentBuilder {
     document.removeListener(listener);
   }
 
+  // Create title special node
+  void insertTitleNode(String title) {
+    if (document.getNodeAt(0) != null && document.getNodeAt(0)?.isDeletable == false) {
+      return;
+    }
+    final node = ParagraphNode(
+        id: Editor.createNodeId(),
+        text: AttributedText(title),
+        metadata: const {
+          'blockType': NamedAttribution("header1"),
+          'isDeletable': false
+        },
+    );
+    document.insertNodeAt(0, node);
+  }
+
   // Insert a new node into the document
   void insertNode(DocumentNode node) {
     try {
@@ -1222,7 +1238,6 @@ class DocumentBuilder {
 
   // Create Super Editor with configured components for SuperEditor 0.3.0
   Widget createSuperEditor({
-    required bool readOnly,
     ScrollController? scrollController,
     ThemeData? themeData,
   }) {
@@ -1244,7 +1259,6 @@ class DocumentBuilder {
         stylesheet: stylesheet,
         selectionStyle: selectionStyles,
         componentBuilders: componentBuilders,
-        keyboardActions: defaultKeyboardActions,
         documentOverlayBuilders: [
           DefaultCaretOverlayBuilder(
             caretStyle: CaretStyle(

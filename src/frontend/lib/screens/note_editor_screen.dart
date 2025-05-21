@@ -197,16 +197,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
-  // Build the rich text editor directly, without using a separate widget
-  Widget _buildRichTextEditor(NoteEditorViewModel viewModel) {
-    // Remove redundant notification listener and use the scroll controller directly
-    return viewModel.documentBuilder.createSuperEditor(
-      readOnly: false,
-      scrollController: _scrollController,
-      themeData: Theme.of(context),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -236,7 +226,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 if (noteEditorViewModel.currentNote != null && 
                     noteEditorViewModel.currentNote!.id == _noteId) {
                   _note = noteEditorViewModel.currentNote;
-                  
                   // Update title if changed from server
                   if (_note != null && 
                       _titleController.text != _note!.title && 
@@ -263,6 +252,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
                 // Listen for update count changes to refresh UI
                 final updateCount = noteEditorViewModel.updateCount;
+                if (updateCount <= 0) {
+                  _noteEditorViewModel.documentBuilder.insertTitleNode(_note!.title);
+                }
                 if (updateCount > 0) {
                   // This will trigger a UI refresh when updateCount changes
                   _logger.debug('Note editor update count: $updateCount');
@@ -301,7 +293,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       child: Stack(
                         children: [
                           // Editor content - using direct integration
-                          _buildRichTextEditor(noteEditorViewModel),
+                          _noteEditorViewModel.documentBuilder.createSuperEditor(
+                              scrollController: _scrollController,
+                              themeData: Theme.of(context),
+                            ),
                           // Loading overlay
                           if (isContentLoading)
                             const Center(child: CircularProgressIndicator()),
