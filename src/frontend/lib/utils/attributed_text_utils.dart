@@ -72,7 +72,7 @@ class AttributedTextUtils {
               'start': i,
               'end': end,
               'type': 'link',
-              'href': attribution.url,
+              'href': attribution.uri,
             });
           }
           
