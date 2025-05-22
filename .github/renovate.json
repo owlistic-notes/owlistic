@@ -12,18 +12,6 @@
   "gitAuthor": "Davide Rutigliano <daviderutigliano@users.noreply.github.com>",
   "commitBody": "Signed-off-by: Davide Rutigliano <daviderutigliano@users.noreply.github.com>",
   "ignorePaths": [],
-  "packageRules": [
-    {
-      "groupName": "server",
-      "fileMatch": ["./.+\\.go$"],
-      "ignorePaths": []
-    },
-    {
-      "groupName": "app",
-      "fileMatch": ["./.+\\.dart$"],
-      "ignorePaths": []
-    }
-  ],
   "commitMessageTopic": "{{depName}}",
   "commitMessageExtra": "to {{newVersion}}",
   "commitMessageSuffix": "",
