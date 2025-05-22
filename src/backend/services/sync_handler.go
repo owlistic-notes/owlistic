@@ -522,69 +522,39 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 		}
 	}
 
-	// Prepare block update
-	needsUpdate := false
-	blockData := map[string]interface{}{}
+	updatedContent := map[string]interface{}{}
+	updatedMetadata := map[string]interface{}{}
 
-	// Check if title was updated
-	title, titleUpdated := payload["title"].(string)
-	var currentText string
-	if textVal, exists := block.Content["text"]; exists {
-		if textStr, ok := textVal.(string); ok {
-			currentText = textStr
-		}
+	// Update title if block content has changed
+	if task.Title != payload["title"] && payload["title"] != "" {
+		updatedContent["text"] = payload["title"]
 	}
 
-	if titleUpdated && title != currentText {
-		blockData["content"] = models.BlockContent{
-			"text": title,
-		}
-		needsUpdate = true
+	// Create a copy of metadata
+	updatedMetadata = models.BlockMetadata(task.Metadata)
+
+	// Get completed status from block metadata
+	updatedMetadata["is_completed"] = task.IsCompleted
+
+	// Always include the sync timestamp
+	updatedMetadata["last_synced"] = time.Now()
+
+	// Update task with block data
+	updateData := map[string]interface{}{
+		"content": updatedContent,
+		"metadata": updatedMetadata,
 	}
 
-	// Check if completion status was updated
-	isCompleted, statusUpdated := payload["is_completed"].(bool)
-
-	// If completion status has changed, update metadata
-	if statusUpdated {
-		// Start with existing metadata
-		metadataMap := models.BlockMetadata{}
-
-		// Copy existing metadata
-		if block.Metadata != nil {
-			maps.Copy(metadataMap, block.Metadata)
-		}
-
-		metadataMap["is_completed"] = isCompleted
-
-		blockData["metadata"] = metadataMap
-		needsUpdate = true
-	} else if needsUpdate {
-		// If we're updating content but not metadata, still add sync marker
-		metadataMap := models.BlockMetadata{}
-
-		// Copy existing metadata
-		if block.Metadata != nil {
-			maps.Copy(metadataMap, block.Metadata)
-		}
-
-		metadataMap["last_synced"] = time.Now()
-		blockData["metadata"] = metadataMap
-	}
-
-	// Only update if something changed
-	if !needsUpdate {
-		return nil
-	}
-
-	// Get user_id for permissions check
 	params := map[string]interface{}{
-		"user_id": task.UserID.String(),
+		"user_id": task.UserID,
 	}
 
-	// Update block with task data
-	_, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
-	return err
+	_, err := s.blockService.UpdateBlock(s.db, task.ID.String(), updateData, params)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // handleTaskDeleted handles cleanup when a task is deleted
