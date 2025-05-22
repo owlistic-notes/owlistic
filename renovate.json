@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Renovate (Mend) Dashboard",
+  "suppressNotifications": ["prIgnoreNotification"],
+  "rebaseWhen": "conflicted",
+  "commitBodyTable": true,
+  "platformCommit": "enabled",
+  "gitAuthor": "Davide Rutigliano <daviderutigliano@users.noreply.github.com>",
+  "commitBody": "Signed-off-by: Davide Rutigliano <daviderutigliano@users.noreply.github.com>",
+  "ignorePaths": [],
+  "flux": {
+    "fileMatch": ["./.+\\.go$", "./.+\\.dart$"]
+  },
+  "backend": {
+    "fileMatch": ["\\.go$"],
+    "ignorePaths": []
+  },
+  "frontend": {
+    "fileMatch": ["\\.dart$"],
+    "ignorePaths": []
+  },
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "commitMessageSuffix": "",
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["major"],
+      "semanticCommitType": "feat",
+      "commitMessagePrefix": "{{semanticCommitType}}({{semanticCommitScope}})!:",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "semanticCommitType": "feat",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "semanticCommitType": "fix",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "matchUpdateTypes": ["digest"],
+      "semanticCommitType": "chore",
+      "commitMessageExtra": "( {{currentDigestShort}} → {{newDigestShort}} )"
+    }
+  ]
+}
