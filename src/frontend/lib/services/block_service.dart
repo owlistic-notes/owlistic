@@ -139,32 +139,6 @@ class BlockService extends BaseService {
     }
   }
 
-  Future<Block> updateTaskCompletion(String blockId, bool isCompleted) async {
-  try {
-    // Get existing block
-    Block block = await getBlock(blockId);
-    
-    // Manually create update payload
-    final updatedMetadata = block.metadata != null ? 
-        Map<String, dynamic>.from(block.metadata!) : <String, dynamic>{};
-    
-    updatedMetadata['_sync_source'] = 'block';
-    updatedMetadata['block_id'] = block.id;
-    updatedMetadata['is_completed'] = isCompleted;
-    updatedMetadata['last_synced'] = DateTime.now().toIso8601String();
-    
-    final payload = <String, dynamic>{
-      'content': block.content,
-      'metadata': updatedMetadata,
-    };
-    
-    return await updateBlock(blockId, payload);
-  } catch (e) {
-    _logger.error('Error updating task completion', e);
-    rethrow;
-  }
-}
-
   Future<Block> getBlock(String id) async {
     try {
       final response = await authenticatedGet('/api/v1/blocks/$id');

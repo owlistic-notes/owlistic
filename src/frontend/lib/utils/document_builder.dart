@@ -839,7 +839,7 @@ class DocumentBuilder {
         // Get completion status from metadata
         bool isCompleted = false;
         if (metadata != null && metadata.containsKey('is_completed')) {
-          isCompleted = metadata['is_completed'] == true;
+          isCompleted = metadata['is_completed'];
         }
 
         return [
