@@ -152,12 +152,6 @@ func GetNotes(c *gin.Context, db *database.Database, noteService services.NoteSe
 		params["title"] = title
 	}
 
-	// Add parameter to exclude deleted notes by default
-	params["include_deleted"] = false
-	if includeDeleted := c.Query("include_deleted"); includeDeleted == "true" {
-		params["include_deleted"] = true
-	}
-
 	notes, err := noteService.GetNotes(db, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

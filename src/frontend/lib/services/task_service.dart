@@ -17,10 +17,6 @@ class TaskService extends BaseService {
       if (completed != null) params['is_completed'] = completed;
       if (noteId != null) params['note_id'] = noteId;
       
-      if (!(queryParams != null && queryParams.containsKey('include_deleted'))) {
-        params['include_deleted'] = 'false';
-      }
-      
       if (queryParams != null) {
         params.addAll(queryParams);
       }

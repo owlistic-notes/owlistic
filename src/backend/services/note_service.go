@@ -410,11 +410,7 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 	}
 
 	// Include or exclude deleted notes
-	if includeDeleted, ok := params["include_deleted"].(bool); ok && includeDeleted {
-		query = query.Unscoped().Where("deleted_at IS NOT NULL")
-	} else {
-		query = query.Where("deleted_at IS NULL")
-	}
+	query = query.Where("deleted_at IS NULL")
 
 	// Execute the query
 	if err := query.Find(&notes).Error; err != nil {
