@@ -15,7 +15,6 @@ func TestNotebookToJSON(t *testing.T) {
 		UserID:      uuid.New(),
 		Name:        "Test Notebook",
 		Description: "Test Description",
-		IsDeleted:   false,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 		Notes:       []Note{},
@@ -31,7 +30,6 @@ func TestNotebookToJSON(t *testing.T) {
 	assert.Equal(t, notebook.UserID, result.UserID)
 	assert.Equal(t, notebook.Name, result.Name)
 	assert.Equal(t, notebook.Description, result.Description)
-	assert.Equal(t, notebook.IsDeleted, result.IsDeleted)
 }
 
 func TestNotebookFromJSON(t *testing.T) {
@@ -40,7 +38,6 @@ func TestNotebookFromJSON(t *testing.T) {
 		"user_id": "550e8400-e89b-41d4-a716-446655440001",
 		"name": "Test Notebook",
 		"description": "Test Description",
-		"is_deleted": false,
 		"notes": []
 	}`
 
@@ -49,7 +46,6 @@ func TestNotebookFromJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Test Notebook", notebook.Name)
 	assert.Equal(t, "Test Description", notebook.Description)
-	assert.Equal(t, false, notebook.IsDeleted)
 	assert.Equal(t, "550e8400-e89b-41d4-a716-446655440000", notebook.ID.String())
 	assert.Equal(t, "550e8400-e89b-41d4-a716-446655440001", notebook.UserID.String())
 }
@@ -68,7 +64,6 @@ func TestNotebookWithNotes(t *testing.T) {
 		NotebookID: uuid.New(),
 		Title:      "Test Note",
 		Blocks:     []Block{block},
-		IsDeleted:  false,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
@@ -79,7 +74,6 @@ func TestNotebookWithNotes(t *testing.T) {
 		Name:        "Test Notebook",
 		Description: "Test Description",
 		Notes:       []Note{note},
-		IsDeleted:   false,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}

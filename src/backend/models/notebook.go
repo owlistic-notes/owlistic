@@ -14,7 +14,6 @@ type Notebook struct {
 	Name        string         `gorm:"not null" json:"name"`
 	Description string         `json:"description"`
 	Notes       []Note         `gorm:"foreignKey:NotebookID" json:"notes"`
-	IsDeleted   bool           `gorm:"default:false" json:"is_deleted"` // Keeping for backward compatibility
 	CreatedAt   time.Time      `gorm:"not null;default:now()" json:"created_at"`
 	UpdatedAt   time.Time      `gorm:"not null;default:now()" json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`

@@ -15,7 +15,6 @@ type Note struct {
 	Title      string         `gorm:"not null" json:"title"`
 	Blocks     []Block        `gorm:"foreignKey:NoteID" json:"blocks"`
 	Tags       []string       `gorm:"type:text[]" json:"tags"`
-	IsDeleted  bool           `gorm:"default:false" json:"is_deleted"` // Keeping for backward compatibility
 	CreatedAt  time.Time      `gorm:"not null;default:now()" json:"created_at"`
 	UpdatedAt  time.Time      `gorm:"not null;default:now()" json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
