@@ -889,7 +889,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Setup metadata
       Map<String, dynamic> metadataMap = metadata ?? {};
-      metadataMap['_sync_source'] = 'block';
       metadataMap['block_id'] = id;
       
       // Add metadata to payload

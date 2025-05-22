@@ -42,9 +42,7 @@ class TaskService extends BaseService {
   Future<Task> createTask(String title, String noteId, {String? blockId}) async {
     try {
       // Create metadata with sync source
-      final metadata = <String, dynamic>{
-        '_sync_source': 'task',
-      };
+      final metadata = <String, dynamic>{};
       
       // Add block_id to metadata if provided
       if (blockId != null && blockId.isNotEmpty) {
@@ -105,9 +103,7 @@ class TaskService extends BaseService {
       }
       
       // Create metadata with task_id and keep existing metadata
-      final metadata = <String, dynamic>{
-        '_sync_source': 'task',
-      };
+      final metadata = <String, dynamic>{};
       
       // Copy existing metadata
       if (existingTask.metadata != null) {

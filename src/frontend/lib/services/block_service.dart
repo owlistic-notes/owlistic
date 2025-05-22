@@ -87,7 +87,6 @@ class BlockService extends BaseService {
       
       // Ensure metadata structure is correct with proper sync timestamps
       Map<String, dynamic> metadataMap = {
-        '_sync_source': 'block', 
         'block_id': blockId,
         'last_synced': DateTime.now().toIso8601String() // Add current timestamp
       };
