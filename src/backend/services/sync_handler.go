@@ -685,10 +685,6 @@ func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) e
 	metadataMap["task_id"] = taskIDStr
 	metadataMap["deleted_at"] = time.Now().Format(time.RFC3339)
 
-	blockData := map[string]interface{}{
-		"metadata": metadataMap,
-	}
-
 	// Get user_id from payload or from block
 	userIDStr := ""
 	if userID, ok := payload["user_id"].(string); ok {
@@ -703,6 +699,6 @@ func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) e
 	}
 
 	// Update the block to reflect task deletion
-	_, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
+	err := s.blockService.DeleteBlock(s.db, blockIDStr, params)
 	return err
 }
