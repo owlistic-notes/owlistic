@@ -153,11 +153,16 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 		return nil
 	}
 
-	// Check if sync source exists - this is a key issue that's causing loops
-	if syncSource, exists := block.Metadata["_sync_source"]; exists {
-		if syncSource == "task" {
-			log.Printf("Block %s was created by task sync, skipping task creation", blockIDStr)
-			return nil // Skip creating a taks since this block was created from a task
+	// Check if this update originated from a task sync
+	if lastSyncStr, exists := block.Metadata["last_synced"].(string); exists {
+		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
+		if err == nil {
+			// Compare actual timestamps instead of using arbitrary time window
+			if block.UpdatedAt.Compare(lastSync) <= 0 {
+				log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+					blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+				return nil
+			}
 		}
 	}
 
@@ -166,9 +171,8 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 		"note_id": noteIDStr,
 		"title":   textContent,
 		"metadata": models.TaskMetadata{
-			"_sync_source": "block",
-			"block_id":     blockIDStr,
-			"last_synced":  time.Now().Format(time.RFC3339),
+			"block_id":    blockIDStr,
+			"last_synced": time.Now(),
 		},
 	}
 
@@ -210,7 +214,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 		return errors.New("missing block_type in block event payload")
 	}
 
-	typeChanged := hasType && string(block.Type) != updatedType
+	typeChanged := string(block.Type) != updatedType
 
 	// If block type changed from task to another type, delete the associated task
 	if typeChanged {
@@ -228,33 +232,25 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 			}
 		} else {
 			log.Printf("Block type changed to TaskBlock, creating a new task")
-			// Create a new payload with the updated type
-			newPayload := make(map[string]interface{})
-			maps.Copy(newPayload, payload)
-	
-			// Call handleBlockCreated to create the task
-			return s.handleBlockCreated(newPayload)
+			return s.handleBlockCreated(payload)
 		}
 	}
 
 	// Find the task associated with this block
 	var task models.Task
-	if err := s.db.DB.Where("metadata->>'block_id' = ?", blockIDStr).First(&task).Error; err != nil {
+	if err := s.db.DB.Where("metadata->>'block_id' = ?", blockIDStr).Find(&task).Error; err != nil {
 		return s.handleBlockCreated(payload)
 	}
 
 	// Check if this update originated from a task sync
-	if syncSource, exists := block.Metadata["_sync_source"]; exists && syncSource == "task" {
-		// Get last sync timestamp
-		if lastSyncStr, exists := block.Metadata["last_synced"].(string); exists {
-			lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
-			if err == nil {
-				// Compare actual timestamps instead of using arbitrary time window
-				if block.UpdatedAt.Compare(lastSync) <= 0 {
-					log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
-						blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
-					return nil
-				}
+	if lastSyncStr, exists := block.Metadata["last_synced"].(string); exists {
+		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
+		if err == nil {
+			// Compare actual timestamps instead of using arbitrary time window
+			if block.UpdatedAt.Compare(lastSync) <= 0 {
+				log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+					blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+				return nil
 			}
 		}
 	}
@@ -292,8 +288,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 	}
 
 	// Always include the sync timestamp
-	updateData.Metadata["_sync_source"] = "block"
-	updateData.Metadata["last_synced"] = time.Now().Format(time.RFC3339)
+	updateData.Metadata["last_synced"] = time.Now()
 
 	// Only update if there are changes to apply
 	_, err := s.taskService.UpdateTask(s.db, task.ID.String(), updateData)
@@ -339,10 +334,15 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 	}
 
 	// Check if sync source exists - this is a key issue that's causing loops
-	if syncSource, exists := task.Metadata["_sync_source"]; exists {
-		if syncSource == "block" {
-			log.Printf("Task %s was created by block sync, skipping block creation", taskIDStr)
-			return nil // Skip creating a block since this task was created from a block
+	if lastSyncStr, exists := task.Metadata["last_synced"].(string); exists {
+		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
+		if err == nil {
+			// Compare actual timestamps instead of using arbitrary time window
+			if task.UpdatedAt.Compare(lastSync) <= 0 {
+				log.Printf("Task %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+					taskIDStr, task.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+				return nil
+			}
 		}
 	}
 
@@ -377,7 +377,6 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 			"metadata": models.BlockMetadata{
 				"is_completed": task.IsCompleted,
 				"task_id":      task.ID.String(),
-				"_sync_source": "task",
 			},
 		}
 
@@ -457,7 +456,6 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 		"metadata": models.BlockMetadata{
 			"is_completed": task.IsCompleted,
 			"task_id":      task.ID.String(), // Add task ID reference
-			"_sync_source": "task",
 		},
 		"user_id": task.UserID.String(),
 	}
@@ -476,8 +474,7 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 	updateData := models.Task{
 		NoteID: noteID,
 		Metadata: models.TaskMetadata{
-			"_sync_source": "task",
-			"block_id":     block.ID.String(),
+			"block_id": block.ID.String(),
 		},
 	}
 
@@ -513,17 +510,14 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 	}
 
 	// Skip if this task was just updated by block sync
-	if syncSource, exists := task.Metadata["_sync_source"]; exists && syncSource == "block" {
-		// Get last sync timestamp
-		if lastSyncStr, exists := task.Metadata["last_synced"].(string); exists {
-			lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
-			if err == nil {
-				// Compare actual timestamps instead of using arbitrary time window
-				if block.UpdatedAt.Compare(lastSync) <= 0 {
-					log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
-						blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
-					return nil
-				}
+	if lastSyncStr, exists := task.Metadata["last_synced"].(string); exists {
+		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
+		if err == nil {
+			// Compare actual timestamps instead of using arbitrary time window
+			if block.UpdatedAt.Compare(lastSync) <= 0 {
+				log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+					blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+				return nil
 			}
 		}
 	}
@@ -562,7 +556,6 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 		}
 
 		metadataMap["is_completed"] = isCompleted
-		metadataMap["_sync_source"] = "task"
 
 		blockData["metadata"] = metadataMap
 		needsUpdate = true
@@ -575,8 +568,7 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 			maps.Copy(metadataMap, block.Metadata)
 		}
 
-		metadataMap["_sync_source"] = "task"
-		metadataMap["last_synced"] = time.Now().Format(time.RFC3339)
+		metadataMap["last_synced"] = time.Now()
 		blockData["metadata"] = metadataMap
 	}
 
@@ -627,18 +619,12 @@ func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) e
 
 	// Copy existing metadata
 	if block.Metadata != nil {
-		for k, v := range block.Metadata {
-			if k != "_sync_source" && k != "task_deleted" && k != "deleted_at" {
-				metadataMap[k] = v
-			}
-		}
+		maps.Copy(metadataMap, block.Metadata)
 	}
 
 	// Add task deletion markers
-	metadataMap["task_deleted"] = true
-	metadataMap["_sync_source"] = "task"
 	metadataMap["task_id"] = taskIDStr
-	metadataMap["deleted_at"] = time.Now().Format(time.RFC3339)
+	metadataMap["deleted_at"] = time.Now()
 
 	// Get user_id from payload or from block
 	userIDStr := ""
