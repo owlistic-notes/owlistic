@@ -42,12 +42,6 @@ func (s *AuthService) Login(db *database.Database, email, password string) (stri
 		return "", ErrInvalidCredentials
 	}
 
-	// Check if the user has any notebooks
-	var notebookCount int64
-	if err := db.DB.Model(&models.Notebook{}).Where("user_id = ?", user.ID).Count(&notebookCount).Error; err != nil {
-		return "", err
-	}
-
 	// Use the utility function instead
 	tokenString, err := token.GenerateToken(user.ID, user.Email, s.jwtSecret, s.jwtExpiration)
 	if err != nil {
