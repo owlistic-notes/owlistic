@@ -340,9 +340,9 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[
 		string(broker.BlockDeleted), // Use standard event type
 		"block",
 		map[string]interface{}{
-			"block_id": block.ID.String(),
-			"note_id":  block.NoteID.String(),
-			"user_id":  block.UserID.String(),
+			"block_id":   block.ID.String(),
+			"note_id":    block.NoteID.String(),
+			"user_id":    block.UserID.String(),
 			"block_type": string(block.Type),
 		},
 	)

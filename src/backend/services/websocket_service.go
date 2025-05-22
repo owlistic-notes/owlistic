@@ -149,7 +149,7 @@ func (s *WebSocketService) HandleConnection(c *gin.Context) {
 		conn:      conn,
 		userID:    userID,
 		send:      make(chan []byte, 256),
-		createdAt: time.Now(),
+		createdAt: time.Now().UTC(),
 	}
 
 	// Register the connection
@@ -192,10 +192,10 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 		log.Printf("WebSocket connection closed: %s", connID)
 	}()
 
-	wsConn.conn.SetReadLimit(1024)                                 // Increase read limit to handle larger messages
-	wsConn.conn.SetReadDeadline(time.Now().Add(120 * time.Second)) // Increase timeout
+	wsConn.conn.SetReadLimit(1024)                                       // Increase read limit to handle larger messages
+	wsConn.conn.SetReadDeadline(time.Now().UTC().Add(120 * time.Second)) // Increase timeout
 	wsConn.conn.SetPongHandler(func(string) error {
-		wsConn.conn.SetReadDeadline(time.Now().Add(120 * time.Second))
+		wsConn.conn.SetReadDeadline(time.Now().UTC().Add(120 * time.Second))
 		return nil
 	})
 
@@ -388,7 +388,7 @@ func (s *WebSocketService) writePump(connID string, wsConn *websocketConnection)
 	for {
 		select {
 		case message, ok := <-wsConn.send:
-			wsConn.conn.SetWriteDeadline(time.Now().Add(15 * time.Second)) // Longer deadline
+			wsConn.conn.SetWriteDeadline(time.Now().UTC().Add(15 * time.Second)) // Longer deadline
 			if !ok {
 				// Channel was closed
 				wsConn.conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -422,7 +422,7 @@ func (s *WebSocketService) writePump(connID string, wsConn *websocketConnection)
 			}
 
 		case <-ticker.C:
-			wsConn.conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+			wsConn.conn.SetWriteDeadline(time.Now().UTC().Add(15 * time.Second))
 			if err := wsConn.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
 				log.Printf("Error sending ping to conn %s: %v", connID, err)
 				return

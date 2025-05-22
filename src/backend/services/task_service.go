@@ -139,12 +139,12 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 			string(broker.BlockCreated),
 			"block",
 			map[string]interface{}{
-				"block_id":     block.ID.String(),
-				"note_id":      noteID.String(),
-				"user_id":      userID.String(),
-				"type":         string(models.TaskBlock),
-				"content":      block.Content,
-				"metadata":     block.Metadata,
+				"block_id": block.ID.String(),
+				"note_id":  noteID.String(),
+				"user_id":  userID.String(),
+				"type":     string(models.TaskBlock),
+				"content":  block.Content,
+				"metadata": block.Metadata,
 			},
 		)
 		if err != nil {
@@ -326,7 +326,7 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 	// Delete roles for this task
 	if err := tx.Model(&models.Role{}).
 		Where("resource_id = ? AND resource_type = ?", taskID, models.TaskResource).
-		Update("deleted_at", time.Now()).
+		Update("deleted_at", time.Now().UTC()).
 		Error; err != nil {
 		tx.Rollback()
 		return err

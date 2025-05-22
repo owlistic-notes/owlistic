@@ -31,7 +31,7 @@ func NewStandardMessage(msgType string, event string, payload map[string]interfa
 		ID:        uuid.New().String(),
 		Type:      msgType,
 		Event:     event,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().UTC(),
 		Payload:   payload,
 	}
 }

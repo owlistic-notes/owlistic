@@ -24,7 +24,7 @@ func MockEventRows(events []models.Event) *sqlmock.Rows {
 			event.ID = uuid.New()
 		}
 		if event.Timestamp.IsZero() {
-			event.Timestamp = time.Now()
+			event.Timestamp = time.Now().UTC()
 		}
 		if event.Data == nil {
 			event.Data = json.RawMessage(`{}`)
