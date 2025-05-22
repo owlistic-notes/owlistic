@@ -23,6 +23,7 @@ class DocumentBuilder {
   late MutableDocumentComposer composer;
   late Editor editor;
   late FocusNode focusNode;
+  late DocumentNode titleNode;
 
   // Document layout key for accessing the document layout
   final GlobalKey documentLayoutKey = GlobalKey();
@@ -81,6 +82,15 @@ class DocumentBuilder {
     // Create focus node
     focusNode = FocusNode();
 
+    titleNode = ParagraphNode(
+        id: Editor.createNodeId(),
+        text: AttributedText(""),
+        metadata: const {
+          'blockType': NamedAttribution("header1"),
+          'isDeletable': false
+        },
+    );
+
     // Store initial node IDs for tracking structure changes
     _lastKnownNodeIds = document.map((node) => node.id).toList();
     _lastKnownNodeCount = document.length;
@@ -108,6 +118,19 @@ class DocumentBuilder {
 
   void removeDocumentContentListener(DocumentChangeListener listener) {
     document.removeListener(listener);
+  }
+
+  // Create title special node
+  void insertTitleNode(String title) {
+    titleNode = titleNode.asTextNode.copyTextNodeWith(
+      text: AttributedText(title),
+    );
+    if (document.getNodeAt(0) != null &&
+        !document.getNodeAt(0)!.isDeletable ) {
+      document.replaceNodeById(titleNode.id, titleNode);
+    } else {
+      document.insertNodeAt(0, titleNode);
+    }
   }
 
   // Insert a new node into the document
@@ -448,6 +471,12 @@ class DocumentBuilder {
     final node = document.getNodeById(nodeId);
     if (node == null) {
       _logger.warning('Could not find node $nodeId in document');
+      return false;
+    }
+
+    // Skip if this node has it's note title
+    if (!node.isDeletable) {
+      _logger.debug('Node $nodeId is title node, skipping');
       return false;
     }
 
@@ -1222,7 +1251,6 @@ class DocumentBuilder {
 
   // Create Super Editor with configured components for SuperEditor 0.3.0
   Widget createSuperEditor({
-    required bool readOnly,
     ScrollController? scrollController,
     ThemeData? themeData,
   }) {
@@ -1244,7 +1272,6 @@ class DocumentBuilder {
         stylesheet: stylesheet,
         selectionStyle: selectionStyles,
         componentBuilders: componentBuilders,
-        keyboardActions: defaultKeyboardActions,
         documentOverlayBuilders: [
           DefaultCaretOverlayBuilder(
             caretStyle: CaretStyle(

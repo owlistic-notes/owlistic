@@ -108,6 +108,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       
       // Load initial blocks for the note using ViewModel
       await _noteEditorViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 30);
+
+      // Set the title in the editor
+      _noteEditorViewModel.documentBuilder.insertTitleNode(_note!.title);
       
       // Initialize the scroll listener for pagination - JUST ONCE
       _noteEditorViewModel.initScrollListener(_scrollController);
@@ -197,16 +200,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
-  // Build the rich text editor directly, without using a separate widget
-  Widget _buildRichTextEditor(NoteEditorViewModel viewModel) {
-    // Remove redundant notification listener and use the scroll controller directly
-    return viewModel.documentBuilder.createSuperEditor(
-      readOnly: false,
-      scrollController: _scrollController,
-      themeData: Theme.of(context),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -218,10 +211,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
            IconButton(
             icon: const Icon(Icons.refresh_outlined),
             tooltip: 'Refresh note content',
-            onPressed: () => _noteEditorViewModel.fetchBlocksForNote(
-              _noteEditorViewModel.noteId?? '',
-              refresh: true
-            ),
+            onPressed: () => _initialize(),
           ),
           const ThemeSwitcher(),
         ],
@@ -236,7 +226,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 if (noteEditorViewModel.currentNote != null && 
                     noteEditorViewModel.currentNote!.id == _noteId) {
                   _note = noteEditorViewModel.currentNote;
-                  
                   // Update title if changed from server
                   if (_note != null && 
                       _titleController.text != _note!.title && 
@@ -244,7 +233,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     _titleController.text = _note!.title;
                   }
                 }
-                
+
                 // React to loading state
                 final isContentLoading = noteEditorViewModel.isLoading;
                 
@@ -301,7 +290,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       child: Stack(
                         children: [
                           // Editor content - using direct integration
-                          _buildRichTextEditor(noteEditorViewModel),
+                          _noteEditorViewModel.documentBuilder.createSuperEditor(
+                              scrollController: _scrollController,
+                              themeData: Theme.of(context),
+                            ),
                           // Loading overlay
                           if (isContentLoading)
                             const Center(child: CircularProgressIndicator()),

@@ -13,6 +13,7 @@ import (
 type BlockType string
 
 const (
+	// TODO: Align block types / remove unneded
 	TextBlock           BlockType = "text"
 	TaskBlock           BlockType = "task"
 	HeadingBlock        BlockType = "header"
