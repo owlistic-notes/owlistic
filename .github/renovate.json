@@ -15,14 +15,18 @@
   "flux": {
     "fileMatch": ["./.+\\.go$", "./.+\\.dart$"]
   },
-  "go": {
-    "fileMatch": ["\\.go$"],
-    "ignorePaths": []
-  },
-  "dart": {
-    "fileMatch": ["\\.dart$"],
-    "ignorePaths": []
-  },
+  "packageRules": [
+    {
+      "groupName": "server",
+      "fileMatch": ["*.go$"],
+      "ignorePaths": []
+    },
+    {
+      "groupName": "app",
+      "fileMatch": ["*.dart$"],
+      "ignorePaths": []
+    },
+  ],
   "commitMessageTopic": "{{depName}}",
   "commitMessageExtra": "to {{newVersion}}",
   "commitMessageSuffix": "",
