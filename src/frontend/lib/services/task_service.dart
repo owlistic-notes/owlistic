@@ -111,7 +111,6 @@ class TaskService extends BaseService {
       }
 
       metadata['task_id'] = id;
-      metadata['last_synced'] = DateTime.now().toIso8601String();
       if (isCompleted != null) metadata['is_completed'] = isCompleted;
 
       final updates = <String, dynamic>{
