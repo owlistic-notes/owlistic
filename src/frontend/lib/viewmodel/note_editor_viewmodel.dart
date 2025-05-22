@@ -29,10 +29,6 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   });
   Future<Block?> fetchBlockById(String blockId);
   Future<void> deleteBlock(String blockId);
-  void updateBlock(String id, Map<String, dynamic> content, {
-    String? type, 
-    double? order,
-  });
   
   // Document builder access
   DocumentBuilder get documentBuilder;

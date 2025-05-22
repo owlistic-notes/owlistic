@@ -237,7 +237,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   // Fetch tasks with proper user filtering
   @override
-  Future<void> fetchTasks({String? completed, String? noteId}) async {
+  Future<void> fetchTasks({String? noteId}) async {
     if (!_isActive) return; // Don't fetch if not active
     
     // Get current user ID for filtering
@@ -251,10 +251,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     notifyListeners();
 
     try {
-      final tasksList = await _taskService.fetchTasks(
-        completed: completed,
-        noteId: noteId,
-      );
+      final tasksList = await _taskService.fetchTasks(noteId: noteId);
 
       // Convert list to map
       _tasksMap.clear();
