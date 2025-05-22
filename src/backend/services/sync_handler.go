@@ -549,7 +549,7 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 		"user_id": task.UserID,
 	}
 
-	_, err := s.blockService.UpdateBlock(s.db, task.ID.String(), updateData, params)
+	_, err := s.blockService.UpdateBlock(s.db, blockIDStr, updateData, params)
 	if err != nil {
 		return err
 	}
