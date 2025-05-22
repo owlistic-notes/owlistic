@@ -15,11 +15,11 @@
   "flux": {
     "fileMatch": ["./.+\\.go$", "./.+\\.dart$"]
   },
-  "backend": {
+  "go": {
     "fileMatch": ["\\.go$"],
     "ignorePaths": []
   },
-  "frontend": {
+  "dart": {
     "fileMatch": ["\\.dart$"],
     "ignorePaths": []
   },
