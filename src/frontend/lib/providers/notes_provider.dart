@@ -132,6 +132,7 @@ class NotesProvider with ChangeNotifier implements NotesViewModel {
   @override
   void resetState() {
     _logger.info('Resetting NotesProvider state');
+    _notebooks.clear();
     _notesMap.clear();
     _activeNoteIds.clear();
     _isActive = false;
