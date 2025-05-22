@@ -331,6 +331,11 @@ func (s *NoteService) DeleteNote(db *database.Database, id string, params map[st
 		tx.Rollback()
 		return errors.New("not authorized to delete this note")
 	}
+	
+	if err := tx.Exec("UPDATE blocks SET deleted_at = NOW() WHERE note_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// Soft delete note (gorm will handle this)
 	if err := tx.Delete(&note).Error; err != nil {
