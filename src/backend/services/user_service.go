@@ -350,10 +350,7 @@ func (s *UserService) GetUsers(db *database.Database, params map[string]interfac
 	query := db.DB
 
 	// By default, filter out deleted users
-	includeDeleted, hasIncludeDeleted := params["include_deleted"].(bool)
-	if !hasIncludeDeleted || !includeDeleted {
-		query = query.Where("deleted_at IS NULL")
-	}
+	query = query.Where("deleted_at IS NULL")
 
 	// Apply filters based on params
 	if email, ok := params["email"].(string); ok && email != "" {

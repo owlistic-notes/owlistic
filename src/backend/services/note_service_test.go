@@ -36,11 +36,11 @@ func TestCreateNote_Success(t *testing.T) {
 		WithArgs(notebookID.String()).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	// Create note - match exact column order: user_id, notebook_id, title, is_deleted, id
+	// Create note - match exact column order: user_id, notebook_id, title, id
 	mock.ExpectQuery(`INSERT INTO "notes"`).
 		WithArgs(userID.String(), notebookID.String(), "Test Note", false, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "notebook_id", "title", "is_deleted"}).
-			AddRow(noteID.String(), userID.String(), notebookID.String(), "Test Note", false))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "notebook_id", "title"}).
+			AddRow(noteID.String(), userID.String(), notebookID.String(), "Test Note"))
 
 	// Note service also creates an initial empty block for the note
 	mock.ExpectQuery(`INSERT INTO "blocks"`).
@@ -174,8 +174,8 @@ func TestDeleteNote_Success(t *testing.T) {
 	// Expect the initial note query
 	mock.ExpectQuery("SELECT \\* FROM \"notes\"").
 		WithArgs(existingID.String(), 1). // Fix: Expect two arguments
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "is_deleted", "update_date"}).
-			AddRow(existingID.String(), userID.String(), "Title", "Content", false, nil))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "update_date"}).
+			AddRow(existingID.String(), userID.String(), "Title", "Content", nil))
 
 	// Expect the delete
 	mock.ExpectExec("DELETE FROM \"notes\"").
@@ -216,8 +216,8 @@ func TestListNotesByUser_Success(t *testing.T) {
 
 	mock.ExpectQuery("SELECT (.+) FROM \"notes\" WHERE user_id = \\$1").
 		WithArgs(userID.String()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "is_deleted", "update_date"}).
-			AddRow(noteID.String(), userID.String(), "Test Note", "This is a test note.", false, nil))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "title", "content", "update_date"}).
+			AddRow(noteID.String(), userID.String(), "Test Note", "This is a test note.", nil))
 
 	noteService := &NoteService{}
 	notes, err := noteService.ListNotesByUser(db, userID.String())

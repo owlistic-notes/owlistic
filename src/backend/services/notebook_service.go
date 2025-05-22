@@ -265,6 +265,11 @@ func (s *NotebookService) DeleteNotebook(db *database.Database, id string, param
 		return errors.New("not authorized to delete this notebook")
 	}
 
+	if err := tx.Exec("UPDATE notes SET deleted_at = NOW() WHERE notebook_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Soft delete notebook (gorm will handle this)
 	if err := tx.Delete(&notebook).Error; err != nil {
 		tx.Rollback()
@@ -352,11 +357,7 @@ func (s *NotebookService) GetNotebooks(db *database.Database, params map[string]
 	}
 
 	// Include or exclude deleted notebooks
-	if includeDeleted, ok := params["include_deleted"].(bool); ok && includeDeleted {
-		query = query.Unscoped().Where("deleted_at IS NOT NULL")
-	} else {
-		query = query.Where("deleted_at IS NULL")
-	}
+	query = query.Where("deleted_at IS NULL")
 
 	if err := query.Find(&notebooks).Error; err != nil {
 		return nil, err

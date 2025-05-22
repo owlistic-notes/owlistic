@@ -31,7 +31,6 @@ func TestCreateNotebook_Success(t *testing.T) {
 			userID.String(),  // user_id
 			"Test Notebook",  // name
 			"Description",    // description
-			false,            // is_deleted
 			sqlmock.AnyArg(), // id
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(notebookID))
@@ -78,8 +77,8 @@ func TestGetNotebookById_Success(t *testing.T) {
 	// Fix escaping - put back the escaped dollar signs
 	mock.ExpectQuery("SELECT \\* FROM \"notebooks\" WHERE id = \\$1 ORDER BY \"notebooks\".\"id\" LIMIT \\$2").
 		WithArgs(notebookID.String(), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "name", "description", "is_deleted"}).
-			AddRow(notebookID, userID, "Test Notebook", "Description", false))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "name", "description"}).
+			AddRow(notebookID, userID, "Test Notebook", "Description"))
 
 	mock.ExpectQuery("SELECT (.+) FROM \"notes\"").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
@@ -105,13 +104,12 @@ func TestUpdateNotebook_Success(t *testing.T) {
 	mock.ExpectQuery(`SELECT \* FROM "notebooks" WHERE id = \$1 ORDER BY "notebooks"."id" LIMIT \$2`).
 		WithArgs(notebookID.String(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "user_id", "name", "description", "is_deleted", "created_at", "updated_at",
+			"id", "user_id", "name", "description", "created_at", "updated_at",
 		}).AddRow(
 			notebookID,
 			userID,
 			"Old Name",
 			"Old Description",
-			false,
 			time.Now(),
 			time.Now(),
 		))
@@ -171,8 +169,8 @@ func TestDeleteNotebook_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "name"}).
 			AddRow(notebookID, userID, "Test Notebook"))
 
-	mock.ExpectExec("UPDATE \"notebooks\" SET \"is_deleted\"=\\$1,\"updated_at\"=\\$2 WHERE \"id\" = \\$3").
-		WithArgs(true, sqlmock.AnyArg(), notebookID.String()).
+	mock.ExpectExec("UPDATE \"notebooks\" SET \"deleted_at\"=\\$2 WHERE \"id\" = \\$3").
+		WithArgs(sqlmock.AnyArg(), notebookID.String()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Add missing event creation expectation
@@ -206,9 +204,9 @@ func TestListNotebooksByUser_Success(t *testing.T) {
 
 	userID := uuid.New()
 
-	rows := sqlmock.NewRows([]string{"id", "user_id", "name", "description", "is_deleted"}).
-		AddRow(uuid.New(), userID, "Notebook 1", "Description 1", false).
-		AddRow(uuid.New(), userID, "Notebook 2", "Description 2", false)
+	rows := sqlmock.NewRows([]string{"id", "user_id", "name", "description"}).
+		AddRow(uuid.New(), userID, "Notebook 1", "Description 1").
+		AddRow(uuid.New(), userID, "Notebook 2", "Description 2")
 
 	mock.ExpectQuery("SELECT (.+) FROM \"notebooks\"").
 		WithArgs(userID.String()).

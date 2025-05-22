@@ -395,21 +395,7 @@ func (s *TaskService) GetTasks(db *database.Database, params map[string]interfac
 		query = query.Where("note_id = ?", noteID)
 	}
 
-	// Standardize on include_deleted parameter
-	includeDeleted := false
-	if includeDeletedParam, ok := params["include_deleted"].(string); ok {
-		includeDeleted = includeDeletedParam == "true"
-	} else if includeDeletedBool, ok := params["include_deleted"].(bool); ok {
-		includeDeleted = includeDeletedBool
-	}
-
-	// If include_deleted=true, show only deleted items
-	if includeDeleted {
-		query = query.Unscoped().Where("deleted_at IS NOT NULL")
-	} else {
-		// Otherwise show only non-deleted items
-		query = query.Where("deleted_at IS NULL")
-	}
+	query = query.Where("deleted_at IS NULL")
 
 	result := query.Find(&tasks)
 	if result.Error != nil {

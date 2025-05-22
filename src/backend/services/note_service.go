@@ -331,6 +331,11 @@ func (s *NoteService) DeleteNote(db *database.Database, id string, params map[st
 		tx.Rollback()
 		return errors.New("not authorized to delete this note")
 	}
+	
+	if err := tx.Exec("UPDATE blocks SET deleted_at = NOW() WHERE note_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// Soft delete note (gorm will handle this)
 	if err := tx.Delete(&note).Error; err != nil {
@@ -410,11 +415,7 @@ func (s *NoteService) GetNotes(db *database.Database, params map[string]interfac
 	}
 
 	// Include or exclude deleted notes
-	if includeDeleted, ok := params["include_deleted"].(bool); ok && includeDeleted {
-		query = query.Unscoped().Where("deleted_at IS NOT NULL")
-	} else {
-		query = query.Where("deleted_at IS NULL")
-	}
+	query = query.Where("deleted_at IS NULL")
 
 	// Execute the query
 	if err := query.Find(&notes).Error; err != nil {

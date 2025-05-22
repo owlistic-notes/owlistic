@@ -22,7 +22,6 @@ func TestNoteToJSON(t *testing.T) {
 				Order:   1,
 			},
 		},
-		IsDeleted: false,
 	}
 
 	data, err := note.ToJSON()
@@ -50,7 +49,6 @@ func TestNoteFromJSON(t *testing.T) {
 			"content": {"text": "Test Content"},
 			"order": 1
 		}],
-		"is_deleted": false
 	}`
 
 	var note Note
