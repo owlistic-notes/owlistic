@@ -153,7 +153,6 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 		return nil
 	}
 
-
 	// Check if sync source exists - this is a key issue that's causing loops
 	if syncSource, exists := block.Metadata["_sync_source"]; exists {
 		if syncSource == "task" {
@@ -196,7 +195,6 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) error {
 	blockIDStr, ok := payload["block_id"].(string)
 	if !ok {
-		log.Printf("Payload: %v", payload)
 		return errors.New("missing block_id in block event payload")
 	}
 
@@ -208,48 +206,40 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 
 	// Check if the block type has changed
 	updatedType, hasType := payload["block_type"].(string)
-	typeChanged := hasType && string(block.Type) != updatedType
-
-
-	// Only continue if this is a task block (either unchanged or still a task block after update)
-	if block.Type != models.TaskBlock || hasType && updatedType != string(models.TaskBlock) {
-		return nil // Not a task block, nothing to do
+	if !hasType {
+		return errors.New("missing block_type in block event payload")
 	}
 
-	// If block type changed from task to another type, delete the associated task
-	if typeChanged && updatedType != string(models.TaskBlock) {
-		log.Printf("Block type changed from TaskBlock to %s, deleting associated task", updatedType)
-		// Find any tasks associated with this block and delete them
-		var tasks []models.Task
-		if err := s.db.DB.Where("metadata->>'block_id' = ?", blockIDStr).Find(&tasks).Error; err != nil {
-			return nil // No tasks found or error, nothing to delete
-		}
+	typeChanged := hasType && string(block.Type) != updatedType
 
-		// Delete each task associated with this block since it's no longer a task block
-		for _, task := range tasks {
+	// If block type changed from task to another type, delete the associated task
+	if typeChanged {
+		if updatedType != string(models.TaskBlock) {
+			log.Printf("Block type changed from TaskBlock to %s, deleting associated task", updatedType)
+			// Find any tasks associated with this block and delete them
+			var task models.Task
+			if err := s.db.DB.Where("metadata->>'block_id' = ?", blockIDStr).Find(&task).Error; err != nil {
+				return nil // No tasks found or error, nothing to delete
+			}
+
+			// Delete task associated with this block since it's no longer a task block
 			if err := s.taskService.DeleteTask(s.db, task.ID.String()); err != nil {
 				return err
 			}
+		} else {
+			log.Printf("Block type changed to TaskBlock, creating a new task")
+			// Create a new payload with the updated type
+			newPayload := make(map[string]interface{})
+			maps.Copy(newPayload, payload)
+	
+			// Call handleBlockCreated to create the task
+			return s.handleBlockCreated(newPayload)
 		}
-
-		return nil // No need to process content updates since it's not a task block anymore
-	}
-
-	// If block type changed to task block, create a new task for it
-	if typeChanged && updatedType == string(models.TaskBlock) {
-		log.Printf("Block type changed to TaskBlock, creating a new task")
-		// Create a new payload with the updated type
-		newPayload := make(map[string]interface{})
-		maps.Copy(newPayload, payload)
-
-		// Call handleBlockCreated to create the task
-		return s.handleBlockCreated(newPayload)
 	}
 
 	// Find the task associated with this block
 	var task models.Task
 	if err := s.db.DB.Where("metadata->>'block_id' = ?", blockIDStr).First(&task).Error; err != nil {
-		// No task found for this block but it's a task block - create one
 		return s.handleBlockCreated(payload)
 	}
 
@@ -322,16 +312,14 @@ func (s *SyncHandlerService) handleBlockDeleted(payload map[string]interface{}) 
 	}
 
 	// Find all tasks associated with this block
-	var tasks []models.Task
-	if err := s.db.DB.Where("metadata->>'block_id' = ?", blockIDStr).Find(&tasks).Error; err != nil {
+	var task models.Task
+	if err := s.db.DB.Where("metadata->>'block_id' = ?", blockIDStr).Find(&task).Error; err != nil {
 		return nil // No tasks found or error, nothing to delete
 	}
 
-	// Delete each task
-	for _, task := range tasks {
-		if err := s.taskService.DeleteTask(s.db, task.ID.String()); err != nil {
-			return err
-		}
+	// Delete task
+	if err := s.taskService.DeleteTask(s.db, task.ID.String()); err != nil {
+		return err
 	}
 
 	return nil
