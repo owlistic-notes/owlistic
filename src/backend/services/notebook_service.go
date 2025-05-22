@@ -265,6 +265,11 @@ func (s *NotebookService) DeleteNotebook(db *database.Database, id string, param
 		return errors.New("not authorized to delete this notebook")
 	}
 
+	if err := tx.Exec("UPDATE notes SET deleted_at = NOW() WHERE notebook_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Soft delete notebook (gorm will handle this)
 	if err := tx.Delete(&notebook).Error; err != nil {
 		tx.Rollback()
