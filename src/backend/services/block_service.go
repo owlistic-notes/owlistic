@@ -256,7 +256,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 	}
 
 	if blockType, ok := blockData["type"].(string); ok {
-		eventData["type"] = blockType
+		eventData["block_type"] = blockType
 	}
 
 	// Create the event
@@ -344,6 +344,7 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[
 			"block_id": block.ID.String(),
 			"note_id":  block.NoteID.String(),
 			"user_id":  block.UserID.String(),
+			"block_type": string(block.Type),
 		},
 	)
 
