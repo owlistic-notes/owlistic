@@ -108,6 +108,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       
       // Load initial blocks for the note using ViewModel
       await _noteEditorViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 30);
+
+      // Set the title in the editor
+      _noteEditorViewModel.documentBuilder.insertTitleNode(_note!.title);
       
       // Initialize the scroll listener for pagination - JUST ONCE
       _noteEditorViewModel.initScrollListener(_scrollController);
@@ -208,10 +211,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
            IconButton(
             icon: const Icon(Icons.refresh_outlined),
             tooltip: 'Refresh note content',
-            onPressed: () => _noteEditorViewModel.fetchBlocksForNote(
-              _noteEditorViewModel.noteId?? '',
-              refresh: true
-            ),
+            onPressed: () => _initialize(),
           ),
           const ThemeSwitcher(),
         ],
@@ -233,7 +233,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     _titleController.text = _note!.title;
                   }
                 }
-                
+
                 // React to loading state
                 final isContentLoading = noteEditorViewModel.isLoading;
                 
@@ -252,9 +252,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
                 // Listen for update count changes to refresh UI
                 final updateCount = noteEditorViewModel.updateCount;
-                if (updateCount <= 0) {
-                  _noteEditorViewModel.documentBuilder.insertTitleNode(_note!.title);
-                }
                 if (updateCount > 0) {
                   // This will trigger a UI refresh when updateCount changes
                   _logger.debug('Note editor update count: $updateCount');

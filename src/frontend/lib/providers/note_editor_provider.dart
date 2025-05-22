@@ -447,12 +447,12 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
   
   // DocumentChangeListener implementation for content changes
-  void _documentChangeListener(dynamic _) {
+  void _documentChangeListener(dynamic changelog) {
     if (_updatingDocument) return;
     
     // Check if this change is a DocumentChangeLog which might contain TaskNode changes
-    if (_ is DocumentChangeLog) {
-      DocumentChangeLog changeLog = _;
+    if (changelog is DocumentChangeLog) {
+      DocumentChangeLog changeLog = changelog;
       
       // Check if this change includes a TaskNode's isComplete property change
       bool hasTaskStateChange = false;
@@ -527,7 +527,10 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     
     // Get node ID from selection
     final nodeId = selection.extent.nodeId;
-    
+    if (nodeId == documentBuilder.titleNode.id) {
+      updateNoteTitle(noteId!, documentBuilder.titleNode.asTextNode.text.toPlainText());
+    }
+
     // Find the block ID for this node
     final blockId = _documentBuilder.nodeToBlockMap[nodeId];
     if (blockId == null) return;
