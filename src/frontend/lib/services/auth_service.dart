@@ -230,23 +230,15 @@ class AuthService extends BaseService {
   
   Future<bool> logout() async {
     try {
-      // Call logout endpoint if it exists and we have a token
-      if (isLoggedIn) {
-        try {
-          await authenticatedPost('/api/v1/logout', {});
-        } catch (e) {
-          // Just log the error but continue with local logout
-          _logger.error('Error calling logout endpoint', e);
-        }
-      }
-      
       // Clear token regardless of response
       await clearToken();
+      await clearPreferences();
       _logger.info('Logged out successfully');
       return true;
     } catch (e) {
       _logger.error('Error during logout', e);
       await clearToken(); // Still clear token on error
+      await clearPreferences();
       return false;
     }
   }
@@ -419,6 +411,17 @@ Future<String?> getCurrentUserId() async {
       // Fall back to getting user profile if needed
       final user = await getUserProfile();
       return user?.id;
+    } catch (e) {
+      _logger.error('Error getting current user ID', e);
+      return null;
+    }
+  }
+
+  Future<void> clearPreferences() async {
+    try {
+      // First try to get from shared preferences for better performance
+      final prefs = await SharedPreferences.getInstance();
+      prefs.clear();
     } catch (e) {
       _logger.error('Error getting current user ID', e);
       return null;
