@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"maps"
 	"time"
 
 	"owlistic-notes/owlistic/broker"
@@ -84,13 +85,6 @@ func (s *SyncHandlerService) handleSyncEvent(eventType string, data []byte) erro
 		return errors.New("empty payload in event message")
 	}
 
-	// Check if this is a sync event to prevent infinite loops
-	syncSource, isSync := message.Payload["_sync_source"].(string)
-	if isSync {
-		log.Printf("Skipping %s event from sync source: %s", message.Type, syncSource)
-		return nil
-	}
-
 	switch eventType {
 	case string(broker.BlockCreated):
 		return s.handleBlockCreated(message.Payload)
@@ -159,6 +153,15 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 		return nil
 	}
 
+
+	// Check if sync source exists - this is a key issue that's causing loops
+	if syncSource, exists := block.Metadata["_sync_source"]; exists {
+		if syncSource == "task" {
+			log.Printf("Block %s was created by task sync, skipping task creation", blockIDStr)
+			return nil // Skip creating a taks since this block was created from a task
+		}
+	}
+
 	taskData := map[string]interface{}{
 		"user_id": userIDStr,
 		"note_id": noteIDStr,
@@ -207,6 +210,12 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 	updatedType, hasType := payload["block_type"].(string)
 	typeChanged := hasType && string(block.Type) != updatedType
 
+
+	// Only continue if this is a task block (either unchanged or still a task block after update)
+	if block.Type != models.TaskBlock || hasType && updatedType != string(models.TaskBlock) {
+		return nil // Not a task block, nothing to do
+	}
+
 	// If block type changed from task to another type, delete the associated task
 	if typeChanged && updatedType != string(models.TaskBlock) {
 		log.Printf("Block type changed from TaskBlock to %s, deleting associated task", updatedType)
@@ -231,17 +240,10 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 		log.Printf("Block type changed to TaskBlock, creating a new task")
 		// Create a new payload with the updated type
 		newPayload := make(map[string]interface{})
-		for k, v := range payload {
-			newPayload[k] = v
-		}
+		maps.Copy(newPayload, payload)
 
 		// Call handleBlockCreated to create the task
 		return s.handleBlockCreated(newPayload)
-	}
-
-	// Only continue if this is a task block (either unchanged or still a task block after update)
-	if !hasType && block.Type != models.TaskBlock || hasType && updatedType != string(models.TaskBlock) {
-		return nil // Not a task block, nothing to do
 	}
 
 	// Find the task associated with this block
@@ -290,32 +292,23 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 
 	// Create a copy of metadata
 	updateData.Metadata = models.TaskMetadata{}
-	for k, v := range task.Metadata {
-		updateData.Metadata[k] = v
-	}
-	updateData.Metadata["_sync_source"] = "block"
-
-	// Check for completion status in metadata
-	isCompleted := task.IsCompleted // Default to current value
+	maps.Copy(updateData.Metadata, task.Metadata)
 
 	// Get completed status from block metadata
 	if block.Metadata != nil {
 		if completed, exists := block.Metadata["is_completed"].(bool); exists {
-			isCompleted = completed
+			updateData.IsCompleted = completed
 		}
 	}
 
-	updateData.IsCompleted = isCompleted
-
 	// Always include the sync timestamp
+	updateData.Metadata["_sync_source"] = "block"
 	updateData.Metadata["last_synced"] = time.Now().Format(time.RFC3339)
 
 	// Only update if there are changes to apply
-	if updateData.Title != "" || updateData.IsCompleted != task.IsCompleted || len(updateData.Metadata) > 0 {
-		_, err := s.taskService.UpdateTask(s.db, task.ID.String(), updateData)
-		if err != nil {
-			return err
-		}
+	_, err := s.taskService.UpdateTask(s.db, task.ID.String(), updateData)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -531,28 +524,6 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 		return s.createBlockForTask(task)
 	}
 
-	// Check if block type matches - if not, update it to task block
-	if block.Type != models.TaskBlock {
-		blockData := map[string]interface{}{
-			"type": string(models.TaskBlock),
-			"content": models.BlockContent{
-				"text": task.Title,
-			},
-			"metadata": models.BlockMetadata{
-				"is_completed": task.IsCompleted,
-				"task_id":      task.ID.String(),
-				"_sync_source": "task",
-			},
-		}
-
-		params := map[string]interface{}{
-			"user_id": task.UserID.String(),
-		}
-
-		_, err := s.blockService.UpdateBlock(s.db, blockIDStr, blockData, params)
-		return err
-	}
-
 	// Skip if this task was just updated by block sync
 	if syncSource, exists := task.Metadata["_sync_source"]; exists && syncSource == "block" {
 		// Get last sync timestamp
@@ -599,9 +570,7 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 
 		// Copy existing metadata
 		if block.Metadata != nil {
-			for k, v := range block.Metadata {
-				metadataMap[k] = v
-			}
+			maps.Copy(metadataMap, block.Metadata)
 		}
 
 		metadataMap["is_completed"] = isCompleted
@@ -615,9 +584,7 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 
 		// Copy existing metadata
 		if block.Metadata != nil {
-			for k, v := range block.Metadata {
-				metadataMap[k] = v
-			}
+			maps.Copy(metadataMap, block.Metadata)
 		}
 
 		metadataMap["_sync_source"] = "task"
