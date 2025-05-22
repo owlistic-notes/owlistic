@@ -123,7 +123,6 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 			Metadata: models.BlockMetadata{
 				"is_completed": task.IsCompleted,
 				"task_id":      taskID.String(),
-				"_sync_source": "task",
 			},
 		}
 

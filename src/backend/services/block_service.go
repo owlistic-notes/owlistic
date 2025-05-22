@@ -118,7 +118,6 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 	metadata := models.BlockMetadata{}
 	if metaData, ok := blockData["metadata"].(map[string]interface{}); ok {
 		metadata = models.BlockMetadata(metaData)
-		metadata["_sync_source"] = "block"
 		metadata["block_id"] = blockID
 	}
 
