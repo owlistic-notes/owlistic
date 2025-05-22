@@ -11,7 +11,6 @@ import (
 	"owlistic-notes/owlistic/models"
 
 	"github.com/google/uuid"
-	"maps"
 )
 
 // SyncHandlerService handles bidirectional synchronization between blocks and tasks
@@ -186,7 +185,7 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 		"title":   textContent,
 		"metadata": models.TaskMetadata{
 			"block_id":    blockIDStr,
-			"last_synced": time.Now(),
+			"last_synced": time.Now().UTC(),
 		},
 	}
 
@@ -291,8 +290,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 	}
 
 	// Create a copy of metadata
-	updateData.Metadata = models.TaskMetadata{}
-	maps.Copy(updateData.Metadata, task.Metadata)
+	updateData.Metadata = models.TaskMetadata(task.Metadata)
 
 	// Get completed status from block metadata
 	if block.Metadata != nil {
@@ -302,7 +300,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 	}
 
 	// Always include the sync timestamp
-	updateData.Metadata["last_synced"] = time.Now()
+	updateData.Metadata["last_synced"] = time.Now().UTC()
 
 	// Only update if there are changes to apply
 	_, err := s.taskService.UpdateTask(s.db, task.ID.String(), updateData)
@@ -551,11 +549,11 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 	updatedMetadata["is_completed"] = task.IsCompleted
 
 	// Always include the sync timestamp
-	updatedMetadata["last_synced"] = time.Now()
+	updatedMetadata["last_synced"] = time.Now().UTC()
 
 	// Update task with block data
 	updateData := map[string]interface{}{
-		"content": updatedContent,
+		"content":  updatedContent,
 		"metadata": updatedMetadata,
 	}
 
@@ -599,16 +597,11 @@ func (s *SyncHandlerService) handleTaskDeleted(payload map[string]interface{}) e
 	}
 
 	// Update block metadata to reflect task deletion
-	metadataMap := models.BlockMetadata{}
-
-	// Copy existing metadata
-	if block.Metadata != nil {
-		maps.Copy(metadataMap, block.Metadata)
-	}
+	metadataMap := models.BlockMetadata(block.Metadata)
 
 	// Add task deletion markers
 	metadataMap["task_id"] = taskIDStr
-	metadataMap["deleted_at"] = time.Now()
+	metadataMap["deleted_at"] = time.Now().UTC()
 
 	// Get user_id from payload or from block
 	userIDStr := ""

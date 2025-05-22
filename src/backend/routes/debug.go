@@ -25,7 +25,7 @@ func SetupDebugRoutes(router *gin.Engine, db *database.Database) {
 				c.JSON(http.StatusOK, gin.H{
 					"exists": false,
 					"error":  result.Error.Error(),
-					"time":   time.Now(),
+					"time":   time.Now().UTC(),
 				})
 				return
 			}
@@ -35,7 +35,7 @@ func SetupDebugRoutes(router *gin.Engine, db *database.Database) {
 				"id":          note.ID,
 				"title":       note.Title,
 				"notebook_id": note.NotebookID,
-				"time":        time.Now(),
+				"time":        time.Now().UTC(),
 			})
 		})
 
@@ -47,7 +47,7 @@ func SetupDebugRoutes(router *gin.Engine, db *database.Database) {
 			c.JSON(http.StatusOK, gin.H{
 				"pending_events": len(events),
 				"events":         events,
-				"time":           time.Now(),
+				"time":           time.Now().UTC(),
 			})
 		})
 	}

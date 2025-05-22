@@ -51,9 +51,9 @@ func GenerateToken(userID uuid.UUID, email string, secret []byte, expiration tim
 		UserID: userID,
 		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC()),
 		},
 	}
 
@@ -95,6 +95,6 @@ func ExtractAndValidateToken(c *gin.Context, secret []byte) (*JWTClaims, error) 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return ValidateToken(tokenString, secret)
 }
