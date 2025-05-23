@@ -52,7 +52,7 @@ class TaskService extends BaseService {
       final taskData = <String, dynamic>{
         'title': title,
         'is_completed': false,
-        'note_id': noteId, // Direct note_id field
+        'note_id': noteId,
         'metadata': metadata,
       };
 
@@ -110,16 +110,14 @@ class TaskService extends BaseService {
         metadata.addAll(existingTask.metadata!);
       }
 
-      metadata['task_id'] = id;
-      if (isCompleted != null) metadata['is_completed'] = isCompleted;
-
       final updates = <String, dynamic>{
         'metadata': metadata,
       };
       
       // Add basic task properties
-      if (title != null) updates['title'] = title;
-      if (noteId != null) updates['note_id'] = noteId;
+      updates['title'] = (title != null) ? title : existingTask.title;
+      updates['note_id'] = (noteId != null) ? noteId : existingTask.noteId;
+      updates['is_completed'] = (isCompleted != null) ? isCompleted : existingTask.isCompleted;
 
       final response = await authenticatedPut('/api/v1/tasks/$id', updates);
 
