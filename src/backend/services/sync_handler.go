@@ -157,7 +157,7 @@ func (s *SyncHandlerService) handleBlockCreated(payload map[string]interface{}) 
 		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
 		if err == nil {
 			// Compare actual timestamps instead of using arbitrary time window
-			if block.UpdatedAt.Compare(lastSync) <= 0 {
+			if block.UpdatedAt.Compare(lastSync) < 0 {
 				log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
 					blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
 				return nil
@@ -246,7 +246,7 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
 		if err == nil {
 			// Compare actual timestamps instead of using arbitrary time window
-			if block.UpdatedAt.Compare(lastSync) <= 0 {
+			if block.UpdatedAt.Compare(lastSync) < 0 {
 				log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
 					blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
 				return nil
@@ -331,12 +331,12 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 		return err
 	}
 
-	// Check if sync source exists - this is a key issue that's causing loops
+	// Skip if this task was just updated by block sync
 	if lastSyncStr, exists := task.Metadata["last_synced"].(string); exists {
 		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
 		if err == nil {
 			// Compare actual timestamps instead of using arbitrary time window
-			if task.UpdatedAt.Compare(lastSync) <= 0 {
+			if task.UpdatedAt.Compare(lastSync) < 0 {
 				log.Printf("Task %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
 					taskIDStr, task.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
 				return nil
@@ -403,43 +403,8 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 				// Verify the note exists
 				var note models.Note
 				if err := s.db.DB.First(&note, "id = ?", id).Error; err == nil {
-					// Note found, we can use it
-				} else {
-					// Note not found, reset noteID to find another note
-					noteID = uuid.Nil
+					noteID = note.ID
 				}
-			}
-		}
-	}
-
-	// If no valid noteId in metadata, find a suitable note
-	if noteID == uuid.Nil {
-		// Find the user's primary note, or any note
-		var notes []models.Note
-		if err := s.db.DB.Where("user_id = ? AND is_primary = ?", task.UserID, true).Limit(1).Find(&notes).Error; err != nil {
-			return err
-		}
-
-		if len(notes) > 0 {
-			noteID = notes[0].ID
-		} else {
-			// No primary note found, try to find any note
-			if err := s.db.DB.Where("user_id = ?", task.UserID).Limit(1).Find(&notes).Error; err != nil {
-				return err
-			}
-			if len(notes) == 0 {
-				// No notes found, create a new one
-				newNote := models.Note{
-					ID:     uuid.New(),
-					UserID: task.UserID,
-					Title:  "Tasks",
-				}
-				if err := s.db.DB.Create(&newNote).Error; err != nil {
-					return err
-				}
-				noteID = newNote.ID
-			} else {
-				noteID = notes[0].ID
 			}
 		}
 	}
@@ -463,20 +428,10 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 		"user_id": task.UserID.String(),
 	}
 
-	block, err := s.blockService.CreateBlock(s.db, blockData, params)
+	_, err := s.blockService.CreateBlock(s.db, blockData, params)
 	if err != nil {
 		return err
 	}
-
-	// Update task with block_id and store note_id in metadata
-	updateData := models.Task{
-		NoteID: noteID,
-		Metadata: models.TaskMetadata{
-			"block_id": block.ID.String(),
-		},
-	}
-
-	_, err = s.taskService.UpdateTask(s.db, task.ID.String(), updateData)
 	return err
 }
 
@@ -512,35 +467,28 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 		lastSync, err := time.Parse(time.RFC3339, lastSyncStr)
 		if err == nil {
 			// Compare actual timestamps instead of using arbitrary time window
-			if block.UpdatedAt.Compare(lastSync) <= 0 {
+			if task.UpdatedAt.Compare(lastSync) < 0 {
 				log.Printf("Task %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
-					blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+					taskIDStr, task.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
 				return nil
 			}
 		}
 	}
 
-	updatedContent := map[string]interface{}{}
-	updatedMetadata := map[string]interface{}{}
-
-	// Update title if block content has changed
-	if task.Title != payload["title"] && payload["title"] != "" {
-		updatedContent["text"] = payload["title"]
-	}
-
-	// Create a copy of metadata
-	updatedMetadata = models.BlockMetadata(task.Metadata)
-
-	// Get completed status from block metadata
-	updatedMetadata["is_completed"] = task.IsCompleted
-
-	// Always include the sync timestamp
-	updatedMetadata["last_synced"] = time.Now().UTC()
-
 	// Update task with block data
 	updateData := map[string]interface{}{
-		"content":  updatedContent,
-		"metadata": updatedMetadata,
+		"note_id": block.NoteID.String(),
+		"type":    string(models.TaskBlock),
+		"content": models.BlockContent{
+			"text": task.Title,
+		},
+		"metadata": models.BlockMetadata{
+			"task_id":      task.ID.String(),
+			"last_synced":  time.Now().Format(time.RFC3339),
+			"is_completed": task.IsCompleted,
+			"emmmnnagiaa": true,
+		},
+		"user_id": task.UserID.String(),
 	}
 
 	params := map[string]interface{}{
