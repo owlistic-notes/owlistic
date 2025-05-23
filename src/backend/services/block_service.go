@@ -118,7 +118,6 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 	metadata := models.BlockMetadata{}
 	if metaData, ok := blockData["metadata"].(map[string]interface{}); ok {
 		metadata = models.BlockMetadata(metaData)
-		metadata["_sync_source"] = "block"
 		metadata["block_id"] = blockID
 	}
 
@@ -259,7 +258,7 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 	}
 
 	if blockType, ok := blockData["type"].(string); ok {
-		eventData["type"] = blockType
+		eventData["block_type"] = blockType
 	}
 
 	// Create the event
@@ -348,9 +347,10 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[
 		"delete",
 		block.UserID.String(), // Use the block's owner as the actor
 		map[string]interface{}{
-			"block_id": block.ID.String(),
-			"note_id":  block.NoteID.String(),
-			"user_id":  block.UserID.String(),
+			"block_id":   block.ID.String(),
+			"note_id":    block.NoteID.String(),
+			"user_id":    block.UserID.String(),
+			"block_type": string(block.Type),
 		},
 	)
 

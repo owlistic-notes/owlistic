@@ -14,7 +14,7 @@ abstract class TasksViewModel extends BaseViewModel {
   List<Note> get availableNotes;
   
   /// Fetch tasks with filtering
-  Future<void> fetchTasks({String? completed, String? noteId});
+  Future<void> fetchTasks({String? noteId});
   
   /// Load available notes for task creation
   Future<void> loadAvailableNotes();

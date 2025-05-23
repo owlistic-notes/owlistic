@@ -591,7 +591,6 @@ class DocumentBuilder {
     // Initialize with strict format
     Map<String, dynamic> content = {'text': ''};
     Map<String, dynamic> metadata = {
-      '_sync_source': 'block',
       'block_id': blockId
     };
 
@@ -663,7 +662,7 @@ class DocumentBuilder {
       DocumentNode node, {Block? originalBlock}) {
     // Initialize with a base structure
     Map<String, dynamic> content = {'text': ''};
-    Map<String, dynamic> metadata = {'_sync_source': 'block'};
+    Map<String, dynamic> metadata = {};
 
     // Preserve original metadata values if available
     if (originalBlock != null && originalBlock.metadata != null) {
@@ -741,7 +740,7 @@ class DocumentBuilder {
         // Get completion status from metadata
         bool isCompleted = false;
         if (metadata != null && metadata.containsKey('is_completed')) {
-          isCompleted = metadata['is_completed'] == true;
+          isCompleted = metadata['is_completed'];
         }
 
         return [

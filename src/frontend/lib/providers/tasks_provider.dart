@@ -171,8 +171,8 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
-      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
-      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage); // Using block extractor as tasks don't have a specific extractor
+      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage);
+      final String? noteId = WebSocketModelExtractor.extractNoteId(parsedMessage);
       
       if (taskId != null && taskId.isNotEmpty) {
         // Only fetch if we have tasks for this note already or if we're showing all tasks
@@ -193,17 +193,9 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     try {
       // Use the standardized parser
       final parsedMessage = WebSocketMessage.fromJson(message);
-      final payload = parsedMessage.payload;
-      final data = payload['data'];
+      final String? taskId = WebSocketModelExtractor.extractTaskId(parsedMessage);
       
-      String taskId = '';
-      
-      // Extract task ID - tasks don't have a specific extractor yet
-      if (data != null && data is Map) {
-        taskId = data['id']?.toString() ?? data['task_id']?.toString() ?? '';
-      }
-      
-      if (taskId.isNotEmpty) {
+      if (taskId != null && taskId.isNotEmpty) {
         // Remove task from local state if it exists
         _tasksMap.remove(taskId);
         notifyListeners();
@@ -237,7 +229,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
 
   // Fetch tasks with proper user filtering
   @override
-  Future<void> fetchTasks({String? completed, String? noteId}) async {
+  Future<void> fetchTasks({String? noteId}) async {
     if (!_isActive) return; // Don't fetch if not active
     
     // Get current user ID for filtering
@@ -251,10 +243,7 @@ class TasksProvider with ChangeNotifier implements TasksViewModel {
     notifyListeners();
 
     try {
-      final tasksList = await _taskService.fetchTasks(
-        completed: completed,
-        noteId: noteId,
-      );
+      final tasksList = await _taskService.fetchTasks(noteId: noteId);
 
       // Convert list to map
       _tasksMap.clear();
