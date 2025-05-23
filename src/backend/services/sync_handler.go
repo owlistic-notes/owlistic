@@ -373,8 +373,8 @@ func (s *SyncHandlerService) handleTaskCreated(payload map[string]interface{}) e
 				"text": task.Title,
 			},
 			"metadata": models.BlockMetadata{
-				"is_completed": task.IsCompleted,
 				"task_id":      task.ID.String(),
+				"is_completed": task.IsCompleted,
 			},
 		}
 
@@ -452,8 +452,8 @@ func (s *SyncHandlerService) createBlockForTask(task models.Task) error {
 			"text": task.Title,
 		},
 		"metadata": models.BlockMetadata{
+			"task_id":      task.ID.String(),
 			"is_completed": task.IsCompleted,
-			"task_id":      task.ID.String(), // Add task ID reference
 		},
 		"user_id": task.UserID.String(),
 	}
@@ -513,7 +513,7 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 		if err == nil {
 			// Compare actual timestamps instead of using arbitrary time window
 			if block.UpdatedAt.Compare(lastSync) <= 0 {
-				log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+				log.Printf("Task %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
 					blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
 				return nil
 			}
