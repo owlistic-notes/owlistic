@@ -447,9 +447,73 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
   
   // DocumentChangeListener implementation for content changes
-  void _documentChangeListener(dynamic _) {
+  void _documentChangeListener(dynamic changelog) {
     if (_updatingDocument) return;
+    // Check if this change is a DocumentChangeLog which might contain TaskNode changes
+    if (changelog is DocumentChangeLog) {
+      DocumentChangeLog changeLog = changelog;
+      
+      // Check if this change includes a TaskNode's isComplete property change
+      bool hasTaskStateChange = false;
+      String? taskNodeId;
+      bool? newCompletionState;
+      
+      for (final change in changeLog.changes) {
+        if (change is NodeChangeEvent) {
+          final node = _documentBuilder.document.getNodeById(change.nodeId);
+          if (node is TaskNode) {
+            taskNodeId = change.nodeId;
+            newCompletionState = node.isComplete;
+            hasTaskStateChange = true;
+            break;
+          }
+        }
+      }
+      
+      // If a task state changed, handle it immediately
+      if (hasTaskStateChange && taskNodeId != null) {
+        _handleTaskNodeStateChange(taskNodeId, newCompletionState!);
+        return;
+      }
+    }
     _handleDocumentChange();
+  }
+
+  // Handle task completion state change
+  void _handleTaskNodeStateChange(String nodeId, bool isComplete) {
+    // Find the block ID for this node
+    final blockId = _documentBuilder.nodeToBlockMap[nodeId];
+    if (blockId == null) return;
+    
+    // Get the block to check against
+    final block = getBlock(blockId);
+    if (block == null || block.type != 'task') return;
+    
+    // Compare with current state to see if it actually changed
+    final bool wasComplete = block.metadata != null && 
+                            block.metadata!['is_completed'] == true;
+    
+    if (wasComplete != isComplete) {
+      _logger.info('Task completion changed: nodeId=$nodeId, blockId=$blockId, isComplete=$isComplete');
+      
+      // Content ONLY contains text
+      final content = {'text': block.getTextContent()};
+      
+      // Metadata contains everything else
+      final metadata = Map<String, dynamic>.from(block.metadata ?? {});
+      metadata['_sync_source'] = 'block';
+      metadata['is_completed'] = isComplete;
+      metadata['block_id'] = blockId;
+      
+      // Create properly structured payload
+      final payload = {
+        'content': content,
+        'metadata': metadata
+      };
+      
+      // Send immediate update to server with standardized format
+      _updateBlock(blockId, payload);
+    }
   }
 
   // Track which block is being edited and schedule updates
