@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:owlistic/core/theme.dart';
 import 'package:owlistic/utils/data_converter.dart';
+import 'package:owlistic/utils/editor_toolbar.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import 'package:owlistic/models/block.dart';
 import 'package:owlistic/utils/logger.dart';
@@ -12,20 +13,23 @@ import 'package:super_editor_markdown/super_editor_markdown.dart';
 class DocumentBuilder {
   final Logger _logger = Logger('DocumentBuilder');
 
-  // Add instance of AttributedTextUtils
-  static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
-
-  final _popoverToolbarController = OverlayPortalController();
-  final _selectionLayerLinks = SelectionLayerLinks();
-  
-  // Add BlockNodeMapping instance
-  final BlockNodeMapping _blockNodeMapping = BlockNodeMapping();
-
   // Document components
+  final _viewportKey = GlobalKey();
+  final _docLayoutKey = GlobalKey();
+
   late MutableDocument document;
   late MutableDocumentComposer composer;
   late Editor editor;
   late FocusNode focusNode;
+
+  final _textFormatBarOverlayController = OverlayPortalController();
+  final _selectionLayerLinks = SelectionLayerLinks();
+
+  // Add instance of AttributedTextUtils
+  static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
+
+  // Add BlockNodeMapping instance
+  final BlockNodeMapping _blockNodeMapping = BlockNodeMapping();
 
   // Track last known node count to detect new nodes
   int _lastKnownNodeCount = 0;
@@ -69,8 +73,15 @@ class DocumentBuilder {
     document = MutableDocument();
 
     // Create composer
-    composer = MutableDocumentComposer();
-    composer.selectionNotifier.addListener(_hideOrShowToolbar);
+    composer = MutableDocumentComposer(
+      // initialSelection: DocumentSelection.collapsed(
+      //   position: DocumentPosition(
+      //     nodeId: document.last.id, // Place caret at end of document
+      //     nodePosition: (document.last as TextNode).endPosition,
+      //   ),
+      // ),
+    );
+    composer.selectionNotifier.addListener(_updateToolbarDisplay);
 
     // Create editor with our document and composer
     editor =
@@ -1236,16 +1247,17 @@ class DocumentBuilder {
     final selectionStyles = getSelectionStyles(themeData);
 
     return OverlayPortal(
-      controller: _popoverToolbarController,
-      overlayChildBuilder: (context) => _buildPopoverToolbar(),
+      controller: _textFormatBarOverlayController,
+      overlayChildBuilder: _buildFloatingToolbar,
       child: KeyedSubtree(
-        key: const Key('editor'),
+        key: _viewportKey,
         child: SuperEditor(
           editor: editor,
           focusNode: focusNode,
           scrollController: scrollController,
           stylesheet: stylesheet,
           selectionStyle: selectionStyles,
+          documentLayoutKey: _docLayoutKey,
           componentBuilders: componentBuilders,
           keyboardActions: defaultKeyboardActions,
           selectionLayerLinks: _selectionLayerLinks,
@@ -1264,113 +1276,79 @@ class DocumentBuilder {
     ); 
   }
 
-  Widget _buildPopoverToolbar() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Material(
-        elevation: 4,
-        color: AppTheme.primaryColor,
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              // Bold button
-              IconButton(
-                icon: const Icon(Icons.format_bold, color: Colors.white),
-                onPressed: () => _applyFormatting('bold'),
-              ),
-              
-              // Italic button
-              IconButton(
-                icon: const Icon(Icons.format_italic, color: Colors.white),
-                onPressed: () => _applyFormatting('italics'),
-              ),
-              
-              // Underline button
-              IconButton(
-                icon: const Icon(Icons.format_underline, color: Colors.white),
-                onPressed: () => _applyFormatting('underline'),
-              ),
-              
-
-              // Strikethrough button
-              IconButton(
-                icon: const Icon(Icons.format_strikethrough, color: Colors.white),
-                onPressed: () => _applyFormatting('strikethrough'),
-              ),
-              
-              // Spacer to push optional buttons to the right
-              const Spacer(),
-              
-              // Optional: Done button to hide toolbar
-              TextButton(
-                onPressed: () => _popoverToolbarController.hide(),
-                child: const Text('Done', style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-        ),
-      ),
+  Widget _buildFloatingToolbar(BuildContext context) {
+    return EditorToolbar(
+      editorViewportKey: _viewportKey,
+      editorFocusNode: focusNode,
+      document: document,
+      anchor: _selectionLayerLinks.expandedSelectionBoundsLink,
+      editor: editor,
+      composer: composer,
+      closeToolbar: _hideEditorToolbar,
     );
   }
 
-  void _applyFormatting(String format) {
-    Attribution attribution;
-    switch (format) {
-      case 'bold':
-        attribution = const NamedAttribution('bold');
-        break;
-      case 'italic':
-        attribution = const NamedAttribution('italic');
-        break;
-      case 'underline':
-        attribution = const NamedAttribution('underline');
-        break;
-      case 'strikethrough':
-        attribution = const NamedAttribution('strikethrough');
-        break;
-      default:
-        return;
-    }
-    
-    final documentSelection = composer.selection!;
-    document.getNodesInContentOrder(documentSelection).forEach((node) {
-      if (node is TextNode) {
-        document.replaceNodeById(node.id, node.copyTextNodeWith(
-          text: AttributedText(
-            node.text.toPlainText(),
-            AttributedSpans(
-              attributions: [
-                SpanMarker(attribution: attribution, offset: 0, markerType: SpanMarkerType.start),
-                SpanMarker(attribution: attribution, offset: node.text.length, markerType: SpanMarkerType.end),
-              ],
-            ),
-          ),
-        ));
-        markNodeAsUncommitted(node.id);
-      }
-    });
-  }
-
-  void _hideOrShowToolbar() {
+  void _updateToolbarDisplay() {
     final selection = composer.selection;
     if (selection == null) {
-      // Nothing is selected. We don't want to show a toolbar in this case.
-      _popoverToolbarController.hide();
+      // Nothing is selected. We don't want to show a toolbar
+      // in this case.
+      _hideEditorToolbar();
+
       return;
     }
+    if (selection.base.nodeId != selection.extent.nodeId) {
+      // More than one node is selected. We don't want to show
+      // a toolbar in this case.
+      _hideEditorToolbar();
 
+      return;
+    }
     if (selection.isCollapsed) {
       // We only want to show the toolbar when a span of text
       // is selected. Therefore, we ignore collapsed selections.
-      _popoverToolbarController.hide();
+      _hideEditorToolbar();
+
       return;
     }
 
-    _popoverToolbarController.show();
+    final selectedNode = document.getNodeById(selection.extent.nodeId);
+
+    if (selectedNode is TextNode) {
+      // Show the editor's toolbar for text styling.
+      _showEditorToolbar();
+      return;
+    } else {
+      // The currently selected content is not a paragraph. We don't
+      // want to show a toolbar in this case.
+      _hideEditorToolbar();
+    }
+  }
+
+  void _showEditorToolbar() {
+    _textFormatBarOverlayController.show();
+  }
+
+  void _hideEditorToolbar() {
+    // Null out the selection anchor so that when it re-appears,
+    // the bar doesn't momentarily "flash" at its old anchor position.
+
+    _textFormatBarOverlayController.hide();
+    // Ensure that focus returns to the editor.
+    //
+    // I tried explicitly unfocus()'ing the URL textfield
+    // in the toolbar but it didn't return focus to the
+    // editor. I'm not sure why.
+    //
+    // Only do that if the primary focus is not at the root focus scope because
+    // this might signify that the app is going to the background. Removing
+    // the focus from the root focus scope in that situation prevents the editor
+    // from re-gaining focus when the app is brought back to the foreground.
+    //
+    // See https://github.com/superlistapp/super_editor/issues/2279 for details.
+    if (FocusManager.instance.primaryFocus != FocusManager.instance.rootScope) {
+      focusNode.requestFocus();
+    }
   }
 
   Stylesheet getStylesheet(themeData)  {
