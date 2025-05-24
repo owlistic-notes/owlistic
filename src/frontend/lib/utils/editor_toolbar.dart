@@ -542,7 +542,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Called when the user selects a block type on the toolbar.
-  void _onBlockTypeCreated(SuperEditorDemoIconItem? selectedItem) {
+  void _onBlockTypeCreated(IconItem? selectedItem) {
     if (selectedItem != null) {
       setState(() {
         _createNodeFromType(_TextType.values //
@@ -553,7 +553,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Called when the user selects a block type on the toolbar.
-  void _onBlockTypeSelected(SuperEditorDemoIconItem? selectedItem) {
+  void _onBlockTypeSelected(IconItem? selectedItem) {
     if (selectedItem != null) {
       setState(() {
         _convertTextToNewType(_TextType.values //
@@ -564,7 +564,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Called when the user selects an alignment on the toolbar.
-  void _onAlignmentSelected(SuperEditorDemoIconItem? selectedItem) {
+  void _onAlignmentSelected(IconItem? selectedItem) {
     if (selectedItem != null) {
       setState(() {
         _changeAlignment(TextAlign.values.firstWhere((e) => e.name == selectedItem.id));
@@ -702,16 +702,16 @@ class _EditorToolbarState extends State<EditorToolbar> {
 
   Widget _buildAlignmentSelector() {
     final alignment = _getCurrentTextAlignment();
-    return SuperEditorDemoIconItemSelector(
+    return ItemSelector(
       parentFocusNode: widget.editorFocusNode,
       boundaryKey: widget.editorViewportKey,
-      value: SuperEditorDemoIconItem(
+      value: IconItem(
         id: alignment.name,
         icon: _buildTextAlignIcon(alignment),
       ),
       items: const [TextAlign.left, TextAlign.center, TextAlign.right, TextAlign.justify]
           .map(
-            (alignment) => SuperEditorDemoIconItem(
+            (alignment) => IconItem(
               icon: _buildTextAlignIcon(alignment),
               id: alignment.name,
             ),
@@ -722,16 +722,16 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   Widget _buildNewBlockSelector() {
-    return SuperEditorDemoIconItemSelector(
+    return ItemSelector(
       parentFocusNode: widget.editorFocusNode,
       boundaryKey: widget.editorViewportKey,
-      value: const SuperEditorDemoIconItem(
+      value: const IconItem(
         id: "Add New Block",
         icon: Icons.add,
       ),
       items: _TextType.values
           .map(
-            (blockType) => SuperEditorDemoIconItem(
+            (blockType) => IconItem(
               id: blockType.name,
               icon: _buildBlockTypeIcon(blockType),
             ),
@@ -743,16 +743,16 @@ class _EditorToolbarState extends State<EditorToolbar> {
 
   Widget _buildBlockTypeSelector() {
     final currentBlockType = _getCurrentTextType();
-    return SuperEditorDemoIconItemSelector(
+    return ItemSelector(
       parentFocusNode: widget.editorFocusNode,
       boundaryKey: widget.editorViewportKey,
-      value: SuperEditorDemoIconItem(
+      value: IconItem(
         id: currentBlockType.name,
         icon: _buildBlockTypeIcon(currentBlockType),
       ),
       items: _TextType.values
           .map(
-            (blockType) => SuperEditorDemoIconItem(
+            (blockType) => IconItem(
               id: blockType.name,
               icon: _buildBlockTypeIcon(blockType),
             ),
