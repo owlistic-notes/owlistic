@@ -1308,7 +1308,7 @@ class DocumentBuilder {
     if (selection.base.nodeId != selection.extent.nodeId) {
       // More than one node is selected. We don't want to show
       // a toolbar in this case.
-      _hideEditorToolbar();
+      _showEditorToolbar();
 
       return;
     }
