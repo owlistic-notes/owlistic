@@ -619,15 +619,31 @@ class _EditorToolbarState extends State<EditorToolbar> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Tooltip(
+                    message: 'Add Block at cursor',
+                    child: _buildNewBlockSelector(),
+                  ),
+                ],
+              ),
+              _buildVerticalDivider(),
               // Only allow the user to select a new type of text node if
               // the currently selected node can be converted.
               if (_isConvertibleNode()) ...[
-                Tooltip(
-                  message: 'Change Block type',
-                  child: _buildBlockTypeSelector(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: 'Change Block type',
+                      child: _buildBlockTypeSelector(),
+                    )
+                  ],
                 ),
-                _buildVerticalDivider(),
               ],
+              _buildVerticalDivider(),
+              // Text format options
               Center(
                 child: IconButton(
                   onPressed: _toggleBold,
@@ -660,20 +676,21 @@ class _EditorToolbarState extends State<EditorToolbar> {
                   tooltip: 'Strikethrough',
                 ),
               ),
+              _buildVerticalDivider(),
               // Only display alignment controls if the currently selected text
               // node respects alignment. List items, for example, do not.
-              if (_isTextAlignable()) //
+              if (_isTextAlignable()) ...[
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildVerticalDivider(),
                     Tooltip(
                       message: 'Text Alignment',
                       child: _buildAlignmentSelector(),
                     ),
+                    _buildVerticalDivider(),
                   ],
                 ),
-              _buildVerticalDivider(),
+              ],
               Center(
                 child: IconButton(
                   onPressed: _areMultipleLinksSelected() ? null : _onLinkPressed,
@@ -682,16 +699,6 @@ class _EditorToolbarState extends State<EditorToolbar> {
                   splashRadius: 16,
                   tooltip: 'Link',
                 ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildVerticalDivider(),
-                  Tooltip(
-                    message: 'Add Block at cursor',
-                    child: _buildNewBlockSelector(),
-                  ),
-                ],
               ),
             ],
           ),
@@ -727,7 +734,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
       boundaryKey: widget.editorViewportKey,
       value: const IconItem(
         id: "Add New Block",
-        icon: Icons.add,
+        icon: Icons.add_circle_outlined,
       ),
       items: _TextType.values
           .map(
