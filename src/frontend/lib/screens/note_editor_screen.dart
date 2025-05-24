@@ -212,29 +212,23 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        // Add AppBarCommon with ONLY theme switching functionality
-        appBar: AppBarCommon(
-          title: '', // Empty title as we have our own title field
-          showBackButton: false, // No back button in app bar
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh_outlined),
-              tooltip: 'Refresh note content',
-              onPressed: () => _noteEditorViewModel.fetchBlocksForNote(
-                  _noteEditorViewModel.noteId ?? '',
-                  refresh: true),
-            ),
-            const ThemeSwitcher(),
-          ],
-        ),
-        body: _buildBody(),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => {},
-          tooltip: 'Add Block',
-          heroTag: 'addBote',
-          child: const Icon(Icons.add),
-        ),
-      );
+      // Add AppBarCommon with ONLY theme switching functionality
+      appBar: AppBarCommon(
+        title: '', // Empty title as we have our own title field
+        showBackButton: false, // No back button in app bar
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_outlined),
+            tooltip: 'Refresh note content',
+            onPressed: () => _noteEditorViewModel.fetchBlocksForNote(
+                _noteEditorViewModel.noteId ?? '',
+                refresh: true),
+          ),
+          const ThemeSwitcher(),
+        ],
+      ),
+      body: _buildBody(),
+    );
   }
 
   Widget? _buildBody() {
@@ -243,8 +237,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
     if (_errorMessage != null) {
       return Center(
-        child: Text('Error: $_errorMessage',
-        style: const TextStyle(color: Colors.red)));
+          child: Text('Error: $_errorMessage',
+              style: const TextStyle(color: Colors.red)));
     }
     return Consumer<NoteEditorViewModel>(
       builder: (context, noteEditorViewModel, _) {
@@ -274,8 +268,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         }
 
         // Check for specific block focus requests
-        final focusBlockId =
-            noteEditorViewModel.consumeFocusRequest();
+        final focusBlockId = noteEditorViewModel.consumeFocusRequest();
         if (focusBlockId != null) {
           _scrollToBlock(focusBlockId);
         }
@@ -298,13 +291,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     child: TextField(
                       controller: _titleController,
                       focusNode: _titleFocusNode,
-                      style:
-                          Theme.of(context).textTheme.headlineSmall,
+                      style: Theme.of(context).textTheme.headlineSmall,
                       decoration: const InputDecoration(
                         hintText: 'Note title',
                         border: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
                       ),
                       onChanged: (value) {
                         _titleEdited = true;

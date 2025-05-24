@@ -150,7 +150,6 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Returns the text alignment of the currently selected text node.
-  ///
   /// Throws an exception if the currently selected node is not a text node.
   TextAlign _getCurrentTextAlignment() {
     final selectedNode = widget.document.getNodeById(widget.composer.selection!.extent.nodeId);
@@ -183,6 +182,52 @@ class _EditorToolbarState extends State<EditorToolbar> {
 
     final selectedNode = widget.document.getNodeById(selection.extent.nodeId);
     return selectedNode is ParagraphNode;
+  }
+
+  // Create a new node of [type] at the current caret position
+  void _createNodeFromType(_TextType? type){
+    if (type == null) return;
+
+    dynamic node;
+
+    switch (type){
+      case _TextType.header1:
+      case _TextType.header2:
+      case _TextType.header3:
+      case _TextType.blockquote:
+        node = ParagraphNode(
+          id: Editor.createNodeId(),
+          text: AttributedText(''),
+          metadata: {
+            'blockType': _getBlockTypeAttribution(type),
+          }
+        );
+        break;
+      case _TextType.orderedListItem:
+      case _TextType.unorderedListItem:
+        node = ListItemNode(
+          id: Editor.createNodeId(),
+          text: AttributedText(''),
+          itemType: type == _TextType.orderedListItem ? ListItemType.ordered : ListItemType.unordered,
+        );
+        break;
+      case _TextType.taskItem:
+       node = TaskNode(
+          id: Editor.createNodeId(),
+          text: AttributedText(''),
+          isComplete: false,
+       );
+       break;
+      case _TextType.paragraph:
+      default:
+        node = ParagraphNode(
+          id: Editor.createNodeId(),
+          text: AttributedText('')
+        );
+    }
+    widget.editor!.execute([
+      InsertNodeAtCaretRequest(node: node),
+    ]);
   }
 
   /// Converts the currently selected text node into a new type of
@@ -520,6 +565,17 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Called when the user selects a block type on the toolbar.
+  void _onBlockTypeCreated(SuperEditorDemoTextItem? selectedItem) {
+    if (selectedItem != null) {
+      setState(() {
+        _createNodeFromType(_TextType.values //
+            .where((e) => e.name == selectedItem.id)
+            .first);
+      });
+    }
+  }
+
+  /// Called when the user selects a block type on the toolbar.
   void _onBlockTypeSelected(SuperEditorDemoTextItem? selectedItem) {
     if (selectedItem != null) {
       setState(() {
@@ -650,14 +706,16 @@ class _EditorToolbarState extends State<EditorToolbar> {
                   tooltip: 'Link',
                 ),
               ),
-              // Center(
-              //   child: IconButton(
-              //     onPressed: () {},
-              //     icon: const Icon(Icons.more_vert),
-              //     splashRadius: 16,
-              //     tooltip: 'More options',
-              //   ),
-              // ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildVerticalDivider(),
+                  Tooltip(
+                    message: 'Add new block',
+                    child: _buildNewBlockSelector(),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -683,6 +741,26 @@ class _EditorToolbarState extends State<EditorToolbar> {
           )
           .toList(),
       onSelected: _onAlignmentSelected,
+    );
+  }
+
+  Widget _buildNewBlockSelector() {
+    return SuperEditorDemoTextItemSelector(
+      parentFocusNode: widget.editorFocusNode,
+      boundaryKey: widget.editorViewportKey,
+      id: const SuperEditorDemoTextItem(
+        id: "Add New Block",
+        label: "Add New Block",
+      ),
+      items: _TextType.values
+          .map(
+            (blockType) => SuperEditorDemoTextItem(
+              id: blockType.name,
+              label: _getTextTypeName(blockType),
+            ),
+          )
+          .toList(),
+      onSelected: _onBlockTypeCreated,
     );
   }
 
