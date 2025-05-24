@@ -10,9 +10,9 @@ import 'package:owlistic/widgets/theme_switcher.dart';
 class NoteEditorScreen extends StatefulWidget {
   final String? noteId;
   final Note? note;
-  
+
   const NoteEditorScreen({Key? key, this.noteId, this.note}) : super(key: key);
-  
+
   @override
   _NoteEditorScreenState createState() => _NoteEditorScreenState();
 }
@@ -26,32 +26,32 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final TextEditingController _titleController = TextEditingController();
   final FocusNode _titleFocusNode = FocusNode();
   late String? _noteId;
-  
+
   // ScrollController for the editor
   final ScrollController _scrollController = ScrollController();
-  
+
   // Provider
   late NoteEditorViewModel _noteEditorViewModel;
-  
+
   // Flag to track initialization
   bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    
+
     // Get note ID from either the direct note prop or the ID prop
     _noteId = widget.note?.id ?? widget.noteId;
-    
+
     // Initialize with note data if provided directly
     if (widget.note != null) {
       _note = widget.note;
       _titleController.text = _note!.title;
     }
-    
+
     // Setup title focus listener
     _titleFocusNode.addListener(_handleTitleFocusChange);
-    
+
     // Initialize ViewModels and data with a post-frame callback
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initialize();
@@ -61,7 +61,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     // Only initialize dependencies once
     if (!_isInitialized) {
       // Get ViewModel
@@ -74,7 +74,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     // Activate ViewModel
     _noteEditorViewModel = context.read<NoteEditorViewModel>();
     _noteEditorViewModel.activate();
-    
+
     try {
       if (_noteId == null || _noteId!.isEmpty) {
         setState(() {
@@ -83,11 +83,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         });
         return;
       }
-      
+
       // If we don't have the note data yet, fetch it
       if (_note == null) {
         _note = await _noteEditorViewModel.fetchNoteById(_noteId!);
-        
+
         if (_note == null) {
           setState(() {
             _isLoading = false;
@@ -95,25 +95,26 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           });
           return;
         }
-        
+
         // Set the title
         _titleController.text = _note!.title;
       }
-      
+
       // Activate the note in the ViewModel
       _noteEditorViewModel.activateNote(_noteId!);
-      
+
       // Set the note ID in the editor
       _noteEditorViewModel.noteId = _noteId;
-      
+
       // Load initial blocks for the note using ViewModel
-      await _noteEditorViewModel.fetchBlocksForNote(_noteId!, page: 1, pageSize: 30);
-      
+      await _noteEditorViewModel.fetchBlocksForNote(_noteId!,
+          page: 1, pageSize: 30);
+
       // Initialize the scroll listener for pagination - JUST ONCE
       _noteEditorViewModel.initScrollListener(_scrollController);
-      
+
       _isInitialized = true;
-      
+
       setState(() {
         _isLoading = false;
       });
@@ -132,19 +133,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _titleFocusNode.removeListener(_handleTitleFocusChange);
     _titleFocusNode.dispose();
     _titleController.dispose();
-    
+
     // Save any pending changes before disposing scroll controller
     _autoSaveTitleIfNeeded();
     _noteEditorViewModel.commitAllNodes();
-    
+
     // Important: Dispose scroll controller AFTER using it to save content
     _scrollController.dispose();
-    
+
     // Deactivate ViewModel
     if (_isInitialized) {
       _noteEditorViewModel.deactivate();
     }
-    
+
     super.dispose();
   }
 
@@ -185,7 +186,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   void _scrollToBlock(String blockId) {
     if (_scrollController.hasClients) {
       // Get document position directly from the ViewModel
-      final verticalOffset = _noteEditorViewModel.documentBuilder.getNodePosition(blockId);
+      final verticalOffset =
+          _noteEditorViewModel.documentBuilder.getNodePosition(blockId);
       if (verticalOffset != null) {
         // Scroll to the node position with some padding
         _scrollController.animateTo(
@@ -210,109 +212,121 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Add AppBarCommon with ONLY theme switching functionality
-      appBar: AppBarCommon(
-        title: '',  // Empty title as we have our own title field
-        showBackButton: false,  // No back button in app bar
-        actions: [
-           IconButton(
-            icon: const Icon(Icons.refresh_outlined),
-            tooltip: 'Refresh note content',
-            onPressed: () => _noteEditorViewModel.fetchBlocksForNote(
-              _noteEditorViewModel.noteId?? '',
-              refresh: true
+        // Add AppBarCommon with ONLY theme switching functionality
+        appBar: AppBarCommon(
+          title: '', // Empty title as we have our own title field
+          showBackButton: false, // No back button in app bar
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh_outlined),
+              tooltip: 'Refresh note content',
+              onPressed: () => _noteEditorViewModel.fetchBlocksForNote(
+                  _noteEditorViewModel.noteId ?? '',
+                  refresh: true),
             ),
-          ),
-          const ThemeSwitcher(),
-        ],
-      ),
-      body: _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : (_errorMessage != null
-          ? Center(child: Text('Error: $_errorMessage', style: const TextStyle(color: Colors.red)))
-          : Consumer<NoteEditorViewModel>(
-              builder: (context, noteEditorViewModel, _) {
-                // Always update _note from viewModel to ensure we have latest data
-                if (noteEditorViewModel.currentNote != null && 
-                    noteEditorViewModel.currentNote!.id == _noteId) {
-                  _note = noteEditorViewModel.currentNote;
-                  
-                  // Update title if changed from server
-                  if (_note != null && 
-                      _titleController.text != _note!.title && 
-                      !_titleFocusNode.hasFocus) {
-                    _titleController.text = _note!.title;
-                  }
-                }
-                
-                // React to loading state
-                final isContentLoading = noteEditorViewModel.isLoading;
-                
-                // Error handling
-                final errorMessage = noteEditorViewModel.errorMessage;
-                
-                if (errorMessage != null) {
-                  return Center(child: Text('Error: $errorMessage', style: const TextStyle(color: Colors.red)));
-                }
-
-                // Check for specific block focus requests
-                final focusBlockId = noteEditorViewModel.consumeFocusRequest();
-                if (focusBlockId != null) {
-                  _scrollToBlock(focusBlockId);
-                }
-
-                // Listen for update count changes to refresh UI
-                final updateCount = noteEditorViewModel.updateCount;
-                if (updateCount > 0) {
-                  // This will trigger a UI refresh when updateCount changes
-                  _logger.debug('Note editor update count: $updateCount');
-                }
-
-                return Column(
-                  children: [
-                    // Title field - now functions as the "app bar" content
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), // Add extra top padding to account for status bar
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Title field - expanded to take available space
-                          Expanded(
-                            child: TextField(
-                              controller: _titleController,
-                              focusNode: _titleFocusNode,
-                              style: Theme.of(context).textTheme.headlineSmall,
-                              decoration: const InputDecoration(
-                                hintText: 'Note title',
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(vertical: 8),
-                              ),
-                              onChanged: (value) {
-                                _titleEdited = true;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(),
-                    // Rich text editor
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          // Editor content - using direct integration
-                          _buildRichTextEditor(noteEditorViewModel),
-                          // Loading overlay
-                          if (isContentLoading)
-                            const Center(child: CircularProgressIndicator()),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            )
+            const ThemeSwitcher(),
+          ],
         ),
+        body: _buildBody(),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => {},
+          tooltip: 'Add Block',
+          heroTag: 'addBote',
+          child: const Icon(Icons.add),
+        ),
+      );
+  }
+
+  Widget? _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_errorMessage != null) {
+      return Center(
+        child: Text('Error: $_errorMessage',
+        style: const TextStyle(color: Colors.red)));
+    }
+    return Consumer<NoteEditorViewModel>(
+      builder: (context, noteEditorViewModel, _) {
+        // Always update _note from viewModel to ensure we have latest data
+        if (noteEditorViewModel.currentNote != null &&
+            noteEditorViewModel.currentNote!.id == _noteId) {
+          _note = noteEditorViewModel.currentNote;
+
+          // Update title if changed from server
+          if (_note != null &&
+              _titleController.text != _note!.title &&
+              !_titleFocusNode.hasFocus) {
+            _titleController.text = _note!.title;
+          }
+        }
+
+        // React to loading state
+        final isContentLoading = noteEditorViewModel.isLoading;
+
+        // Error handling
+        final errorMessage = noteEditorViewModel.errorMessage;
+
+        if (errorMessage != null) {
+          return Center(
+              child: Text('Error: $errorMessage',
+                  style: const TextStyle(color: Colors.red)));
+        }
+
+        // Check for specific block focus requests
+        final focusBlockId =
+            noteEditorViewModel.consumeFocusRequest();
+        if (focusBlockId != null) {
+          _scrollToBlock(focusBlockId);
+        }
+
+        // Listen for update count changes to refresh UI
+        final updateCount = noteEditorViewModel.updateCount;
+        if (updateCount > 0) {
+          // This will trigger a UI refresh when updateCount changes
+          _logger.debug('Note editor update count: $updateCount');
+        }
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _titleController,
+                      focusNode: _titleFocusNode,
+                      style:
+                          Theme.of(context).textTheme.headlineSmall,
+                      decoration: const InputDecoration(
+                        hintText: 'Note title',
+                        border: InputBorder.none,
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onChanged: (value) {
+                        _titleEdited = true;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: Stack(
+                children: [
+                  _buildRichTextEditor(noteEditorViewModel),
+                  if (isContentLoading)
+                    const Center(child: CircularProgressIndicator()),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
