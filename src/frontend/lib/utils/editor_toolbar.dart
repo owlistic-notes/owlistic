@@ -520,29 +520,6 @@ class _EditorToolbarState extends State<EditorToolbar> {
     return SpanRange(startOffset, endOffset + 1);
   }
 
-  /// Returns the localized name for the given [_TextType], e.g.,
-  /// "Paragraph" or "Header 1".
-  String _getTextTypeName(_TextType textType) {
-    switch (textType) {
-      case _TextType.header1:
-        return 'Header 1';
-      case _TextType.header2:
-        return 'Header 2';
-      case _TextType.header3:
-        return 'Header 3';
-      case _TextType.paragraph:
-        return 'Paragraph';
-      case _TextType.blockquote:
-        return 'Blockquote';
-      case _TextType.orderedListItem:
-        return 'Ordered List Item';
-      case _TextType.unorderedListItem:
-        return 'Unordered List Item';
-      case _TextType.taskItem:
-        return 'Task Item';
-    }
-  }
-
   /// Changes the alignment of the current selected text node
   /// to reflect [newAlignment].
   void _changeAlignment(TextAlign? newAlignment) {
@@ -565,7 +542,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Called when the user selects a block type on the toolbar.
-  void _onBlockTypeCreated(SuperEditorDemoTextItem? selectedItem) {
+  void _onBlockTypeCreated(SuperEditorDemoIconItem? selectedItem) {
     if (selectedItem != null) {
       setState(() {
         _createNodeFromType(_TextType.values //
@@ -576,7 +553,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Called when the user selects a block type on the toolbar.
-  void _onBlockTypeSelected(SuperEditorDemoTextItem? selectedItem) {
+  void _onBlockTypeSelected(SuperEditorDemoIconItem? selectedItem) {
     if (selectedItem != null) {
       setState(() {
         _convertTextToNewType(_TextType.values //
@@ -646,7 +623,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
               // the currently selected node can be converted.
               if (_isConvertibleNode()) ...[
                 Tooltip(
-                  message: 'Block type',
+                  message: 'Change Block type',
                   child: _buildBlockTypeSelector(),
                 ),
                 _buildVerticalDivider(),
@@ -711,7 +688,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
                 children: [
                   _buildVerticalDivider(),
                   Tooltip(
-                    message: 'Add new block',
+                    message: 'Add Block at cursor',
                     child: _buildNewBlockSelector(),
                   ),
                 ],
@@ -745,18 +722,18 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   Widget _buildNewBlockSelector() {
-    return SuperEditorDemoTextItemSelector(
+    return SuperEditorDemoIconItemSelector(
       parentFocusNode: widget.editorFocusNode,
       boundaryKey: widget.editorViewportKey,
-      id: const SuperEditorDemoTextItem(
+      value: const SuperEditorDemoIconItem(
         id: "Add New Block",
-        label: "Add New Block",
+        icon: Icons.add,
       ),
       items: _TextType.values
           .map(
-            (blockType) => SuperEditorDemoTextItem(
+            (blockType) => SuperEditorDemoIconItem(
               id: blockType.name,
-              label: _getTextTypeName(blockType),
+              icon: _buildBlockTypeIcon(blockType),
             ),
           )
           .toList(),
@@ -766,18 +743,18 @@ class _EditorToolbarState extends State<EditorToolbar> {
 
   Widget _buildBlockTypeSelector() {
     final currentBlockType = _getCurrentTextType();
-    return SuperEditorDemoTextItemSelector(
+    return SuperEditorDemoIconItemSelector(
       parentFocusNode: widget.editorFocusNode,
       boundaryKey: widget.editorViewportKey,
-      id: SuperEditorDemoTextItem(
+      value: SuperEditorDemoIconItem(
         id: currentBlockType.name,
-        label: _getTextTypeName(currentBlockType),
+        icon: _buildBlockTypeIcon(currentBlockType),
       ),
       items: _TextType.values
           .map(
-            (blockType) => SuperEditorDemoTextItem(
+            (blockType) => SuperEditorDemoIconItem(
               id: blockType.name,
-              label: _getTextTypeName(blockType),
+              icon: _buildBlockTypeIcon(blockType),
             ),
           )
           .toList(),
@@ -860,6 +837,27 @@ class _EditorToolbarState extends State<EditorToolbar> {
       case TextAlign.justify:
         return Icons.format_align_justify;
     }
+  }
+}
+
+IconData _buildBlockTypeIcon(_TextType type) {
+  switch (type) {
+    case _TextType.header1:
+      return Icons.title_rounded;
+    case _TextType.header2:
+      return Icons.title_rounded;
+    case _TextType.header3:
+      return Icons.title_rounded;
+    case _TextType.paragraph:
+      return Icons.title_rounded;
+    case _TextType.blockquote:
+      return Icons.format_quote_rounded;
+    case _TextType.orderedListItem:
+      return Icons.format_list_numbered;
+    case _TextType.unorderedListItem:
+      return Icons.format_list_bulleted;
+    case _TextType.taskItem:
+      return Icons.checklist_outlined;
   }
 }
 
