@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:owlistic/core/theme.dart';
 import 'package:owlistic/utils/data_converter.dart';
+import 'package:owlistic/utils/editor_toolbar.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 import 'package:owlistic/models/block.dart';
 import 'package:owlistic/utils/logger.dart';
@@ -12,23 +13,23 @@ import 'package:super_editor_markdown/super_editor_markdown.dart';
 class DocumentBuilder {
   final Logger _logger = Logger('DocumentBuilder');
 
+  // Document components
+  final _viewportKey = GlobalKey();
+  final _docLayoutKey = GlobalKey();
+
+  late MutableDocument _document;
+  late MutableDocumentComposer _composer;
+  late Editor _editor;
+  late FocusNode _editorFocusNode;
+
+  final _floatingToolbarOverlayController = OverlayPortalController();
+  final _selectionLayerLinks = SelectionLayerLinks();
+
   // Add instance of AttributedTextUtils
   static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
 
   // Add BlockNodeMapping instance
   final BlockNodeMapping _blockNodeMapping = BlockNodeMapping();
-
-  // Document components
-  late MutableDocument document;
-  late MutableDocumentComposer composer;
-  late Editor editor;
-  late FocusNode focusNode;
-
-  // Document layout key for accessing the document layout
-  final GlobalKey documentLayoutKey = GlobalKey();
-
-  // Document scroller for programmatic scrolling
-  late DocumentScroller documentScroller;
 
   // Track last known node count to detect new nodes
   int _lastKnownNodeCount = 0;
@@ -63,57 +64,73 @@ class DocumentBuilder {
   Map<String, DateTime> get uncommittedNodes =>
       _blockNodeMapping.uncommittedNodes;
 
+  MutableDocument get document => _document;
+  
+  MutableDocumentComposer get composer => _composer;
+  
+  Editor get editor => _editor;
+
+  FocusNode get focusNode => _editorFocusNode;
+
   DocumentBuilder() {
     _initialize();
   }
 
   void _initialize() {
     // Create document
-    document = MutableDocument();
+    _document = MutableDocument();
 
     // Create composer
-    composer = MutableDocumentComposer();
+    _composer = MutableDocumentComposer(
+      // initialSelection: DocumentSelection.collapsed(
+      //   position: DocumentPosition(
+      //     nodeId: document.last.id, // Place caret at end of document
+      //     nodePosition: (document.last as TextNode).endPosition,
+      //   ),
+      // ),
+    );
+    _composer.selectionNotifier.addListener(_updateToolbarDisplay);
 
     // Create editor with our document and composer
-    editor =
-        createDefaultDocumentEditor(document: document, composer: composer);
+    _editor =
+        createDefaultDocumentEditor(document: _document, composer: _composer);
 
     // Create focus node
-    focusNode = FocusNode();
+    _editorFocusNode = FocusNode();
 
     // Store initial node IDs for tracking structure changes
-    _lastKnownNodeIds = document.map((node) => node.id).toList();
-    _lastKnownNodeCount = document.length;
+    _lastKnownNodeIds = _document.map((node) => node.id).toList();
+    _lastKnownNodeCount = _document.length;
   }
 
   void dispose() {
-    focusNode.dispose();
-    composer.dispose();
-    editor.dispose();
+    _editorFocusNode.dispose();
+    _composer.dispose();
+    _editor.dispose();
   }
 
   // Add document structure change listener to detect new/deleted nodes
   void addDocumentStructureListener(void Function(dynamic) listener) {
-    document.addListener(listener);
+    _document.addListener(listener);
   }
 
   void removeDocumentStructureListener(void Function(dynamic) listener) {
-    document.removeListener(listener);
+    _document.removeListener(listener);
   }
 
   // Add content change listener
   void addDocumentContentListener(void Function(dynamic) listener) {
-    document.addListener(listener);
+    _document.addListener(listener);
   }
 
   void removeDocumentContentListener(DocumentChangeListener listener) {
-    document.removeListener(listener);
+    _document.removeListener(listener);
   }
 
   // Insert a new node into the document
   void insertNode(DocumentNode node) {
     try {
-      document.add(node);
+      _document.add(node);
       _logger.info('Node ${node.id} inserted into the document');
     } catch (e) {
       _logger.error('Error inserting node ${node.id}: $e');
@@ -123,9 +140,9 @@ class DocumentBuilder {
   // Delete a node from the document by its ID
   void deleteNode(String nodeId) {
     try {
-      final node = document.getNodeById(nodeId);
+      final node = _document.getNodeById(nodeId);
       if (node != null) {
-        document.deleteNode(node.id);
+        _document.deleteNode(node.id);
         _logger.info('Node $nodeId deleted from the document');
       } else {
         _logger.warning('Node $nodeId not found for deletion');
@@ -154,14 +171,14 @@ class DocumentBuilder {
 
       try {
         // Try to capture the current selection for restoration
-        if (composer.selection != null) {
-          previousSelection = composer.selection;
-          previousNodeId = composer.selection?.extent.nodeId;
-          if (composer.selection?.extent.nodePosition is TextNodePosition) {
+        if (_composer.selection != null) {
+          previousSelection = _composer.selection;
+          previousNodeId = _composer.selection?.extent.nodeId;
+          if (_composer.selection?.extent.nodePosition is TextNodePosition) {
             previousTextOffset =
-                (composer.selection!.extent.nodePosition as TextNodePosition)
+                (_composer.selection!.extent.nodePosition as TextNodePosition)
                     .offset;
-            previousPosition = composer.selection!.extent;
+            previousPosition = _composer.selection!.extent;
           }
         } else if (_lastKnownSelection != null) {
           // Fall back to last known good selection if current selection is null
@@ -189,7 +206,7 @@ class DocumentBuilder {
 
       // Clear document and mapping with error handling
       try {
-        final nodeIds = document.map((node) => node.id).toList();
+        final nodeIds = _document.map((node) => node.id).toList();
         for (final nodeId in nodeIds) {
           deleteNode(nodeId);
         }
@@ -238,7 +255,7 @@ class DocumentBuilder {
 
       // If document is empty after population attempts, add an empty paragraph
       // to ensure the document is never completely empty
-      if (document.isEmpty) {
+      if (_document.isEmpty) {
         try {
           _logger.warning(
               'Document is empty after population, adding default node');
@@ -260,12 +277,12 @@ class DocumentBuilder {
 
           // STRATEGY 1: Try to find the same node ID if it still exists
           if (previousNodeId != null &&
-              document.getNodeById(previousNodeId) != null) {
+              _document.getNodeById(previousNodeId) != null) {
             _logger.debug('Found exact previous node, restoring position');
 
             if (previousPosition != null) {
               // Verify the position is valid for the node type
-              final node = document.getNodeById(previousNodeId);
+              final node = _document.getNodeById(previousNodeId);
 
               if (node is TextNode &&
                   previousPosition.nodePosition is TextNodePosition) {
@@ -277,7 +294,7 @@ class DocumentBuilder {
                     textPosition.offset.clamp(0, textNode.text.length);
 
                 // Use setSelectionWithReason instead of direct assignment
-                composer.setSelectionWithReason(
+                _composer.setSelectionWithReason(
                     DocumentSelection(
                       base: DocumentPosition(
                         nodeId: previousNodeId,
@@ -304,7 +321,7 @@ class DocumentBuilder {
                   'Found different node for same block, restoring position');
 
               final newNodeId = blockToNodeMap[previousBlockId]!;
-              final node = document.getNodeById(newNodeId);
+              final node = _document.getNodeById(newNodeId);
 
               // Default to start of node if offset can't be preserved
               int safeOffset = 0;
@@ -314,7 +331,7 @@ class DocumentBuilder {
               }
 
               // Use setSelectionWithReason instead of direct assignment
-              composer.setSelectionWithReason(
+              _composer.setSelectionWithReason(
                   DocumentSelection(
                     base: DocumentPosition(
                       nodeId: newNodeId,
@@ -331,13 +348,13 @@ class DocumentBuilder {
           }
 
           // STRATEGY 3: If all else fails, position at the start of the document
-          if (!positionRestored && document.isNotEmpty) {
+          if (!positionRestored && _document.isNotEmpty) {
             _logger.debug('Using fallback position at start of document');
 
-            final firstNode = document.first;
+            final firstNode = _document.first;
 
             // Use setSelectionWithReason instead of direct assignment
-            composer.setSelectionWithReason(
+            _composer.setSelectionWithReason(
                 DocumentSelection(
                   base: DocumentPosition(
                     nodeId: firstNode.id,
@@ -358,7 +375,7 @@ class DocumentBuilder {
     } catch (e) {
       _logger.error('Error populating document: $e');
       // If overall population fails, try to ensure document isn't empty
-      if (document.isEmpty) {
+      if (_document.isEmpty) {
         try {
           final fallbackNode = ParagraphNode(
               id: Editor.createNodeId(), text: AttributedText(''));
@@ -371,8 +388,8 @@ class DocumentBuilder {
       _updatingDocument = false;
 
       // Update tracking properties
-      _lastKnownNodeIds = document.map((node) => node.id).toList();
-      _lastKnownNodeCount = document.length;
+      _lastKnownNodeIds = _document.map((node) => node.id).toList();
+      _lastKnownNodeCount = _document.length;
     }
   }
 
@@ -381,8 +398,8 @@ class DocumentBuilder {
     required Function(String) onNewNodeCreated,
     required Function(String) onNodeDeleted,
   }) {
-    final currentNodeCount = document.length;
-    final currentNodeIds = document.map((node) => node.id).toList();
+    final currentNodeCount = _document.length;
+    final currentNodeIds = _document.map((node) => node.id).toList();
 
     // If we have more nodes now than before, there might be new nodes
     if (currentNodeCount > _lastKnownNodeCount) {
@@ -445,7 +462,7 @@ class DocumentBuilder {
     }
 
     // Get the node from the document
-    final node = document.getNodeById(nodeId);
+    final node = _document.getNodeById(nodeId);
     if (node == null) {
       _logger.warning('Could not find node $nodeId in document');
       return false;
@@ -460,7 +477,7 @@ class DocumentBuilder {
   Future<double> calculateOrderForNewNode(
       String nodeId, List<Block> blocks) async {
     // Get the position of this node in the document
-    final nodeIndex = document.getNodeIndexById(nodeId); // Fallback value
+    final nodeIndex = _document.getNodeIndexById(nodeId); // Fallback value
 
     // If no blocks exist yet, use 1000 as starting point
     if (blocks.isEmpty) {
@@ -478,15 +495,15 @@ class DocumentBuilder {
     }
 
     // If this is the last node, put it after the last block
-    if (nodeIndex >= document.length - 1) {
+    if (nodeIndex >= _document.length - 1) {
       final lastBlockOrder = sortedBlocks.last.order;
       return lastBlockOrder + 10.0;
     }
 
     // Otherwise, find the blocks before and after this node
     // and place it between them using fractional indexing
-    final prevNodeId = document.getNodeAt(nodeIndex - 1)?.id;
-    final nextNodeId = document.getNodeAt(nodeIndex + 1)?.id;
+    final prevNodeId = _document.getNodeAt(nodeIndex - 1)?.id;
+    final nextNodeId = _document.getNodeAt(nodeIndex + 1)?.id;
 
     double prevOrder = 0;
     double nextOrder = 2000;
@@ -557,7 +574,7 @@ class DocumentBuilder {
     }
 
     // Get the node from document
-    final node = document.getNodeById(nodeId);
+    final node = _document.getNodeById(nodeId);
     if (node == null) {
       _logger.debug('Node $nodeId not found in document, skipping update');
       return false;
@@ -795,10 +812,10 @@ class DocumentBuilder {
     _blockNodeMapping.linkNodeToBlock(node.id, block.id);
 
     // Insert at specific index if provided, otherwise add to end
-    if (index != null && index >= 0 && index <= document.length) {
+    if (index != null && index >= 0 && index <= _document.length) {
       _updatingDocument = true;
       try {
-        document.insertNodeAt(index, node);
+        _document.insertNodeAt(index, node);
         _logger.info('Node inserted for block ${block.id} at position $index');
       } finally {
         _updatingDocument = false;
@@ -816,7 +833,7 @@ class DocumentBuilder {
     if (nodeId != null) {
       _updatingDocument = true;
       try {
-        document.deleteNode(nodeId);
+        _document.deleteNode(nodeId);
         _blockNodeMapping.removeBlockMapping(blockId);
         _logger.info('Node deleted for block $blockId');
         return true;
@@ -848,7 +865,7 @@ class DocumentBuilder {
     try {
       // Replace the old node with the new one
       _updatingDocument = true;
-      document.replaceNodeById(nodeId, newNodes.first);
+      _document.replaceNodeById(nodeId, newNodes.first);
 
       // Update mapping
       _blockNodeMapping.linkNodeToBlock(newNodes.first.id, block.id);
@@ -887,14 +904,14 @@ class DocumentBuilder {
         final targetNodeId =
             _blockNodeMapping.getNodeIdForBlock(visibleBlocks[i].id);
         if (targetNodeId != null) {
-          final index = document.getNodeIndexById(targetNodeId);
+          final index = _document.getNodeIndexById(targetNodeId);
           return index;
         }
       }
     }
 
     // If no suitable position found, add to end
-    return document.length;
+    return _document.length;
   }
 
   // New method: Move a node for a block to a new position
@@ -903,17 +920,17 @@ class DocumentBuilder {
     String? nodeId = _blockNodeMapping.getNodeIdForBlock(blockId);
 
     if (nodeId != null) {
-      final currentIndex = document.getNodeIndexById(nodeId);
+      final currentIndex = _document.getNodeIndexById(nodeId);
       if (currentIndex != targetIndex) {
         _updatingDocument = true;
         try {
-          final node = document.getNodeById(nodeId)!;
-          document.deleteNode(nodeId);
+          final node = _document.getNodeById(nodeId)!;
+          _document.deleteNode(nodeId);
 
           // Adjust target index if needed (if moving forward)
           final adjustedIndex =
               targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
-          document.insertNodeAt(adjustedIndex, node);
+          _document.insertNodeAt(adjustedIndex, node);
 
           _logger.info(
               'Node for block $blockId moved from $currentIndex to $adjustedIndex');
@@ -933,8 +950,8 @@ class DocumentBuilder {
     if (blocks.isEmpty) return;
 
     // Save current selection state
-    final currentSelection = composer.selection;
-    final hadFocus = focusNode.hasFocus;
+    final currentSelection = _composer.selection;
+    final hadFocus = _editorFocusNode.hasFocus;
 
     _updatingDocument = true;
     try {
@@ -958,12 +975,12 @@ class DocumentBuilder {
       }
 
       // After updates, restore selection if it was lost
-      if (currentSelection != null && composer.selection == null) {
+      if (currentSelection != null && _composer.selection == null) {
         tryRestoreSelection(currentSelection);
 
         // If selection restoration failed but we had focus, at least restore focus
-        if (hadFocus && !focusNode.hasFocus) {
-          focusNode.requestFocus();
+        if (hadFocus && !_editorFocusNode.hasFocus) {
+          _editorFocusNode.requestFocus();
         }
       }
     } finally {
@@ -974,7 +991,7 @@ class DocumentBuilder {
   // Find the best node to place cursor at when restoring selection fails
   DocumentPosition? findBestAlternativePosition() {
     try {
-      if (document.isEmpty) {
+      if (_document.isEmpty) {
         return null;
       }
 
@@ -982,8 +999,8 @@ class DocumentBuilder {
 
       // 1. If we have a lastKnownNodeId and it exists, use it
       if (_lastKnownNodeId != null &&
-          document.getNodeById(_lastKnownNodeId!) != null) {
-        final node = document.getNodeById(_lastKnownNodeId!);
+          _document.getNodeById(_lastKnownNodeId!) != null) {
+        final node = _document.getNodeById(_lastKnownNodeId!);
         if (node is TextNode) {
           // Place cursor at same position or at end if text is shorter now
           final safeOffset = (_lastKnownOffset ?? 0).clamp(0, node.text.length);
@@ -995,7 +1012,7 @@ class DocumentBuilder {
       }
 
       // 2. Try first node in document
-      final firstNode = document.first;
+      final firstNode = _document.first;
       if (firstNode is TextNode) {
         return DocumentPosition(
           nodeId: firstNode.id,
@@ -1004,7 +1021,7 @@ class DocumentBuilder {
       }
 
       // 3. Try any text node
-      for (final node in document) {
+      for (final node in _document) {
         if (node is TextNode) {
           return DocumentPosition(
             nodeId: node.id,
@@ -1030,9 +1047,9 @@ class DocumentBuilder {
     try {
       // Verify that the nodes exist
       final baseNodeExists =
-          document.getNodeById(selection.base.nodeId) != null;
+          _document.getNodeById(selection.base.nodeId) != null;
       final extentNodeExists =
-          document.getNodeById(selection.extent.nodeId) != null;
+          _document.getNodeById(selection.extent.nodeId) != null;
 
       if (!baseNodeExists || !extentNodeExists) {
         _logger.warning('Node(s) in selection no longer exist, using fallback');
@@ -1045,7 +1062,7 @@ class DocumentBuilder {
 
       // Validate base position
       if (selection.base.nodePosition is TextNodePosition) {
-        final node = document.getNodeById(selection.base.nodeId);
+        final node = _document.getNodeById(selection.base.nodeId);
         if (node is TextNode) {
           final position = selection.base.nodePosition as TextNodePosition;
           if (position.offset < 0 || position.offset > node.text.length) {
@@ -1058,7 +1075,7 @@ class DocumentBuilder {
 
       // Validate extent position
       if (selection.extent.nodePosition is TextNodePosition) {
-        final node = document.getNodeById(selection.extent.nodeId);
+        final node = _document.getNodeById(selection.extent.nodeId);
         if (node is TextNode) {
           final position = selection.extent.nodePosition as TextNodePosition;
           if (position.offset < 0 || position.offset > node.text.length) {
@@ -1075,7 +1092,7 @@ class DocumentBuilder {
       }
 
       // Selection is valid, restore it using setSelectionWithReason
-      composer.setSelectionWithReason(selection, SelectionReason.contentChange);
+      _composer.setSelectionWithReason(selection, SelectionReason.contentChange);
       return true;
     } catch (e) {
       _logger.error('Error trying to restore selection: $e');
@@ -1166,10 +1183,10 @@ class DocumentBuilder {
   double? getNodePosition(String nodeId) {
     try {
       final documentLayoutEditable =
-          editor.context.find<DocumentLayoutEditable>(Editor.layoutKey);
+          _editor.context.find<DocumentLayoutEditable>(Editor.layoutKey);
       final documentLayout = documentLayoutEditable.documentLayout;
 
-      final node = document.getNodeById(nodeId);
+      final node = _document.getNodeById(nodeId);
       if (node == null) {
         return null;
       }
@@ -1231,31 +1248,115 @@ class DocumentBuilder {
       const ParagraphComponentBuilder(),
       const ListItemComponentBuilder(),
       const HorizontalRuleComponentBuilder(),
-      TaskComponentBuilder(editor),
+      TaskComponentBuilder(_editor),
     ];
 
     final stylesheet = getStylesheet(themeData);
     final selectionStyles = getSelectionStyles(themeData);
 
-    return SuperEditor(
-        editor: editor,
-        focusNode: focusNode,
-        scrollController: scrollController,
-        stylesheet: stylesheet,
-        selectionStyle: selectionStyles,
-        componentBuilders: componentBuilders,
-        keyboardActions: defaultKeyboardActions,
-        documentOverlayBuilders: [
-          DefaultCaretOverlayBuilder(
-            caretStyle: CaretStyle(
-              color: AppTheme.primaryColor,
-              borderRadius: BorderRadius.circular(2),
+    return OverlayPortal(
+      controller: _floatingToolbarOverlayController,
+      overlayChildBuilder: _buildFloatingToolbar,
+      child: KeyedSubtree(
+        key: _viewportKey,
+        child: SuperEditor(
+          editor: _editor,
+          focusNode: _editorFocusNode,
+          scrollController: scrollController,
+          stylesheet: stylesheet,
+          selectionStyle: selectionStyles,
+          documentLayoutKey: _docLayoutKey,
+          componentBuilders: componentBuilders,
+          keyboardActions: defaultKeyboardActions,
+          selectionLayerLinks: _selectionLayerLinks,
+          documentOverlayBuilders: [
+            DefaultCaretOverlayBuilder(
+              caretStyle: CaretStyle(
+                color: AppTheme.primaryColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-        ],
-        plugins: {
-          MarkdownInlineUpstreamSyntaxPlugin(),
-        });
+          ],
+          plugins: {
+            MarkdownInlineUpstreamSyntaxPlugin(),
+          }),
+      )
+    ); 
+  }
+
+  Widget _buildFloatingToolbar(BuildContext context) {
+    return EditorToolbar(
+      editorViewportKey: _viewportKey,
+      editorFocusNode: _editorFocusNode,
+      document: _document,
+      anchor: _selectionLayerLinks.expandedSelectionBoundsLink,
+      editor: _editor,
+      composer: _composer,
+      closeToolbar: _hideEditorToolbar,
+    );
+  }
+
+  void _updateToolbarDisplay() {
+    final selection = _composer.selection;
+    if (selection == null) {
+      // Nothing is selected. We don't want to show a toolbar
+      // in this case.
+      _hideEditorToolbar();
+
+      return;
+    }
+    if (selection.base.nodeId != selection.extent.nodeId) {
+      // More than one node is selected. We don't want to show
+      // a toolbar in this case.
+      _showEditorToolbar();
+
+      return;
+    }
+    if (selection.isCollapsed) {
+      // We only want to show the toolbar when a span of text
+      // is selected. Therefore, we ignore collapsed selections.
+      _hideEditorToolbar();
+
+      return;
+    }
+
+    final selectedNode = _document.getNodeById(selection.extent.nodeId);
+
+    if (selectedNode is TextNode) {
+      // Show the editor's toolbar for text styling.
+      _showEditorToolbar();
+      return;
+    } else {
+      // The currently selected content is not a paragraph. We don't
+      // want to show a toolbar in this case.
+      _hideEditorToolbar();
+    }
+  }
+
+  void _showEditorToolbar() {
+    _floatingToolbarOverlayController.show();
+  }
+
+  void _hideEditorToolbar() {
+    // Null out the selection anchor so that when it re-appears,
+    // the bar doesn't momentarily "flash" at its old anchor position.
+
+    _floatingToolbarOverlayController.hide();
+    // Ensure that focus returns to the editor.
+    //
+    // I tried explicitly unfocus()'ing the URL textfield
+    // in the toolbar but it didn't return focus to the
+    // editor. I'm not sure why.
+    //
+    // Only do that if the primary focus is not at the root focus scope because
+    // this might signify that the app is going to the background. Removing
+    // the focus from the root focus scope in that situation prevents the editor
+    // from re-gaining focus when the app is brought back to the foreground.
+    //
+    // See https://github.com/superlistapp/super_editor/issues/2279 for details.
+    if (FocusManager.instance.primaryFocus != FocusManager.instance.rootScope) {
+      _editorFocusNode.requestFocus();
+    }
   }
 
   Stylesheet getStylesheet(themeData)  {

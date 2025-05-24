@@ -369,7 +369,7 @@ packages:
     source: sdk
     version: "0.0.0"
   follow_the_leader:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: follow_the_leader
       sha256: "798baf5211ca2461c8462d4c8e94f57bf989758f8204056d607eb9a20f1cf794"
@@ -472,6 +472,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.5"
+  ionicons:
+    dependency: "direct main"
+    description:
+      name: ionicons
+      sha256: "5496bc65a16115ecf05b15b78f494ee4a8869504357668f0a11d689e970523cf"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.2"
   js:
     dependency: transitive
     description:
@@ -609,7 +617,7 @@ packages:
     source: hosted
     version: "2.0.2"
   overlord:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: overlord
       sha256: "576256bc9ce3fb0ae3042bbb26eed67bdb26a5045dd7e3c851aae65b0bbab2f5"
