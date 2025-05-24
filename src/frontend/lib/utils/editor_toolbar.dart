@@ -114,7 +114,11 @@ class _EditorToolbarState extends State<EditorToolbar> {
     }
 
     final selectedNode = widget.document.getNodeById(selection.extent.nodeId);
-    return selectedNode is ParagraphNode || selectedNode is ListItemNode;
+    return (
+      selectedNode is ParagraphNode ||
+      selectedNode is ListItemNode ||
+      selectedNode is TaskNode
+    );
   }
 
   /// Returns the block type of the currently selected text node.
@@ -138,6 +142,8 @@ class _EditorToolbarState extends State<EditorToolbar> {
       }
     } else if (selectedNode is ListItemNode) {
       return selectedNode.type == ListItemType.ordered ? _TextType.orderedListItem : _TextType.unorderedListItem;
+    } else if (selectedNode is TaskNode) {
+      return _TextType.taskItem;
     } else {
       throw Exception('Alignment does not apply to node of type: $selectedNode');
     }
@@ -209,10 +215,34 @@ class _EditorToolbarState extends State<EditorToolbar> {
         ),
       ]);
     } else if (!_isListItem(existingTextType) && _isListItem(newType)) {
+      if (_isTaskItem(existingTextType)) {
+        // TODO: this is a workaround as no ConvertTaskToListItemRequest exists
+        widget.editor!.execute([
+          ConvertTaskToParagraphRequest(
+            nodeId: widget.composer.selection!.extent.nodeId,
+          ),
+        ]);
+      }
       widget.editor!.execute([
         ConvertParagraphToListItemRequest(
           nodeId: widget.composer.selection!.extent.nodeId,
           type: newType == _TextType.orderedListItem ? ListItemType.ordered : ListItemType.unordered,
+        ),
+      ]);
+    } else if (!_isTaskItem(existingTextType) && _isTaskItem(newType)) {
+      widget.editor!.execute([
+        ConvertParagraphToTaskRequest(
+          nodeId: widget.composer.selection!.extent.nodeId,
+          isComplete: false,
+        ),
+      ]);
+    } else if (_isTaskItem(existingTextType) && !_isTaskItem(newType)) {
+      widget.editor!.execute([
+        ConvertTaskToParagraphRequest(
+          nodeId: widget.composer.selection!.extent.nodeId,
+          paragraphMetadata: {
+            'blockType': _getBlockTypeAttribution(newType),
+          }
         ),
       ]);
     } else {
@@ -226,6 +256,12 @@ class _EditorToolbarState extends State<EditorToolbar> {
     }
   }
 
+  /// Returns true if the given [_TextType] represents a
+  /// task item, returns false otherwise.
+  bool _isTaskItem(_TextType? type) {
+    return type == _TextType.taskItem;
+  }
+  
   /// Returns true if the given [_TextType] represents an
   /// ordered or unordered list item, returns false otherwise.
   bool _isListItem(_TextType? type) {
@@ -378,7 +414,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
   /// Takes the text from the [urlController] and applies it as a link
   /// attribution to the currently selected text.
   void _applyLink() {
-    final url = _urlController!.text.text;
+    final url = _urlController!.text.toPlainText();
 
     final selection = widget.composer.selection!;
     final baseOffset = (selection.base.nodePosition as TextPosition).offset;
@@ -426,10 +462,12 @@ class _EditorToolbarState extends State<EditorToolbar> {
     int startOffset = range.start;
     int endOffset = range.end;
 
-    while (startOffset < range.end && text.text[startOffset] == ' ') {
+    String rawText = text.toPlainText();
+
+    while (startOffset < range.end && rawText[startOffset] == ' ') {
       startOffset += 1;
     }
-    while (endOffset > startOffset && text.text[endOffset] == ' ') {
+    while (endOffset > startOffset && rawText[endOffset] == ' ') {
       endOffset -= 1;
     }
 
@@ -455,6 +493,8 @@ class _EditorToolbarState extends State<EditorToolbar> {
         return 'Ordered List Item';
       case _TextType.unorderedListItem:
         return 'Unordered List Item';
+      case _TextType.taskItem:
+        return 'Task Item';
     }
   }
 
@@ -753,6 +793,7 @@ enum _TextType {
   blockquote,
   orderedListItem,
   unorderedListItem,
+  taskItem,
 }
 
 class SingleLineAttributedTextEditingController extends AttributedTextEditingController {
