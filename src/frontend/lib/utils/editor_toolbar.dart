@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:follow_the_leader/follow_the_leader.dart';
+import 'package:ionicons/ionicons.dart';
 import 'package:overlord/follow_the_leader.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:owlistic/utils/super_editor_item_selector.dart';
@@ -734,7 +735,7 @@ class _EditorToolbarState extends State<EditorToolbar> {
       boundaryKey: widget.editorViewportKey,
       value: const IconItem(
         id: "Add New Block",
-        icon: Icons.add_circle_outlined,
+        icon: Icons.add_circle,
       ),
       items: _TextType.values
           .map(
@@ -849,14 +850,17 @@ class _EditorToolbarState extends State<EditorToolbar> {
 
 IconData _buildBlockTypeIcon(_TextType type) {
   switch (type) {
+    // TODO: find better H1 icon
     case _TextType.header1:
-      return Icons.title_rounded;
+      return Icons.title;
+    // TODO: find better H2 icon
     case _TextType.header2:
-      return Icons.title_rounded;
+      return Icons.title;
+    // TODO: find better H3 icon
     case _TextType.header3:
-      return Icons.title_rounded;
+      return Icons.title;
     case _TextType.paragraph:
-      return Icons.title_rounded;
+      return Ionicons.text;
     case _TextType.blockquote:
       return Icons.format_quote_rounded;
     case _TextType.orderedListItem:
