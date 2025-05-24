@@ -587,15 +587,6 @@ class _EditorToolbarState extends State<EditorToolbar> {
                   tooltip: 'Strikethrough',
                 ),
               ),
-              Center(
-                child: IconButton(
-                  onPressed: _areMultipleLinksSelected() ? null : _onLinkPressed,
-                  icon: const Icon(Icons.link),
-                  color: _isSingleLinkSelected() ? const Color(0xFF007AFF) : IconTheme.of(context).color,
-                  splashRadius: 16,
-                  tooltip: 'Link',
-                ),
-              ),
               // Only display alignment controls if the currently selected text
               // node respects alignment. List items, for example, do not.
               if (_isTextAlignable()) //
@@ -609,16 +600,24 @@ class _EditorToolbarState extends State<EditorToolbar> {
                     ),
                   ],
                 ),
-
               _buildVerticalDivider(),
               Center(
                 child: IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.more_vert),
+                  onPressed: _areMultipleLinksSelected() ? null : _onLinkPressed,
+                  icon: const Icon(Icons.link),
+                  color: _isSingleLinkSelected() ? const Color(0xFF007AFF) : IconTheme.of(context).color,
                   splashRadius: 16,
-                  tooltip: 'More options',
+                  tooltip: 'Link',
                 ),
               ),
+              // Center(
+              //   child: IconButton(
+              //     onPressed: () {},
+              //     icon: const Icon(Icons.more_vert),
+              //     splashRadius: 16,
+              //     tooltip: 'More options',
+              //   ),
+              // ),
             ],
           ),
         ),
