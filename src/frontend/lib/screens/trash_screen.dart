@@ -61,7 +61,7 @@ class _TrashScreenState extends State<TrashScreen> {
         showBackButton: false,
         actions: const [ThemeSwitcher()],
       ),
-      drawer: const AppDrawer(),
+      drawer: const SidebarDrawer(),
       body: Consumer<TrashViewModel>(
         builder: (ctx, trashViewModel, _) {
           if (trashViewModel.isLoading) {

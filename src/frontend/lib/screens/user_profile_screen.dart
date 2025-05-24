@@ -184,7 +184,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         actions: const [ThemeSwitcher()],
       ),
-      drawer: const AppDrawer(),
+      drawer: const SidebarDrawer(),
       body: Consumer<UserProfileViewModel>(
         builder: (context, viewModel, _) {
           if (viewModel.isLoadingProfile) {

@@ -236,7 +236,7 @@ class _TasksScreenState extends State<TasksScreen> {
           }
         },
       ),
-      drawer: const AppDrawer(),
+      drawer: const SidebarDrawer(),
       body: Consumer<TasksViewModel>(
         builder: (ctx, tasksViewModel, _) {
           if (tasksViewModel.isLoading) {

@@ -5,8 +5,8 @@ import 'package:owlistic/core/theme.dart';
 import 'package:owlistic/viewmodel/home_viewmodel.dart';
 import 'app_logo.dart';
 
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({Key? key}) : super(key: key);
+class SidebarDrawer extends StatelessWidget {
+  const SidebarDrawer({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

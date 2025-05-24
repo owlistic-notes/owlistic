@@ -218,7 +218,7 @@ class _NotebookDetailScreenState extends State<NotebookDetailScreen> {
           }
         ),
       ),
-      drawer: const AppDrawer(),
+      drawer: const SidebarDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Consumer<NotebooksViewModel>(
