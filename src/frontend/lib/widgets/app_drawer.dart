@@ -93,9 +93,7 @@ class AppDrawer extends StatelessWidget {
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
             onTap: () async {
-              Navigator.pop(context);
-              // Use HomeViewModel for logout
-              await context.read<HomeViewModel>().logout();
+              _showLogoutConfirmation(context);
             },
           ),
         ],
