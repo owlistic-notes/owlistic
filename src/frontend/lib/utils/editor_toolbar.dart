@@ -271,6 +271,16 @@ class _EditorToolbarState extends State<EditorToolbar> {
   }
 
   /// Toggles strikethrough styling for the current selected text.
+  void _toggleUnderline() {
+    widget.editor!.execute([
+      ToggleTextAttributionsRequest(
+        documentRange: widget.composer.selection!,
+        attributions: {underlineAttribution},
+      ),
+    ]);
+  }
+
+  /// Toggles strikethrough styling for the current selected text.
   void _toggleStrikethrough() {
     widget.editor!.execute([
       ToggleTextAttributionsRequest(
@@ -559,6 +569,14 @@ class _EditorToolbarState extends State<EditorToolbar> {
                   icon: const Icon(Icons.format_italic),
                   splashRadius: 16,
                   tooltip: 'Italics',
+                ),
+              ),
+              Center(
+                child: IconButton(
+                  onPressed: _toggleUnderline,
+                  icon: const Icon(Icons.format_underline_sharp),
+                  splashRadius: 16,
+                  tooltip: 'Underline',
                 ),
               ),
               Center(
