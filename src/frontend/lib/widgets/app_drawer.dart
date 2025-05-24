@@ -13,7 +13,6 @@ class SidebarDrawer extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          // Smaller drawer header with app logo - using transparent logo
           Container(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
             decoration: BoxDecoration(
@@ -35,7 +34,6 @@ class SidebarDrawer extends StatelessWidget {
               ],
             ),
           ),
-          // Drawer items
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Home'),
@@ -68,6 +66,7 @@ class SidebarDrawer extends StatelessWidget {
               GoRouter.of(context).go('/tasks');
             },
           ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.delete),
             title: const Text('Trash'),
@@ -76,7 +75,6 @@ class SidebarDrawer extends StatelessWidget {
               GoRouter.of(context).go('/trash');
             },
           ),
-          const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Settings'),
@@ -86,8 +84,6 @@ class SidebarDrawer extends StatelessWidget {
             },
           ),
           const Spacer(),
-          // Compact logout section
-          const Divider(height: 1),
           ListTile(
             visualDensity: VisualDensity.compact,
             leading: const Icon(Icons.logout),
