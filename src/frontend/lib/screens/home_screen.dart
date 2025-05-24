@@ -88,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ThemeSwitcher(), // Add theme switcher to app bar
         ],
       ),
-      drawer: const AppDrawer(),
+      drawer: const SidebarDrawer(),
       body: !_isInitialized
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

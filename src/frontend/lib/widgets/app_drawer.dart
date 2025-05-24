@@ -5,15 +5,14 @@ import 'package:owlistic/core/theme.dart';
 import 'package:owlistic/viewmodel/home_viewmodel.dart';
 import 'app_logo.dart';
 
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({Key? key}) : super(key: key);
+class SidebarDrawer extends StatelessWidget {
+  const SidebarDrawer({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
       child: Column(
         children: [
-          // Smaller drawer header with app logo - using transparent logo
           Container(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
             decoration: BoxDecoration(
@@ -35,7 +34,6 @@ class AppDrawer extends StatelessWidget {
               ],
             ),
           ),
-          // Drawer items
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Home'),
@@ -68,6 +66,7 @@ class AppDrawer extends StatelessWidget {
               GoRouter.of(context).go('/tasks');
             },
           ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.delete),
             title: const Text('Trash'),
@@ -76,7 +75,6 @@ class AppDrawer extends StatelessWidget {
               GoRouter.of(context).go('/trash');
             },
           ),
-          const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Settings'),
@@ -86,16 +84,12 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           const Spacer(),
-          // Compact logout section
-          const Divider(height: 1),
           ListTile(
             visualDensity: VisualDensity.compact,
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
             onTap: () async {
-              Navigator.pop(context);
-              // Use HomeViewModel for logout
-              await context.read<HomeViewModel>().logout();
+              _showLogoutConfirmation(context);
             },
           ),
         ],
@@ -116,13 +110,9 @@ class AppDrawer extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(ctx); // Close dialog
-              Navigator.pop(context); // Close drawer
-              
-              // Use the HomeViewModel for logout
+              Navigator.pop(ctx);
+              Navigator.pop(context);
               await context.read<HomeViewModel>().logout();
-              
-              // Navigation will be handled by GoRouter redirect
             },
             style: AppTheme.getDangerButtonStyle(),
             child: const Text('Logout'),

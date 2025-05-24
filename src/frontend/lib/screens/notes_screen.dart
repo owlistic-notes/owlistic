@@ -680,7 +680,7 @@ class _NotesScreenState extends State<NotesScreen> {
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         actions: const [ThemeSwitcher()],
       ),
-      drawer: const AppDrawer(),
+      drawer: const SidebarDrawer(),
       body: Consumer<NotesViewModel>(
         builder: (context, notesViewModel, _) {
           return _buildBody(notesViewModel);

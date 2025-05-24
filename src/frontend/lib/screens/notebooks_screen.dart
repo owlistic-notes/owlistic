@@ -61,7 +61,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         actions: const [ThemeSwitcher()],
       ),
-      drawer: const AppDrawer(),
+      drawer: const SidebarDrawer(),
       body: Consumer<NotebooksViewModel>(
         builder: (context, viewModel, _) {
           return _buildContent(context, viewModel);
