@@ -110,13 +110,9 @@ class SidebarDrawer extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(ctx); // Close dialog
-              Navigator.pop(context); // Close drawer
-              
-              // Use the HomeViewModel for logout
+              Navigator.pop(ctx);
+              Navigator.pop(context);
               await context.read<HomeViewModel>().logout();
-              
-              // Navigation will be handled by GoRouter redirect
             },
             style: AppTheme.getDangerButtonStyle(),
             child: const Text('Logout'),
