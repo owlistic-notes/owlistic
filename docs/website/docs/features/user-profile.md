@@ -4,6 +4,8 @@ sidebar_position: 6
 
 # User Profile
 
+## Overview
+
 Owlistic supports basic user profile management, allowing you to customize your account settings (such as name, email address, display name) and authentication preferences.
 
 <img src={require('/img/screenshots/profile/profile.png').default} width="50%" title="User Profile" />

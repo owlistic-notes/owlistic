@@ -4,6 +4,8 @@ sidebar_position: 1
 
 # Notebooks
 
+## Overview
+
 Owlistic supports organizing notes in notebooks. A notebook is a collection of notes that you can organize and manage. Each note in a notebook has its own unique title, which makes it easy to find and access your notes quickly.
 
 <img src={require('/img/screenshots/notebooks/notebooks.png').default} width="50%" title="Notebooks" />

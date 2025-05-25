@@ -34,6 +34,12 @@ After you login into the application, you will be redirected to the home screen.
 
 ![Home screen](/img/screenshots/home.png)
 
+:::tip
+Use sidebar for quick access to all the features of Owlistic.
+
+![Sidebar](/img/screenshots/sidebar.png)
+:::
+
 ## What's next?
 
 - Start exploring [Owlistic features](/docs/category/features) and keep your knowledge organized!

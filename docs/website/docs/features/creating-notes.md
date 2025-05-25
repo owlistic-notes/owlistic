@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # Notes
 
+## Intro
+
 Creating notes in Owlistic is a straightforward process.
 
 <img src={require('/img/screenshots/notes/notes.png').default} width="50%" title="Notes Screen" />
