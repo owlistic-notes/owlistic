@@ -1,29 +1,39 @@
-# Organizing Notes
+---
+sidebar_position: 1
+---
 
-Effective organization of your notes is crucial for maximizing productivity and ensuring easy retrieval of information. Here are some tips and best practices for organizing your notes within the app.
+# Notebooks
 
-## Use Folders and Subfolders
+Owlistic supports organizing notes in notebooks. A notebook is a collection of notes that you can organize and manage. Each note in a notebook has its own unique title, which makes it easy to find and access your notes quickly.
 
-Create folders and subfolders to categorize your notes based on topics, projects, or any other criteria that make sense for you. This hierarchical structure helps in keeping related notes together.
+<img src={require('/img/screenshots/notebooks/notebooks.png').default} width="50%" title="Notebooks" />
 
-## Tagging System
+## Creating new notebooks
 
-Utilize tags to label your notes with keywords. This allows for quick filtering and searching. You can create tags for different themes, priorities, or statuses (e.g., "urgent", "personal", "work").
+To create a new notebook, press <img src={require('/img/screenshots/add_plus_button.png').default} width="2%" height="2%" title="Plus Button" />. You can then enter a title for your notebook and save it.
 
-## Consistent Naming Conventions
+<img src={require('/img/screenshots/notebooks/add_notebook_dialog.png').default} width="25%" title="Create New Notebook" />
 
-Adopt a consistent naming convention for your notes. This could include dates, project names, or specific keywords. Consistency helps in quickly identifying the content of your notes at a glance.
+## Adding notes to notebooks
 
-## Linking Notes
+Once you have created a notebook, you can add notes to it by pressing <img src={require('/img/screenshots/notebooks/notebook_add_note_button.png').default} width="5%" height="5%" title="Add Note" />
 
-Take advantage of the ability to link notes to each other. This is particularly useful for referencing related information or creating a network of interconnected notes.
+Then, you can specify the new note title.
 
-## Regular Review and Cleanup
+<img src={require('/img/screenshots/notebooks/notebook_add_note_dialog.png').default} width="50%" title="Add New Note" />
 
-Set aside time regularly to review your notes. Delete or archive notes that are no longer relevant, and reorganize those that need to be updated. This practice keeps your workspace tidy and efficient.
+### Notes screen
 
-## Utilize Search Features
+Notes can be also created from Notes screen by pressing <img src={require('/img/screenshots/add_plus_button.png').default} width="3%" height="3%" title="Plus Button" />. You can then enter select a notebook for the note and a title, and save it.
 
-Make use of the app's search functionality to quickly find notes. Familiarize yourself with the search operators and filters available to enhance your search experience.
+<img src={require('/img/screenshots/notes/add_note_dialog.png').default} width="25%" title="Add New Note" />
 
-By following these practices, you can maintain a well-organized collection of notes that enhances your productivity and makes information retrieval seamless.
+## Editing notebooks
+
+<img src={require('/img/screenshots/notebooks/notebook_actions.png').default} width="50%" title="Notebook Actions" />
+
+## Moving notes to notebooks
+
+Once you have created a note, you can move it to another notebook by pressing the "Move" button
+
+<img src={require('/img/screenshots/notes/move_note_dialog.png').default} width="25%" title="Notebook Actions" />

@@ -20,50 +20,20 @@ Stay tuned for Mobile and Desktop apps soon!
 
 :::
 
-## Register into Owlistic
+### Register into Owlistic
 
 ![Register screen](/img/screenshots/register.png)
 
-## Login into Owlistic
+### Login into Owlistic
 
 ![Login screen](/img/screenshots/login.png)
 
-## Organize notes in Notebooks
+### Explore Owlistic
 
-![Notebooks screen](/img/screenshots/notebooks.png)
+After you login into the application, you will be redirected to the home screen.
 
-## Notes
-
-![Notes screen](/img/screenshots/notes.png)
-
-## Edit a note
-
-![Editor screen](/img/screenshots/editor.png)
-
-### Import from Markdown file
-
-![Import button](/img/screenshots/import.png)
-
-## Add tasks
-
-![Task screen](/img/screenshots/tasks.png)
-
-## Trash
-
-![Trash screen](/img/screenshots/trash.png)
-
-## Explore Features
-
-- 📒 Notebooks/Notes tree
-- ✏️ Rich (WYSIWYG) editor
-- 📋 Inline todo items
-- 🔄 Real-time sync
-- 🔑 JWT-based auth
-- 🔒 Role-based access control
-- 🗑️ Trash
-- 🌗 Dark/Light mode
-- ⬆ Import markdown notes
+![Home screen](/img/screenshots/home.png)
 
 ## What's next?
 
-TODO
+- Start exploring [Owlistic features](/docs/category/features) and keep your knowledge organized!
