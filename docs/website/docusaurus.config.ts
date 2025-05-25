@@ -1,6 +1,7 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type * as Preset from '@docusaurus/preset-classic';
 import type * as OpenApiPlugin from "docusaurus-plugin-openapi-docs";
+import sidebarItemsGenerator from './sidebar_itemsgenerator';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -38,6 +39,7 @@ export default {
         blog: false,
         docs: {
           sidebarPath: './sidebars.ts',
+          sidebarItemsGenerator: sidebarItemsGenerator,
           editUrl: 'https://github.com/owlistic-notes/owlistic/tree/main/docs/website/',
           docItemComponent: "@theme/ApiItem", // Derived from docusaurus-theme-openapi
         },
@@ -86,7 +88,7 @@ export default {
           label: 'Documentation',
         },
         {
-          to: '/api',
+          to: '/docs/api/owlistic-api',
           label: 'API Reference',
           position: 'right',
         },
