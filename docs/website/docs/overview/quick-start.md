@@ -6,6 +6,8 @@ sidebar_position: 2
 
 Welcome to the Quick Start Guide! This guide will help you get it up and running.
 
+![Owlistic Demo](/img/screenshots/real_time_updates.gif)
+
 ## Installation
 
 Before you begin, ensure that you have completed the installation process using your preferred [install option](/docs/category/installation).
@@ -36,9 +38,10 @@ After you login into the application, you will be redirected to the home screen.
 
 :::tip
 Use sidebar for quick access to all the features of Owlistic.
+:::
 
 ![Sidebar](/img/screenshots/sidebar.png)
-:::
+
 
 ## What's next?
 
