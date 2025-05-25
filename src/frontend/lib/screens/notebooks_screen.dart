@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:owlistic/core/theme.dart';
 import 'package:provider/provider.dart';
 import 'package:owlistic/models/notebook.dart';
 import 'package:owlistic/models/note.dart';
@@ -399,9 +400,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                 }
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-            ),
+            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
@@ -487,6 +486,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                 }
               }
             },
+            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
