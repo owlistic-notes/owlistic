@@ -60,6 +60,10 @@
 
 <img src='./docs/website/static/img/screenshots/notes/notes.png' width="15%" title="Notes Screen" />
 
+#### Tasks
+
+<img src='./docs/website/static/img/screenshots/tasks/tasks.png' width="15%" title="Tasks Screen" />
+
 #### Trash
 
 <img src='./docs/website/static/img/screenshots/trash/trash.png' width="15%" title="Trash Screen" />
