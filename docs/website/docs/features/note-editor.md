@@ -41,6 +41,10 @@ You can emphasize text using asterisks or underscores.
 **bold** or __bold__
 ```
 
+:::tip
+If you are on desktop, you can also use keyboard shortcuts to format text.
+:::
+
 ### Lists
 
 Create ordered and unordered lists easily.
@@ -60,3 +64,7 @@ Create ordered and unordered lists easily.
 ```markdown
 [Link text](http://example.com)
 ```
+
+## Scrolling
+
+<img src={require('/img/screenshots/editor/note_scrolling.gif').default} width="50%" title="Editor Scrolling" />
