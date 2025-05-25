@@ -1,0 +1,71 @@
+---
+id: get-a-note-by-id
+title: "Get a note by ID"
+description: "Get a note by ID"
+sidebar_label: "Get a note by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJytU01v1EAM/SuRTyBFmxT1UOVWCVT1AgjBqarQZOJtpk1mph5nIYry37Gz22VLFokDpzj+fH5+M0E0ZHpkpATV3QRefqAC10AOzosVDbdiEz4PjrCBimnAHJJtsTdQTcBj1IrE5PwDzPO9JqcYfMKk8XdlqZ8GkyUX2QXt+jEwZtsweJ1jg2f0rFkmxs5Zo1nFY9LUaT0q1I9oWQojhYjEbj9IMK/g5LAN1BvpDcMgCXMO7LjDM8BzqLtgn9JJyBCZUYlg7NMawCw1Q0L6/k+Tf49etheHui7Ly7+w4wP/b4aQKNC5m817MK9R3CBnRmFgVo/Z7XtpJ0JpgywLD7h0V21UUGhOKibXzOIUQnYvahqok3jLHKuiEHZN14bE1VV5VRYmumJ3AaoX57dhgXXg59OPziV2Nrv+fCsdtd0e0sWm3JTwJ1DJyppgh14oWogR3ig7NjlhbKNnjgKhNwtxB7Wf2fTVhCNhjD+5iJ2Rl6G31+2mAwt3sLAgpZVcW5bSTdU9TbVJ+I26eVb384A0il/MnSFnat1YqGpcUlvI3Zou4QrBUQLw5svhLb7NZNpZZC/69arenekG/RPzCcf9457vJatF0yAt0/eBa2sx8knJSmx6raMIbj58Fe38AtGQcAw=
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a note by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/notes/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get a note by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Note found","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"title":{"type":"string"},"blocks":{"type":"array","items":{"type":"object"}},"user_id":{"type":"string","format":"uuid"}},"title":"Note"}}}},"404":{"description":"Note not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

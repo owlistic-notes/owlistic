@@ -56,7 +56,7 @@ export default {
         docsPluginId: "classic",
         config: {
           owlistic: {
-            specPath: "openapi/openapi.yaml",
+            specPath: "openapi",
             outputDir: "docs/api",
             sidebarOptions: {
               groupPathsBy: "tag",

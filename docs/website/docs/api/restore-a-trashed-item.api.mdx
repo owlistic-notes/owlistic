@@ -1,0 +1,71 @@
+---
+id: restore-a-trashed-item
+title: "Restore a trashed item"
+description: "Restore a trashed item"
+sidebar_label: "Restore a trashed item"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9U7Fu3DAM/RWBUwsczk6QAoG2jpkSpM0UZGBsXi1UlhRKvsQw/O8lbffQptelQydT1NMj+fg8QULGngpxBvs4QZADWChjItiBCxInLJ3ETC+DY2rBFh5oB7npqEew0wq2kAu78A3meXeice0/kzwpOKcYMmW9v6xr/bSUG3apuKisN4V6I7AShdPkoWko58Pg/QjzDq7OPXkIeUgpcpEHTp8vhQX96WyBIMoE9CYTH4kNMUfWEd/h7tceDJrCmLuNWwYWabvYqgAxFzkvOlioFli1tV5N2sRcTa6dBbPWWvcxsBd4V0qyVeVjg74TIntdX9cVJlcdL0ClcuEQFxVd8Srj7at3ubjGfL67EUalWxu92Nf7Gt63LyjTxmboKRTUnDlENicSTMm7ZrnYq1Q6S49BC26L/uv8v9U5bbnQW6mSR7GG0C0zTps0j7AwLF5ZOCWymx2t+EmGVQUUOE3PmOmB/Txr+mUgHiUv4RHZ4bMqIRK2LmssSzigz/RHT02UJQdhhA/3mz0/Gql2ttctiWFUWdEPepLwO40/fxv1/3+sKZrMT/MvTru7/fJVLPoDaXdOFA==
+sidebar_class_name: "post api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Restore a trashed item"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/trash/restore/{type}/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Restore a trashed item
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"type","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Item restored successfully"},"400":{"description":"Unsupported item type"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

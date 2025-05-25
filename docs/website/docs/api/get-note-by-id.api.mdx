@@ -1,0 +1,71 @@
+---
+id: get-note-by-id
+title: "Get note by ID"
+description: "Get note by ID"
+sidebar_label: "Get note by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1k8Fu2zAMhl9F4GkFgtoZOqDwbUC3IpdtGNZT0QNjM7VQRVIlOpth6N1Hul6wJu3JFEmR/D/RE0RMuCemlKG5n8DLARqwHazAerEici92oufBJuqg4TTQCjrKbbKRbdCkzY0JO8M9GR+YJD23Pe0Rmgl4jFowc7L+EUp50Fo5Bp8pa/xjXevndb1vUsXswuA7KCu4qtfnKXeZknYzOEhfz7ZFpiX96p2Kmn6s+umtxl/ROuoMB5NIJqbDoqiUU8m3xHPIbEezuRHJArEPwgceieU4c2ug0pxcTbYrioXS4R/pITmJ98yxqSoXWnR9yNxc19d1hdFWhzUoLOt3YeZo2SnI77+dzaLWfP6xgdOhxGe60A57AYLqE7nJHK9gjE45afIKdJKXa+vL+rJWJlEm2KPXfssinMl81fD4vEx/uIoOZWWkzCxtWhDcw4xArjayVaJIZap7mraY6S65UtT9PFAaxS/mAZPFrcoVTp3NagvZHbp8unoTtMGzyJUhPvxclvTCnC3km3MuTvSj4kA36EnMJxpf/oHyUP572Nsvv2QR/gKXWhHF
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get note by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/notes/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get note by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"description":"ID of the note","schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Note found"},"401":{"description":"User not authenticated"},"404":{"description":"Note not found"},"500":{"description":"Failed to retrieve note"}}}
+>
+  
+</StatusCodes>
+
+
+      

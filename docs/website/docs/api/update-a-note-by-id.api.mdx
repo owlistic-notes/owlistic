@@ -1,0 +1,71 @@
+---
+id: update-a-note-by-id
+title: "Update a note by ID"
+description: "Update a note by ID"
+sidebar_label: "Update a note by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1lDtv2zAQgP+KwKkF3EgpUiDQlrQdvLRBEE9GUJzFs82EIlmScmII+u+9oxQ/YiVdWg82Td7zu0crHHioMaIPopy3wtAfUQolxUQoQycHcU1nj78b5VGKMvoGJyJUa6xBlK2IW8caIXplVqLr7nthDPHayi1LvNatrIloIj+Bc1pVEJU1+UOwhu9OTNvFA1aRgnDeOvRRYUivKmociWAiFtpWj+HgCbyHLWcUsQ5/t3wQ4LEg2e4vTtMePpx8cNaE3tLnouAfiaHyynGapPPDRswaJyGizEJTVRjCstGaI/xHbKh+Y2D+H7K3HI7TmryDOEFsAvpfozb3WSSOg/xFcfEGZ2NjtrSNkez1y1g5phSJN6Az8rlBn6H31idHx3KzVLEM2CRmi202/UYYaHbWVvKgNIkKj0spcpYJeatkR5e94X7AGq/pfR2jK/OcoINe2xDLy+KyyMGpfHMueIS44Lf7Mfr+DLUbSjdkPwDZl25+2Lg79jtw9x1P9NIe2vj5pFWIqsqubqbidb50l0lbNTVZTF1IHH22UzloT1Ll/Hq187PirGDYjvKqIbXtsFXGCR553dU74nPMnQZaQtwPTK0d6M5FokuqJbUIwWKCfN22Cwg487rr+JroeVpAczpuwCtYcM5ESarAZyraEnTAkwh2FMWH22F1fczEZDyyl3ExPCwb0A3/o+Mjbvs9msCvEST65L1/+Nr7+HTH6nvFk5nvJi8aV7QnXHxX9v6gHW9md9wbwwqurWQVD0+8y+k7xWhTyml+010rNJhVAyuW7U3y5w9Q9xk2
+sidebar_class_name: "put api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update a note by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/notes/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update a note by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"title":{"type":"string"},"blocks":{"type":"array","items":{"type":"object","properties":{"content":{"type":"object"},"type":{"type":"string"}}}}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Note updated successfully","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"blocks":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"type":{"type":"string"},"content":{"type":"object"}}}},"user_id":{"type":"string"}},"title":"Note"}}}},"404":{"description":"Note not found"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,71 @@
+---
+id: create-a-new-notebook
+title: "Create a new notebook"
+description: "Create a new notebook"
+sidebar_label: "Create a new notebook"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVMFu2zAM/RWDZy92hh0K39phh13WYutOQTAoMhurlSVNopMGRv59pJK07oIMO1QHW6KeyPeeaI8Q8feAiW58u4NmzEsTsYWG4oAlaO8IHcmWCsEarch4Vz0m7ySWdIe9khntAkIDfvWImqCEEH3ASAaT7DrV4wSVKBq3hn0eJRdNwbt0gH6s5/JqMeloglTjA9884cr7p0JHVMT03o2Zac95lfDgY684NwwDA5jiBQElDAnjr/9KwmAyZHEiBw76P9X1ueQb1RbHy3k/tRijj5cugpm8pfA5m12owuG2cCfOJfRInWfJEHwmFxR1vKpOkMQxtmWDkYsuRhii5e2OKDRVZb1WtuODzVV9VVcqmGozh/2yBBHz/bUdvzyrPlh8bZ+J68Y9+CzjaOjt1ppERhfXd1+5uFQ+SJjP6lkNfwtjVNF6PfRsaTay4LsqXpJMHJ5JNZHZKzdhcsmZN2VeXCZ8pipYZVzuGHFjPJq2gFfT2ALxRYLjuFIJf0a730uYPYn8eS54ulHRqJWIXiw5WYeqxZhdfsKdMDs0yod7KS1wOwiFs6bZl6cT11pjoH9il5M7v7v9cc/g1fGH0ftWzkS15aA8G+CJzxbklsuxEaxy60GtBXvIKeMPYiaMlA==
+sidebar_class_name: "post api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create a new notebook"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/notebooks"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new notebook
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"name":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"201":{"description":"Notebook created","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"name":{"type":"string"},"user_id":{"type":"string","format":"uuid"}},"title":"Notebook"}}}},"400":{"description":"Bad request","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

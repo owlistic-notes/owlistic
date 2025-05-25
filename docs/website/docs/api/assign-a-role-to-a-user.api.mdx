@@ -1,0 +1,71 @@
+---
+id: assign-a-role-to-a-user
+title: "Assign a role to a user"
+description: "Assign a role to a user"
+sidebar_label: "Assign a role to a user"
+hide_title: true
+hide_table_of_contents: true
+api: eJyFU01v2zAM/SuCzlnt7gMofOuGDsipQdedgmJgJCZWJ0uaJKcNjPz3kXKbJoux+pBI5CMpvkcOMuKfHlP+6vVONkO5mohaNjn2OJPKu4wuswtCsEZBNt5Vj8k7tiXVYgd8yruAspF+9Ygqy5kM0QeM2WBib58w/jL6CJhyNG4j9zMqmXwfFb7rHz1TCG+nHOUr8cG7ND7kY13zn8akogncCwXcUbyAlMzGoRapVwpTWvfW7jj756mQuduCNVoYF/o8oj6do777uDJao2PEl+k8GaMDK4igLUaBMfoo+dmnuOvyOgGCexXZ04k5JaI7zK0n5mTwqRAPuaVbxcBE9zExNb8kGaIlV5tzaKrKegW2paDmqr6qKwim2l7K/cNMsrp3b3Nx8wxdGBk+6PhK8j/yTZhPRXkV60g949a+qGdy8dw+WZOyUeJ6MZdnPCzmQnvVdzSUZRTF2kdxCDmaUQrlvsewy4v6ouZiTFIHZXYddPhfZk8qH6Yr43OuggVTRC2MDi+kL+VIOlHIvLJhGFaQ8Ge0+z2bidNIe7ak4xaigRV3vHygRC2Cpqqs0m8kiPw2bt6Hey7LcNtz+bMtZMEOM7C4/XFP4NXLNndec0yEJyaefhtJB19aKutQbIO04DY9bBg75uTvL3Iqaho=
+sidebar_class_name: "post api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Assign a role to a user"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/roles"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Assign a role to a user
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"user_id":{"type":"string"},"resource_id":{"type":"string"},"resource_type":{"type":"string"},"role":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Role assigned successfully"},"400":{"description":"Invalid input"},"403":{"description":"Forbidden"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

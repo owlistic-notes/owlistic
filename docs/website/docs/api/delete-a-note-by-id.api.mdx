@@ -1,0 +1,71 @@
+---
+id: delete-a-note-by-id
+title: "Delete a note by ID"
+description: "Delete a note by ID"
+sidebar_label: "Delete a note by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1Uk1r3DAQ/StiTg0ssVMSCL4Vdg8LJS2lPYUcZqXZWFQrKfrY1hj/98zYS8jH5uTx03y892ZGiJjwQIVShu5+BM8/0IE1sALrOYpYeo4TPVWbyEBXUqUVZN3TAaEboQxRKnJJ1j/CND1Ico7BZ8ry/rW9lo+hrJONxQbpehcKKUOOBxuVq9aU8746N8C0gutPK3woah+qN5J207Yf07aepXh0KlM6UlKUUkjMavUubz3PVigtSe0GtV2zSjaiD6wRFmqMzPI7aCQtN6M1E4NL78Wwmhy/96XErmlc0Oj6kEt32962DUbbHK9ALLF+H2a3bHFi149/zuZitfr2cwvvyTGmTND1QL6gYCw6qZcSjNFZPT9wqTBZyq4u28tWnInM4IBe5p32eV7um6kvmyz0vzTRIa+fe836xpMP9zD7wKUdXwjLEq0Cj+MOM/1JbpoEfqqUBsY5PGKyuBPNbJaxWWJ2eI8u0wcGOvD6PHeEL79OB3eheNpZZicQ/SAuoKvyx+FfGpYLnh6mVytdb75vfm/4FJ4BM039jg==
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a note by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/notes/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a note by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Note deleted successfully"},"404":{"description":"Note not found"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      
