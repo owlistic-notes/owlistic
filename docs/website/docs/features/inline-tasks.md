@@ -4,6 +4,8 @@ sidebar_position: 4
 
 # Tasks
 
+## Overview
+
 Owlistic supports the creation and management of tasks. You can create a task by tapping on the "+" button in the top right corner of the screen.
 
 <img src={require('/img/screenshots/tasks/tasks.png').default} width="50%" title="Tasks Screen" />

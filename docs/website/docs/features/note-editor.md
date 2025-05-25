@@ -4,6 +4,8 @@ sidebar_position: 3
 
 # Rich Text Editor
 
+## Overview
+
 Owlistic note editor is a powerful WYSIWYG (What You See Is What You Get) editor that enables you to create notes with ease. With its user-friendly interface and advanced features, Owlistic makes it easy for you to create notes that are both visually appealing and informative.
 
 <img src={require('/img/screenshots/editor/editor.png').default} width="50%" title="Editor" />

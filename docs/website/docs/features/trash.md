@@ -4,6 +4,8 @@ sidebar_position: 5
 
 # Trash
 
+## Overview
+
 Owlistic support "soft-deletion" model for notebooks and notes, allowing you to recover deleted items. You can find a list of all your deleted items in the trash.
 
 <img src={require('/img/screenshots/trash/trash.png').default} width="50%" title="Trash" />
