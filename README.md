@@ -16,6 +16,7 @@
 ## Table of Contents
 
 - [Quick Links](#quick-links)
+- [Screenshots](#screenshots)
 - [Features](#features)
 - [Installation](#install)
 - [Maintainers](#maintainers)
@@ -30,6 +31,42 @@
 <!--
 - [Api Reference](https://owlistic-notes.github.io/owlistic/docs/category/api-reference)
 -->
+
+## Screenshots
+
+<img src='./docs/website/static/img/screenshots/real_time_updates.gif' width="75%" title="Real Time updates" />
+
+### App Home
+
+<img src='./docs/website/static/img/screenshots/home.png' width="15%" title="Home Screen" />
+<img src='./docs/website/static/img/screenshots/sidebar.png' width="15%" title="Home Screen" />
+
+### Editor
+
+<img src='./docs/website/static/img/screenshots/editor/editor.png' width="15%" title="Editor Screen" />
+<img src='./docs/website/static/img/screenshots/editor/note_scrolling.gif' width="15%" title="Editor Scrolling" />
+
+#### Editor Toolbar
+
+<img src='./docs/website/static/img/screenshots/editor/editor_toolbar.png' width="15%" title="Editor Toolbar" />
+
+### Other Screens
+
+#### Notebook
+
+<img src='./docs/website/static/img/screenshots/notebooks/notebooks.png' width="15%" title="Notebooks Screen" />
+
+#### Notes
+
+<img src='./docs/website/static/img/screenshots/notes/notes.png' width="15%" title="Notes Screen" />
+
+#### Trash
+
+<img src='./docs/website/static/img/screenshots/trash/trash.png' width="15%" title="Trash Screen" />
+
+#### Profile
+
+<img src='./docs/website/static/img/screenshots/profile/profile.png' width="15%" title="Profile Screen" />
 
 ## Features
 
