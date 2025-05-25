@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:owlistic/core/theme.dart';
 import 'package:owlistic/utils/data_converter.dart';
 import 'package:provider/provider.dart';
 import 'package:owlistic/models/user.dart';
@@ -604,7 +605,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     selectedNotebookId!,
                   );
                   
-                  Navigator.pop(context);
+                  // Navigator.pop(context);
                   
                   if (note != null) {
                     // Navigate to the new note
@@ -624,6 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               }
             },
+            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
@@ -633,6 +635,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showAddTaskDialog(BuildContext context) {
     final titleController = TextEditingController();
+
+    // Use HomeViewModel for notebooks
+    final homeViewModel = context.read<HomeViewModel>();
+    final notes = homeViewModel.recentNotes;
+
+    String? selectedNoteId;
 
     showDialog(
       context: context,
@@ -647,13 +655,44 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        content: TextField(
-          controller: titleController,
-          decoration: const InputDecoration(
-            labelText: 'Task Title',
-            prefixIcon: Icon(Icons.title),
-          ),
-          autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Task Title',
+                prefixIcon: Icon(Icons.title),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Select Note',
+                prefixIcon: Icon(Icons.book),
+              ),
+              value: selectedNoteId,
+              items: [
+                if (notes.isEmpty)
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('No notes available'),
+                  ),
+                ...notes.map(
+                  (note) => DropdownMenuItem(
+                    value: note.id,
+                    child: Text(note.title),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  selectedNoteId = value;
+                });
+              },
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -681,6 +720,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               }
             },
+            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
@@ -762,6 +802,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               }
             },
+            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],

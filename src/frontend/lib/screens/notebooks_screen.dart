@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:owlistic/core/theme.dart';
 import 'package:provider/provider.dart';
 import 'package:owlistic/models/notebook.dart';
 import 'package:owlistic/models/note.dart';
@@ -105,7 +106,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
         icon: Icons.book,
         title: 'No Notebooks',
         message: 'Create your first notebook to start organizing your notes.',
-        actionLabel: 'Create Notebook',
+        actionLabel: 'Add Notebook',
         onAction: () => _showAddNotebookDialog(context),
       );
     }
@@ -399,9 +400,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                 }
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-            ),
+            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
@@ -415,16 +414,25 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Notebook'),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.create_new_folder, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            const Text('Add Notebook'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'Enter notebook name',
+                labelText: 'Notebook Name',
+                prefixIcon: Icon(Icons.book),
               ),
               autofocus: true,
             ),
@@ -432,16 +440,18 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
             TextField(
               controller: descriptionController,
               decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-                hintText: 'Enter notebook description',
+                labelText: 'Description (Optional)',
+                prefixIcon: Icon(Icons.description),
               ),
-              maxLines: 3,
+              maxLines: 2,
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -476,6 +486,7 @@ class _NotebooksScreenState extends State<NotebooksScreen> {
                 }
               }
             },
+            style: AppTheme.getSuccessButtonStyle(),
             child: const Text('Create'),
           ),
         ],
