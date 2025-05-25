@@ -72,6 +72,7 @@ func (bm *BlockMetadata) Scan(value interface{}) error {
 }
 
 // Block represents a content block within a note
+// swagger:model Block 
 type Block struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
