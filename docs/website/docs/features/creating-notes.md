@@ -1,35 +1,37 @@
-# Creating Notes
+---
+sidebar_position: 2
+---
 
-Creating notes in the application is a straightforward process that allows you to capture your thoughts, ideas, and important information quickly. Follow the steps below to create your first note.
+# Notes
 
-## Step 1: Open the Notes Section
+Creating notes in Owlistic is a straightforward process.
 
-Navigate to the notes section of the application. You can do this by clicking on the "Notes" tab in the main navigation menu.
+<img src={require('/img/screenshots/notes/notes.png').default} width="50%" title="Notes Screen" />
 
-## Step 2: Create a New Note
+## Creating notes
 
-To create a new note, click on the **"New Note"** button, usually located at the top right corner of the notes section.
+To create a new notebook, press <img src={require('/img/screenshots/add_plus_button.png').default} width="2%" height="2%" title="Plus Button" />. You can then enter a title for your notebook and save it.
 
-## Step 3: Enter Your Note Content
+<img src={require('/img/screenshots/notes/add_note_dialog.png').default} width="25%" title="Create New Note" />
 
-In the note editor, you can start typing your content. The editor supports Markdown, allowing you to format your text easily. Here are some basic Markdown syntax you can use:
+## Importing notes from Markdown files
 
-- **Bold Text**: Use `**text**` or `__text__`
-- **Italic Text**: Use `*text*` or `_text_`
-- **Headings**: Use `# Heading 1`, `## Heading 2`, etc.
-- **Lists**: Use `-` for bullet points or `1.` for numbered lists.
+Owlistic also supports importing notes from existing Markdown (.md) files. To import a note, use the <img src={require('/img/screenshots/notes/import_markdown_button.png').default} width="3%" height="3%" title="Import Button" />.
 
-## Step 4: Save Your Note
+After pressing the "Import" button, you will be prompted to select the Markdown file you want to import. Once selected, the note will be created in Owlistic with its title and content.
 
-Once you have finished writing your note, click the **"Save"** button to store your note. You can also choose to save it as a draft if you want to come back to it later.
+<img src={require('/img/screenshots/notes/import_markdown_dialog.png').default} width="25%" title="Import Dialog" />
 
-## Step 5: Organize Your Notes
+## Editing notes
 
-After saving, you can organize your notes using tags or categories. This will help you find your notes easily in the future.
+<img src={require('/img/screenshots/notes/note_actions.png').default} width="50%" title="Notes Actions" />
 
-## Additional Features
+Once you created your note you can press on it to open the [note editor](./note-editor.md) and start typing your content. The editor supports Markdown, allowing you to format your text easily.
 
-- **Attachments**: You can attach files to your notes by clicking on the **"Attach"** button.
-- **Collaboration**: Share your notes with others by using the collaboration features available in the app.
+<img src={require('/img/screenshots/editor/editor.png').default} width="50%" title="Editor" />
 
-Now you are ready to create and manage your notes effectively! For more advanced features, check out the [Organizing Notes](./organizing-notes.md) guide.
+## Moving notes to notebooks
+
+Once you have created a note, you can move it to another notebook by tapping <img src={require('/img/screenshots/notes/move_note_button.png').default} width="8%" height="8%" title="Move Note Button" />
+
+<img src={require('/img/screenshots/notes/move_note_dialog.png').default} width="25%" title="Move Note" />
