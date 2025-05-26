@@ -83,12 +83,13 @@ export default {
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'docsSidebar',
           position: 'left',
           label: 'Documentation',
         },
         {
           to: '/docs/api/owlistic-api',
+          sidebarId: 'apiSidebar',
           label: 'API Reference',
           position: 'right',
         },
