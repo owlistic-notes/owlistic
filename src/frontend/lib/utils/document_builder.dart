@@ -28,6 +28,8 @@ class DocumentBuilder {
 
   // Plugins  
   late final ActionTagsPlugin _inlineCommandsPlugin;
+  late final PatternTagPlugin _dueDatesPlugin;
+  late final PatternTagPlugin _assigneesPlugin;
 
   // Add instance of AttributedTextUtils
   static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
@@ -104,6 +106,19 @@ class DocumentBuilder {
     _inlineCommandsPlugin.attach(_editor);
     _inlineCommandsPlugin.composingActionTag.addListener(_handleInlineCommand);
 
+    // Add pattern tags listener for due dates
+    _dueDatesPlugin = PatternTagPlugin(
+      tagRule: const TagRule(trigger: "!", excludedCharacters: {" "})
+    );
+    _dueDatesPlugin.attach(_editor);
+    _dueDatesPlugin.tagIndex.addListener(_handleDueDateCommand);
+
+    // Add action tags listener for inline commands
+    _assigneesPlugin = PatternTagPlugin(
+      tagRule: const TagRule(trigger: "@", excludedCharacters: {" ", "."})
+    );
+    _assigneesPlugin.attach(_editor);
+    _assigneesPlugin.tagIndex.addListener(_handleAssigneeCommand);
 
     // Create focus node
     _editorFocusNode = FocusNode();
@@ -116,6 +131,10 @@ class DocumentBuilder {
   void dispose() {
     _inlineCommandsPlugin.composingActionTag.removeListener(_handleInlineCommand);
     _inlineCommandsPlugin.detach(_editor);
+    _dueDatesPlugin.tagIndex.removeListener(_handleDueDateCommand);
+    _dueDatesPlugin.detach(_editor);
+    _assigneesPlugin.tagIndex.removeListener(_handleAssigneeCommand);
+    _assigneesPlugin.detach(_editor);
     _editorFocusNode.dispose();
     _composer.dispose();
     _editor.dispose();
@@ -188,6 +207,14 @@ class DocumentBuilder {
         }
       }
     }
+  }
+
+  void _handleDueDateCommand() {
+
+  }
+
+  void _handleAssigneeCommand() {
+    
   }
 
   // Add document structure change listener to detect new/deleted nodes
@@ -1364,7 +1391,11 @@ class DocumentBuilder {
               parsers: const [ StyleUpstreamMarkdownSyntaxParser() ]
             ),
             // Tasks
-            _actionTagPlugin,
+            _inlineCommandsPlugin,
+            // Due Dates
+            _dueDatesPlugin,
+            // Assignees
+            _assigneesPlugin,
           }),
       )
     ); 
