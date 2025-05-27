@@ -1,3 +1,5 @@
+import 'dart:js_interop';
+
 import 'package:flutter/material.dart';
 import 'package:owlistic/core/theme.dart';
 import 'package:owlistic/utils/data_converter.dart';
@@ -28,8 +30,8 @@ class DocumentBuilder {
 
   // Plugins  
   late final ActionTagsPlugin _inlineCommandsPlugin;
-  late final PatternTagPlugin _dueDatesPlugin;
-  late final PatternTagPlugin _assigneesPlugin;
+  late final ActionTagsPlugin _dueDatesPlugin;
+  late final ActionTagsPlugin _assigneesPlugin;
 
   // Add instance of AttributedTextUtils
   static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
@@ -107,18 +109,18 @@ class DocumentBuilder {
     _inlineCommandsPlugin.composingActionTag.addListener(_handleInlineCommand);
 
     // Add pattern tags listener for due dates
-    _dueDatesPlugin = PatternTagPlugin(
+    _dueDatesPlugin = ActionTagsPlugin(
       tagRule: const TagRule(trigger: "!", excludedCharacters: {" "})
     );
     _dueDatesPlugin.attach(_editor);
-    _dueDatesPlugin.tagIndex.addListener(_handleDueDateCommand);
+    _dueDatesPlugin.composingActionTag.addListener(_handleDueDateCommand);
 
     // Add action tags listener for inline commands
-    _assigneesPlugin = PatternTagPlugin(
-      tagRule: const TagRule(trigger: "@", excludedCharacters: {" ", "."})
+    _assigneesPlugin = ActionTagsPlugin(
+      tagRule: const TagRule(trigger: "@", excludedCharacters: {" "})
     );
     _assigneesPlugin.attach(_editor);
-    _assigneesPlugin.tagIndex.addListener(_handleAssigneeCommand);
+    _assigneesPlugin.composingActionTag.addListener(_handleAssigneeCommand);
 
     // Create focus node
     _editorFocusNode = FocusNode();
@@ -131,9 +133,9 @@ class DocumentBuilder {
   void dispose() {
     _inlineCommandsPlugin.composingActionTag.removeListener(_handleInlineCommand);
     _inlineCommandsPlugin.detach(_editor);
-    _dueDatesPlugin.tagIndex.removeListener(_handleDueDateCommand);
+    _dueDatesPlugin.composingActionTag.removeListener(_handleDueDateCommand);
     _dueDatesPlugin.detach(_editor);
-    _assigneesPlugin.tagIndex.removeListener(_handleAssigneeCommand);
+    _assigneesPlugin.composingActionTag.removeListener(_handleAssigneeCommand);
     _assigneesPlugin.detach(_editor);
     _editorFocusNode.dispose();
     _composer.dispose();
@@ -210,11 +212,11 @@ class DocumentBuilder {
   }
 
   void _handleDueDateCommand() {
-
+    _logger.info("Due Date: ${_dueDatesPlugin.composingActionTag}");
   }
 
   void _handleAssigneeCommand() {
-    
+    _logger.info("Assignee: ${_assigneesPlugin.composingActionTag}");    
   }
 
   // Add document structure change listener to detect new/deleted nodes
