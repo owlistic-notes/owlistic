@@ -27,7 +27,7 @@ class DocumentBuilder {
   final _selectionLayerLinks = SelectionLayerLinks();
 
   // Plugins  
-  late final ActionTagsPlugin _actionTagPlugin;
+  late final ActionTagsPlugin _inlineCommandsPlugin;
 
   // Add instance of AttributedTextUtils
   static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
@@ -99,10 +99,11 @@ class DocumentBuilder {
     _editor =
         createDefaultDocumentEditor(document: _document, composer: _composer);
 
-    // Add action tags listener
-    _actionTagPlugin = ActionTagsPlugin();
-    _actionTagPlugin.attach(_editor);
-    _actionTagPlugin.composingActionTag.addListener(_handleInlineCommand);
+    // Add action tags listener for inline commands
+    _inlineCommandsPlugin = ActionTagsPlugin();
+    _inlineCommandsPlugin.attach(_editor);
+    _inlineCommandsPlugin.composingActionTag.addListener(_handleInlineCommand);
+
 
     // Create focus node
     _editorFocusNode = FocusNode();
@@ -113,8 +114,8 @@ class DocumentBuilder {
   }
 
   void dispose() {
-    _actionTagPlugin.composingActionTag.removeListener(_handleInlineCommand);
-    _actionTagPlugin.detach(_editor);
+    _inlineCommandsPlugin.composingActionTag.removeListener(_handleInlineCommand);
+    _inlineCommandsPlugin.detach(_editor);
     _editorFocusNode.dispose();
     _composer.dispose();
     _editor.dispose();
