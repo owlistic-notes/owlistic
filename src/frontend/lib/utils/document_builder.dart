@@ -30,8 +30,7 @@ class DocumentBuilder {
 
   // Plugins  
   late final ActionTagsPlugin _inlineCommandsPlugin;
-  late final ActionTagsPlugin _inlineTaskDueDatePlugin;
-  late final ActionTagsPlugin _inlineTaskAssigneePlugin;
+  late final PatternTagPlugin _inlineMetadataPlugin;
 
   // Add instance of AttributedTextUtils
   static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
@@ -104,23 +103,18 @@ class DocumentBuilder {
         createDefaultDocumentEditor(document: _document, composer: _composer);
 
     // Add action tags listener for inline commands
-    _inlineCommandsPlugin = ActionTagsPlugin();
+    _inlineCommandsPlugin = ActionTagsPlugin(
+      tagRule: const TagRule(trigger: "/", excludedCharacters: {" "})
+    );
     _inlineCommandsPlugin.attach(_editor);
     _inlineCommandsPlugin.composingActionTag.addListener(_handleInlineCommand);
 
-    // Add pattern tags listener for due dates
-    _inlineTaskDueDatePlugin = ActionTagsPlugin(
+    // Add pattern tags listener for inline metadata (due-date, assignee, etc)
+    _inlineMetadataPlugin = PatternTagPlugin(
       tagRule: const TagRule(trigger: "!", excludedCharacters: {" "})
     );
-    _inlineTaskDueDatePlugin.attach(_editor);
-    _inlineTaskDueDatePlugin.composingActionTag.addListener(_handleDueDateCommand);
-
-    // Add action tags listener for inline commands
-    _inlineTaskAssigneePlugin = ActionTagsPlugin(
-      tagRule: const TagRule(trigger: "@", excludedCharacters: {" "})
-    );
-    _inlineTaskAssigneePlugin.attach(_editor);
-    _inlineTaskAssigneePlugin.composingActionTag.addListener(_handleAssigneeCommand);
+    _inlineMetadataPlugin.attach(_editor);
+    _inlineMetadataPlugin.tagIndex.addListener(_handleInlineMetadata);
 
     // Create focus node
     _editorFocusNode = FocusNode();
@@ -133,10 +127,8 @@ class DocumentBuilder {
   void dispose() {
     _inlineCommandsPlugin.composingActionTag.removeListener(_handleInlineCommand);
     _inlineCommandsPlugin.detach(_editor);
-    _inlineTaskDueDatePlugin.composingActionTag.removeListener(_handleDueDateCommand);
-    _inlineTaskDueDatePlugin.detach(_editor);
-    _inlineTaskAssigneePlugin.composingActionTag.removeListener(_handleAssigneeCommand);
-    _inlineTaskAssigneePlugin.detach(_editor);
+    _inlineMetadataPlugin.tagIndex.removeListener(_handleInlineMetadata);
+    _inlineMetadataPlugin.detach(_editor);
     _editorFocusNode.dispose();
     _composer.dispose();
     _editor.dispose();
@@ -211,12 +203,28 @@ class DocumentBuilder {
     }
   }
 
-  void _handleDueDateCommand() {
-    _logger.info("Due Date: ${_inlineTaskDueDatePlugin.composingActionTag}");
-  }
+  void _handleInlineMetadata() {
+    for (final node in _document) {
+      if (node is! TextNode) {
+        continue;
+      }
 
-  void _handleAssigneeCommand() {
-    _logger.info("Assignee: ${_inlineTaskAssigneePlugin.composingActionTag}");    
+      final tags = _inlineMetadataPlugin.tagIndex.getTagsInTextNode(node.id);
+
+      for (final tag in tags) {
+        final action = node.text.substring(tag.startOffset + 1, tag.endOffset);
+        final actionText = node.text.substring(tag.endOffset);
+        switch (action) {
+          case 'due':
+            _logger.info("Due Date: ${actionText}");
+            break;
+          case 'at':
+          case 'assign':
+            _logger.info("Assignee: ${actionText}");
+            break;
+        }
+      }
+    }
   }
 
   // Add document structure change listener to detect new/deleted nodes
@@ -1392,12 +1400,10 @@ class DocumentBuilder {
             MarkdownInlineUpstreamSyntaxPlugin(
               parsers: const [ StyleUpstreamMarkdownSyntaxParser() ]
             ),
-            // Tasks
+            // Inline Commands
             _inlineCommandsPlugin,
-            // Due Dates
-            _inlineTaskDueDatePlugin,
-            // Assignees
-            _inlineTaskAssigneePlugin,
+            // Inline Metadata
+            _inlineMetadataPlugin,
           }),
       )
     ); 
