@@ -521,6 +521,9 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
 
   // Track which block is being edited and schedule updates
   void _handleDocumentChange() {
+    // TODO: improve change listener using a similar approach
+    // to _findEditedTextNodes in markdown_inline_upstream_plugin.dart
+
     // Get the node that's currently being edited
     final selection = _documentBuilder.composer.selection;
     if (selection == null) return;

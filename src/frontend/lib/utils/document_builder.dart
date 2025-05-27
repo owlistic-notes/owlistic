@@ -22,8 +22,12 @@ class DocumentBuilder {
   late Editor _editor;
   late FocusNode _editorFocusNode;
 
+  // Toolbar components
   final _floatingToolbarOverlayController = OverlayPortalController();
   final _selectionLayerLinks = SelectionLayerLinks();
+
+  // Plugins  
+  late final ActionTagsPlugin _inlineCommandsPlugin;
 
   // Add instance of AttributedTextUtils
   static final AttributedTextUtils _attributedTextUtils = AttributedTextUtils();
@@ -95,6 +99,12 @@ class DocumentBuilder {
     _editor =
         createDefaultDocumentEditor(document: _document, composer: _composer);
 
+    // Add action tags listener for inline commands
+    _inlineCommandsPlugin = ActionTagsPlugin();
+    _inlineCommandsPlugin.attach(_editor);
+    _inlineCommandsPlugin.composingActionTag.addListener(_handleInlineCommand);
+
+
     // Create focus node
     _editorFocusNode = FocusNode();
 
@@ -104,9 +114,80 @@ class DocumentBuilder {
   }
 
   void dispose() {
+    _inlineCommandsPlugin.composingActionTag.removeListener(_handleInlineCommand);
+    _inlineCommandsPlugin.detach(_editor);
     _editorFocusNode.dispose();
     _composer.dispose();
     _editor.dispose();
+  }
+
+  void _handleInlineCommand() {
+    for (final node in _document) {
+      if (node is! TextNode) {
+        continue;
+      }
+
+      final actionSpans = node.text.getAttributionSpansInRange(
+        attributionFilter: (a) => a == actionTagComposingAttribution,
+        range: SpanRange(0, node.text.length - 1),
+      );
+
+      for (final actionSpan in actionSpans) {
+        final action = node.text.substring(actionSpan.start + 1, actionSpan.end + 1);
+        final actionText = node.text.substring(actionSpan.end + 1);
+        switch (action) {
+          case 'task':
+            final editedNodeId = _composer.selection!.extent.nodeId;
+            final newCaretPosition = DocumentPosition(
+              nodeId: editedNodeId,
+              nodePosition: TextNodePosition(offset: actionSpan.start),
+            );
+            _editor.execute([
+              ConvertParagraphToTaskRequest(
+                nodeId: _composer.selection!.extent.nodeId,
+                isComplete: false,
+              ),
+              // Delete the whole block content.
+              DeleteContentRequest(
+                documentRange: DocumentRange(
+                  start: DocumentPosition(
+                    nodeId: editedNodeId,
+                    nodePosition: TextNodePosition(offset: actionSpan.start),
+                  ),
+                  end: DocumentPosition(
+                    nodeId: editedNodeId,
+                    nodePosition: TextNodePosition(offset: actionSpan.end + 1),
+                  ),
+                ),
+              ),
+              // Insert the content without the /command
+              InsertAttributedTextRequest(
+                DocumentPosition(
+                  nodeId: editedNodeId,
+                  nodePosition: const TextNodePosition(offset: 0),
+                ),
+                AttributedText(actionText),
+              ),
+              // Adjust the caret position to reflect any Markdown syntax characters that
+              // were removed.
+              ChangeSelectionRequest(
+                DocumentSelection.collapsed(
+                  position: newCaretPosition,
+                ),
+                SelectionChangeType.alteredContent,
+                SelectionReason.contentChange,
+              ),
+              ChangeComposingRegionRequest(
+                DocumentRange(
+                  start: newCaretPosition,
+                  end: newCaretPosition,
+                ),
+              ),
+            ]);
+            break;
+        }
+      }
+    }
   }
 
   // Add document structure change listener to detect new/deleted nodes
@@ -1278,7 +1359,12 @@ class DocumentBuilder {
             ),
           ],
           plugins: {
-            MarkdownInlineUpstreamSyntaxPlugin(),
+            // Inline Markdown
+            MarkdownInlineUpstreamSyntaxPlugin(
+              parsers: const [ StyleUpstreamMarkdownSyntaxParser() ]
+            ),
+            // Tasks
+            _actionTagPlugin,
           }),
       )
     ); 
