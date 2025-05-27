@@ -1363,8 +1363,8 @@ class DocumentBuilder {
             MarkdownInlineUpstreamSyntaxPlugin(
               parsers: const [ StyleUpstreamMarkdownSyntaxParser() ]
             ),
-            // Tasks
-            _actionTagPlugin,
+            // Inline Commands
+            _inlineCommandsPlugin,
           }),
       )
     ); 
