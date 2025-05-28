@@ -212,11 +212,20 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Add AppBarCommon with ONLY theme switching functionality
       appBar: AppBarCommon(
-        title: '', // Empty title as we have our own title field
-        showBackButton: false, // No back button in app bar
+        title: '',
+        showBackButton: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.undo_outlined),
+            tooltip: 'Undo last edit',
+            onPressed: () => _noteEditorViewModel.undo(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.redo_outlined),
+            tooltip: 'Redo last edit',
+            onPressed: () => _noteEditorViewModel.redo(),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_outlined),
             tooltip: 'Refresh note content',

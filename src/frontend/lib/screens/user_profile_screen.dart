@@ -16,7 +16,6 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final Logger _logger = Logger('UserProfileScreen');
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final _formKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
   
@@ -176,12 +175,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final theme = Theme.of(context);
     
     return Scaffold(
-      key: _scaffoldKey,
       appBar: AppBarCommon(
         title: 'Profile',
         onBackPressed: () => context.go('/'),
         showBackButton: true,
-        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
         actions: const [ThemeSwitcher()],
       ),
       drawer: const SidebarDrawer(),

@@ -67,6 +67,9 @@ abstract class NoteEditorViewModel extends BaseViewModel {
   void setFocusToBlock(String blockId);
   String? consumeFocusRequest();
   
+  void redo() {}
+  void undo() {}
+
   // User modified blocks tracking
   Set<String> get userModifiedBlockIds;
   
