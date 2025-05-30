@@ -29,8 +29,6 @@ func TestNewEvent(t *testing.T) {
 			name:      "Invalid JSON data",
 			event:     "test.created",
 			entity:    "test",
-			operation: "create",
-			actorID:   "user-123",
 			data:      make(chan int), // Unmarshalable type
 			wantErr:   true,
 		},
@@ -48,8 +46,6 @@ func TestNewEvent(t *testing.T) {
 			assert.NotNil(t, event)
 			assert.Equal(t, tc.event, event.Event)
 			assert.Equal(t, tc.entity, event.Entity)
-			assert.Equal(t, tc.operation, event.Operation)
-			assert.Equal(t, tc.actorID, event.ActorID)
 			assert.Equal(t, "pending", event.Status)
 			assert.False(t, event.Dispatched)
 			assert.Nil(t, event.DispatchedAt)

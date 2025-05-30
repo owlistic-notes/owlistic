@@ -56,8 +56,6 @@ func TestEventHandlerService_ProcessPendingEvents(t *testing.T) {
 			{
 				Event:     "test.created",
 				Entity:    "test",
-				Operation: "create",
-				ActorID:   "user-123",
 			},
 		}))
 
