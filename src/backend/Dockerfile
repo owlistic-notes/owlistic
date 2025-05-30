@@ -30,7 +30,7 @@ RUN CGO_ENABLED=1 GO111MODULE=on CGO_LDFLAGS="-lsasl2" \
     -o /app/owlistic ./cmd/main.go
 
 # Use a minimal Alpine image for the final stage
-FROM --platform=linux/$TARGETARCH alpine:3.19
+FROM --platform=linux/$TARGETARCH alpine:3.22
 
 # Install runtime dependencies - adding more libraries that might be needed
 RUN apk add --no-cache \
