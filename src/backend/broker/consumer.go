@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"owlistic-notes/owlistic/config"
+	"owlistic-notes/owlistic/models"
 
 	// "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/nats-io/nats.go"
@@ -19,7 +20,7 @@ type Message nats.Msg
 // Consumer defines the interface for message consumption
 type Consumer interface {
 	// GetMessageChannel returns the channel that will receive messages
-	GetMessageChannel() <-chan Message
+	GetMessageChannel() chan Message
 	// Close stops the consumer and releases resources
 	Close()
 }
@@ -81,22 +82,24 @@ func NewNatsConsumer(natsServerAddress string, topics []string, groupID string) 
 
 	for _, subject := range topics {
 		sub, err := js.Subscribe(subject, func(msg *nats.Msg) {
-			var payload struct {
-				Event   string `json:"event"`
-				Data 	string `json:"data"`
+			var clientMsg models.StandardMessage
+			if err := json.Unmarshal(msg.Data, &clientMsg); err != nil {
+				log.Printf("Error unmarshalling client message: %v, raw: %s", err, string(msg.Data))
+				_ = msg.Term()
+				return
 			}
 
-			if err := json.Unmarshal(msg.Data, &payload); err != nil {
-				log.Printf("Failed to decode message on subject %s: %v", msg.Subject, err)
+			var payload []byte
+			if payload, err = json.Marshal(clientMsg.Payload); err != nil {
+				log.Printf("Error marshalling client message: %v, raw: %s", err, clientMsg.Payload)
 				_ = msg.Term()
 				return
 			}
 
 			select {
 			case consumer.msgChan <- Message{
-				Subject: msg.Subject,
-				Header: nats.Header(map[string][]string{"event": {payload.Event}}),
-				Data: []byte(payload.Data),
+				Subject: clientMsg.Event,
+				Data: payload,
 			}:
 				_ = msg.Ack()
 			case <-time.After(100 * time.Millisecond):
@@ -114,9 +117,9 @@ func NewNatsConsumer(natsServerAddress string, topics []string, groupID string) 
 	}
 
 			
-	consumerMutex.RLock()
+	consumerMutex.Lock()
 	consumers[consumerKey] = consumer
-	consumerMutex.RUnlock()
+	consumerMutex.Unlock()
 
 	return consumer, nil
 }
@@ -137,11 +140,11 @@ func InitConsumer(cfg config.Config, topics []string, groupID string) (Consumer,
 		return nil, err
 	}
 
-	return consumer.(*NatsConsumer).msgChan, nil
+	return consumer, nil
 }
 
 // GetMessageChannel implements the Consumer interface
-func (c *NatsConsumer) GetMessageChannel() <-chan Message {
+func (c *NatsConsumer) GetMessageChannel() chan Message {
 	return c.msgChan
 }
 

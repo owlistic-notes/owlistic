@@ -21,7 +21,6 @@ func NewMockConsumer() *MockConsumer {
 		messages: []*Message{
 			{
 				Subject: topic,
-				Header: nats.Header(map[string][]string{"key": []string{"mock_key"}}),
 				Data: []byte("mock_value"),
 			},
 		},
@@ -75,7 +74,6 @@ func TestStartConsumer(t *testing.T) {
 
 	// Verify the message content
 	if receivedMsg.Subject != "mock_topic" ||
-		receivedMsg.Header["key"][0] != "mock_key" ||
 		string(receivedMsg.Data) != "mock_value" {
 		t.Errorf("Unexpected message content: %+v", receivedMsg)
 	}

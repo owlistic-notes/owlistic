@@ -54,6 +54,7 @@ func (s *SyncHandlerService) Start(cfg config.Config) {
 	}
 	defer consumer.Close()
 
+	s.msgChan = consumer.GetMessageChannel()
 
 	s.isRunning = true
 	go s.processEvents()
@@ -79,9 +80,8 @@ func (s *SyncHandlerService) processEvents() {
 			return
 		case msg := <-s.msgChan:
 			// Process the event based on its key
-			eventType := msg.Header.Get("event")
-			if err := s.handleSyncEvent(eventType, msg.Data); err != nil {
-				log.Printf("Error handling sync event %s: %v", eventType, err)
+			if err := s.handleSyncEvent(msg.Subject, msg.Data); err != nil {
+				log.Printf("Error handling sync event %s: %v", msg.Subject, err)
 			}
 		}
 	}
@@ -103,7 +103,7 @@ func (s *SyncHandlerService) handleSyncEvent(eventType string, data []byte) erro
 	// Check if this is a sync event to prevent infinite loops
 	syncSource, isSync := message.Payload["_sync_source"].(string)
 	if isSync {
-		log.Printf("Skipping %s event from sync source: %s", eventType, syncSource)
+		log.Printf("Skipping %s event from sync source: %s", message.Type, syncSource)
 		return nil
 	}
 

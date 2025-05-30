@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -269,8 +268,7 @@ func TestWebSocketService_HandleMessage(t *testing.T) {
 
 	// Send the message through the mock consumer
 	mockConsumer.SendTestMessage(broker.Message{
-		Subject: "note_events",
-		Header:  nats.Header(map[string][]string{"event": {"note.updated"}}),
+		Subject: "note.updated",
 		Data: []byte(eventJson),
 	})
 
@@ -378,8 +376,7 @@ func TestForwardMessages(t *testing.T) {
 
 	// Send a test message through the mock consumer
 	mockConsumer.SendTestMessage(broker.Message{
-		Subject: "test_key",
-		Header:  nats.Header(map[string][]string{"event": {"test_key"}}),
+		Subject: "test.key",
 		Data:    []byte(eventJson),
 	})
 
