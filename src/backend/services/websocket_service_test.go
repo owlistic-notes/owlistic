@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"owlistic-notes/owlistic/broker"
 	"owlistic-notes/owlistic/database"
 	"owlistic-notes/owlistic/models"
 	"owlistic-notes/owlistic/testutils"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -77,10 +77,10 @@ func (m *MockWebSocketConnection) NextWriter(messageType int) (interface{}, erro
 // Mock Broker
 type MockBroker struct {
 	mock.Mock
-	messages chan broker.Message
+	messages chan *nats.Msg
 }
 
-func (m *MockBroker) SendMessage(msg broker.Message) {
+func (m *MockBroker) SendMessage(msg *nats.Msg) {
 	if m.messages != nil {
 		m.messages <- msg
 	}
@@ -89,18 +89,18 @@ func (m *MockBroker) SendMessage(msg broker.Message) {
 // MockConsumer implements the broker.Consumer interface for testing
 type MockConsumer struct {
 	mock.Mock
-	messageChan chan broker.Message
+	messageChan chan *nats.Msg
 	closed      bool
 }
 
 func NewMockConsumer() *MockConsumer {
 	return &MockConsumer{
-		messageChan: make(chan broker.Message, 10),
+		messageChan: make(chan *nats.Msg, 10),
 		closed:      false,
 	}
 }
 
-func (m *MockConsumer) GetMessageChannel() <-chan broker.Message {
+func (m *MockConsumer) GetMessageChannel() <-chan *nats.Msg {
 	return m.messageChan
 }
 
@@ -109,7 +109,7 @@ func (m *MockConsumer) Close() {
 	m.closed = true
 }
 
-func (m *MockConsumer) SendTestMessage(msg broker.Message) {
+func (m *MockConsumer) SendTestMessage(msg *nats.Msg) {
 	if !m.closed {
 		m.messageChan <- msg
 	}
@@ -126,7 +126,6 @@ func setupWebSocketTest(t *testing.T) (*WebSocketService, *MockConsumer) {
 	// Create the WebSocket service
 	service := NewWebSocketServiceWithTopics(db, []string{"test_topic"}).(*WebSocketService)
 	service.isRunning = true
-	service.messageChan = mockConsumer.messageChan
 
 	// Also store the mockConsumer for easy reference in tests
 	// Create a test connection to add to the websocket service
@@ -228,7 +227,7 @@ func TestWebSocketService_HandleMessage(t *testing.T) {
 	}
 
 	// Start a goroutine that consumes messages
-	go service.consumeMessages()
+	go service.consumeMessages(make(chan *nats.Msg))
 
 	// Create a channel to signal test completion
 	messageReceived := make(chan struct{})
@@ -267,7 +266,7 @@ func TestWebSocketService_HandleMessage(t *testing.T) {
 	eventJson, _ := json.Marshal(eventData)
 
 	// Send the message through the mock consumer
-	mockConsumer.SendTestMessage(broker.Message{
+	mockConsumer.SendTestMessage(&nats.Msg{
 		Subject: "note.updated",
 		Data: []byte(eventJson),
 	})
@@ -338,7 +337,7 @@ func TestForwardMessages(t *testing.T) {
 	}
 
 	// Start a goroutine that consumes messages
-	go service.consumeMessages()
+	go service.consumeMessages(make(chan *nats.Msg))
 
 	// Create a channel to signal test completion
 	messageReceived := make(chan struct{})
@@ -375,7 +374,7 @@ func TestForwardMessages(t *testing.T) {
 	eventJson, _ := json.Marshal(eventData)
 
 	// Send a test message through the mock consumer
-	mockConsumer.SendTestMessage(broker.Message{
+	mockConsumer.SendTestMessage(&nats.Msg{
 		Subject: "test.key",
 		Data:    []byte(eventJson),
 	})
