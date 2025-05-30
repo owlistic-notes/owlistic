@@ -28,7 +28,7 @@ type Consumer interface {
 type NatsConsumer struct {
 	nc      *nats.Conn
 	js      nats.JetStreamContext
-	sub     *nats.Subscription
+	subs    []*nats.Subscription
 	msgChan chan Message
 	mutex   sync.RWMutex
 	closed  bool
@@ -109,13 +109,14 @@ func NewNatsConsumer(natsServerAddress string, topics []string, groupID string) 
 			log.Printf("Failed to subscribe to subject '%s': %v", subject, err)
 			return nil, err
 		}
-		consumer.sub = sub
-			
-		consumerMutex.RLock()
-		consumers[consumerKey] = consumer
-		consumerMutex.RUnlock()
 
+		consumer.subs = append(consumer.subs, sub)
 	}
+
+			
+	consumerMutex.RLock()
+	consumers[consumerKey] = consumer
+	consumerMutex.RUnlock()
 
 	return consumer, nil
 }
