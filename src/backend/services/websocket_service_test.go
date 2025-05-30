@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"owlistic-notes/owlistic/broker"
 	"owlistic-notes/owlistic/database"
 	"owlistic-notes/owlistic/models"
 	"owlistic-notes/owlistic/testutils"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -77,30 +77,30 @@ func (m *MockWebSocketConnection) NextWriter(messageType int) (interface{}, erro
 // Mock Broker
 type MockBroker struct {
 	mock.Mock
-	kafkaMessages chan broker.KafkaMessage
+	messages chan *nats.Msg
 }
 
-func (m *MockBroker) SendKafkaMessage(msg broker.KafkaMessage) {
-	if m.kafkaMessages != nil {
-		m.kafkaMessages <- msg
+func (m *MockBroker) SendMessage(msg *nats.Msg) {
+	if m.messages != nil {
+		m.messages <- msg
 	}
 }
 
 // MockConsumer implements the broker.Consumer interface for testing
 type MockConsumer struct {
 	mock.Mock
-	messageChan chan broker.KafkaMessage
+	messageChan chan *nats.Msg
 	closed      bool
 }
 
 func NewMockConsumer() *MockConsumer {
 	return &MockConsumer{
-		messageChan: make(chan broker.KafkaMessage, 10),
+		messageChan: make(chan *nats.Msg, 10),
 		closed:      false,
 	}
 }
 
-func (m *MockConsumer) GetMessageChannel() <-chan broker.KafkaMessage {
+func (m *MockConsumer) GetMessageChannel() <-chan *nats.Msg {
 	return m.messageChan
 }
 
@@ -109,7 +109,7 @@ func (m *MockConsumer) Close() {
 	m.closed = true
 }
 
-func (m *MockConsumer) SendTestMessage(msg broker.KafkaMessage) {
+func (m *MockConsumer) SendTestMessage(msg *nats.Msg) {
 	if !m.closed {
 		m.messageChan <- msg
 	}
@@ -124,9 +124,8 @@ func setupWebSocketTest(t *testing.T) (*WebSocketService, *MockConsumer) {
 	mockConsumer.On("Close").Return()
 
 	// Create the WebSocket service
-	service := NewWebSocketService(db, []string{"test_topic"}).(*WebSocketService)
+	service := NewWebSocketServiceWithTopics(db, []string{"test_topic"}).(*WebSocketService)
 	service.isRunning = true
-	service.messageChan = mockConsumer.messageChan
 
 	// Also store the mockConsumer for easy reference in tests
 	// Create a test connection to add to the websocket service
@@ -139,7 +138,7 @@ func setupWebSocketTest(t *testing.T) (*WebSocketService, *MockConsumer) {
 		"test-conn-id": testConnection,
 	}
 
-	log.Printf("Test WebSocket service started with mock Kafka channel")
+	log.Printf("Test WebSocket service started with mock channel")
 
 	return service, mockConsumer
 }
@@ -212,8 +211,8 @@ func TestWebSocketService_BroadcastMessage(t *testing.T) {
 	safeStop(service)
 }
 
-// TestWebSocketService_HandleKafkaMessage tests Kafka message processing
-func TestWebSocketService_HandleKafkaMessage(t *testing.T) {
+// TestWebSocketService_HandleMessage tests message processing
+func TestWebSocketService_HandleMessage(t *testing.T) {
 	service, mockConsumer := setupWebSocketTest(t)
 
 	// Get the test connection we created in setup
@@ -228,7 +227,7 @@ func TestWebSocketService_HandleKafkaMessage(t *testing.T) {
 	}
 
 	// Start a goroutine that consumes messages
-	go service.consumeMessages()
+	go service.consumeMessages(make(chan *nats.Msg))
 
 	// Create a channel to signal test completion
 	messageReceived := make(chan struct{})
@@ -249,12 +248,12 @@ func TestWebSocketService_HandleKafkaMessage(t *testing.T) {
 
 			close(messageReceived)
 		case <-time.After(500 * time.Millisecond):
-			t.Error("Timeout waiting for kafka message")
+			t.Error("Timeout waiting for message")
 			close(messageReceived)
 		}
 	}()
 
-	// Create a test Kafka message
+	// Create a test message
 	eventData := models.StandardMessage{
 		Type:         models.EventMessage,
 		Event:        "note.updated",
@@ -267,10 +266,9 @@ func TestWebSocketService_HandleKafkaMessage(t *testing.T) {
 	eventJson, _ := json.Marshal(eventData)
 
 	// Send the message through the mock consumer
-	mockConsumer.SendTestMessage(broker.KafkaMessage{
-		Topic: "note_events",
-		Key:   "note.updated",
-		Value: string(eventJson),
+	mockConsumer.SendTestMessage(&nats.Msg{
+		Subject: "note.updated",
+		Data: []byte(eventJson),
 	})
 
 	// Wait for message to be processed
@@ -278,7 +276,7 @@ func TestWebSocketService_HandleKafkaMessage(t *testing.T) {
 	case <-messageReceived:
 		// Test passed
 	case <-time.After(1000 * time.Millisecond):
-		t.Fatal("Timeout waiting for Kafka message to be received by client")
+		t.Fatal("Timeout waiting for message to be received by client")
 	}
 
 	safeStop(service)
@@ -323,8 +321,8 @@ func TestWebSocketHandler(t *testing.T) {
 	safeStop(service)
 }
 
-// TestForwardKafkaMessages tests the Kafka message consumption mechanism
-func TestForwardKafkaMessages(t *testing.T) {
+// TestForwardMessages tests the  message consumption mechanism
+func TestForwardMessages(t *testing.T) {
 	service, mockConsumer := setupWebSocketTest(t)
 
 	// Get the test connection we created in setup
@@ -339,7 +337,7 @@ func TestForwardKafkaMessages(t *testing.T) {
 	}
 
 	// Start a goroutine that consumes messages
-	go service.consumeMessages()
+	go service.consumeMessages(make(chan *nats.Msg))
 
 	// Create a channel to signal test completion
 	messageReceived := make(chan struct{})
@@ -360,7 +358,7 @@ func TestForwardKafkaMessages(t *testing.T) {
 
 			close(messageReceived)
 		case <-time.After(500 * time.Millisecond):
-			t.Error("Timeout waiting for kafka message")
+			t.Error("Timeout waiting for message")
 			close(messageReceived)
 		}
 	}()
@@ -375,11 +373,10 @@ func TestForwardKafkaMessages(t *testing.T) {
 	}
 	eventJson, _ := json.Marshal(eventData)
 
-	// Send a test Kafka message through the mock consumer
-	mockConsumer.SendTestMessage(broker.KafkaMessage{
-		Topic: "test_topic",
-		Key:   "test_key",
-		Value: string(eventJson),
+	// Send a test message through the mock consumer
+	mockConsumer.SendTestMessage(&nats.Msg{
+		Subject: "test.key",
+		Data:    []byte(eventJson),
 	})
 
 	// Wait for message to be processed
@@ -387,7 +384,7 @@ func TestForwardKafkaMessages(t *testing.T) {
 	case <-messageReceived:
 		// Test passed
 	case <-time.After(1000 * time.Millisecond):
-		t.Fatal("Timeout waiting for Kafka message to be received by client")
+		t.Fatal("Timeout waiting for message to be received by client")
 	}
 
 	safeStop(service)

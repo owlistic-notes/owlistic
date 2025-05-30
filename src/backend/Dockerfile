@@ -6,9 +6,8 @@ ARG TARGETARCH
 
 # Install librdkafka for Kafka client dependencies with Alpine packages
 RUN apk add --no-cache \
-    gcc \
-    musl-dev \
-    cyrus-sasl-dev
+    build-base \
+    gcc
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -22,22 +21,14 @@ RUN go mod download
 # Copy the rest of the source code
 COPY . .
 
-# Build the application with proper linking flags for librdkafka
-# Adding -tags musl and removing -m64 flag via CGO_CFLAGS
-RUN CGO_ENABLED=1 GO111MODULE=on CGO_LDFLAGS="-lsasl2" \
+# Build the application
+RUN CGO_ENABLED=1 GO111MODULE=on \
     GOOS=linux GOARCH=${TARGETARCH} \
-    go build -v -tags musl -ldflags "-w -s" \
+    go build -v \
     -o /app/owlistic ./cmd/main.go
 
 # Use a minimal Alpine image for the final stage
 FROM --platform=linux/$TARGETARCH alpine:3.19
-
-# Install runtime dependencies - adding more libraries that might be needed
-RUN apk add --no-cache \
-    librdkafka \
-    librdkafka-dev \
-    ca-certificates \
-    libc6-compat
 
 # Set the working directory inside the container
 WORKDIR /app

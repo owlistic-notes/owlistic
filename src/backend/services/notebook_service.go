@@ -92,8 +92,6 @@ func (s *NotebookService) CreateNotebook(db *database.Database, notebookData map
 	event, err := models.NewEvent(
 		string(broker.NotebookCreated),
 		"notebook",
-		"create",
-		userIDStr,
 		map[string]interface{}{
 			"notebook_id": notebook.ID.String(),
 			"name":        notebook.Name,
@@ -193,8 +191,6 @@ func (s *NotebookService) UpdateNotebook(db *database.Database, id string, noteb
 	event, err := models.NewEvent(
 		string(broker.NotebookUpdated),
 		"notebook",
-		"update",
-		userIDStr,
 		map[string]interface{}{
 			"notebook_id": notebook.ID.String(),
 			"name":        notebook.Name,
@@ -280,8 +276,6 @@ func (s *NotebookService) DeleteNotebook(db *database.Database, id string, param
 	event, err := models.NewEvent(
 		string(broker.NotebookDeleted),
 		"notebook",
-		"delete",
-		userIDStr,
 		map[string]interface{}{
 			"notebook_id": notebook.ID.String(),
 		},

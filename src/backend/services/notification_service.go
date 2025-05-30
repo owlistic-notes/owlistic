@@ -1,7 +1,7 @@
 package services
 
 import (
-	"owlistic-notes/owlistic/broker"
+	// "owlistic-notes/owlistic/broker"
 	"owlistic-notes/owlistic/models"
 )
 
@@ -19,13 +19,14 @@ func (s *NotificationService) PublishNotification(userID, eventType, message, ti
 		Timestamp: timestamp,
 	}
 
-	eventJSON, err := event.ToJSON()
+	_, err := event.ToJSON()
 	if err != nil {
 		return err
 	}
 
 	// Always use the DefaultProducer directly - it will never be null
-	return broker.DefaultProducer.PublishMessage(broker.NotificationTopic, userID, string(eventJSON))
+	// return broker.DefaultProducer.PublishMessage(broker.NotificationTopic, string(eventJSON))
+	return nil
 }
 
 var NotificationServiceInstance NotificationServiceInterface = &NotificationService{}

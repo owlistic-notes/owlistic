@@ -124,8 +124,6 @@ func (s *UserService) CreateUser(db *database.Database, userData map[string]inte
 	event, err := models.NewEvent(
 		string(broker.UserCreated),
 		"user",
-		"create",
-		user.ID.String(),
 		map[string]interface{}{
 			"user_id":    user.ID.String(),
 			"email":      user.Email,
@@ -260,8 +258,6 @@ func (s *UserService) UpdateUser(db *database.Database, id string, updatedData m
 	event, err := models.NewEvent(
 		"user.updated",
 		"user",
-		"update",
-		user.ID.String(),
 		map[string]interface{}{
 			"user_id":    user.ID.String(),
 			"email":      user.Email,
@@ -312,8 +308,6 @@ func (s *UserService) DeleteUser(db *database.Database, id string) error {
 	event, err := models.NewEvent(
 		"user.deleted",
 		"user",
-		"delete",
-		user.ID.String(),
 		map[string]interface{}{
 			"user_id":    user.ID.String(),
 			"deleted_at": user.DeletedAt,
@@ -463,8 +457,6 @@ func (s *UserService) UpdateUserProfile(db *database.Database, id string, profil
 	event, err := models.NewEvent(
 		"user.profile_updated",
 		"user",
-		"update_profile",
-		user.ID.String(),
 		map[string]interface{}{
 			"user_id":    user.ID.String(),
 			"username":   user.Username,

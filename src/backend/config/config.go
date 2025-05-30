@@ -7,22 +7,16 @@ import (
 )
 
 type Config struct {
-	AppEnv             string
 	AppPort            string
-	KafkaBroker        string
-	KafkaTopic         string
+	AppOrigins         string
+	EventBroker        string
 	DBHost             string
 	DBPort             string
 	DBUser             string
 	DBPassword         string
 	DBName             string
-	DBMaxIdleConns     int
-	DBMaxOpenConns     int
-	RedisHost          string
-	RedisPort          string
 	JWTSecret          string
 	JWTExpirationHours int
-	AppOrigins         string
 }
 
 func getEnv(key, defaultValue string) string {
@@ -46,20 +40,32 @@ func getEnvAsInt(key string, defaultValue int) int {
 func Load() Config {
 	log.Println("Loading configuration...")
 
-	return Config{
-		AppEnv:             getEnv("APP_ENV", "development"),
+	cfg := Config{
 		AppPort:            getEnv("APP_PORT", "8080"),
 		AppOrigins:         getEnv("APP_ORIGINS", "*"),
-		KafkaBroker:        getEnv("KAFKA_BROKER", "localhost:9092"),
-		KafkaTopic:         getEnv("KAFKA_TOPIC", "default-topic"),
+		EventBroker:        getEnv("BROKER_ADDRESS", "localhost:4222"),
 		DBHost:             getEnv("DB_HOST", "localhost"),
 		DBPort:             getEnv("DB_PORT", "5432"),
 		DBUser:             getEnv("DB_USER", "owlistic"),
 		DBPassword:         getEnv("DB_PASSWORD", "owlistic"),
 		DBName:             getEnv("DB_NAME", "owlistic"),
-		DBMaxIdleConns:     getEnvAsInt("DB_MAX_IDLE_CONNS", 10),
-		DBMaxOpenConns:     getEnvAsInt("DB_MAX_OPEN_CONNS", 100),
 		JWTSecret:          getEnv("JWT_SECRET", "your-super-secret-key-change-this-in-production"),
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
 	}
+	Print(cfg)
+
+	return cfg
+}
+
+func Print(cfg Config) {
+	log.Printf("App Port: %s\n", cfg.AppPort)
+	log.Printf("App Origins: %s\n", cfg.AppOrigins)
+	log.Printf("Event Broker Address %s\n", cfg.EventBroker)
+	log.Printf("DB Host: %s\n", cfg.DBHost)
+	log.Printf("DB Port: %s\n", cfg.DBPort)
+	log.Printf("DB Name: %s\n", cfg.DBName)
+	log.Printf("DB User: %s\n", cfg.DBUser)
+	log.Printf("DB Password: %s\n", cfg.DBPassword)
+	log.Printf("JWT Secret: %s\n", cfg.JWTSecret)
+	log.Printf("JWT Expiration Hours: %d\n", cfg.JWTExpirationHours)
 }

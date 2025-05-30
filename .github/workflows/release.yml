@@ -50,11 +50,11 @@ jobs:
         platform: [arm64, amd64]
         include:
           - platform: arm64
+            suffix: "-arm64"
+            is_default: false
+          - platform: amd64
             suffix: ""
             is_default: true
-          - platform: amd64
-            suffix: "-amd64"
-            is_default: false
     steps:
       # Checkout code to get the commit SHA
       - name: Checkout Code
@@ -97,7 +97,7 @@ jobs:
           echo "Pushing version tag"
           docker push ${VERSION_TAG}
           
-          # Tag as latest only for the default platform (ARM64)
+          # Tag as latest only for the default platform
           if [[ "${{ matrix.is_default }}" == "true" ]]; then
             LATEST_TAG="ghcr.io/${{ github.repository }}:latest"
             echo "Tagging as latest: ${LATEST_TAG}"
@@ -116,11 +116,11 @@ jobs:
         platform: [arm64, amd64]
         include:
           - platform: arm64
+            suffix: "-arm64"
+            is_default: false
+          - platform: amd64
             suffix: ""
             is_default: true
-          - platform: amd64
-            suffix: "-amd64"
-            is_default: false
     steps:
       # Checkout code to get the commit SHA
       - name: Checkout Code

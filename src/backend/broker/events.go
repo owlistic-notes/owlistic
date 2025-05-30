@@ -1,5 +1,21 @@
 package broker
 
+const (
+	UserSubject     string = "user"
+	NotebookSubject string = "notebook"
+	NoteSubject     string = "note"
+	BlockSubject    string = "block"
+	TaskSubject     string = "task"
+)
+
+var SubjectNames = []string{
+	UserSubject,
+	NotebookSubject,
+	NoteSubject,
+	BlockSubject,
+	TaskSubject,
+}
+
 type EventType string
 
 const (
@@ -21,10 +37,6 @@ const (
 	TaskCreated EventType = "task.created"
 	TaskUpdated EventType = "task.updated"
 	TaskDeleted EventType = "task.deleted"
-
-	// Sync events
-	BlockSyncFromTask EventType = "block.sync_from_task"
-	TaskSyncFromBlock EventType = "task.sync_from_block"
 
 	// User events
 	UserCreated EventType = "user.created"

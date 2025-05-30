@@ -22,8 +22,13 @@ func NewMockProducer() *MockProducer {
 	return &MockProducer{available: true}
 }
 
-func (m *MockProducer) PublishMessage(topic string, key string, value string) error {
-	args := m.Called(topic, key, value)
+func (m *MockProducer) PublishMessage(topic string, value string) error {
+	args := m.Called(topic, value)
+	return args.Error(0)
+}
+
+func (m *MockProducer) CreateTopics(streamName string, topics []string) error {
+	args := m.Called(topics)
 	return args.Error(0)
 }
 
@@ -51,8 +56,6 @@ func TestEventHandlerService_ProcessPendingEvents(t *testing.T) {
 			{
 				Event:     "test.created",
 				Entity:    "test",
-				Operation: "create",
-				ActorID:   "user-123",
 			},
 		}))
 

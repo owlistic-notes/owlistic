@@ -53,9 +53,9 @@ jobs:
         platform: [arm64, amd64]
         include:
           - platform: arm64
-            suffix: ""
+            suffix: "-arm64"
           - platform: amd64
-            suffix: "-amd64"
+            suffix: ""
     steps:
       # Checkout code
       - name: Checkout Code
@@ -173,9 +173,9 @@ jobs:
         platform: [arm64, amd64]
         include:
           - platform: arm64
-            suffix: ""
+            suffix: "-arm64"
           - platform: amd64
-            suffix: "-amd64"
+            suffix: ""
     steps:
       # Checkout code
       - name: Checkout Code

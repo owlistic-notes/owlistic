@@ -60,7 +60,7 @@ func (s *TrashService) RestoreItem(db *database.Database, itemType, itemID, user
 		return errors.New("invalid user ID")
 	}
 
-	var eventType, entityType, operationType string
+	var eventType, entityType string
 
 	// Handle different item types
 	switch itemType {
@@ -90,7 +90,6 @@ func (s *TrashService) RestoreItem(db *database.Database, itemType, itemID, user
 
 		eventType = "note.restored"
 		entityType = "note"
-		operationType = "restore"
 
 	case "notebook":
 		// Restore the notebook and its notes
@@ -131,7 +130,6 @@ func (s *TrashService) RestoreItem(db *database.Database, itemType, itemID, user
 
 		eventType = "notebook.restored"
 		entityType = "notebook"
-		operationType = "restore"
 
 	default:
 		tx.Rollback()
@@ -142,8 +140,6 @@ func (s *TrashService) RestoreItem(db *database.Database, itemType, itemID, user
 	event, err := models.NewEvent(
 		eventType,
 		entityType,
-		operationType,
-		userID,
 		map[string]interface{}{
 			fmt.Sprintf("%s_id", entityType): itemID,
 		},
@@ -193,7 +189,7 @@ func (s *TrashService) PermanentlyDeleteItem(db *database.Database, itemType, it
 		return errors.New("not authorized to delete this item permanently")
 	}
 
-	var eventType, entityType, operationType string
+	var eventType, entityType string
 
 	// Handle different item types
 	switch itemType {
@@ -214,7 +210,6 @@ func (s *TrashService) PermanentlyDeleteItem(db *database.Database, itemType, it
 
 		eventType = "note.permanent_deleted"
 		entityType = "note"
-		operationType = "permanent_delete"
 
 	case "notebook":
 		// First handle tasks related to blocks in notes of this notebook
@@ -271,7 +266,6 @@ func (s *TrashService) PermanentlyDeleteItem(db *database.Database, itemType, it
 
 		eventType = "notebook.permanent_deleted"
 		entityType = "notebook"
-		operationType = "permanent_delete"
 
 	default:
 		tx.Rollback()
@@ -282,8 +276,6 @@ func (s *TrashService) PermanentlyDeleteItem(db *database.Database, itemType, it
 	event, err := models.NewEvent(
 		eventType,
 		entityType,
-		operationType,
-		userID,
 		map[string]interface{}{
 			fmt.Sprintf("%s_id", entityType): itemID,
 		},
@@ -344,8 +336,6 @@ func (s *TrashService) EmptyTrash(db *database.Database, userID string) error {
 	event, err := models.NewEvent(
 		string(broker.TrashEmptied),
 		"trash",
-		"empty",
-		userID,
 		map[string]interface{}{
 			"user_id": userID,
 		},

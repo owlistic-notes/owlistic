@@ -7,18 +7,17 @@ import (
 	"time"
 
 	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/config"
 	"owlistic-notes/owlistic/database"
 	"owlistic-notes/owlistic/models"
 
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
 )
 
 // SyncHandlerService handles bidirectional synchronization between blocks and tasks
 type SyncHandlerService struct {
 	db           *database.Database
-	msgChan      chan broker.KafkaMessage
-	stopChan     chan struct{}
-	isRunning    bool
 	taskService  TaskServiceInterface
 	blockService BlockServiceInterface
 }
@@ -27,60 +26,47 @@ type SyncHandlerService struct {
 func NewSyncHandlerService(db *database.Database) *SyncHandlerService {
 	return &SyncHandlerService{
 		db:           db,
-		stopChan:     make(chan struct{}),
-		isRunning:    false,
 		taskService:  TaskServiceInstance,
 		blockService: BlockServiceInstance,
 	}
 }
 
 // Start begins the sync handler processing
-func (s *SyncHandlerService) Start() {
-	if s.isRunning {
-		return
-	}
-
+func (s *SyncHandlerService) Start(cfg config.Config) {
 	// Subscribe to block and task events
 	topics := []string{
-		broker.BlockEventsTopic,
-		broker.TaskEventsTopic,
+		broker.BlockSubject,
+		broker.TaskSubject,
 	}
 
-	var err error
-	s.msgChan, err = broker.InitConsumer(topics, "sync-handler-group")
+	consumer, err := broker.InitConsumer(cfg, topics, "sync-handler-group")
 	if err != nil {
 		log.Printf("Warning: Failed to initialize sync handler consumer: %v", err)
 		return
 	}
 
-	s.isRunning = true
-	go s.processEvents()
+	messageChan := consumer.GetMessageChannel()
+
+	go s.processEvents(messageChan)
 	log.Println("Block-Task Sync Handler started successfully")
 }
 
 // Stop halts the sync handler processing
 func (s *SyncHandlerService) Stop() {
-	if !s.isRunning {
-		return
-	}
-
-	s.isRunning = false
-	s.stopChan <- struct{}{}
 	log.Println("Block-Task Sync Handler stopped")
 }
 
-// processEvents handles incoming Kafka events
-func (s *SyncHandlerService) processEvents() {
+// processEvents handles incoming events
+func (s *SyncHandlerService) processEvents(messageChan chan *nats.Msg) {
 	for {
 		select {
-		case <-s.stopChan:
-			return
-		case msg := <-s.msgChan:
-			// Process the event based on its key
-			eventType := msg.Key
-			if err := s.handleSyncEvent(eventType, []byte(msg.Value)); err != nil {
-				log.Printf("Error handling sync event %s: %v", eventType, err)
+		case msg := <-messageChan:
+			// Parse the message
+			if err := s.handleSyncEvent(msg.Subject, msg.Data); err != nil {
+				log.Printf("Error handling sync event %s: %v", msg.Subject, err)
 			}
+			// Broadcast the event to all connected clients
+		case <-time.After(1 * time.Second):
 		}
 	}
 }
@@ -101,7 +87,7 @@ func (s *SyncHandlerService) handleSyncEvent(eventType string, data []byte) erro
 	// Check if this is a sync event to prevent infinite loops
 	syncSource, isSync := message.Payload["_sync_source"].(string)
 	if isSync {
-		log.Printf("Skipping %s event from sync source: %s", eventType, syncSource)
+		log.Printf("Skipping %s event from sync source: %s", message.Type, syncSource)
 		return nil
 	}
 
@@ -273,10 +259,10 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 			if err == nil {
 				// Compare actual timestamps instead of using arbitrary time window
 				if block.UpdatedAt.Compare(lastSync) <= 0 {
-                    log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update", 
-                        blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
-                    return nil
-                }
+					log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+						blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+					return nil
+				}
 			}
 		}
 	}
@@ -575,10 +561,10 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 			if err == nil {
 				// Compare actual timestamps instead of using arbitrary time window
 				if block.UpdatedAt.Compare(lastSync) <= 0 {
-                    log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update", 
-                        blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
-                    return nil
-                }
+					log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+						blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+					return nil
+				}
 			}
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/config"
 	"owlistic-notes/owlistic/database"
 	"owlistic-notes/owlistic/models"
 	"owlistic-notes/owlistic/utils/token"
@@ -15,10 +16,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
 )
 
 type WebSocketServiceInterface interface {
-	Start()
+	Start(cfg config.Config)
 	Stop()
 	HandleConnection(c *gin.Context)
 	BroadcastEvent(event *models.StandardMessage)
@@ -30,9 +32,8 @@ type WebSocketService struct {
 	connections map[string]*websocketConnection
 	connMutex   sync.RWMutex
 	isRunning   bool
-	messageChan chan broker.KafkaMessage
-	jwtSecret   []byte // Replace authService with just the JWT secret
-	kafkaTopics []string
+	jwtSecret   []byte
+	eventTopics []string
 }
 
 type websocketConnection struct {
@@ -50,12 +51,23 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func NewWebSocketService(db *database.Database, kafkaTopics []string) WebSocketServiceInterface {
+func NewWebSocketService(db *database.Database) WebSocketServiceInterface {
+	// Initialize WebSocket service with the database
 	return &WebSocketService{
 		db:          db,
 		connections: make(map[string]*websocketConnection),
 		isRunning:   false,
-		kafkaTopics: kafkaTopics,
+		eventTopics: broker.SubjectNames,
+	}
+}
+
+func NewWebSocketServiceWithTopics(db *database.Database, topics []string) WebSocketServiceInterface {
+	// Initialize WebSocket service with the database
+	return &WebSocketService{
+		db:          db,
+		connections: make(map[string]*websocketConnection),
+		isRunning:   false,
+		eventTopics: topics,
 	}
 }
 
@@ -64,23 +76,23 @@ func (s *WebSocketService) SetJWTSecret(secret []byte) {
 	s.jwtSecret = secret
 }
 
-func (s *WebSocketService) Start() {
+func (s *WebSocketService) Start(cfg config.Config) {
 	if s.isRunning {
 		return
 	}
 	s.isRunning = true
 
-	// Initialize Kafka consumer for all relevant topics
-	var err error
-	messageChan, err := broker.InitConsumer(s.kafkaTopics, "websocket-service")
+	// Initialize consumer for all relevant topics
+	consumer, err := broker.InitConsumer(cfg, s.eventTopics, "websocket-service")
 	if err != nil {
-		log.Printf("Failed to initialize Kafka consumer: %v", err)
+		log.Printf("Failed to initialize consumer: %v", err)
 		return
 	}
-	s.messageChan = messageChan
 
-	// Start listening for Kafka messages
-	go s.consumeMessages()
+	messageChan := consumer.GetMessageChannel()
+
+	// Start listening for messages
+	go s.consumeMessages(messageChan)
 }
 
 func (s *WebSocketService) Stop() {
@@ -150,30 +162,23 @@ func (s *WebSocketService) HandleConnection(c *gin.Context) {
 	// Handle the connection (read/write routines)
 	go s.readPump(connID, wsConn)
 	go s.writePump(connID, wsConn)
-
-	// Send a welcome message
-	welcome := models.NewStandardMessage(models.EventMessage, "connected", map[string]interface{}{
-		"message": "Connected to Owlistic WebSocket server",
-		"user_id": userID.String(),
-		"time":    time.Now(),
-	})
-
-	msgBytes, _ := json.Marshal(welcome)
-	wsConn.send <- msgBytes
 }
 
-// consumeMessages processes messages from Kafka and dispatches them to clients
-func (s *WebSocketService) consumeMessages() {
-	for message := range s.messageChan {
-		// Parse the Kafka message
-		var event models.StandardMessage
-		if err := json.Unmarshal([]byte(message.Value), &event); err != nil {
-			log.Printf("Error unmarshalling event: %v", err)
-			continue
+// consumeMessages processes messages and dispatches them to clients
+func (s *WebSocketService) consumeMessages(messageChan chan *nats.Msg) {
+	for {
+		select {
+		case msg := <-messageChan:
+			// Parse the message
+			var event models.StandardMessage
+			if err := json.Unmarshal(msg.Data, &event); err != nil {
+				log.Printf("Error unmarshalling event: %v", err)
+				continue
+			}
+			// Broadcast the event to all connected clients
+			s.BroadcastEvent(&event)
+		case <-time.After(1 * time.Second):
 		}
-
-		// Broadcast the event to all connected clients
-		s.BroadcastEvent(&event)
 	}
 }
 
@@ -291,13 +296,14 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 			// Extract subscription details
 			if clientMsg.Payload != nil {
 				// Check for event_type subscription
-				if et, ok := clientMsg.Payload["event_type"].(string); ok {
-					log.Printf("User %s subscribed to event: %s", wsConn.userID, et)
+				if clientMsg.Event != "" {
+					log.Printf("User %s subscribed to event: %s", wsConn.userID, clientMsg.Event)
 
+					payload := map[string]interface{}{
+						"event_type": clientMsg.Event,
+					}
 					// Send confirmation
-					confirm := models.NewStandardMessage("subscription", "confirmed", map[string]interface{}{
-						"event_type": et,
-					})
+					confirm := models.NewStandardMessage("subscription", "confirmed", payload)
 					confirmBytes, _ := json.Marshal(confirm)
 					wsConn.send <- confirmBytes
 				}

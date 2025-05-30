@@ -132,8 +132,6 @@ func (s *NoteService) CreateNote(db *database.Database, noteData map[string]inte
 	event, err := models.NewEvent(
 		string(broker.NoteCreated),
 		"note",
-		"create",
-		userIDStr,
 		map[string]interface{}{
 			"note_id":     note.ID.String(),
 			"notebook_id": note.NotebookID.String(),
@@ -264,8 +262,6 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[
 	event, err := models.NewEvent(
 		string(broker.NoteUpdated),
 		"note",
-		"update",
-		userIDStr,
 		map[string]interface{}{
 			"note_id":     note.ID.String(),
 			"notebook_id": note.NotebookID.String(),
@@ -347,8 +343,6 @@ func (s *NoteService) DeleteNote(db *database.Database, id string, params map[st
 	event, err := models.NewEvent(
 		string(broker.NoteDeleted),
 		"note",
-		"delete",
-		userIDStr,
 		map[string]interface{}{
 			"note_id":     note.ID.String(),
 			"notebook_id": note.NotebookID.String(),

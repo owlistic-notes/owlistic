@@ -5,27 +5,44 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"owlistic-notes/owlistic/config"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/nats-io/nats.go"
 )
 
 // Producer defines the interface for message production
 type Producer interface {
-	// PublishMessage publishes a message to the specified topic
-	PublishMessage(topic string, key string, value string) error
-	// Close closes the producer and frees resources
+	PublishMessage(topic string, value string) error
+	CreateTopics(string, []string) error
 	Close()
-	// IsAvailable returns whether the producer is available for sending messages
 	IsAvailable() bool
 }
 
-// KafkaProducer is the concrete implementation of the Producer interface
-type KafkaProducer struct {
-	producer  *kafka.Producer
+// NatsProducer is the concrete implementation of the Producer interface
+type NatsProducer struct {
+	nc        *nats.Conn
+	js        nats.JetStreamContext
 	mutex     sync.RWMutex
 	available bool
+}
+
+func (p *NatsProducer) CreateTopics(streamName string, topics []string) error {
+	_, err := p.js.StreamInfo(streamName)
+	if err != nil {
+		_, err = p.js.AddStream(&nats.StreamConfig{
+			Name:      streamName,
+			Subjects:  topics,
+			Storage:   nats.FileStorage,
+			Retention: nats.LimitsPolicy,
+		})
+		if err != nil {
+			log.Printf("Failed to create stream: %v", err)
+			return err
+		}
+	}
+	return nil
 }
 
 var (
@@ -34,149 +51,116 @@ var (
 	producerMutex   sync.RWMutex
 )
 
-// NewKafkaProducer creates a new KafkaProducer instance
-func NewKafkaProducer(brokerAddress string) (Producer, error) {
+// NewNATSProducer creates a new NATSProducer instance
+func NewNATSProducer(natsServerAddress string) (Producer, error) {
 	// Use localhost as fallback if not specified
-	if brokerAddress == "" {
-		brokerAddress = "localhost:9092"
+	if natsServerAddress == "" {
+		natsServerAddress = nats.DefaultURL
 	}
 
-	log.Printf("Connecting to Kafka broker at: %s", brokerAddress)
+	log.Printf("Connecting to NATS server at: %s", natsServerAddress)
 
-	// Create the Kafka producer with client ID for better traceability
-	producer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":  brokerAddress,
-		"socket.timeout.ms":  10000,
-		"client.id":          "owlistic-producer-main",
-		"message.timeout.ms": 30000,
-		"retries":            5,
-		"retry.backoff.ms":   1000,
-		"security.protocol":  "plaintext",
-	})
+	// Create the NATS natsServer
+	nc, err := nats.Connect(
+		natsServerAddress,
+		nats.Name("owlistic-consumer"), // Set client ID for better traceability
+		nats.MaxReconnects(5),
+	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Kafka producer: %v", err)
+		return nil, fmt.Errorf(
+			"failed to establish connection to NATS server %s: %v", natsServerAddress, err)
 	}
 
-	kp := &KafkaProducer{
-		producer:  producer,
+	js, err := nc.JetStream()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get JetStream context: %v", err)
+	}
+
+	// Create the NATS producer instance
+	producer := &NatsProducer{
+		js:        js,
+		nc:        nc,
 		available: true,
 	}
 
-	// Start event handler
-	go kp.handleProducerEvents()
-
-	log.Println("Kafka producer initialized successfully")
-	return kp, nil
+	log.Println("event producer initialized successfully")
+	return producer, nil
 }
 
 // InitProducer initializes the default global producer instance
-func InitProducer() error {
-	cfg := config.Load()
-	broker := cfg.KafkaBroker
+func InitProducer(cfg config.Config) error {
+	broker := cfg.EventBroker
 
 	// Allow override from environment
-	if envBroker := os.Getenv("KAFKA_BROKER"); envBroker != "" {
+	if envBroker := os.Getenv("BROKER_ADDRESS"); envBroker != "" {
 		broker = envBroker
 	}
 
 	var err error
 	producerMutex.Lock()
-	DefaultProducer, err = NewKafkaProducer(broker)
+	DefaultProducer, err = NewNATSProducer(broker)
 	producerMutex.Unlock()
+
+	DefaultProducer.CreateTopics("owlistic", SubjectNames)
 
 	return err
 }
 
-// Handle asynchronous producer events
-func (kp *KafkaProducer) handleProducerEvents() {
-	kp.mutex.RLock()
-	p := kp.producer
-	kp.mutex.RUnlock()
-
-	if p == nil {
-		return
-	}
-
-	for e := range p.Events() {
-		switch ev := e.(type) {
-		case *kafka.Message:
-			if ev.TopicPartition.Error != nil {
-				log.Printf("Failed to deliver message: %v", ev.TopicPartition.Error)
-			}
-		case kafka.Error:
-			log.Printf("Kafka producer error: %v", ev)
-			// If the broker is down, mark producer as unavailable
-			if ev.Code() == kafka.ErrAllBrokersDown {
-				kp.mutex.Lock()
-				kp.available = false
-				kp.mutex.Unlock()
-				log.Printf("All Kafka brokers are down")
-			}
-		}
-	}
-}
-
-// PublishMessage implements the Producer interface for KafkaProducer
-func (kp *KafkaProducer) PublishMessage(topic string, key string, value string) error {
-	kp.mutex.RLock()
-	isAvailable := kp.available && kp.producer != nil
-	p := kp.producer
-	kp.mutex.RUnlock()
+// PublishMessage implements the Producer interface for NATSProducer
+func (p *NatsProducer) PublishMessage(topic string, value string) error {
+	p.mutex.Lock()
+	isAvailable := p.available && p.nc != nil
+	p.mutex.Unlock()
 
 	if !isAvailable {
-		return fmt.Errorf("kafka producer is not available, message not sent")
+		return fmt.Errorf("event producer is not available, message not sent")
 	}
 
-	message := &kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Key:            []byte(key),
-		Value:          []byte(value),
+	msg := &nats.Msg{
+		Subject: topic,
+		Data:    []byte(value),
 	}
 
-	// Use delivery channel for this message
-	deliveryChan := make(chan kafka.Event)
-
-	err := p.Produce(message, deliveryChan)
+	ack, err := p.js.PublishMsgAsync(msg)
 	if err != nil {
-		close(deliveryChan)
-		return fmt.Errorf("failed to queue message: %v", err)
+		return fmt.Errorf("failed to queue message: %w", err)
 	}
 
 	// Wait for delivery report
-	e := <-deliveryChan
-	close(deliveryChan)
-
-	m := e.(*kafka.Message)
-	if m.TopicPartition.Error != nil {
-		return fmt.Errorf("message delivery failed: %v", m.TopicPartition.Error)
+	select {
+	case <-p.js.PublishAsyncComplete():
+		log.Printf("Message delivered to topic %s %s", ack.Msg().Subject, string(ack.Msg().Data))
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("message delivery failed with error %v", ack.Err())
 	}
-
-	log.Printf("Message delivered to topic %s [%d] at offset %v",
-		*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 
 	return nil
 }
 
 // Close implements the Producer interface
-func (kp *KafkaProducer) Close() {
-	kp.mutex.Lock()
-	defer kp.mutex.Unlock()
+func (p *NatsProducer) Close() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	if kp.producer != nil {
-		// Wait for messages to be delivered
-		kp.producer.Flush(5000)
-		kp.producer.Close()
-		kp.producer = nil
-		kp.available = false
+	if p.js != nil {
+		p.js.PublishAsyncComplete()
+		p.js = nil
+	}
+
+	if p.nc != nil {
+		p.nc.Flush()
+		p.nc.Close()
+		p.nc = nil
+		p.available = false
 	}
 }
 
 // IsAvailable implements the Producer interface
-func (kp *KafkaProducer) IsAvailable() bool {
-	kp.mutex.RLock()
-	defer kp.mutex.RUnlock()
-	return kp.available
+func (p *NatsProducer) IsAvailable() bool {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	return p.available
 }
 
 // CloseProducer closes the default producer instance

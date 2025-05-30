@@ -27,10 +27,10 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize Kafka producer - fail if not available
-	err = broker.InitProducer()
+	// Initialize producer
+	err = broker.InitProducer(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize Kafka producer: %v", err)
+		log.Fatalf("Failed to initialize producer: %v", err)
 	}
 	defer broker.CloseProducer()
 
@@ -54,16 +54,7 @@ func main() {
 	eventHandlerService := services.NewEventHandlerService(db)
 	services.EventHandlerServiceInstance = eventHandlerService
 
-	// Initialize WebSocket service with the database
-	kafkaTopics := []string{
-		broker.UserEventsTopic,
-		broker.NotebookEventsTopic,
-		broker.NoteEventsTopic,
-		broker.BlockEventsTopic,
-		broker.TaskEventsTopic,
-		broker.NotificationTopic,
-	}
-	webSocketService := services.NewWebSocketService(db, kafkaTopics)
+	webSocketService := services.NewWebSocketService(db)
 	webSocketService.SetJWTSecret([]byte(cfg.JWTSecret))
 	services.WebSocketServiceInstance = webSocketService
 
@@ -76,12 +67,12 @@ func main() {
 	defer eventHandlerService.Stop()
 
 	log.Println("Starting WebSocket service...")
-	webSocketService.Start()
+	webSocketService.Start(cfg)
 	defer webSocketService.Stop()
 
 	// Start block-task sync handler
 	log.Println("Starting Block-Task Sync Handler...")
-	syncHandler.Start()
+	syncHandler.Start(cfg)
 	defer syncHandler.Stop()
 
 	router := gin.Default()
@@ -122,8 +113,6 @@ func main() {
 	go func() {
 		<-quit
 		log.Println("Shutting down server...")
-		// Explicitly close Kafka consumers before exiting
-		broker.CloseAllConsumers()
 		os.Exit(0)
 	}()
 
