@@ -5,17 +5,13 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"owlistic-notes/owlistic/config"
 
 	// "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/nats-io/nats.go"
 )
-
-type NatsDeliveryChan struct {
-	Ack *nats.PubAck
-	Err error
-}
 
 // Producer defines the interface for message production
 type Producer interface {
@@ -33,27 +29,13 @@ type NatsProducer struct {
 	available bool
 }
 
-func (p *NatsProducer) PublishAsync(subject string, data []byte) (nats.PubAckFuture, error) {
-	msg := &nats.Msg{
-		Subject: subject,
-		Data:    data,
-	}
-
-	future, err := p.js.PublishMsgAsync(msg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to queue message: %w", err)
-	}
-
-	return future, nil
-}
-
 func (p *NatsProducer) CreateTopics(streamName string, topics []string) error {
 	_, err := p.js.StreamInfo(streamName)
 	if err != nil {
 		_, err = p.js.AddStream(&nats.StreamConfig{
-			Name:     streamName,
-			Subjects: topics,
-			Storage:  nats.FileStorage,
+			Name:      streamName,
+			Subjects:  topics,
+			Storage:   nats.FileStorage,
 			Retention: nats.LimitsPolicy,
 		})
 		if err != nil {
@@ -63,7 +45,6 @@ func (p *NatsProducer) CreateTopics(streamName string, topics []string) error {
 	}
 	return nil
 }
-
 
 var (
 	// DefaultProducer is the global producer instance
@@ -112,7 +93,6 @@ func NewNATSProducer(natsServerAddress string) (Producer, error) {
 func InitProducer(cfg config.Config) error {
 	broker := cfg.EventBroker
 
-
 	// Allow override from environment
 	if envBroker := os.Getenv("BROKER_ADDRESS"); envBroker != "" {
 		broker = envBroker
@@ -123,36 +103,39 @@ func InitProducer(cfg config.Config) error {
 	DefaultProducer, err = NewNATSProducer(broker)
 	producerMutex.Unlock()
 
-	DefaultProducer.CreateTopics("owlistic", StreamNames)
+	DefaultProducer.CreateTopics("owlistic", SubjectNames)
 
 	return err
 }
 
 // PublishMessage implements the Producer interface for NATSProducer
-func (producer *NatsProducer) PublishMessage(topic string, value string) error {
-	producer.mutex.RLock()
-	isAvailable := producer.available && producer.nc != nil
-	producer.mutex.RUnlock()
+func (p *NatsProducer) PublishMessage(topic string, value string) error {
+	p.mutex.Lock()
+	isAvailable := p.available && p.nc != nil
+	p.mutex.Unlock()
 
 	if !isAvailable {
 		return fmt.Errorf("event producer is not available, message not sent")
 	}
 
-	// Use delivery channel for this message
-	deliveryChan := make(chan NatsDeliveryChan)
-
-	producer.PublishAsync(topic, []byte(value))
-
-	// Wait for delivery report
-	msg := <-deliveryChan
-	close(deliveryChan)
-
-	if msg.Err == nil {
-		return fmt.Errorf("message delivery failed: %v", msg.Err)
+	msg := &nats.Msg{
+		Subject: topic,
+		Data:    []byte(value),
 	}
 
-	log.Printf("Message delivered to topic %s [%d] at offset %v",
-		msg.Ack.Domain, msg.Ack.Sequence, msg.Ack.Stream)
+	ack, err := p.js.PublishMsgAsync(msg)
+	if err != nil {
+		return fmt.Errorf("failed to queue message: %w", err)
+	}
+
+	// Wait for delivery report
+	select {
+	case <-p.js.PublishAsyncComplete():
+		log.Printf("Message delivered to topic %s %v",
+			ack.Msg().Subject, ack.Msg())
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("message delivery failed with error %v", ack.Err())
+	}
 
 	return nil
 }
