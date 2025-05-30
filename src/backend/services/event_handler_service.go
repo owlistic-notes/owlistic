@@ -17,29 +17,29 @@ type EventHandlerServiceInterface interface {
 }
 
 type EventHandlerService struct {
-	db            *database.Database
-	isRunning     bool
-	ticker        *time.Ticker
-	kafkaProducer broker.Producer
+	db        *database.Database
+	isRunning bool
+	ticker    *time.Ticker
+	producer  broker.Producer
 }
 
 // NewEventHandlerService creates a new service with the default producer
 func NewEventHandlerService(db *database.Database) EventHandlerServiceInterface {
 	return &EventHandlerService{
-		db:            db,
-		isRunning:     false,
-		ticker:        time.NewTicker(1 * time.Second),
-		kafkaProducer: broker.DefaultProducer,
+		db:        db,
+		isRunning: false,
+		ticker:    time.NewTicker(1 * time.Second),
+		producer:  broker.DefaultProducer,
 	}
 }
 
 // NewEventHandlerServiceWithProducer creates a service with a custom producer (for testing)
 func NewEventHandlerServiceWithProducer(db *database.Database, producer broker.Producer) EventHandlerServiceInterface {
 	return &EventHandlerService{
-		db:            db,
-		isRunning:     false,
-		ticker:        time.NewTicker(1 * time.Second),
-		kafkaProducer: producer,
+		db:        db,
+		isRunning: false,
+		ticker:    time.NewTicker(1 * time.Second),
+		producer:  producer,
 	}
 }
 
@@ -148,8 +148,7 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 		return err
 	}
 
-	// Always use the kafka producer - it will never be null
-	publishErr := s.kafkaProducer.PublishMessage(topic, event.Event, string(jsonData))
+	publishErr := s.producer.PublishMessage(topic, string(jsonData))
 	if publishErr != nil {
 		return publishErr
 	}
@@ -166,19 +165,17 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 func getTopicForEvent(entity string) string {
 	switch entity {
 	case "user":
-		return broker.UserEventsTopic
+		return broker.UserStream
 	case "notebook":
-		return broker.NotebookEventsTopic
+		return broker.NotebookStream
 	case "note":
-		return broker.NoteEventsTopic
+		return broker.NoteStream
 	case "block":
-		return broker.BlockEventsTopic
+		return broker.BlockStream
 	case "task":
-		return broker.TaskEventsTopic
-	case "notification":
-		return broker.NotificationTopic
+		return broker.TaskStream
 	default:
-		return broker.NotebookEventsTopic
+		return broker.NotebookStream
 	}
 }
 

@@ -9,8 +9,7 @@ import (
 type Config struct {
 	AppEnv             string
 	AppPort            string
-	KafkaBroker        string
-	KafkaTopic         string
+	EventBroker        string
 	DBHost             string
 	DBPort             string
 	DBUser             string
@@ -46,12 +45,11 @@ func getEnvAsInt(key string, defaultValue int) int {
 func Load() Config {
 	log.Println("Loading configuration...")
 
-	return Config{
+	cfg := Config{
 		AppEnv:             getEnv("APP_ENV", "development"),
 		AppPort:            getEnv("APP_PORT", "8080"),
 		AppOrigins:         getEnv("APP_ORIGINS", "*"),
-		KafkaBroker:        getEnv("KAFKA_BROKER", "localhost:9092"),
-		KafkaTopic:         getEnv("KAFKA_TOPIC", "default-topic"),
+		EventBroker:        getEnv("BROKER_ADDRESS", "localhost:4222"),
 		DBHost:             getEnv("DB_HOST", "localhost"),
 		DBPort:             getEnv("DB_PORT", "5432"),
 		DBUser:             getEnv("DB_USER", "owlistic"),
@@ -62,4 +60,23 @@ func Load() Config {
 		JWTSecret:          getEnv("JWT_SECRET", "your-super-secret-key-change-this-in-production"),
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
 	}
+	Print(cfg)
+
+	return cfg
+}
+
+func Print(cfg Config) {
+	log.Printf("App Env: %s\n", cfg.AppEnv)
+	log.Printf("App Port: %s\n", cfg.AppPort)
+	log.Printf("App Origins: %s\n", cfg.AppOrigins)
+	log.Printf("Event Broker Address %s\n", cfg.EventBroker)
+	log.Printf("DB Host: %s\n", cfg.DBHost)
+	log.Printf("DB Port: %s\n", cfg.DBPort)
+	log.Printf("DB Name: %s\n", cfg.DBName)
+	log.Printf("DB User: %s\n", cfg.DBUser)
+	log.Printf("DB Password: %s\n", cfg.DBPassword)
+	log.Printf("DB Max Idle Conns: %d\n", cfg.DBMaxIdleConns)
+	log.Printf("DB Max Open Conns: %d\n", cfg.DBMaxOpenConns)
+	log.Printf("JWT Secret: %s\n", cfg.JWTSecret)
+	log.Printf("JWT Expiration Hours: %d\n", cfg.JWTExpirationHours)
 }

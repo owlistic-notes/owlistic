@@ -16,7 +16,7 @@ import (
 // SyncHandlerService handles bidirectional synchronization between blocks and tasks
 type SyncHandlerService struct {
 	db           *database.Database
-	msgChan      chan broker.KafkaMessage
+	msgChan      chan broker.Message
 	stopChan     chan struct{}
 	isRunning    bool
 	taskService  TaskServiceInterface
@@ -42,8 +42,8 @@ func (s *SyncHandlerService) Start() {
 
 	// Subscribe to block and task events
 	topics := []string{
-		broker.BlockEventsTopic,
-		broker.TaskEventsTopic,
+		broker.BlockStream,
+		broker.TaskStream,
 	}
 
 	var err error
@@ -69,7 +69,7 @@ func (s *SyncHandlerService) Stop() {
 	log.Println("Block-Task Sync Handler stopped")
 }
 
-// processEvents handles incoming Kafka events
+// processEvents handles incoming events
 func (s *SyncHandlerService) processEvents() {
 	for {
 		select {
@@ -77,8 +77,8 @@ func (s *SyncHandlerService) processEvents() {
 			return
 		case msg := <-s.msgChan:
 			// Process the event based on its key
-			eventType := msg.Key
-			if err := s.handleSyncEvent(eventType, []byte(msg.Value)); err != nil {
+			eventType := msg.Header.Get("event")
+			if err := s.handleSyncEvent(eventType, msg.Data); err != nil {
 				log.Printf("Error handling sync event %s: %v", eventType, err)
 			}
 		}
@@ -273,10 +273,10 @@ func (s *SyncHandlerService) handleBlockUpdated(payload map[string]interface{}) 
 			if err == nil {
 				// Compare actual timestamps instead of using arbitrary time window
 				if block.UpdatedAt.Compare(lastSync) <= 0 {
-                    log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update", 
-                        blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
-                    return nil
-                }
+					log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+						blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+					return nil
+				}
 			}
 		}
 	}
@@ -575,10 +575,10 @@ func (s *SyncHandlerService) handleTaskUpdated(payload map[string]interface{}) e
 			if err == nil {
 				// Compare actual timestamps instead of using arbitrary time window
 				if block.UpdatedAt.Compare(lastSync) <= 0 {
-                    log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update", 
-                        blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
-                    return nil
-                }
+					log.Printf("Block %s was already synced (UpdatedAt=%v, lastSync=%v), skipping update",
+						blockIDStr, block.UpdatedAt.Format(time.RFC3339), lastSync.Format(time.RFC3339))
+					return nil
+				}
 			}
 		}
 	}

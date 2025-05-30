@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	// "github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/nats-io/nats.go"
 )
 
 // MockConsumer implements Consumer interface for testing
 type MockConsumer struct {
-	messages []*kafka.Message
+	messages []*Message
 	closed   bool
 }
 
@@ -17,24 +18,24 @@ type MockConsumer struct {
 func NewMockConsumer() *MockConsumer {
 	topic := "mock_topic"
 	return &MockConsumer{
-		messages: []*kafka.Message{
+		messages: []*Message{
 			{
-				TopicPartition: kafka.TopicPartition{Topic: &topic},
-				Key:            []byte("mock_key"),
-				Value:          []byte("mock_value"),
+				Subject: topic,
+				Header: nats.Header(map[string][]string{"key": []string{"mock_key"}}),
+				Data: []byte("mock_value"),
 			},
 		},
 	}
 }
 
-func (m *MockConsumer) ReadMessage(timeoutMs int) (*kafka.Message, error) {
+func (m *MockConsumer) ReadMessage(timeoutMs int) (*Message, error) {
 	if m.closed {
 		// Use a standard error code instead of ErrConsumerClosed which doesn't exist
-		return nil, kafka.NewError(kafka.ErrFail, "Consumer closed", false)
+		return nil, nats.ErrConnectionClosed
 	}
 
 	if len(m.messages) == 0 {
-		return nil, kafka.NewError(kafka.ErrTimedOut, "No messages", false)
+		return nil, nats.ErrConsumerNotActive
 	}
 	msg := m.messages[0]
 	m.messages = m.messages[1:]
@@ -50,7 +51,7 @@ func TestStartConsumer(t *testing.T) {
 	mockConsumer := NewMockConsumer()
 
 	// Create channel to receive messages
-	messageChan := make(chan KafkaMessage, 1)
+	messageChan := make(chan Message, 1)
 
 	// Simulate reading a message and sending it to the channel
 	go func() {
@@ -60,15 +61,11 @@ func TestStartConsumer(t *testing.T) {
 			return
 		}
 
-		messageChan <- KafkaMessage{
-			Topic: *msg.TopicPartition.Topic,
-			Key:   string(msg.Key),
-			Value: string(msg.Value),
-		}
+		messageChan <- *msg
 	}()
 
 	// Receive the message from the channel
-	var receivedMsg KafkaMessage
+	var receivedMsg Message
 	select {
 	case receivedMsg = <-messageChan:
 		// Message received successfully
@@ -77,9 +74,9 @@ func TestStartConsumer(t *testing.T) {
 	}
 
 	// Verify the message content
-	if receivedMsg.Topic != "mock_topic" ||
-		receivedMsg.Key != "mock_key" ||
-		receivedMsg.Value != "mock_value" {
+	if receivedMsg.Subject != "mock_topic" ||
+		receivedMsg.Header["key"][0] != "mock_key" ||
+		string(receivedMsg.Data) != "mock_value" {
 		t.Errorf("Unexpected message content: %+v", receivedMsg)
 	}
 }

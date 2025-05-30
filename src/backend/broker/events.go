@@ -1,5 +1,21 @@
 package broker
 
+const (
+	UserStream     string = "user_events"
+	NotebookStream string = "notebook_events"
+	NoteStream     string = "note_events"
+	BlockStream    string = "block_events"
+	TaskStream     string = "task_events"
+)
+
+var StreamNames = []string{
+	UserStream,
+	NotebookStream,
+	NoteStream,
+	BlockStream,
+	TaskStream,
+}
+
 type EventType string
 
 const (
@@ -21,10 +37,6 @@ const (
 	TaskCreated EventType = "task.created"
 	TaskUpdated EventType = "task.updated"
 	TaskDeleted EventType = "task.deleted"
-
-	// Sync events
-	BlockSyncFromTask EventType = "block.sync_from_task"
-	TaskSyncFromBlock EventType = "task.sync_from_block"
 
 	// User events
 	UserCreated EventType = "user.created"

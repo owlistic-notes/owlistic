@@ -30,9 +30,9 @@ type WebSocketService struct {
 	connections map[string]*websocketConnection
 	connMutex   sync.RWMutex
 	isRunning   bool
-	messageChan chan broker.KafkaMessage
+	messageChan chan broker.Message
 	jwtSecret   []byte // Replace authService with just the JWT secret
-	kafkaTopics []string
+	eventTopics []string
 }
 
 type websocketConnection struct {
@@ -50,12 +50,23 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func NewWebSocketService(db *database.Database, kafkaTopics []string) WebSocketServiceInterface {
+func NewWebSocketService(db *database.Database) WebSocketServiceInterface {
+	// Initialize WebSocket service with the database
 	return &WebSocketService{
 		db:          db,
 		connections: make(map[string]*websocketConnection),
 		isRunning:   false,
-		kafkaTopics: kafkaTopics,
+		eventTopics: broker.StreamNames,
+	}
+}
+
+func NewWebSocketServiceWithTopics(db *database.Database, topics []string) WebSocketServiceInterface {
+	// Initialize WebSocket service with the database
+	return &WebSocketService{
+		db:          db,
+		connections: make(map[string]*websocketConnection),
+		isRunning:   false,
+		eventTopics: topics,
 	}
 }
 
@@ -70,16 +81,16 @@ func (s *WebSocketService) Start() {
 	}
 	s.isRunning = true
 
-	// Initialize Kafka consumer for all relevant topics
+	// Initialize consumer for all relevant topics
 	var err error
-	messageChan, err := broker.InitConsumer(s.kafkaTopics, "websocket-service")
+	messageChan, err := broker.InitConsumer(s.eventTopics, "websocket-service")
 	if err != nil {
-		log.Printf("Failed to initialize Kafka consumer: %v", err)
+		log.Printf("Failed to initialize consumer: %v", err)
 		return
 	}
 	s.messageChan = messageChan
 
-	// Start listening for Kafka messages
+	// Start listening for messages
 	go s.consumeMessages()
 }
 
@@ -162,12 +173,12 @@ func (s *WebSocketService) HandleConnection(c *gin.Context) {
 	wsConn.send <- msgBytes
 }
 
-// consumeMessages processes messages from Kafka and dispatches them to clients
+// consumeMessages processes messages and dispatches them to clients
 func (s *WebSocketService) consumeMessages() {
 	for message := range s.messageChan {
-		// Parse the Kafka message
+		// Parse the message
 		var event models.StandardMessage
-		if err := json.Unmarshal([]byte(message.Value), &event); err != nil {
+		if err := json.Unmarshal(message.Data, &event); err != nil {
 			log.Printf("Error unmarshalling event: %v", err)
 			continue
 		}

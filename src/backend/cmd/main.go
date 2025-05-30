@@ -27,10 +27,10 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize Kafka producer - fail if not available
+	// Initialize producer
 	err = broker.InitProducer()
 	if err != nil {
-		log.Fatalf("Failed to initialize Kafka producer: %v", err)
+		log.Fatalf("Failed to initialize producer: %v", err)
 	}
 	defer broker.CloseProducer()
 
@@ -54,16 +54,7 @@ func main() {
 	eventHandlerService := services.NewEventHandlerService(db)
 	services.EventHandlerServiceInstance = eventHandlerService
 
-	// Initialize WebSocket service with the database
-	kafkaTopics := []string{
-		broker.UserEventsTopic,
-		broker.NotebookEventsTopic,
-		broker.NoteEventsTopic,
-		broker.BlockEventsTopic,
-		broker.TaskEventsTopic,
-		broker.NotificationTopic,
-	}
-	webSocketService := services.NewWebSocketService(db, kafkaTopics)
+	webSocketService := services.NewWebSocketService(db)
 	webSocketService.SetJWTSecret([]byte(cfg.JWTSecret))
 	services.WebSocketServiceInstance = webSocketService
 
@@ -122,7 +113,7 @@ func main() {
 	go func() {
 		<-quit
 		log.Println("Shutting down server...")
-		// Explicitly close Kafka consumers before exiting
+		// Explicitly close consumers before exiting
 		broker.CloseAllConsumers()
 		os.Exit(0)
 	}()
