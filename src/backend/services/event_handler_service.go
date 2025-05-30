@@ -165,17 +165,17 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 func getTopicForEvent(entity string) string {
 	switch entity {
 	case "user":
-		return broker.UserStream
+		return broker.UserSubject
 	case "notebook":
-		return broker.NotebookStream
+		return broker.NotebookSubject
 	case "note":
-		return broker.NoteStream
+		return broker.NoteSubject
 	case "block":
-		return broker.BlockStream
+		return broker.BlockSubject
 	case "task":
-		return broker.TaskStream
+		return broker.TaskSubject
 	default:
-		return broker.NotebookStream
+		return broker.NotebookSubject
 	}
 }
 

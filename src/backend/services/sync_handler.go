@@ -43,8 +43,8 @@ func (s *SyncHandlerService) Start(cfg config.Config) {
 
 	// Subscribe to block and task events
 	topics := []string{
-		broker.BlockStream,
-		broker.TaskStream,
+		broker.BlockSubject,
+		broker.TaskSubject,
 	}
 
 	consumer, err := broker.InitConsumer(cfg, topics, "sync-handler-group")

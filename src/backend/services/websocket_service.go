@@ -57,7 +57,7 @@ func NewWebSocketService(db *database.Database) WebSocketServiceInterface {
 		db:          db,
 		connections: make(map[string]*websocketConnection),
 		isRunning:   false,
-		eventTopics: broker.StreamNames,
+		eventTopics: broker.SubjectNames,
 	}
 }
 
@@ -90,6 +90,7 @@ func (s *WebSocketService) Start(cfg config.Config) {
 	}
 	defer consumer.Close()
 
+	s.messageChan = consumer.GetMessageChannel()
 
 	// Start listening for messages
 	go s.consumeMessages()
@@ -303,13 +304,14 @@ func (s *WebSocketService) readPump(connID string, wsConn *websocketConnection) 
 			// Extract subscription details
 			if clientMsg.Payload != nil {
 				// Check for event_type subscription
-				if et, ok := clientMsg.Payload["event_type"].(string); ok {
-					log.Printf("User %s subscribed to event: %s", wsConn.userID, et)
+				if clientMsg.Event != "" {
+					log.Printf("User %s subscribed to event: %s", wsConn.userID, clientMsg.Event)
 
+					payload := map[string]interface{}{
+						"event_type": clientMsg.Event,
+					}
 					// Send confirmation
-					confirm := models.NewStandardMessage("subscription", "confirmed", map[string]interface{}{
-						"event_type": et,
-					})
+					confirm := models.NewStandardMessage("subscription", "confirmed", payload)
 					confirmBytes, _ := json.Marshal(confirm)
 					wsConn.send <- confirmBytes
 				}

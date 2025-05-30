@@ -1,19 +1,19 @@
 package broker
 
 const (
-	UserStream     string = "user_events"
-	NotebookStream string = "notebook_events"
-	NoteStream     string = "note_events"
-	BlockStream    string = "block_events"
-	TaskStream     string = "task_events"
+	UserSubject     string = "user"
+	NotebookSubject string = "notebook"
+	NoteSubject     string = "note"
+	BlockSubject    string = "block"
+	TaskSubject     string = "task"
 )
 
-var StreamNames = []string{
-	UserStream,
-	NotebookStream,
-	NoteStream,
-	BlockStream,
-	TaskStream,
+var SubjectNames = []string{
+	UserSubject,
+	NotebookSubject,
+	NoteSubject,
+	BlockSubject,
+	TaskSubject,
 }
 
 type EventType string
