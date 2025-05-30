@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	AppPort            string
+	AppOrigins         string
 	EventBroker        string
 	DBHost             string
 	DBPort             string
@@ -16,7 +17,6 @@ type Config struct {
 	DBName             string
 	JWTSecret          string
 	JWTExpirationHours int
-	AppOrigins         string
 }
 
 func getEnv(key, defaultValue string) string {

@@ -123,9 +123,8 @@ func NewNatsConsumer(natsServerAddress string, topics []string, groupID string) 
 
 // InitConsumer initializes an event consumer with configuration from environment or config
 // and returns a channel that will receive messages from the topics
-func InitConsumer(topics []string, groupID string) (chan Message, error) {
+func InitConsumer(cfg config.Config, topics []string, groupID string) (Consumer, error) {
 	// Get broker from config or environment
-	cfg := config.Load()
 	broker := cfg.EventBroker
 
 	// Allow override from environment

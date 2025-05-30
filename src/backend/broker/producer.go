@@ -109,8 +109,7 @@ func NewNATSProducer(natsServerAddress string) (Producer, error) {
 }
 
 // InitProducer initializes the default global producer instance
-func InitProducer() error {
-	cfg := config.Load()
+func InitProducer(cfg config.Config) error {
 	broker := cfg.EventBroker
 
 

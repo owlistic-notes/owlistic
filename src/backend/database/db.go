@@ -38,16 +38,6 @@ func Setup(cfg config.Config) (*Database, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Configure connection pool
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get database instance: %w", err)
-	}
-
-	// Set connection pool limits from configuration
-	sqlDB.SetMaxIdleConns(cfg.DBMaxIdleConns)
-	sqlDB.SetMaxOpenConns(cfg.DBMaxOpenConns)
-
 	// Run migrations to properly set up tables and constraints
 	log.Println("Running database migrations...")
 	if err := RunMigrations(db); err != nil {

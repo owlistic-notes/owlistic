@@ -28,6 +28,5 @@ func RunMigrations(db *gorm.DB) error {
 		return err
 	}
 
-	log.Println("Migration completed successfully")
 	return nil
 }

@@ -28,7 +28,7 @@ func main() {
 	defer db.Close()
 
 	// Initialize producer
-	err = broker.InitProducer()
+	err = broker.InitProducer(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize producer: %v", err)
 	}
@@ -67,12 +67,12 @@ func main() {
 	defer eventHandlerService.Stop()
 
 	log.Println("Starting WebSocket service...")
-	webSocketService.Start()
+	webSocketService.Start(cfg)
 	defer webSocketService.Stop()
 
 	// Start block-task sync handler
 	log.Println("Starting Block-Task Sync Handler...")
-	syncHandler.Start()
+	syncHandler.Start(cfg)
 	defer syncHandler.Stop()
 
 	router := gin.Default()
@@ -113,8 +113,6 @@ func main() {
 	go func() {
 		<-quit
 		log.Println("Shutting down server...")
-		// Explicitly close consumers before exiting
-		broker.CloseAllConsumers()
 		os.Exit(0)
 	}()
 

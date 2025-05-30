@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/config"
 	"owlistic-notes/owlistic/database"
 	"owlistic-notes/owlistic/models"
 	"owlistic-notes/owlistic/utils/token"
@@ -18,7 +19,7 @@ import (
 )
 
 type WebSocketServiceInterface interface {
-	Start()
+	Start(cfg config.Config)
 	Stop()
 	HandleConnection(c *gin.Context)
 	BroadcastEvent(event *models.StandardMessage)
@@ -75,20 +76,20 @@ func (s *WebSocketService) SetJWTSecret(secret []byte) {
 	s.jwtSecret = secret
 }
 
-func (s *WebSocketService) Start() {
+func (s *WebSocketService) Start(cfg config.Config) {
 	if s.isRunning {
 		return
 	}
 	s.isRunning = true
 
 	// Initialize consumer for all relevant topics
-	var err error
-	messageChan, err := broker.InitConsumer(s.eventTopics, "websocket-service")
+	consumer, err := broker.InitConsumer(cfg, s.eventTopics, "websocket-service")
 	if err != nil {
 		log.Printf("Failed to initialize consumer: %v", err)
 		return
 	}
-	s.messageChan = messageChan
+	defer consumer.Close()
+
 
 	// Start listening for messages
 	go s.consumeMessages()

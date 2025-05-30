@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"owlistic-notes/owlistic/broker"
+	"owlistic-notes/owlistic/config"
 	"owlistic-notes/owlistic/database"
 	"owlistic-notes/owlistic/models"
 
@@ -35,7 +36,7 @@ func NewSyncHandlerService(db *database.Database) *SyncHandlerService {
 }
 
 // Start begins the sync handler processing
-func (s *SyncHandlerService) Start() {
+func (s *SyncHandlerService) Start(cfg config.Config) {
 	if s.isRunning {
 		return
 	}
@@ -46,12 +47,13 @@ func (s *SyncHandlerService) Start() {
 		broker.TaskStream,
 	}
 
-	var err error
-	s.msgChan, err = broker.InitConsumer(topics, "sync-handler-group")
+	consumer, err := broker.InitConsumer(cfg, topics, "sync-handler-group")
 	if err != nil {
 		log.Printf("Warning: Failed to initialize sync handler consumer: %v", err)
 		return
 	}
+	defer consumer.Close()
+
 
 	s.isRunning = true
 	go s.processEvents()
