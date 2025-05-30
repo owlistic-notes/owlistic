@@ -19,7 +19,7 @@ type Event struct {
 	DispatchedAt *time.Time      `json:"dispatched_at,omitempty"`
 }
 
-func NewEvent(event, entity, operation, actorID string, data interface{}) (*Event, error) {
+func NewEvent(event, entity string, data interface{}) (*Event, error) {
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
 		return nil, err

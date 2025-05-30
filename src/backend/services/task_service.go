@@ -139,8 +139,6 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 		blockEvent, err := models.NewEvent(
 			string(broker.BlockCreated),
 			"block",
-			"create",
-			userID.String(),
 			map[string]interface{}{
 				"block_id":     block.ID.String(),
 				"note_id":      noteID.String(),
@@ -208,8 +206,6 @@ func (s *TaskService) CreateTask(db *database.Database, taskData map[string]inte
 	event, err := models.NewEvent(
 		string(broker.TaskCreated),
 		"task",
-		"create",
-		userID.String(),
 		eventPayload,
 	)
 
@@ -273,8 +269,6 @@ func (s *TaskService) UpdateTask(db *database.Database, id string, updatedData m
 	event, err := models.NewEvent(
 		string(broker.TaskUpdated),
 		"task",
-		"update",
-		task.UserID.String(),
 		eventPayload,
 	)
 
@@ -342,8 +336,6 @@ func (s *TaskService) DeleteTask(db *database.Database, id string) error {
 	event, err := models.NewEvent(
 		string(broker.TaskDeleted),
 		"task",
-		"delete",
-		task.UserID.String(),
 		eventData,
 	)
 

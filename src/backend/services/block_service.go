@@ -137,12 +137,9 @@ func (s *BlockService) CreateBlock(db *database.Database, blockData map[string]i
 		return models.Block{}, err
 	}
 
-	actorID, _ := blockData["user_id"].(string)
 	event, err := models.NewEvent(
 		string(broker.BlockCreated),
 		"block",
-		"create",
-		actorID,
 		map[string]interface{}{
 			"block_id":   block.ID.String(),
 			"note_id":    block.NoteID.String(),
@@ -266,8 +263,6 @@ func (s *BlockService) UpdateBlock(db *database.Database, id string, blockData m
 	event, err := models.NewEvent(
 		string(broker.BlockUpdated), // Use standard event type
 		"block",
-		"update",
-		userIDStr,
 		eventData,
 	)
 
@@ -345,8 +340,6 @@ func (s *BlockService) DeleteBlock(db *database.Database, id string, params map[
 	event, err := models.NewEvent(
 		string(broker.BlockDeleted), // Use standard event type
 		"block",
-		"delete",
-		block.UserID.String(), // Use the block's owner as the actor
 		map[string]interface{}{
 			"block_id": block.ID.String(),
 			"note_id":  block.NoteID.String(),

@@ -12,7 +12,6 @@ func TestNewEvent(t *testing.T) {
 		event     string
 		entity    string
 		operation string
-		actorID   string
 		data      interface{}
 		wantErr   bool
 	}{
@@ -21,7 +20,6 @@ func TestNewEvent(t *testing.T) {
 			event:     "test.created",
 			entity:    "test",
 			operation: "create",
-			actorID:   "user-123",
 			data:      map[string]interface{}{"key": "value"},
 			wantErr:   false,
 		},
@@ -36,7 +34,7 @@ func TestNewEvent(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			event, err := NewEvent(tc.event, tc.entity, tc.operation, tc.actorID, tc.data)
+			event, err := NewEvent(tc.event, tc.entity, tc.data)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return
