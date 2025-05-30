@@ -1,26 +1,24 @@
 package broker
 
 import (
-	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"sync"
-	"time"
 
 	"owlistic-notes/owlistic/config"
-	"owlistic-notes/owlistic/models"
 
 	// "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/nats-io/nats.go"
 )
 
 // Message represents a message received
-type Message nats.Msg
+type Message *nats.Msg
 
 // Consumer defines the interface for message consumption
 type Consumer interface {
 	// GetMessageChannel returns the channel that will receive messages
-	GetMessageChannel() chan Message
+	GetMessageChannel() chan *nats.Msg
 	// Close stops the consumer and releases resources
 	Close()
 }
@@ -30,7 +28,7 @@ type NatsConsumer struct {
 	nc      *nats.Conn
 	js      nats.JetStreamContext
 	subs    []*nats.Subscription
-	msgChan chan Message
+	msgChan chan *nats.Msg
 	mutex   sync.RWMutex
 	closed  bool
 }
@@ -43,23 +41,15 @@ var (
 
 // NewNatsConsumer creates a new NatsConsumer for the specified topics and group ID
 func NewNatsConsumer(natsServerAddress string, topics []string, groupID string) (Consumer, error) {
-	consumerKey := groupID + ":" + topics[0] // Use first topic as part of the key
-
-	consumerMutex.RLock()
-	if c, exists := consumers[consumerKey]; exists {
-		consumerMutex.RUnlock()
-		log.Printf("Reusing existing consumer for group %s", groupID)
-		return c, nil
-	}
-	consumerMutex.RUnlock()
-
 	if natsServerAddress == "" {
 		natsServerAddress = nats.DefaultURL
 	}
 
+	log.Printf("Connecting to NATS server at: %s", natsServerAddress)
+
 	nc, err := nats.Connect(
 		natsServerAddress,
-		nats.Name("owlistic-producer"), // Set client ID for better traceability
+		nats.Name("owlistic-producer-" + groupID ),
 		nats.MaxReconnects(5),
 	)
 	if err != nil {
@@ -73,52 +63,33 @@ func NewNatsConsumer(natsServerAddress string, topics []string, groupID string) 
 		return nil, err
 	}
 
+	consumerMutex.RLock()
+	if c, exists := consumers[groupID]; exists {
+		consumerMutex.RUnlock()
+		log.Printf("Reusing existing consumer for group %s", groupID)
+		return c, nil
+	}
+	consumerMutex.RUnlock()
+	
+	log.Printf("Creating NATS consumer %s on topics %v", groupID, topics)
+	
 	consumer := &NatsConsumer{
 		nc:     nc,
 		js:     js,
 		closed: false,
-		msgChan: make(chan Message, 100),
+		msgChan: make(chan *nats.Msg, 8192),
 	}
 
 	for _, subject := range topics {
-		sub, err := js.Subscribe(subject, func(msg *nats.Msg) {
-			var clientMsg models.StandardMessage
-			if err := json.Unmarshal(msg.Data, &clientMsg); err != nil {
-				log.Printf("Error unmarshalling client message: %v, raw: %s", err, string(msg.Data))
-				_ = msg.Term()
-				return
-			}
-
-			var payload []byte
-			if payload, err = json.Marshal(clientMsg.Payload); err != nil {
-				log.Printf("Error marshalling client message: %v, raw: %s", err, clientMsg.Payload)
-				_ = msg.Term()
-				return
-			}
-
-			select {
-			case consumer.msgChan <- Message{
-				Subject: clientMsg.Event,
-				Data: payload,
-			}:
-				_ = msg.Ack()
-			case <-time.After(100 * time.Millisecond):
-				log.Printf("Message channel is blocked, discarding NATS message")
-				_ = msg.Nak()
-			}
-		}, nats.ManualAck(), nats.AckWait(30*time.Second))
+		sub, err := js.ChanSubscribe(subject, consumer.msgChan)
 		if err != nil {
-			nc.Close()
-			log.Printf("Failed to subscribe to subject '%s': %v", subject, err)
-			return nil, err
+			return nil, fmt.Errorf("failed to subscribe to topic %s: %v", subject, err)
 		}
-
 		consumer.subs = append(consumer.subs, sub)
 	}
 
-			
 	consumerMutex.Lock()
-	consumers[consumerKey] = consumer
+	consumers[groupID] = consumer
 	consumerMutex.Unlock()
 
 	return consumer, nil
@@ -144,7 +115,7 @@ func InitConsumer(cfg config.Config, topics []string, groupID string) (Consumer,
 }
 
 // GetMessageChannel implements the Consumer interface
-func (c *NatsConsumer) GetMessageChannel() chan Message {
+func (c *NatsConsumer) GetMessageChannel() chan *nats.Msg {
 	return c.msgChan
 }
 

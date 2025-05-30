@@ -131,8 +131,7 @@ func (p *NatsProducer) PublishMessage(topic string, value string) error {
 	// Wait for delivery report
 	select {
 	case <-p.js.PublishAsyncComplete():
-		log.Printf("Message delivered to topic %s %v",
-			ack.Msg().Subject, ack.Msg())
+		log.Printf("Message delivered to topic %s %s", ack.Msg().Subject, string(ack.Msg().Data))
 	case <-time.After(5 * time.Second):
 		return fmt.Errorf("message delivery failed with error %v", ack.Err())
 	}

@@ -10,7 +10,7 @@ import (
 
 // MockConsumer implements Consumer interface for testing
 type MockConsumer struct {
-	messages []*Message
+	messages []*nats.Msg
 	closed   bool
 }
 
@@ -18,7 +18,7 @@ type MockConsumer struct {
 func NewMockConsumer() *MockConsumer {
 	topic := "mock_topic"
 	return &MockConsumer{
-		messages: []*Message{
+		messages: []*nats.Msg{
 			{
 				Subject: topic,
 				Data: []byte("mock_value"),
@@ -27,7 +27,7 @@ func NewMockConsumer() *MockConsumer {
 	}
 }
 
-func (m *MockConsumer) ReadMessage(timeoutMs int) (*Message, error) {
+func (m *MockConsumer) ReadMessage(timeoutMs int) (*nats.Msg, error) {
 	if m.closed {
 		// Use a standard error code instead of ErrConsumerClosed which doesn't exist
 		return nil, nats.ErrConnectionClosed
@@ -50,7 +50,7 @@ func TestStartConsumer(t *testing.T) {
 	mockConsumer := NewMockConsumer()
 
 	// Create channel to receive messages
-	messageChan := make(chan Message, 1)
+	messageChan := make(chan *nats.Msg, 1)
 
 	// Simulate reading a message and sending it to the channel
 	go func() {
@@ -60,7 +60,7 @@ func TestStartConsumer(t *testing.T) {
 			return
 		}
 
-		messageChan <- *msg
+		messageChan <- msg
 	}()
 
 	// Receive the message from the channel

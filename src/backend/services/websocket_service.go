@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
 )
 
 type WebSocketServiceInterface interface {
@@ -31,8 +32,7 @@ type WebSocketService struct {
 	connections map[string]*websocketConnection
 	connMutex   sync.RWMutex
 	isRunning   bool
-	messageChan chan broker.Message
-	jwtSecret   []byte // Replace authService with just the JWT secret
+	jwtSecret   []byte
 	eventTopics []string
 }
 
@@ -88,12 +88,11 @@ func (s *WebSocketService) Start(cfg config.Config) {
 		log.Printf("Failed to initialize consumer: %v", err)
 		return
 	}
-	defer consumer.Close()
 
-	s.messageChan = consumer.GetMessageChannel()
+	messageChan := consumer.GetMessageChannel()
 
 	// Start listening for messages
-	go s.consumeMessages()
+	go s.consumeMessages(messageChan)
 }
 
 func (s *WebSocketService) Stop() {
@@ -163,30 +162,23 @@ func (s *WebSocketService) HandleConnection(c *gin.Context) {
 	// Handle the connection (read/write routines)
 	go s.readPump(connID, wsConn)
 	go s.writePump(connID, wsConn)
-
-	// Send a welcome message
-	welcome := models.NewStandardMessage(models.EventMessage, "connected", map[string]interface{}{
-		"message": "Connected to Owlistic WebSocket server",
-		"user_id": userID.String(),
-		"time":    time.Now(),
-	})
-
-	msgBytes, _ := json.Marshal(welcome)
-	wsConn.send <- msgBytes
 }
 
 // consumeMessages processes messages and dispatches them to clients
-func (s *WebSocketService) consumeMessages() {
-	for message := range s.messageChan {
-		// Parse the message
-		var event models.StandardMessage
-		if err := json.Unmarshal(message.Data, &event); err != nil {
-			log.Printf("Error unmarshalling event: %v", err)
-			continue
+func (s *WebSocketService) consumeMessages(messageChan chan *nats.Msg) {
+	for {
+		select {
+		case msg := <-messageChan:
+			// Parse the message
+			var event models.StandardMessage
+			if err := json.Unmarshal(msg.Data, &event); err != nil {
+				log.Printf("Error unmarshalling event: %v", err)
+				continue
+			}
+			// Broadcast the event to all connected clients
+			s.BroadcastEvent(&event)
+		case <-time.After(1 * time.Second):
 		}
-
-		// Broadcast the event to all connected clients
-		s.BroadcastEvent(&event)
 	}
 }
 

@@ -12,14 +12,12 @@ import (
 	"owlistic-notes/owlistic/models"
 
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
 )
 
 // SyncHandlerService handles bidirectional synchronization between blocks and tasks
 type SyncHandlerService struct {
 	db           *database.Database
-	msgChan      chan broker.Message
-	stopChan     chan struct{}
-	isRunning    bool
 	taskService  TaskServiceInterface
 	blockService BlockServiceInterface
 }
@@ -28,8 +26,6 @@ type SyncHandlerService struct {
 func NewSyncHandlerService(db *database.Database) *SyncHandlerService {
 	return &SyncHandlerService{
 		db:           db,
-		stopChan:     make(chan struct{}),
-		isRunning:    false,
 		taskService:  TaskServiceInstance,
 		blockService: BlockServiceInstance,
 	}
@@ -37,10 +33,6 @@ func NewSyncHandlerService(db *database.Database) *SyncHandlerService {
 
 // Start begins the sync handler processing
 func (s *SyncHandlerService) Start(cfg config.Config) {
-	if s.isRunning {
-		return
-	}
-
 	// Subscribe to block and task events
 	topics := []string{
 		broker.BlockSubject,
@@ -52,37 +44,29 @@ func (s *SyncHandlerService) Start(cfg config.Config) {
 		log.Printf("Warning: Failed to initialize sync handler consumer: %v", err)
 		return
 	}
-	defer consumer.Close()
 
-	s.msgChan = consumer.GetMessageChannel()
+	messageChan := consumer.GetMessageChannel()
 
-	s.isRunning = true
-	go s.processEvents()
+	go s.processEvents(messageChan)
 	log.Println("Block-Task Sync Handler started successfully")
 }
 
 // Stop halts the sync handler processing
 func (s *SyncHandlerService) Stop() {
-	if !s.isRunning {
-		return
-	}
-
-	s.isRunning = false
-	s.stopChan <- struct{}{}
 	log.Println("Block-Task Sync Handler stopped")
 }
 
 // processEvents handles incoming events
-func (s *SyncHandlerService) processEvents() {
+func (s *SyncHandlerService) processEvents(messageChan chan *nats.Msg) {
 	for {
 		select {
-		case <-s.stopChan:
-			return
-		case msg := <-s.msgChan:
-			// Process the event based on its key
+		case msg := <-messageChan:
+			// Parse the message
 			if err := s.handleSyncEvent(msg.Subject, msg.Data); err != nil {
 				log.Printf("Error handling sync event %s: %v", msg.Subject, err)
 			}
+			// Broadcast the event to all connected clients
+		case <-time.After(1 * time.Second):
 		}
 	}
 }
