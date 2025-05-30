@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	// "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/nats-io/nats.go"
 )
 

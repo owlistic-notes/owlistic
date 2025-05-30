@@ -9,7 +9,6 @@ import (
 
 	"owlistic-notes/owlistic/config"
 
-	// "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/nats-io/nats.go"
 )
 
