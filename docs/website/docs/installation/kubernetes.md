@@ -19,7 +19,7 @@ Owlistic supports deployment on Kubernetes using Helm. Follow these steps to ins
 ### Step 1: Add the Owlistic Helm Repository
 
 ```bash
-helm repo add owlistic oci://ghcr.io/owlistic-notes/helm-charts
+helm repo add owlistic https://owlistic-notes.github.io/helm-charts
 helm repo update
 ```
 
