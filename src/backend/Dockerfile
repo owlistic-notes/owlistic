@@ -28,7 +28,7 @@ RUN CGO_ENABLED=1 GO111MODULE=on \
     -o /app/owlistic ./cmd/main.go
 
 # Use a minimal Alpine image for the final stage
-FROM --platform=linux/$TARGETARCH alpine:3.19
+FROM --platform=linux/$TARGETARCH alpine:3.22
 
 # Set the working directory inside the container
 WORKDIR /app
