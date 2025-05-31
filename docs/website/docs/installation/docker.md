@@ -52,15 +52,15 @@ volumes:
 ### Step 2.1 Using Pre-built Images
 
 ```bash
-# Pull the backend image
+# Pull the server image
 docker pull ghcr.io/owlistic-notes/owlistic:latest
 
-# Pull the frontend image
+# Pull the app image
 docker pull ghcr.io/owlistic-notes/owlistic-app:latest
 ```
 
 ```bash
-# Run the backend
+# Run the server
 docker run -d \
   --name owlistic \
   -p 8080:8080 \
@@ -73,7 +73,7 @@ docker run -d \
   -e BROKER_ADDRESS=nats:4222 \
   ghcr.io/owlistic-notes/owlistic:latest
 
-# Run the frontend
+# Run the app
 docker run -d \
   --name owlistic-app \
   -p 80:80 \
@@ -86,13 +86,13 @@ Note: The above commands assume you have PostgreSQL and NATS running and accessi
 
 ```bash
 
-# Build the backend image
+# Build the server image
 docker build -t owlistic:latest .
 
-# Build the frontend image
+# Build the app image
 docker build -t owlistic-app:latest .
 
-# Run the backend container
+# Run the server container
 docker run -d \
   --name owlistic \
   -p 8080:8080 \
@@ -105,7 +105,7 @@ docker run -d \
   -e BROKER_ADDRESS=nats:4222 \
   owlistic
 
-# Run the frontend container
+# Run the app container
 docker run -d \
   --name owlistic-app \
   -p 80:80 \
@@ -117,8 +117,8 @@ Note: The above commands assume you have PostgreSQL and NATS running and accessi
 ## Post-Installation
 
 After installation:
-- The backend should be running on port 8080
-- The frontend should be accessible on port 80
+- The server should be running on port 8080
+- The app should be accessible on port 80
 - Visit `http://your-server` to access the web interface
 
 ## Troubleshooting
