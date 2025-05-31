@@ -33,7 +33,7 @@ helm install owlistic owlistic/owlistic -f values.yaml
 Example `values.yaml`:
 
 ```yaml
-rserver:
+server:
   enabled: true
   service:
     enabled: true
