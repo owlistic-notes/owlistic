@@ -251,7 +251,7 @@ func (s *NoteService) UpdateNote(db *database.Database, id string, noteData map[
 		note.NotebookID = notebookID
 	}
 
-	note.UpdatedAt = time.Now()
+	note.UpdatedAt = time.Now().UTC()
 
 	if err := tx.Save(&note).Error; err != nil {
 		tx.Rollback()
@@ -327,7 +327,7 @@ func (s *NoteService) DeleteNote(db *database.Database, id string, params map[st
 		tx.Rollback()
 		return errors.New("not authorized to delete this note")
 	}
-	
+
 	if err := tx.Exec("UPDATE blocks SET deleted_at = NOW() WHERE note_id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return err

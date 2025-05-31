@@ -154,11 +154,10 @@ func (s *EventHandlerService) dispatchEvent(event models.Event) error {
 	}
 
 	// Mark the event as dispatched in the database
-	now := time.Now()
 	return s.db.DB.Model(&event).Updates(map[string]interface{}{
 		"dispatched":    true,
-		"dispatched_at": now,
 		"status":        "completed",
+		"dispatched_at": time.Now().UTC(),
 	}).Error
 }
 
