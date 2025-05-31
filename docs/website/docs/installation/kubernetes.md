@@ -49,7 +49,7 @@ rserver:
     DB_NAME: owlistic
     DB_USER: owlistic
     DB_PASSWORD: owlistic
-    KAFKA_BROKER: kafka:9092
+    BROKER_ADDRESS: nats:4222
 
 app:
   enabled: true
@@ -67,24 +67,17 @@ postgresql:
         password: owlistic
         database: owlistic
 
-zookeeper:
+nats:
   enabled: true
-
-kafka:
-  enabled: true
-  extraEnvVars:
-    - name: KAFKA_BROKER_ID
-      value: "1"
-    - name: KAFKA_ZOOKEEPER_CONNECT
-      value: zookeeper:2181
-    - name: ALLOW_PLAINTEXT_LISTENER
-      value: yes
-    - name: KAFKA_ADVERTISED_LISTENERS
-      value: PLAINTEXT://kafka:9092
-    - name: KAFKA_LISTENERS
-      value: PLAINTEXT://
-    - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-      value: PLAINTEXT:PLAINTEXT
+  config:
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        pvc:
+          enabled: false
+          size: 512Mi
+          storageClassName: "-"
 ```
 
 ### Step 3: Verify the Installation

@@ -14,7 +14,7 @@ The diagram shows clients communicating with the server REST APIs for CRUD (Crea
 
 The server exposes a gateway layer for REST APIs and a websocket connection. The API gateway is responsible for routing requests to the appropriate service, while the WebSocket gateway is responsible for and handling events.
 
-Under the hood, the server communicates with downstream systems (i.e. Postgres, Kafka) through data models, both for data persistence and event streaming.
+Under the hood, the server communicates with downstream systems (i.e. Postgres, NATS) through data models, both for data persistence and event streaming.
 
 ## Technology Stack
 
@@ -24,10 +24,10 @@ Under the hood, the server communicates with downstream systems (i.e. Postgres, 
 <img width="12" />
 <img src="https://cdn.simpleicons.org/postgresql" height="40" alt="postgresql logo"/>
 <img width="12" />
-<img src="https://cdn.simpleicons.org/apachekafka" height="40" alt="kafka logo"/>
+<img src="https://cdn.simpleicons.org/natsdotio" height="40" alt="nats logo"/>
 <img width="12" />
 
-Owlistic backend is built using Go, a statically typed, compiled language. The main reason for choosing Go is its strong support for concurrency and efficient memory management, which are crucial for event-driven systems. It also uses the PostgreSQL database for data persistence and Apache Kafka as an event streaming system to push real-time updates to clients.
+Owlistic backend is built using Go, a statically typed, compiled language. The main reason for choosing Go is its strong support for concurrency and efficient memory management, which are crucial for event-driven systems. It also uses the PostgreSQL database for data persistence and NATS as an event streaming system to push real-time updates to clients.
 
 Please refer to the [Backend](developers/backend.md) section for more details.
 

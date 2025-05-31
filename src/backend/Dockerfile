@@ -4,7 +4,7 @@ FROM --platform=linux/$TARGETARCH golang:1.23.4-alpine AS builder
 # Set ARG for platform targeting
 ARG TARGETARCH
 
-# Install librdkafka for Kafka client dependencies with Alpine packages
+# Install base compiler libraries
 RUN apk add --no-cache \
     build-base \
     gcc

@@ -40,11 +40,11 @@ go build -o build/owlistic cmd/main.go
 
 #### Running the Backend
 
-Before running the backend, ensure PostgreSQL and Kafka are available. You can use Docker Compose for this:
+Before running the backend, ensure PostgreSQL and NATS are available. You can use Docker Compose for this:
 
 ```bash
 # From the project root directory
-docker-compose up -d postgres kafka zookeeper
+docker-compose up -d postgres nats
 ```
 
 Configure environment variables:
@@ -55,7 +55,7 @@ export DB_PORT=5432
 export DB_USER=admin
 export DB_PASSWORD=admin
 export DB_NAME=postgres
-export KAFKA_BROKER=localhost:9092
+export BROKER_ADDRESS=localhost:9092
 ```
 
 Run the backend server:
@@ -120,7 +120,7 @@ For convenience, you can use Docker Compose to run the entire application stack:
 docker-compose up -d
 ```
 
-This will start PostgreSQL, Kafka, Zookeeper, and the Owlistic backend and frontend services.
+This will start PostgreSQL, NATS, and the Owlistic backend and frontend services.
 
 ## Submitting Your Changes
 

@@ -27,7 +27,7 @@ services:
       - "8080:8080"
     depends_on:
       - postgres
-      - kafka
+      - nats
     environment:
       - APP_ORIGINS=http://owlistic*,http://owlistic-app*
       - DB_HOST=postgres
@@ -35,7 +35,7 @@ services:
       - DB_USER=admin
       - DB_PASSWORD=admin
       - DB_NAME=postgres
-      - KAFKA_BROKER=kafka:9092
+      - BROKER_ADDRESS=nats:4222
 
   owlistic-app:
     image: ghcr.io/owlistic-notes/owlistic-app:latest
@@ -54,29 +54,23 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  kafka:
-    image: bitnami/kafka:3
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      ALLOW_PLAINTEXT_LISTENER: yes
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+  nats:
+    image: nats
+    command:
+      - --http_port
+      - "8222"
+      - -js
+      - -sd
+      - /var/lib/nats/data
     ports:
-      - "9092:9092"
-    depends_on:
-      - zookeeper
-
-  zookeeper:
-    image: bitnami/zookeeper:3
-    environment:
-      ALLOW_ANONYMOUS_LOGIN: yes
-    ports:
-      - "2181:2181"
+     - "4222:4222"
+     - "8222:8222"
+    volumes:
+      - nats_data:/var/lib/nats/data
 
 volumes:
   postgres_data:
+  nats_data:
 ```
 
 ### Step 2: Start the Services
