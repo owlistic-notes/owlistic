@@ -1,4 +1,4 @@
-# Owlistic Frontend Architecture
+# Owlistic App Architecture
 
 ## Model-View-Presenter (MVP) Pattern
 
