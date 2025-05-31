@@ -33,6 +33,7 @@ class AttributedTextUtils {
     
     // Use the same attribution types that SuperEditor uses in defaultStyleBuilder
     final attributions = [
+      const NamedAttribution('code'),
       const NamedAttribution('bold'),
       const NamedAttribution('italics'),
       const NamedAttribution('underline'),
@@ -157,6 +158,7 @@ class AttributedTextUtils {
               if (start >= 0 && end > start && end <= text.length) {
                 // Apply attributions based on the type
                 switch (type) {
+                  case 'code':
                   case 'bold':
                   case 'italics':
                   case 'underline':

@@ -13,6 +13,7 @@ import (
 type BlockType string
 
 const (
+	CodeBlock           BlockType = "code"
 	TextBlock           BlockType = "text"
 	TaskBlock           BlockType = "task"
 	HeadingBlock        BlockType = "header"
