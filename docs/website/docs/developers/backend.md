@@ -4,23 +4,33 @@ sidebar_position: 2
 
 # Server
 
-Owlistic backend is built using Go, a statically typed, compiled language. The main reason for choosing Go is its strong support for concurrency and efficient memory management, which are crucial for event-driven systems. It also uses the PostgreSQL database for data persistence and NATS as an event streaming system to push real-time updates to clients.
+## Overview
+
+Owlistic server is implemented following traditional client-server architecture exposing a set of REST APIs for Create, Update, Delete, Read (CRUD) operations. The server exposes a gateway layer for REST APIs responsible for routing requests to the appropriate service.
+
+On top of that, Owlistic leverages event-driven architecture to push updates to an event broker system allowing fast and real-time synchronization. The server exposes a gateway layer for WebSocket connections responsible for pushing events from the downstream broker system to clients.
+
+Following page provides a detailed overview of the server's components and their interactions.
 
 ## Design
 
+Owlistic server is built using Go, a statically typed, compiled language. The main reason for choosing Go is its strong support for concurrency and efficient memory management, which are crucial for event-driven systems. It also uses the PostgreSQL database for data persistence and NATS as an event streaming system to push real-time updates to clients.
+
+## Components
+
 ### API Routes
 
-Owlistic backend leverages a RESTful API architecture, providing endpoints for various CRUD operations. This section outlines the routes available for each CRUD operation.
+Owlistic server leverages a RESTful API architecture, providing endpoints for various CRUD operations. This section outlines the routes available for each CRUD operation.
 
 The API routing mechanism is based on the [Gin](https://gin-gonic.com/) web framework, which provides a simple and intuitive way to define routes. Each route is defined using a combination of HTTP methods (GET, POST, PUT, DELETE) and URL paths and leverages [core services](#core-services) to handle requests and responses.
 
 ### Events Streaming
 
-Owlistic backend uses an event-driven architecture allowing for real-time updates and communication between services. This section explains how producers and consumers interact with its event streaming system.
+Owlistic server uses an event-driven architecture allowing for real-time updates and communication between services. This section explains how producers and consumers interact with its event streaming system.
 
 #### Nats
 
-The event streaming system is based on the [NATS](https://nats.io/) messaging system, which allows for efficient and scalable communication between services. Nats is a popular open-source messaging system that enables real-time communication between services. Owlistic backend leverages NATS as an event streaming system, allowing for efficient and scalable communication between services.
+The event streaming system is based on the [NATS](https://nats.io/) messaging system, which allows for efficient and scalable communication between services. Nats is a popular open-source messaging system that enables real-time communication between services. Owlistic server leverages NATS as an event streaming system, allowing for efficient and scalable communication between services.
 
 #### Producer
 

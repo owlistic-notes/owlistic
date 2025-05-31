@@ -22,20 +22,20 @@ git clone https://github.com/owlistic-notes/owlistic.git
 cd owlistic
 ```
 
-### Step 1: Building the backend server
+### Step 1: Building the  server
 
 ```
-# Build the backend
+# Build the server
 cd src/backend
 go build -o owlistic cmd/main.go
 ```
 
 ### Step 2: Building the Flutter Web UI
 
-To build the frontend Flutter web application:
+To build the Flutter web application:
 
 ```bash
-# Navigate to the frontend directory
+# Navigate to the app directory
 cd src/frontend
 
 # Ensure Flutter dependencies are installed
@@ -62,7 +62,7 @@ export BROKER_ADDRESS=localhost:9092
 ### Step 4: Run the Application
 
 ```bash
-# Start the backend application
+# Start the server application
 cd src/backend
 ./owlistic
 
@@ -74,8 +74,8 @@ flutter run -d <chrome|linux|macos|ios|android>
 ## Post-Installation
 
 After installation:
-- The backend should be running on port 8080
-- The frontend should be accessible on port 80
+- The server should be running on port 8080
+- The app should be accessible on port 80
 - Visit `http://your-server` to access the web interface
 
 ## Troubleshooting

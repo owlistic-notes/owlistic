@@ -6,8 +6,8 @@ Follow the steps below to set up your development environment.
 
 Before you begin, ensure you have the following installed:
 
-- **Go** (version 1.23 or above) for the backend
-- **Flutter** (latest stable version) for the frontend
+- **Go** (version 1.23 or above) for the server
+- **Flutter** (latest stable version) for the App
 - **Git** (for version control)
 - **Docker** and **Docker Compose** (for local deployment with dependencies)
 - A code editor of your choice (e.g., Visual Studio Code)
@@ -25,12 +25,12 @@ cd owlistic
 
 Owlistic consists of two main components:
 
-1. **Backend**: Written in Go
-2. **Frontend**: Flutter web application
+1. **Server**: Written in Go
+2. **App**: Flutter web application
 
-### Setting Up the Backend
+### Setting Up the Server
 
-Navigate to the backend directory and build the Go application:
+Navigate to the server directory and build the Go application:
 
 ```bash
 cd src/backend
@@ -38,9 +38,9 @@ go mod download
 go build -o build/owlistic cmd/main.go
 ```
 
-#### Running the Backend
+#### Running the Server
 
-Before running the backend, ensure PostgreSQL and NATS are available. You can use Docker Compose for this:
+Before running the server, ensure PostgreSQL and NATS are available. You can use Docker Compose for this:
 
 ```bash
 # From the project root directory
@@ -58,18 +58,18 @@ export DB_NAME=postgres
 export BROKER_ADDRESS=localhost:9092
 ```
 
-Run the backend server:
+Run the  server:
 
 ```bash
 cd src/backend
 ./build/owlistic
 ```
 
-The backend should now be running on `http://localhost:8080`.
+The server should now be running on `http://localhost:8080`.
 
-### Setting Up the Frontend
+### Setting Up the App
 
-Navigate to the Flutter frontend directory:
+Navigate to the Flutter app directory:
 
 ```bash
 cd src/frontend
@@ -81,7 +81,7 @@ Install Flutter dependencies:
 flutter pub get
 ```
 
-#### Running the Frontend
+#### Running the App
 
 Start the Flutter web application in development mode:
 
@@ -95,19 +95,19 @@ This will launch the application in Chrome.
 
 You can now make changes to the codebase. Here are some guidelines:
 
-- Backend (Go): Changes will require recompilation and restarting the server
-- Frontend (Flutter): Many changes will automatically reload in the browser
+- Server (Go): Changes will require recompilation and restarting the server
+- App (Flutter): Many changes will automatically reload in the browser
 
 ## Testing Your Changes
 
 Before submitting your contributions, ensure that all tests pass:
 
 ```bash
-# For backend tests
+# For server tests
 cd src/backend
 go test ./...
 
-# For frontend tests
+# For app tests
 cd src/frontend
 flutter test
 ```
@@ -120,7 +120,7 @@ For convenience, you can use Docker Compose to run the entire application stack:
 docker-compose up -d
 ```
 
-This will start PostgreSQL, NATS, and the Owlistic backend and frontend services.
+This will start PostgreSQL, NATS, and the Owlistic server and app.
 
 ## Submitting Your Changes
 

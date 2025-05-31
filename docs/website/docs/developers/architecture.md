@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Architecture
 
-Owlistic uses a traditional client-server design, with a dedicated database for data persistence. On top of that, it leverages an event streaming system to push real-time updates to clients. Clients communicate with backend services over HTTP using REST APIs and listen over a websocket connection for server events. Below is a high level diagram of the architecture.
+Owlistic uses a traditional client-server design, with a dedicated database for data persistence. On top of that, it leverages an event streaming system to push real-time updates to clients. Clients communicate with server over HTTP using REST APIs and listen over a websocket connection for server events. Below is a high level diagram of the architecture.
 
 ## High Level Design
 
@@ -27,9 +27,9 @@ Under the hood, the server communicates with downstream systems (i.e. Postgres, 
 <img src="https://cdn.simpleicons.org/natsdotio" height="40" alt="nats logo"/>
 <img width="12" />
 
-Owlistic backend is built using Go, a statically typed, compiled language. The main reason for choosing Go is its strong support for concurrency and efficient memory management, which are crucial for event-driven systems. It also uses the PostgreSQL database for data persistence and NATS as an event streaming system to push real-time updates to clients.
+Owlistic server is built using Go, a statically typed, compiled language. The main reason for choosing Go is its strong support for concurrency and efficient memory management, which are crucial for event-driven systems. It also uses the PostgreSQL database for data persistence and NATS as an event streaming system to push real-time updates to clients.
 
-Please refer to the [Backend](developers/backend.md) section for more details.
+Please refer to the [Server](developers/backend.md) section for more details.
 
 ### Client (Web/Mobile/Desktop App)
 
@@ -38,6 +38,6 @@ Please refer to the [Backend](developers/backend.md) section for more details.
 <img src="https://cdn.simpleicons.org/dart" height="40" alt="dart logo"/>
 <img width="12" />
 
-Owlistic client is built using Flutter, a popular open-source framework for building cross-platform applications. The client provides a user-friendly interface to interact with the backend and access the features of Owlistic. The main reason for choosing Flutter is its ease of use and ability to create cross-platforms mobile apps using the same codebase with minimal code changes.
+Owlistic client is built using Flutter, a popular open-source framework for building cross-platform applications. The client provides a user-friendly interface to interact with the server and access the features of Owlistic. The main reason for choosing Flutter is its ease of use and ability to create cross-platforms mobile apps using the same codebase with minimal code changes.
 
-Please refer to the [Frontend](developers/frontend.md) section for more details.
+Please refer to the [App](developers/frontend.md) section for more details.

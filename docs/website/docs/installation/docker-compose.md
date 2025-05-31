@@ -82,8 +82,8 @@ docker-compose up -d
 ## Post-Installation
 
 After installation:
-- The backend should be running on port 8080
-- The frontend should be accessible on port 80
+- The server should be running on port 8080
+- The app should be accessible on port 80
 - Visit `http://your-server` to access the web interface
 
 ## Troubleshooting
