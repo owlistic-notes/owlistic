@@ -1334,6 +1334,16 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   @override
+  void redo() {
+    _documentBuilder.redo();
+  }
+
+  @override
+  void undo() {
+    _documentBuilder.undo();
+  }
+
+  @override
   void resetState() {
     _logger.info('Resetting NoteEditorProvider state');
     
