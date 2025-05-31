@@ -16,10 +16,6 @@ changelog:
       labels:
         - documentation
 
-    - title: 👒 Dependencies
-      labels:
-        - dependencies
-
     - title: 🌐 Translations
       labels:
         - translation
@@ -35,6 +31,10 @@ changelog:
     - title: 🔒 Security
       labels:
         - security
+
+    - title: 👒 Dependencies
+      authors:
+        - app/renovate
 
     - title: Other Changes
       labels:
