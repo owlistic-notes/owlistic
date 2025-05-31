@@ -1,0 +1,37 @@
+
+  categories:
+    - title: 🏕 Features
+      labels:
+        - feature
+
+    - title: 🚀 Enhancements
+      labels:
+        - enhancement
+
+    - title: 🐛 Bug fixes
+      labels:
+        - bug
+
+    - title: 📚 Documentation
+      labels:
+        - documentation
+
+    - title: 👒 Dependencies
+      labels:
+        - dependencies
+
+    - title: 🌐 Translations
+      labels:
+        - translation
+
+    - title: 🚨 Breaking Changes
+      labels:
+        - breaking-change
+
+    - title: 🫥 Deprecated Changes
+      labels:
+        - deprecated
+
+    - title: 🔒 Security
+      labels:
+        - security
