@@ -10,11 +10,11 @@ Before installation, ensure you have:
 
 - Read the [System Requirements](system-requirements.md)
 - Docker installed on your system
-- Set up PostgreSQL and Kafka (either in docker or on your local machine)
+- Set up PostgreSQL and NATS (either in docker or on your local machine)
 
 ## Steps
 
-### Step 1: Set up PostgreSQL and Kafka containers in Docker (if not already running)
+### Step 1: Set up PostgreSQL and NATS containers in Docker (if not already running)
 
 ```yaml
 version: '3.8'
@@ -30,29 +30,23 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  kafka:
-    image: bitnami/kafka:3
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      ALLOW_PLAINTEXT_LISTENER: yes
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+  nats:
+    image: nats
+    command:
+      - --http_port
+      - "8222"
+      - -js
+      - -sd
+      - /var/lib/nats/data
     ports:
-      - "9092:9092"
-    depends_on:
-      - zookeeper
-
-  zookeeper:
-    image: bitnami/zookeeper:3
-    environment:
-      ALLOW_ANONYMOUS_LOGIN: yes
-    ports:
-      - "2181:2181"
+     - "4222:4222"
+     - "8222:8222"
+    volumes:
+      - nats_data:/var/lib/nats/data
 
 volumes:
   postgres_data:
+  nats_data:
 ```
 
 ### Step 2.1 Using Pre-built Images
@@ -76,7 +70,7 @@ docker run -d \
   -e DB_USER=admin \
   -e DB_PASSWORD=admin \
   -e DB_NAME=postgres \
-  -e KAFKA_BROKER=kafka:9092 \
+  -e BROKER_ADDRESS=nats:4222 \
   ghcr.io/owlistic-notes/owlistic:latest
 
 # Run the frontend
@@ -86,7 +80,7 @@ docker run -d \
   ghcr.io/owlistic-notes/owlistic-app:latest
 ```
 
-Note: The above commands assume you have PostgreSQL and Kafka running and accessible respectively at `postgres:5432` and `kafka:9092`.
+Note: The above commands assume you have PostgreSQL and NATS running and accessible respectively at `postgres:5432` and `nats:4222`.
 
 ### Step 2.2: Building from Source
 
@@ -108,7 +102,7 @@ docker run -d \
   -e DB_NAME=owlistic \
   -e DB_USER=admin \
   -e DB_PASSWORD=admin \
-  -e KAFKA_BROKER=kafka:9092 \
+  -e BROKER_ADDRESS=nats:4222 \
   owlistic
 
 # Run the frontend container
@@ -118,7 +112,7 @@ docker run -d \
   owlistic-app
 ```
 
-Note: The above commands assume you have PostgreSQL and Kafka running and accessible respectively at `postgres:5432` and `kafka:9092`.
+Note: The above commands assume you have PostgreSQL and NATS running and accessible respectively at `postgres:5432` and `nats:4222`.
 
 ## Post-Installation
 

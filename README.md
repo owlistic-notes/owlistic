@@ -16,7 +16,6 @@
 ## Table of Contents
 
 - [Quick Links](#quick-links)
-- [Screenshots](#screenshots)
 - [Features](#features)
 - [Installation](#install)
 - [Maintainers](#maintainers)
@@ -28,49 +27,13 @@
 - [Installation](https://owlistic-notes.github.io/owlistic/docs/category/installation)
 - [Quick Start](https://owlistic-notes.github.io/owlistic/docs/overview/quick-start)
 - [FAQ](https://owlistic-notes.github.io/owlistic/docs/troubleshooting/faq)
+- [Roadmap](https://owlistic-notes.github.io/owlistic/roadmap)
 <!--
 - [Api Reference](https://owlistic-notes.github.io/owlistic/docs/category/api-reference)
 -->
 
-## Screenshots
-
-<img src='./docs/website/static/img/screenshots/real_time_updates.gif' width="75%" title="Real Time updates" />
-
-### App Home
-
-<img src='./docs/website/static/img/screenshots/home.png' width="15%" title="Home Screen" />
-<img src='./docs/website/static/img/screenshots/sidebar.png' width="15%" title="Home Screen" />
-
-### Editor
-
-<img src='./docs/website/static/img/screenshots/editor/editor.png' width="15%" title="Editor Screen" />
-<img src='./docs/website/static/img/screenshots/editor/note_scrolling.gif' width="15%" title="Editor Scrolling" />
-
-#### Editor Toolbar
-
-<img src='./docs/website/static/img/screenshots/editor/editor_toolbar.png' width="15%" title="Editor Toolbar" />
-
-### Other Screens
-
-#### Notebook
-
-<img src='./docs/website/static/img/screenshots/notebooks/notebooks.png' width="15%" title="Notebooks Screen" />
-
-#### Notes
-
-<img src='./docs/website/static/img/screenshots/notes/notes.png' width="15%" title="Notes Screen" />
-
-#### Tasks
-
-<img src='./docs/website/static/img/screenshots/tasks/tasks.png' width="15%" title="Tasks Screen" />
-
-#### Trash
-
-<img src='./docs/website/static/img/screenshots/trash/trash.png' width="15%" title="Trash Screen" />
-
-#### Profile
-
-<img src='./docs/website/static/img/screenshots/profile/profile.png' width="15%" title="Profile Screen" />
+> [!WARNING]
+> Owlistic is still under active development, so you may encounter bugs or breaking changes as we improve.
 
 ## Features
 
@@ -85,6 +48,33 @@
 - ⬇️ Import markdown note
 
 Please have a look at the [features](https://owlistic-notes.github.io/owlistic/docs/category/features) for details.
+
+<details>
+<summary><h3 style="display:inline-block">Screenshots</h3></summary>
+
+### General
+
+| Real Time Updates |
+|:---|
+| <img src='./docs/website/static/img/screenshots/real_time_updates.gif' width="75%" title="Real Time updates" /> |
+
+### Editor
+
+| Editor | Scrolling | Toolbar |
+|:---|:---|:---|
+| <img src='./docs/website/static/img/screenshots/editor/editor.png' width="50%" title="Editor Screen" /> | <img src='./docs/website/static/img/screenshots/editor/note_scrolling.gif' width="50%" title="Editor Scrolling" /> | <img src='./docs/website/static/img/screenshots/editor/editor_toolbar.png' width="50%" title="Editor Toolbar" /> |
+
+### Screens
+
+| Home | Sidebar | Profile | Trash |
+|:---|:---|:---|:---|
+| <img src='./docs/website/static/img/screenshots/home.png' width="50%" title="Home Screen" /> | <img src='./docs/website/static/img/screenshots/sidebar.png' width="50%" title="Home Screen" /> | <img src='./docs/website/static/img/screenshots/profile/profile.png' width="50%" title="Profile Screen" /> | <img src='./docs/website/static/img/screenshots/trash/trash.png' width="50%" title="Trash Screen" /> | 
+
+| Notebooks | Notes | Tasks |
+|:---|:---|:---|
+| <img src='./docs/website/static/img/screenshots/notebooks/notebooks.png' width="50%" title="Notebooks Screen" /> | <img src='./docs/website/static/img/screenshots/notes/notes.png' width="50%" title="Notes Screen" /> | <img src='./docs/website/static/img/screenshots/tasks/tasks.png' width="50%" title="Tasks Screen" /> |
+
+</details>
 
 ## Install
 

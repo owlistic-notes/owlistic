@@ -9,7 +9,7 @@ sidebar_position: 5
 Before installation, ensure you have:
 
 - Read the [System Requirements](system-requirements.md)
-- Set up PostgreSQL and Kafka (required for storage and real-time synchronization)
+- Set up PostgreSQL and NATS (required for storage and real-time synchronization)
 - [Flutter](https://flutter.dev/docs/get-started/install) installed on your system (required for building the Flutter web app)
 
 ## Steps
@@ -38,7 +38,7 @@ export DB_PORT=5432
 export DB_USER=admin
 export DB_PASSWORD=admin
 export DB_NAME=postgres
-export KAFKA_BROKER=localhost:9092
+export BROKER_ADDRESS=localhost:9092
 ```
 
 ### Step 3: Run the Application
