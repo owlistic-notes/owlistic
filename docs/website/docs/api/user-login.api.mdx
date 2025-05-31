@@ -1,0 +1,71 @@
+---
+id: user-login
+title: "User login"
+description: "User login"
+sidebar_label: "User login"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VMFO4zAQ/ZVozqFJV6yEclpY7aEn0AKnqoepM20Mju21nRYU5d937JRuoCwnRA6JM3nz/OZlxj04+tORD1emfoaqT6/SUQ1VcB3lIIwOpEP8hNYqKTBIo4sHb3SMedFQi3EVni1BBWb9QCJADtYZSy5I8vErg6SawHxwUm8ZtjGuRaY/IAZORO/3xtWn6CFdOWv01mg/Mn8ry/ioyQsnbRTHCbedEOT9plOZMlup4dMKCeaR9P+lnb+n5grr7GDz5wkh54z7SMj8VMhC71DJOhP8g1mCROW/TND395xZ8M5Oo8o8uR25bOT4Gkms6bWYexZxbJeWQmO4B8Ga9NcshobfCuxCU7yARtW81bKHznF/QxOCrQoGCFQNZ1YX5UVZoJXFbg7DKodYwu9/I/frCVuraDIi0DHrDxrjM2FamI7EsYQcpN6YVJsMkQCu90r6IEV2ebPgnChsrGs+K2clvK2WUVltRNeyz8ndjEcxO5JMbJ+lqeRiWkzua2zprV2vuI9+B3oKhVXIEKZIDvUHJ5cQneTMkYGdiXbFeN+v0dO9U8MQw2yV45NpycsdOonrWOxyxXwNYU0umf9IDIGfY9ec3cXdI1x1UcVJBw35S8YlHxM2fIhdTXrh5vr2jsHrw1nZmjrmONxzMN4r4IVJLqT+S7EeFOpth9uIHTnj9Rc6seZs
+sidebar_class_name: "post api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"User login"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/auth/login"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+User login
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"email":{"type":"string","format":"email"},"password":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful login","content":{"application/json":{"schema":{"type":"object","properties":{"token":{"type":"string"}}}}}},"400":{"description":"Bad request","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"401":{"description":"Invalid credentials","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"500":{"description":"Internal server error","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

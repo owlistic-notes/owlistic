@@ -1,0 +1,71 @@
+---
+id: get-blocks-by-note-id
+title: "Get blocks by note ID"
+description: "Get blocks by note ID"
+sidebar_label: "Get blocks by note ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1k91q3DAQhV9FzFULJvaWFILvCmnDQmlLaa5CKLP2OBbRSoo03nYxfvfOON787KZXlsZHozOfj0eImHBLTClDfTOClw3U4APTb9tCAdbLNiL3sk70MNhELdScBiqgpdwkG9kGFa0vTegM92T0tMhz09MWoR6B91G7Zk7W38E03WqvHIPPlPX9h6rSx+t+X21m7bhxobnPpgvpuflUwHm1Oj1znSmpwuAgWs+2QRa/s/z8VP5Nes3yLgx+ln18y8kXtI5aw8EkkhFoR4spGeWYwhXxwfFmP5s160uBIYz7IOTgjli2M9EaykdpqbpyXKhPyo7S7vBNhuRE2jPHuixFj64PmeuL6qIqMdpytwIlan0XZtiWndL+/scJQduYTz/WcGxTaqYNzbAVSKi1me/TEYzRKTsVF6BOHo+tzqqzSjlFcbBFr/ctkfnf4K/ufYoC018uo0OJl3SbJxwXKDewwC1gCVJ9iKNMqaOrZhw3mOk6uWnS8sNAaS91We4wWdwoAmHX2qxrAd+hy8eZHaEJngWBOHr3c0n3e3OS5DdNL0X0e0WEbtCdLO9p/+IPmm6nFx//6vMvycw/KBQqzQ==
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get blocks by note ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/blocks/note/{note_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get blocks by note ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"note_id","in":"path","required":true,"description":"ID of the note","schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"List of blocks for the note"},"401":{"description":"User not authenticated"},"404":{"description":"Note not found"},"500":{"description":"Failed to retrieve blocks"}}}
+>
+  
+</StatusCodes>
+
+
+      

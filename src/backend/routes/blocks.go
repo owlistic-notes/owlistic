@@ -25,6 +25,15 @@ func RegisterBlockRoutes(group *gin.RouterGroup, db *database.Database, blockSer
 	group.DELETE("/blocks/:id", func(c *gin.Context) { DeleteBlock(c, db, blockService) })
 }
 
+// swagger:operation GET /blocks Blocks GetBlocks
+// Get Blocks
+// 
+// --- 
+// responses: 
+// 
+//  500: InternalServerError
+//  401: Unauthorized
+//  200: Success
 func GetBlocks(c *gin.Context, db *database.Database, blockService services.BlockServiceInterface) {
 	// Extract query parameters
 	params := make(map[string]interface{})

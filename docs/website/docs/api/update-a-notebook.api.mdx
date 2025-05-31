@@ -1,0 +1,71 @@
+---
+id: update-a-notebook
+title: "Update a notebook"
+description: "Update a notebook"
+sidebar_label: "Update a notebook"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVMtu2zAQ/BWBpxZwLaXIIdAtLXropQ2C+GQYxVpaW0wokiWXTgxB/95dya/ESdBDdLApcpY7MxqyUx4CtEgYoirnnbL8okqlazVR2vLIAzU8Dvg36YC1KikknKhYNdiCKjtFWy8VkYK2a9X3ixGMkb65eiuIl7WVs4SWZAm8N7oC0s7m99FZmTvb2i3vsSIm4YPzGEhjlNWR6jkBeYRD9M7GEfq1KOSvxlgF7aUbF/xyhEvnHrLkayAUxR/EjN074zVRKxda4L1VSgxgim8ImKgUMfz5r00YTJoMnshRo/7L4vIdydZRtnLJfqBoDMGFt74HE3rOZDZ4noEwGWlPFMewcbVkLg3bS/JKle8RMe903fMCu7PZ5zUFw5iGyJd5blwFpnGRyqviqsjB63xzoSSRIub2mMofT9B6g8cUnZiv7coNMna+/n40OpKusuubn9xcOo8SLqbFtFAvhTEqq12VWrZ0MJJ9DtlhkxOHp9LNM9sW7AmT15x51uLgMOET5d4An1MJjTjR7Vybq4NrXF5yVNgEcUaWum4JEWfB9L1MsyuBz+mchxsIGpYim62tdZQxf5AVmIhnLA65UZ9udyf8c8bdXmW3mwS7FQ/BJHnj4QNux+umXzCqQagxDN3Hhe9jjy93Un4sPMtpP9lXXFcVenoXuziJ2s3sjrHL3U3VulpKAjzKlce/A0c3SB5CPsx1yoBdJ1gLdtxSnn//DdC1
+sidebar_class_name: "put api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update a notebook"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/notebooks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update a notebook
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"name":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Notebook updated","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"name":{"type":"string"},"user_id":{"type":"string","format":"uuid"}},"title":"Notebook"}}}},"404":{"description":"Notebook not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

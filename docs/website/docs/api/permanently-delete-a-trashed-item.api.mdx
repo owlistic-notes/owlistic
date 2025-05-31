@@ -1,0 +1,71 @@
+---
+id: permanently-delete-a-trashed-item
+title: "Permanently delete a trashed item"
+description: "Permanently delete a trashed item"
+sidebar_label: "Permanently delete a trashed item"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9U8GK3DAM/RWjUwvDJFtaWHwrdA4LhS6le1r2oE00jalje2Vn2hDy75WSdGh351B66CmK9Pyk9yxPkJCxp0Kcwd5PEOQHLJQxEezABYkTlk5ipqfBMbVgCw+0g9x01CPYaQVbyIVd+ArzvDvTuPafSR4UnFMMmbLW39S1flrKDbtUXFTWm0K9ScQ9BgrFj6YlL1pamHfw9tKBu5CHlCILxjg9vLQV9LuL9EF8CehNJj4RG2KOrAKf4W5fTGDQFMbcbW1EuXjcRdENK0AyiyUWqgVYTTrJXE2unaW2NlyvZGAvsK6UZKvKxwZ9F3Ox1/V1XWFy1ekK1C0XjnEx0hWvTn767l0urjHvb2+EUenWaa/29b6G5xoEZdrYDL3IQM2ZY2RzJsGUvGuWwl79SjKCaNaG213/jQl/tDzfeaEfpUoeZVGEeZE7be7cw8IgR+22klZ2StSqBVqepkfMdMd+njX9NBCPkpfwhOzwUa0QD1uXNRb/j+gzvZikiXLVQRjh1edtRV8b6XZxwi2JYVRf0Q/6J+E3Gn89HX0D/7GneDI/zL8t2YfDx8OXg6zqTx+DT/w=
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Permanently delete a trashed item"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/trash/{type}/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Permanently delete a trashed item
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"type","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Item permanently deleted"},"400":{"description":"Unsupported item type"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

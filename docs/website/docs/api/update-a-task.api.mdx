@@ -1,0 +1,71 @@
+---
+id: update-a-task
+title: "Update a task"
+description: "Update a task"
+sidebar_label: "Update a task"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VEtv2zAM/iuGThuQ1e7QAYVv3bBDTyuK5BQEA2MxsVpZ0vRIGxj+7yNtr0nzKHoo5oNN8/npE8lWOPDQYEQfRDlvhaEfUQolxUQoQ5KDWJPs8U9SHqUoo084EaGqsQFRtiJuHUeE6JVZi65bDM4Y4ncrt+xxGFtZE9FENoFzWlUQlTX5Q7CGdUep7fIBq0ggnLcOfVQYequKGk8h4IdBBGdNGHy/FgV/JIbKK8flKGAK4TFLTkJEmYVUVRjCKmm9FR+GkXg8AjgRK+sboNwiJXIgrOeOMhEpoP/9zizGRnyf765kT4IYGLsqrs6QRJmzlU1Gfhwz6L3152/v26kLu6XK3oDOiJQN+mzI8X8gEabXYGZ942SQRWZwImiIait5YlKfmuemFDlbQ94q2ZFywD1MWvKa7HWMrsxzbSvQtQ2xvC6uixycyjeXgmeJD3G/m6efz9C4sVfGG9w1izIru2/59aRViKrKbu5uxSF+0mXSVqkh5nq+6IZ99hKyRySFMuoh7PKiuCi4mCO0DfQEj0vjkJFX9V5Yjfgcc6eBtgv3N7PQjmzNRc8WhZbUpXR4ZoTVbbuEgDOvu47VxIanzTIncQNewZJPS5RKFVimS1iBDniE4KVPxKf7cSd9zqjaSWSjEgyvgw3oxH8kPuJ2WJDdgrxqBIm+rz4Yfgw1vkw5fBd41Jfd5F/EDS0eF9/0Xey1191sSr7Lcbc2VnKIhyde0vTuMdr+yH1T97pWaDDrBGv2HVLy8xc5sQ5g
+sidebar_class_name: "put api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update a task"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/tasks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update a task
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"title":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Task updated successfully","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"title":{"type":"string"},"user_id":{"type":"string","format":"uuid"},"note_id":{"type":"string","format":"uuid"}},"title":"Task"}}}},"404":{"description":"Task not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"500":{"description":"Internal server error","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,71 @@
+---
+id: delete-a-notebook
+title: "Delete a notebook"
+description: "Delete a notebook"
+sidebar_label: "Delete a notebook"
+hide_title: true
+hide_table_of_contents: true
+api: eJx9kk1v2zAMhv+KwdMGBLE79FD4VqA5DBi2YdhORQ+KxMxqFUml6GyB4f8+0k6Nrgnqi2mJHy8fvwNkQ2aPjFSgvR8gyge04B2swEeJsuFOYsLn3hM6aJl6XEGxHe4NtAPwMWtFYfLxN4zjgyaXnGLBovefmmt9OSyWfGaftOvXxLhN6alyGGS4g3EF1+8mxsTVLvVRhdkUGSNrtsk5eGs0u34sWjKca0vbR7QshZlSRmI/K0OiRJdWmJ7VGyV3k9LKqJJJkvQTcF0SJjCvoRMUVwv1S1KpB+9GuShIhxfIPQXJ6ZhzW9chWRO6VLi9aW6a2mRfH65AMfq4S5M8z0H1ffsTfGFvq9vvn6WjtpulXa2bdQNvBUtW5ZLt94JqAiT8qFqavCK3VvxZJOzNBPBkgksb/zdiIcf4l+scjDhGOk3rDScU97CgkPJWjCWb6bp6NQxbU/AXhXHU4+ce6SjnEh4MebPVtYWX80VjAb0zoeCZisUP8OHHyacfK5l2Ud3p0MSjMjSh1y8Jn/A4G398kKwOjUOaps8Xt9Zi5lclZ87TX7YY4m7zZfNzI176B+woJh8=
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a notebook"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/notebooks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a notebook
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Notebook deleted"},"404":{"description":"Notebook not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,71 @@
+---
+id: delete-a-notebook-by-id
+title: "Delete a notebook by ID"
+description: "Delete a notebook by ID"
+sidebar_label: "Delete a notebook by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJx9Uk1rGzEQ/StiTg2Y7CakEPZWsA+G0IbQnkIOY2ncFZElRR9Ol2X/e2d2XdMmbU8azed7b2aEiAkPVChl6B5H8PyBDqyBFVjPVsTSs53opdpEBrqSKq0g654OCN0IZYhSkUuy/jtM05Mk5xh8pizx6/ZGHkNZJxuLDdL1cyi0C+FZGXI83Khctaac99W5AaYV3Py3yoei9qF6I6kf2/Z96tYzJY9OZUpHSopSConRrd7kref5CqXl0ns3qO2aGbMofWC+sEBkzyxFB82v1NyM1kwcWGYsAtbkOKcvJXZN44JG14dcutv2tm0w2uZ4BSKR9fswq2eLE/m+vDqbi9Xq0/0W3oJknzJB1wP5guJj8kmdSzBGZ/Uc4FJBspRdXbaXrSgUGcEBvcw77ffftP+YfN5uoR+liQ75JLjfzHE86fEIZz24vOPLYXrCWULjuMNM35KbJnG/VEoD+9k8YrK4E+4smrFZbFZ7jy7TOxQ68Do9d4QPD6dDvFA87a/oTk70g6iBrsqPzWcalsuenqbf1rve3G2+bvg0fgLphQef
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a notebook by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/notebooks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a notebook by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Notebook deleted successfully"},"404":{"description":"Notebook not found"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      
