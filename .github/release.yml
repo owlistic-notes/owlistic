@@ -34,7 +34,7 @@ changelog:
 
     - title: 👒 Dependencies
       authors:
-        - app/renovate
+        - renovatebot
 
     - title: Other Changes
       labels:
