@@ -80,16 +80,24 @@ Please have a look at the [features](https://owlistic-notes.github.io/owlistic/d
 
 Spin up Owlistic in minutes using your preferred [installation method](https://owlistic-notes.github.io/owlistic/docs/category/installation).
 
-## Maintainers
-
-- [@Davide Rutigliano](https://github.com/DavideRutigliano)
-
 ## Contributing
 
 Owlistic is developed by the community, for the community. We welcome contributions of all kinds - from code improvements to documentation updates. Check out our [Contributing Guide](https://owlistic-notes.github.io/owlistic/docs/category/contributing) to learn how you can help.
 
 Small note: If editing the README, please conform to the
 [standard-readme](https://github.com/RichardLitt/standard-readme) specification.
+
+## Contributors
+
+<a href="https://github.com/owlistic-notes/owlistic/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=owlistic-notes/owlistic" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=owlistic-notes/owlistic&type=Date)](https://www.star-history.com/#owlistic-notes/owlistic)
 
 ## License
 
