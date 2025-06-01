@@ -96,8 +96,11 @@ class DocumentBuilder {
     _composer.selectionNotifier.addListener(_updateToolbarDisplay);
 
     // Create editor with our document and composer
-    _editor =
-        createDefaultDocumentEditor(document: _document, composer: _composer);
+    _editor = createDefaultDocumentEditor(
+      document: _document,
+      composer: _composer,
+      isHistoryEnabled: true,
+    );
 
     // Add action tags listener for inline commands
     _inlineCommandsPlugin = ActionTagsPlugin();
@@ -1316,6 +1319,14 @@ class DocumentBuilder {
     // Parse markdown into a document
     final document = deserializeMarkdownToDocument(markdown);
     return document;
+  }
+
+  void redo() {
+    _editor.redo();
+  }
+
+  void undo() {
+    _editor.undo();
   }
 
   // Create Super Editor with configured components for SuperEditor 0.3.0
