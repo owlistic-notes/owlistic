@@ -17,6 +17,7 @@
 
 - [Quick Links](#quick-links)
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Installation](#install)
 - [Maintainers](#maintainers)
 - [Contributing](#contributing)
@@ -49,8 +50,9 @@
 
 Please have a look at the [features](https://owlistic-notes.github.io/owlistic/docs/category/features) for details.
 
+### Screenshots
 <details>
-<summary><h3 style="display:inline-block">Screenshots</h3></summary>
+<summary>Show</summary>
 
 ### General
 
