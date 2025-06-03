@@ -42,9 +42,7 @@ class TaskService extends BaseService {
   Future<Task> createTask(String title, String noteId, {String? blockId}) async {
     try {
       // Create metadata with sync source
-      final metadata = <String, dynamic>{
-        '_sync_source': 'task',
-      };
+      final metadata = <String, dynamic>{};
       
       // Add block_id to metadata if provided
       if (blockId != null && blockId.isNotEmpty) {
@@ -54,7 +52,7 @@ class TaskService extends BaseService {
       final taskData = <String, dynamic>{
         'title': title,
         'is_completed': false,
-        'note_id': noteId, // Direct note_id field
+        'note_id': noteId,
         'metadata': metadata,
       };
 
@@ -105,26 +103,21 @@ class TaskService extends BaseService {
       }
       
       // Create metadata with task_id and keep existing metadata
-      final metadata = <String, dynamic>{
-        '_sync_source': 'task',
-      };
+      final metadata = <String, dynamic>{};
       
       // Copy existing metadata
       if (existingTask.metadata != null) {
         metadata.addAll(existingTask.metadata!);
       }
 
-      metadata['task_id'] = id;
-      metadata['last_synced'] = DateTime.now().toIso8601String();
-      if (isCompleted != null) metadata['is_completed'] = isCompleted;
-
       final updates = <String, dynamic>{
         'metadata': metadata,
       };
       
       // Add basic task properties
-      if (title != null) updates['title'] = title;
-      if (noteId != null) updates['note_id'] = noteId;
+      updates['title'] = (title != null) ? title : existingTask.title;
+      updates['note_id'] = (noteId != null) ? noteId : existingTask.noteId;
+      updates['is_completed'] = (isCompleted != null) ? isCompleted : existingTask.isCompleted;
 
       final response = await authenticatedPut('/api/v1/tasks/$id', updates);
 

@@ -180,7 +180,7 @@ func (s *NotebookService) UpdateNotebook(db *database.Database, id string, noteb
 		notebook.Description = description
 	}
 
-	notebook.UpdatedAt = time.Now()
+	notebook.UpdatedAt = time.Now().UTC()
 
 	if err := tx.Save(&notebook).Error; err != nil {
 		tx.Rollback()

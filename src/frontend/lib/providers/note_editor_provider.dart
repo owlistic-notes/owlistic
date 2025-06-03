@@ -447,12 +447,11 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
   
   // DocumentChangeListener implementation for content changes
-  void _documentChangeListener(dynamic _) {
+  void _documentChangeListener(dynamic changelog) {
     if (_updatingDocument) return;
-    
     // Check if this change is a DocumentChangeLog which might contain TaskNode changes
-    if (_ is DocumentChangeLog) {
-      DocumentChangeLog changeLog = _;
+    if (changelog is DocumentChangeLog) {
+      DocumentChangeLog changeLog = changelog;
       
       // Check if this change includes a TaskNode's isComplete property change
       bool hasTaskStateChange = false;
@@ -477,8 +476,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
         return;
       }
     }
-    
-    // Regular change handling for typing/editing
     _handleDocumentChange();
   }
 
@@ -515,7 +512,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       };
       
       // Send immediate update to server with standardized format
-      updateBlock(blockId, payload);
+      _updateBlock(blockId, payload);
     }
   }
 
@@ -579,7 +576,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     }
 
     // Send content update with formats included
-    updateBlock(blockId, extractedData, type: blockType);
+    _updateBlock(blockId, extractedData, type: blockType);
   }
   
   // WebSocket event handlers
@@ -727,7 +724,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
   }
 
   // Implementation of NoteEditorViewModel methods
-  
   @override
   Future<List<Block>> fetchBlocksForNote(String noteId, {
     int page = 1,
@@ -897,8 +893,7 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     }
   }
 
-  @override
-  void updateBlock(String id, Map<String, dynamic> content, {
+  void _updateBlock(String id, Map<String, dynamic> content, {
     String? type, 
     double? order,
   }) {
@@ -925,12 +920,14 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
     // Track this as a user modification
     _documentBuilder.markBlockAsModified(id);
     
+    // Update block without waiting for server response
+    _sendBlockUpdate(id, contentMap, metadata: metadataMap, type: type, order: order);
+
     // Notify listeners for UI responsiveness
     notifyListeners();
-    _updateBlock(id, contentMap, metadata: metadataMap, type: type, order: order);
   }
 
-  Future<void> _updateBlock(String id,
+  Future<void> _sendBlockUpdate(String id,
     Map<String, dynamic> content, {
     Map<String, dynamic>? metadata,
     String? type, 
@@ -959,7 +956,6 @@ class NoteEditorProvider with ChangeNotifier implements NoteEditorViewModel {
       
       // Setup metadata
       Map<String, dynamic> metadataMap = metadata ?? {};
-      metadataMap['_sync_source'] = 'block';
       metadataMap['block_id'] = id;
       
       // Add metadata to payload
