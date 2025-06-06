@@ -1,5 +1,5 @@
 # Use the official Golang image as the base image
-FROM --platform=linux/$TARGETARCH golang:1.23.4-alpine AS builder
+FROM --platform=linux/$TARGETARCH golang:1.24.4-alpine AS builder
 
 # Set ARG for platform targeting
 ARG TARGETARCH
