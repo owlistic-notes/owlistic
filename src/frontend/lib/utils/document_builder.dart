@@ -724,6 +724,8 @@ class DocumentBuilder {
         final levelStr = blockTypeStr.substring(6);
         final level = int.tryParse(levelStr) ?? 1;
         metadata['level'] = level;
+      } else if (blockType == 'code') {
+        metadata['code-block'] = node.metadata['code-block'] ?? 'plain';
       }
     } else if (node is TaskNode) {
       content['text'] = node.text.toPlainText();
@@ -783,6 +785,8 @@ class DocumentBuilder {
         blockType = 'header';
         final levelStr = blockType.substring(6);
         metadata['level'] = DataConverter.parseIntSafely(levelStr);
+      } else if (blockType == 'code') {
+        metadata['code-block'] = node.metadata['code-block'] ?? 'plain';
       }
     } else if (node is TaskNode) {
       content['text'] = node.text.toPlainText();
@@ -797,11 +801,11 @@ class DocumentBuilder {
 
       // Extract spans for list items
       final spans =
-          _attributedTextUtils.extractSpansFromAttributedText(node.text);
+        _attributedTextUtils.extractSpansFromAttributedText(node.text);
       metadata['spans'] = spans;
 
       metadata['listType'] =
-          node.type == ListItemType.ordered ? 'ordered' : 'unordered';
+        node.type == ListItemType.ordered ? 'ordered' : 'unordered';
     }
 
     return {'content': content, 'metadata': metadata};
@@ -865,7 +869,29 @@ class DocumentBuilder {
         return [
           HorizontalRuleNode(
             id: Editor.createNodeId(),
-            // metadata: metadata
+          ),
+        ];
+
+      case 'code':
+        final language = metadata != null
+            ? metadata['code-block']?.toString() ?? 'plain'
+            : 'plain';
+        return [
+          ParagraphNode(
+            id: Editor.createNodeId(),
+            text: _attributedTextUtils
+                .createAttributedTextFromContent(text, {'metadata': metadata}),
+            metadata: {
+              'blockType': const NamedAttribution("code"),
+              'code-block': language,
+              'spans': [
+                {
+                  'start': 1,
+                  'end': text.length,
+                  'type': 'code',
+                },
+              ],
+            },
           ),
         ];
 
