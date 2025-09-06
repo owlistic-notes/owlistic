@@ -1,0 +1,71 @@
+---
+id: retrieve-blocks
+title: "Retrieve blocks"
+description: "Retrieve blocks"
+sidebar_label: "Retrieve blocks"
+hide_title: true
+hide_table_of_contents: true
+api: eJydU01v2zAM/SuGzkHsDhhQ+JYCxdDThmE7FcEgy0ytVpZUik4bGP7vI23DdZb0spPAr8fHR6pXUaNugQCTKh975dlQpfKB4I+t1UZZz+ZrB3hiA+G1swi1Kg/aJdioZBpotSp7RacohYnQ+ic1DJsFa4z8P9BeslMMPkGS+JeikKeGZNBGskFwd5mzibJwyCoXzEviFiZ4Ak+Sq2N01mjJzZ+TFPSXDTWiFmqWoE0rf6iewRAHIoYISHaiweJckt0swl2LTY4rgRXV86YcC1gDriK+ayt2DIJnyYnrTkZmzyDOr9fkeWB89NplCfAImAFimDDO834Cc4IjfKjIp9EEHkc9waiBpoaNfIlPgNPtdOg41hDFMs85QbsmJCpvi9si19Hmxxsl27T+EMaBZvrf32R31mS7Hw+MKHATm5ttsS3Uvxw5K6uD6VpWbFxpdgiYLSCrXW9Fv8gUWj2ufL7HyyHPGixKE7xTHp3mw2Wccbh+FuBRzbU8jswonr6vdILf6IZB3NOliyy1Tbpyq1t/gdPZFztq10lDJZ/mk+z5E32k7sVAK7ncZc8MG9DjqXDLqWZnDERaVV38A0FZNvzt/hefxF/BG2Fx
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Retrieve blocks"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/blocks"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Retrieve blocks
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"note_id","in":"query","required":false,"schema":{"type":"string"}},{"name":"type","in":"query","required":false,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"A list of blocks","content":{"application/json":{"schema":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"note_id":{"type":"string"},"type":{"type":"string"},"content":{"type":"object"},"order":{"type":"number"}},"title":"Block"}}}}},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

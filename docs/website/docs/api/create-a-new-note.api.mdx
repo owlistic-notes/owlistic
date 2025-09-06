@@ -1,0 +1,71 @@
+---
+id: create-a-new-note
+title: "Create a new note"
+description: "Create a new note"
+sidebar_label: "Create a new note"
+hide_title: true
+hide_table_of_contents: true
+api: eJytlMFu2zAMhl/F4NmLnWGHwrd26GGXtdi6UxAMjMzGam1Jk+SkgeF3Hyknadpsww7xwZYoiuT/kckAnn71FOKNrXdQDWmrPdVQRd9TDsqaSCbKETrXaoVRW1M8BWvEFlRDHcoq7hxBBXb1RCpCDs5bRz5qCulUx5ZO3EL02qxhzGHVWvUcTo7Qe9xxAB2pC+eRx+nJudLgrAlT/I/lXD41BeW1kxL5xlcbKVOeMLKei0nR9bmOHB6t75BjQ9+zA5d3ScU59IH8z//K/Jo66YcJ1qeyPOdzg3W2b//l8JD31v9B96Ftb0v4nLqTYWZomxmpN4eOYmNZKjibCnMYG94Vchx4zyg25DnZYoDet3zUxOiqomCu2DZ8qboqr8oCnS42cxiXOYiIb6+DfvuCndt3Z8/qiPPQncUwLrlcbR7tqd/dttUhapVd339hbylkUjKflbMS3utjr6y2qu+YbOKZcbuyY5AT0DMZDVHcYeJtsKO/AHqT4gg60kssXIvaSKQEZtizW8DEjkkIHjEMwwoD/fDtOIqZ0Xj+/S94uUGvcSViFwKgIazJJ9jPtJOKpjn58CBpxb3t0xC/n5kxP9y4Vopc/Kfv8qTt93ffH6QR+3+kztZyx+OWjfKugBc2yU8Tl2wDtGjWPa7Fd4opz282L6vx
+sidebar_class_name: "post api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create a new note"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/notes"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new note
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"title":{"type":"string"},"blocks":{"type":"array","items":{"type":"object"}}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"201":{"description":"Note created","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"title":{"type":"string"},"blocks":{"type":"array","items":{"type":"object"}},"user_id":{"type":"string","format":"uuid"}},"title":"Note"}}}},"400":{"description":"Bad request","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

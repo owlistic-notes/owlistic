@@ -1,0 +1,71 @@
+---
+id: create-a-new-block
+title: "Create a new block"
+description: "Create a new block"
+sidebar_label: "Create a new block"
+hide_title: true
+hide_table_of_contents: true
+api: eJytlMFu2zAMhl9F0NmLnWEDCt/aYYeeWmzdKQgGWWZitbKkSXLSwPC7j5SdxFnWHoblkMjkr5/iZyo99/CrgxDvbH3gZZ8elYeal9F3kHFpTQQTKSWc00qKqKzJn4M1FAuygVbQKh4c8JLb6hlk5Bl33jrwUUGg7MzmUjhk3NgIP1U9y4XoldlSbgxcJTBzPujq5H72mnauh2HUBmdNGI/ysVjSTw1BeuWoGzS+01a+MOlBRKhZ6KSEEDad1gf+3xi80eI/tJ+9y9P6GvwsY7q2wgCBiCpqOLbLRzifiuKax73ZCa1qpozrkunnv6sieCM0C+B34Bl4b8dCl7oviSsTzMCeVal2xluIjcW2ubMhwRKxwac85QMGRlNEt+p55zXmmhhdmecoELrBXeVNcVPkwql8t+TDOuP0Sr6dB/rrq2idhssBnCM/Es2uCSuzsQnihOxhr1WISrLbx3vU08nG5paLYlHwP1tGFaut7FosmsaFbaxnJ5PZHC2oGjFoRRonI1p4i9lFjdMLjvAac6eFMmSVUPUTzhWfcCIcIkaRvq9EgB9eDwOFkZbHq7/C5U54JSpqd7VGpwZEmiTk/wIHOtMI8cMT1SW57qj+1aUYsuOOW7xILr6rXc9G4fHh+xOKq+nPqLU17fFij0H6LjkubOo/XakU67kWZtuJLWlHT/r8BpENqp0=
+sidebar_class_name: "post api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create a new block"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/blocks"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new block
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"content":{"type":"object"},"note_id":{"type":"string"},"type":{"type":"string"}},"required":["content","note_id","type"]}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"201":{"description":"Block created successfully","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string"},"note_id":{"type":"string"},"type":{"type":"string"},"content":{"type":"object"},"order":{"type":"number"}},"title":"Block"}}}},"400":{"description":"Invalid input"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

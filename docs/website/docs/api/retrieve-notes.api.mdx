@@ -1,0 +1,71 @@
+---
+id: retrieve-notes
+title: "Retrieve notes"
+description: "Retrieve notes"
+sidebar_label: "Retrieve notes"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVE2L20AM/Stmzib2FgqLbzmUspe2lPa0hDIeK+vZjD2zGjltMP7vlezEtZsUFrq5BH096Wme3KugUTdAgFEVj71q2VCF6iLgD1upVNmWzZcO8MQGwktnESpV7LWLkKpoami0KnpFpyCFkdC2T2oY0hmr9QSl94e3wiNLDv4DaSfZMfg2QpT4uzyXvwqiQRvIesHdJs5GSvw+kfEjdzC+JWhJUnUIzhotqdlzlPz+up9G1DKZJWjiwu/LZzDEgYA+AJKdpuDlXM+ansneipTOm0N8+4aj40ZgwX8NPPAvnRVz6+kuLNQn3uWYz773t9b+wD2w1S5htCNgAogeR4h13ldgcDjC/Dos4dpzd/UEI1VNNRvZJTzBTRLv0HGoJgpFlvEStat9pOI+v88zHWx2vFOiEdvu/cjmPPvnn6IIa5LtlwdGFLhplrtNvsnV3xNyVlJ50zW8s1Epyd5jMoMsJLSR7QYeodGjks4yv6K4wp+3TPCLsuA0X4O8gnDrz/Qf1VTKZIShOPq+1BG+oxsGcU/XI0upbNSlW9zPAU6r78BRu076KbnEf2SvL/01FZdb/pO7EwOtJPNgO+ZUg64Axymnoq0xEGhRdXWPgjIr4uOHb6yg36SMqzg=
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Retrieve notes"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/notes"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Retrieve notes
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"user_id","in":"query","required":false,"schema":{"type":"string"}},{"name":"notebook_id","in":"query","required":false,"schema":{"type":"string"}},{"name":"title","in":"query","required":false,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"A list of notes","content":{"application/json":{"schema":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"blocks":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"type":{"type":"string"},"content":{"type":"object"}}}},"user_id":{"type":"string"}},"title":"Note"}}}}},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

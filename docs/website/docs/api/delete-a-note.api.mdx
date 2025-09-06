@@ -1,0 +1,71 @@
+---
+id: delete-a-note
+title: "Delete a note"
+description: "Delete a note"
+sidebar_label: "Delete a note"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1ksFu2zAMhl/F4GkFgtgdeih8K9AcCgzdMHSnogdFYmp1iqRSdLrA8LuPtLOgS1pfTFHUr5+fOEA2ZLbISAXaxwGiLKAF72ABPkqUDXcSE772ntBBy9TjAortcGugHYD3WU8UJh+fYRyftLjkFAsW3f/aXOnPYbHkM/ukqveJsXIY5GIH4wKuPi2KiatN6qMasikyRtZKk3Pw1mhl/VK0fDj3lNYvaFkOZkoZif3sCIkSfWR9+hYnLm4nl5VRJyhaAqtLwgFm+6quiFqotaDUg3ejJAvS7h/UnoLsd8y5reuQrAldKtxeN9dNbbKvd5eg2HzcpMmW56C+vr8FX9jb6ubHnSiq3GzpctksGzg1KlWVS7bfCqIJjHCj6ijyjthSkWexsDUTuMOjn3b6n/yRFuMfrnMwMh2iMrU2HBA8woRAjrYyQNKRtqnpYVibgr8ojKOmX3ukveQl3BnyZq3tCifni8YCd2NCwTMHx/eHLz8P83hRyW0fOjskTdwrOxN6XUn4G/fzgI9PUtWhcUjT7fPGjbWY+d2Rs0nTpzoOwe3q2+phJbPzF/VDHB0=
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a note"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/notes/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a note
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Note deleted"},"404":{"description":"Note not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

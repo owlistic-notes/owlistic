@@ -1,0 +1,71 @@
+---
+id: delete-a-block
+title: "Delete a block"
+description: "Delete a block"
+sidebar_label: "Delete a block"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1Uk1rHDEM/StGpxSWnUlIIMwtJXsIFFJKcwo5aG1tx8RrO/7YZhjmv0eaWUKSbU+W5ecnvSeNEDHhngqlDN3jCJ4v0IE1sALrOYpYeo4TvVSbyEBXUqUVZN3THqEboQxRfuSSrP8D0/Qk4ByDz5Tl/aK9lMNQ1snGYoOwfndBPytDjisblavWlPOuOjfAtILL/3/xoahdqN4I7qptT3F3nsV4dCpTOlBSlFJI3NfqC+52Lq5QbYWYJbILfWCBsLTFmVl7B82MyM1ozcTZhXexqybHgL6U2DUNo9D1IZfuur1uG4y2OZyDGGL9Lsxe2eLErPu/zuZitbr5eceMQrc0db5u1y18bZVRygRd9+QLSo4tSOqdBGN0Vs8Pa7Elcgt79FLwOM4TrZ/432dY6LU00SEPnmlmbePRhEdYTOC/HS8HaxKhkh/HLWZ6SG6aJP1SKQ2c5/CAyeJWBLNTxmaJ2d8dukwnLejAc/PMCGe/jrv2TXG1f7Z2TKIfxD10VW4cPtOwLO/0NH0Y6O3mx+b3hnfgDaLn/Go=
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a block"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/blocks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a block
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Block deleted successfully"},"404":{"description":"Block not found"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

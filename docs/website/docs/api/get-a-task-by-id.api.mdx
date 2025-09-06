@@ -1,0 +1,71 @@
+---
+id: get-a-task-by-id
+title: "Get a task by ID"
+description: "Get a task by ID"
+sidebar_label: "Get a task by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VE1r3EAM/StGpxaW2CkpBN8CLWFPLSU9hVC0tjaeZHZmopG3XYz/eyV72SbZLeRQerKs0cfT05sZICHjhoQ4Q307QNAfqMG1sAAX1EoondpMT71jaqEW7mkBuelog1APILtkGVnYhXsYxzsLzimGTNnOP1SVfVrKDbskLlrVG8yPxTr2wfo0MQgFsShMybsGLap8yBY6HLeKqwdqRBMTx0Qsbm6kmI/gLGAdeYNaG/peA8YFiBNPJ4AvoM/EP95YJUSht8X+aTlNrQ5zXVQXf2FFK/9rZog58qldzVg+ntrQUjtzQF8oKVviYq7xfyApppdgrkkKLMToWe2K5Sctp5rtovIP9zRVN5nWUFpMLgfXjuqcoc/C7tnreSeS6rL0sUHfxSz1ZXVZlZhcuT0Hk64L6zjB2q/sy0/vsrimuPq6hNew1Fe0sek3SshEgy6Oi0PKM3401ZDMaedn1VllIkqKYIMTb/t7d2LQFy0PfAn9kjJ51DtqyrXhhj0JtzCRoKm16k9nskHNPQwrzPSd/Tia+6kn3qlfzS2yw5UNrEy1Lput3K7RZzpCcFAAvPu2fxXeF9rtJLK9E8POKEDf25+aj7Sbn5nxTqM6wpZ46j4fXDUNJXmWcqQ1W9ZBA9efb1Q6vwGg0aEL
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a task by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/tasks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get a task by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Task found","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"title":{"type":"string"},"user_id":{"type":"string","format":"uuid"},"note_id":{"type":"string","format":"uuid"}},"title":"Task"}}}},"404":{"description":"Task not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"500":{"description":"Internal server error","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

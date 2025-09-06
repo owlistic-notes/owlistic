@@ -1,0 +1,71 @@
+---
+id: delete-a-block-by-id
+title: "Delete a block by ID"
+description: "Delete a block by ID"
+sidebar_label: "Delete a block by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9U8Fu2zAM/RWBpw0IanfogMK3DskhQIEOw3YqepAlZlarSColZzMM//tIOwjapr3OF1MUH/n4SI2QNOk9FqQMzf0IgQ/QgLOwAhfYSrp0bBM+947QQlOoxxVk0+FeQzNCGZIgciEXfsM0PUhwTjFkzHL/pb6Sn8VsyKXiomT95qN5UhY9V7Yq98Zgzrve+wGmFVx9DAmxqF3sg/AzMRQMRUJ1St4ZLaHVY5b48ZxibB/RFAYmigmpuIUgEkV6rxP5VvC1rs/JbLkyBe1VRjogqSXH/6HEnF6TWc8yKq3aWaJ2UNs1p+SpdpEHBovMUkRm2UA1x+VqdHZi79LCMv6ePAd0paSmqjhK+y7m0lzX13Wlk6sOlyADdmEXZ3queOF398e7XJxRN9+38JYe+5SNpt+zMLMcPEBSJ8gLnRgqTBbY5UV9Ucs2JGaw17N+x+38oOFXZU/aFfxbquQ1bzMnmxscj0rcw6IEYxveeG5MuhX/OLY64y/y0yTu5x5pYD+bB01Ot9I1y2VdFptF3mmf8YzCaR3g04/jA/qsuNq71I5OHQbRQfteTmw+4bC8yOmBozrUFmmuvlzc8NtJ5QXkbPFkYqdlWG9uNz83vEr/AIbUWnk=
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a block by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/blocks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a block by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Block deleted successfully"},"404":{"description":"Block not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"500":{"description":"Internal server error","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

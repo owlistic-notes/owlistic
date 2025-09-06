@@ -1,0 +1,71 @@
+---
+id: update-a-block-by-id
+title: "Update a block by ID"
+description: "Update a block by ID"
+sidebar_label: "Update a block by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VEtv2zAM/iuGThvg1e7QAYVv7bZDTiuK5hQEg2wxsVpZ0vRIGxj+7yNlN02apqeiPtg0xcfHTyR7ZrnjHQRwnlWLnmn8YRWTguVMapQsDy3KDv5F6UCwKrgIOfNNCx1nVc/C1pKHD07qNRuG5WgMPlwbsSWL176N0QF0oCNurZIND9Lo4t4bTbqj0Ka+hyYgCOuMBRckeDrdC3NoOOST4hgcPYTPW6P9GOZ7WdJHgG+ctIQEHa6VaR6yaAUPIDIfmwa8X0WltuzD8CPHxwhzpk2AvyfOTpSVv8uFcQLc3omOXY0KIiLIoOC5XDaSc1FenOIDoWUrE7X4OBLAOeNO39SPty5nhpmd5irz4DbgsjHG50BCTIdg5qlHMp7ViaJ6m81+YUgcqdYImp+YMtAUVaxIRr7opRhQO+IfBy86hQZtCLYqCrTiqjU+VJflZVlwK4vNOaPRomJuX8br9xPvrILDcdg1yl6DSL0yqabpxv88KumDbLKrmxl7XRPqMmGa2GG8xCHeust2LnvkoitVMLqdn5VnJSWziLzjifRpn5xg6SDtjvAAT6GwiuP+wWCJmH5icMFGBtG3whlBQogl0vd9zT3MnRoGUiNDDpfPAsUNd5LXVDXSLKQnGW9mxZWHIwg7FtmX22ltfc1Y/ja0Sck1bYUNV5H+UHyA7bhDhyVatcDTAGL28eDnmOPbHbm/OB717JA/e1zh/rHhXdvlXs/dzO/Qtp7Wb2cEuTj+SHsc3wmjSSWnhk+6nimu15GvyXYMSc9/0wUaXg==
+sidebar_class_name: "put api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update a block by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/blocks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update a block by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"content":{"type":"object"},"type":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Block updated successfully","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string"},"note_id":{"type":"string"},"type":{"type":"string"},"content":{"type":"object"},"order":{"type":"number"}},"title":"Block"}}}},"404":{"description":"Block not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"500":{"description":"Internal server error","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

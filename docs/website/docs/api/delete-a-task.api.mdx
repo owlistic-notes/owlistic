@@ -1,0 +1,71 @@
+---
+id: delete-a-task
+title: "Delete a task"
+description: "Delete a task"
+sidebar_label: "Delete a task"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9U8Fu2zAM/RWBpw0IanfogMK3As2hwIAWQ3cqemBkZlarSColZzMM//tIOwjapr3OF1MUH/n4SI2QkHFHhThD8zBCkAM04FpYgQtiJSyd2EwvvWNqoSnc0wqy7WiH0IxQhqSIXNiF3zBNjxqcUwyZst5/qy/011K27FJxUbPeY342LXkp3JrcW0s5b3vvB5hWcPEpIsRitrEPys7GUCgUjcSUvLOokdVT1vDxlGDcPJEtAkwcE3FxCz1ijvxRH/qt4Htdn3K5kcoc0JtMvCc2S47/Q0k4vSVzPato0BRRSHLJMLsoc4JFXs2uI2yg0oBcja6dxLlQX4bes5f7rpTUVJWPFn0Xc2ku68u6wuSq/TnoWF3YxpmWK1553f7xLhdnzdXdDbynJT7TRtvvRJBZBhkcmyPklT4CVSYL7PysPqt1CZIw2OGs22En3zf6pt5RrEJ/S5U8yvJKlrmz8aDAA8wKCLSR/ZaGtEt1j+MGM/1iP03qfumJB/GLuUd2uNFuRabWZbVF2y36TCcMjuOHLz8Pz+WrkWofMjs4MQzaP/peT2I+07C8v+lRojrClniuvlxcyVNJ5RXkZNF0UscduF7/WN+vZXX+AV9kVRk=
+sidebar_class_name: "delete api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a task"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/tasks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a task
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Task deleted successfully"},"404":{"description":"Task not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"500":{"description":"Internal server error","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

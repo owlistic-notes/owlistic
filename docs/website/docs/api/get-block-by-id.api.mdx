@@ -1,0 +1,71 @@
+---
+id: get-block-by-id
+title: "Get block by ID"
+description: "Get block by ID"
+sidebar_label: "Get block by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1k8Fu2zAMhl9F4GkFgtoZOqDwbUXXIqcNw3oqemBsphaqSKpEZzMMvfvIxA3WpDuZon5R/D/RE0RMuCWmlKF5nMDLAhqwHSzAeokici9xotfBJuqg4TTQAjrKbbKRbVDR6taEjeGezNqF9kX0ue1pi9BMwGPUipmT9c9QypMWyzH4TFn3P9e1ft4XvNEyZhMG30FZwFW9PNc8ZErGBzY4yM2ebYtMs/zqfyVVfyz75aOr79A66gwHk0h6pt2bqVJObd8TH/bMejSrW7EtJPsgkOCZWJZ7eA1Ue1GuJtsVZUNp98Z7SE4EPXNsqkpU6PqQubmur+sKo612S1Bi1m/CHqZlpzS//3Y2i2Pz9ccKTtuSnOlCO2wFCmpOHCdzPIIxOmWl4gVoJ4djy8v6slYsUTrYotf75nE4N/ruxuMjM/3hKjqUyZE6e2/TDOERDhDkbCPTJZ7UqOanaY2ZHpIrRdOvA6VR8hLuMFlcq2Eh1dmsscDdoMunIzhBGzyLYeni0895WC/M+WB+2OmcRD8qEXSDriR8ofHwM5Sn8s/j3n/7JdPwF0NiFMI=
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get block by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/blocks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get block by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"description":"ID of the block","schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Block found"},"401":{"description":"User not authenticated"},"404":{"description":"Block not found"},"500":{"description":"Failed to retrieve block"}}}
+>
+  
+</StatusCodes>
+
+
+      

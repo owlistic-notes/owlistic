@@ -1,0 +1,474 @@
+openapi: 3.0.0
+info:
+  title: Owlistic API
+  version: 1.0.0
+  description: API documentation for Owlistic application.
+
+servers:
+  - url: http://localhost:8080/api/v1
+
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required:
+                - email
+                - password
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '400':
+          description: Invalid input
+        '401':
+          description: Invalid email or password
+        '500':
+          description: Internal server error
+
+  /notes:
+    get:
+      summary: Retrieve notes
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: notebook_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: title
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Note'
+        '500':
+          description: Internal server error
+
+    post:
+      summary: Create a new note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                blocks:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      content:
+                        type: object
+                      type:
+                        type: string
+              required:
+                - title
+                - blocks
+      responses:
+        '201':
+          description: Note created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+  /notes/{id}:
+    get:
+      summary: Retrieve a note by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Note found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '404':
+          description: Note not found
+        '500':
+          description: Internal server error
+
+    put:
+      summary: Update a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                blocks:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      content:
+                        type: object
+                      type:
+                        type: string
+      responses:
+        '200':
+          description: Note updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '404':
+          description: Note not found
+        '500':
+          description: Internal server error
+
+    delete:
+      summary: Delete a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Note deleted successfully
+        '404':
+          description: Note not found
+        '500':
+          description: Internal server error
+
+  /notebooks:
+    get:
+      summary: Retrieve notebooks
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of notebooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notebook'
+        '500':
+          description: Internal server error
+
+    post:
+      summary: Create a new notebook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+              required:
+                - name
+      responses:
+        '201':
+          description: Notebook created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notebook'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+  /notebooks/{id}:
+    get:
+      summary: Retrieve a notebook by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notebook found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notebook'
+        '404':
+          description: Notebook not found
+        '500':
+          description: Internal server error
+
+    put:
+      summary: Update a notebook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Notebook updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notebook'
+        '404':
+          description: Notebook not found
+        '500':
+          description: Internal server error
+
+    delete:
+      summary: Delete a notebook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Notebook deleted successfully
+        '404':
+          description: Notebook not found
+        '500':
+          description: Internal server error
+
+  /blocks:
+    get:
+      summary: Retrieve blocks
+      parameters:
+        - name: note_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of blocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Block'
+        '500':
+          description: Internal server error
+
+    post:
+      summary: Create a new block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: object
+                note_id:
+                  type: string
+                type:
+                  type: string
+              required:
+                - content
+                - note_id
+                - type
+      responses:
+        '201':
+          description: Block created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+  /blocks/{id}:
+    get:
+      summary: Retrieve a block by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Block found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+        '404':
+          description: Block not found
+        '500':
+          description: Internal server error
+
+    put:
+      summary: Update a block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: object
+                type:
+                  type: string
+      responses:
+        '200':
+          description: Block updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+        '404':
+          description: Block not found
+        '500':
+          description: Internal server error
+
+    delete:
+      summary: Delete a block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Block deleted successfully
+        '404':
+          description: Block not found
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        blocks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+              content:
+                type: object
+        user_id:
+          type: string
+
+    Notebook:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        user_id:
+          type: string
+
+    Block:
+      type: object
+      properties:
+        id:
+          type: string
+        note_id:
+          type: string
+        type:
+          type: string
+        content:
+          type: object
+        order:
+          type: number

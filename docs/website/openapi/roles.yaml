@@ -1,0 +1,360 @@
+openapi: 3.0.0
+info:
+  title: Owlistic API
+  description: API documentation for Owlistic application
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '400':
+          description: Invalid input
+        '401':
+          description: Invalid email or password
+        '500':
+          description: Internal server error
+
+  /tasks:
+    get:
+      summary: Get all tasks
+      responses:
+        '200':
+          description: A list of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+    post:
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                user_id:
+                  type: string
+                note_id:
+                  type: string
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+  /tasks/{id}:
+    get:
+      summary: Get a task by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+        '500':
+          description: Internal server error
+    put:
+      summary: Update a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Task deleted successfully
+        '404':
+          description: Task not found
+        '500':
+          description: Internal server error
+
+  /notes:
+    get:
+      summary: Get all notes
+      responses:
+        '200':
+          description: A list of notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Note'
+    post:
+      summary: Create a new note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                user_id:
+                  type: string
+                blocks:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '201':
+          description: Note created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+  /notebooks:
+    get:
+      summary: Get all notebooks
+      responses:
+        '200':
+          description: A list of notebooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notebook'
+    post:
+      summary: Create a new notebook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                user_id:
+                  type: string
+      responses:
+        '201':
+          description: Notebook created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notebook'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+  /roles:
+    get:
+      summary: Get all roles
+      responses:
+        '200':
+          description: A list of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+    post:
+      summary: Assign a role to a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                resource_id:
+                  type: string
+                resource_type:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: Role assigned successfully
+        '400':
+          description: Invalid input
+        '403':
+          description: Forbidden
+        '500':
+          description: Internal server error
+
+  /blocks:
+    get:
+      summary: Get all blocks
+      responses:
+        '200':
+          description: A list of blocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Block'
+    post:
+      summary: Create a new block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note_id:
+                  type: string
+                content:
+                  type: object
+                type:
+                  type: string
+      responses:
+        '201':
+          description: Block created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        user_id:
+          type: string
+        is_completed:
+          type: boolean
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        user_id:
+          type: string
+        blocks:
+          type: array
+          items:
+            type: object
+    Notebook:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        user_id:
+          type: string
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        resource_id:
+          type: string
+        resource_type:
+          type: string
+        role:
+          type: string
+    Block:
+      type: object
+      properties:
+        id:
+          type: string
+        note_id:
+          type: string
+        type:
+          type: string
+        content:
+          type: object
+        order:
+          type: number

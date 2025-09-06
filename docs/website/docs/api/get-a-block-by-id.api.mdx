@@ -1,0 +1,71 @@
+---
+id: get-a-block-by-id
+title: "Get a block by ID"
+description: "Get a block by ID"
+sidebar_label: "Get a block by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VFFr3DAM/itBTxuEJh0dlLx1dJR72hjbUynDcXSNW8d2Zee2EPLfJyW34265wR7KnqLIn6RPn2SPEBSpDhNShOp+BMc/UIFpIAfj2AoqtWwTvvSGsIEqUY85RN1ip6AaIQ1BImIi4x5hmh4EHIN3EaOcvytL+TQYNZmQjJesH6zXz9nW904Kae8SuiQwFYI1WgmseIqCHde1fP2EOnFgIB+QklkqMekVnxy2njrFuaHvGTDl4HzC7/+IXQCrJk8on5LiM08N0tGJ67uaHZPkM8ni7/7ZI76r8upvAjHV1xYJiTydm9tC5v25aW24Mjlls4i0Q8qWHP+HEnM6JXOHKVNZPetTD9nmlvPxAreeJwqPOKeXna2gmEGxGE0zsXchv6x5T5YBbUqhKgpGKdv6mKrr8rosVDDF7hJkkY3b+pnYfmyfflgTk9HZzecN/EmMfVnjdd+xJLMQPDrKDiFHCnGoMFnCLi/Ki1LWJjCDTs3K7W/huVZPah4kS/gzFcEqvrKcae5u3MtwD4sMHFvxUnNX0qr4x7FWEb+RnSZxv/RIA/vZ3CkyqpaWWavGRLFZ3q2yEVcUDlsAb77sX4m3GeTnqe2dyg0igrK9/LH5jMPy7EwPjGpRzVeIqy8HN1pjSEchq32TcR3W4O7jV16fX2RrpqA=
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a block by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/blocks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get a block by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Block found","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"note_id":{"type":"string","format":"uuid"},"type":{"type":"string"},"content":{"type":"object"},"order":{"type":"number"}},"title":"Block"}}}},"404":{"description":"Block not found","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}},"500":{"description":"Internal server error","content":{"application/json":{"schema":{"type":"object","properties":{"error":{"type":"string"}}}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

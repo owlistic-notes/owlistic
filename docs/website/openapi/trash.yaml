@@ -1,0 +1,546 @@
+openapi: 3.0.0
+info:
+  title: Owlistic API
+  description: API documentation for Owlistic application
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required:
+                - email
+                - password
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '400':
+          description: Invalid input
+        '401':
+          description: Invalid email or password
+        '500':
+          description: Internal server error
+
+  /trash:
+    get:
+      summary: Get all trashed items
+      responses:
+        '200':
+          description: List of trashed items
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve trashed items
+
+    delete:
+      summary: Empty trash
+      responses:
+        '200':
+          description: Trash emptied successfully
+        '500':
+          description: Failed to empty trash
+
+  /trash/restore/{type}/{id}:
+    post:
+      summary: Restore a trashed item
+      parameters:
+        - name: type
+          in: path
+          required: true
+          description: Type of the item (note or notebook)
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          description: ID of the item to restore
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item restored successfully
+        '400':
+          description: Unsupported item type
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to restore item
+
+  /trash/{type}/{id}:
+    delete:
+      summary: Permanently delete a trashed item
+      parameters:
+        - name: type
+          in: path
+          required: true
+          description: Type of the item (note or notebook)
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          description: ID of the item to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item permanently deleted
+        '400':
+          description: Unsupported item type
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to permanently delete item
+
+  /tasks:
+    get:
+      summary: Get tasks
+      responses:
+        '200':
+          description: List of tasks
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve tasks
+
+    post:
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                user_id:
+                  type: string
+              required:
+                - title
+      responses:
+        '201':
+          description: Task created successfully
+        '400':
+          description: Invalid input
+        '500':
+          description: Failed to create task
+
+  /tasks/{id}:
+    get:
+      summary: Get task by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the task
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task found
+        '404':
+          description: Task not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve task
+
+    put:
+      summary: Update a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the task
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+      responses:
+        '200':
+          description: Task updated successfully
+        '404':
+          description: Task not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to update task
+
+    delete:
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the task
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Task deleted successfully
+        '404':
+          description: Task not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to delete task
+
+  /notebooks:
+    get:
+      summary: Get notebooks
+      responses:
+        '200':
+          description: List of notebooks
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve notebooks
+
+    post:
+      summary: Create a new notebook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                user_id:
+                  type: string
+              required:
+                - name
+      responses:
+        '201':
+          description: Notebook created successfully
+        '400':
+          description: Invalid input
+        '500':
+          description: Failed to create notebook
+
+  /notebooks/{id}:
+    get:
+      summary: Get notebook by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the notebook
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notebook found
+        '404':
+          description: Notebook not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve notebook
+
+    put:
+      summary: Update a notebook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the notebook
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Notebook updated successfully
+        '404':
+          description: Notebook not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to update notebook
+
+    delete:
+      summary: Delete a notebook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the notebook
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Notebook deleted successfully
+        '404':
+          description: Notebook not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to delete notebook
+
+  /notes:
+    get:
+      summary: Get notes
+      responses:
+        '200':
+          description: List of notes
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve notes
+
+    post:
+      summary: Create a new note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                user_id:
+                  type: string
+              required:
+                - title
+      responses:
+        '201':
+          description: Note created successfully
+        '400':
+          description: Invalid input
+        '500':
+          description: Failed to create note
+
+  /notes/{id}:
+    get:
+      summary: Get note by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the note
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Note found
+        '404':
+          description: Note not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve note
+
+    put:
+      summary: Update a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the note
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+      responses:
+        '200':
+          description: Note updated successfully
+        '404':
+          description: Note not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to update note
+
+    delete:
+      summary: Delete a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the note
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Note deleted successfully
+        '404':
+          description: Note not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to delete note
+
+  /blocks:
+    get:
+      summary: Get blocks
+      responses:
+        '200':
+          description: List of blocks
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve blocks
+
+    post:
+      summary: Create a new block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: object
+                note_id:
+                  type: string
+              required:
+                - content
+                - note_id
+      responses:
+        '201':
+          description: Block created successfully
+        '400':
+          description: Invalid input
+        '500':
+          description: Failed to create block
+
+  /blocks/{id}:
+    get:
+      summary: Get block by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the block
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Block found
+        '404':
+          description: Block not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve block
+
+    put:
+      summary: Update a block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the block
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: object
+      responses:
+        '200':
+          description: Block updated successfully
+        '404':
+          description: Block not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to update block
+
+    delete:
+      summary: Delete a block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the block
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Block deleted successfully
+        '404':
+          description: Block not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to delete block
+
+  /blocks/note/{note_id}:
+    get:
+      summary: Get blocks by note ID
+      parameters:
+        - name: note_id
+          in: path
+          required: true
+          description: ID of the note
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of blocks for the note
+        '404':
+          description: Note not found
+        '401':
+          description: User not authenticated
+        '500':
+          description: Failed to retrieve blocks
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

@@ -1,0 +1,71 @@
+---
+id: retrieve-a-notebook-by-id
+title: "Retrieve a notebook by ID"
+description: "Retrieve a notebook by ID"
+sidebar_label: "Retrieve a notebook by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJx9U01r3DAQ/StCpxaWtVNSCL4FWspe2hLaUwhFlmdjJVpJGY23Ncb/vTO2azbdJSePZ958vHmjQSeD5gAEmHV1P+jAP7rSrtEb7QJbyVDLNsJL5xAaXRF2sNHZtnAwuho09UkyMqELj3ocHwScUwwZssQ/lKV8GsgWXSIXperXSFDH+Kz2sQvSy8ZAEEiQJiXvrBFk8ZQFPpy3i/UTWOLEhDEBkpub8dznI20WVhcCXQb8dTGJg+TIw8mw7BT3dXn9BqEQaSHF0I+XuO+YKQbjFfc+AipAjDg1fI27Ax4FjqCMFJ2r173afWLWrFgbeWz9CNMSRKRKF/9wuRhcM3JgbjFL26FnTEuUqqLw0RrfxkzVTXlTFia54nilRTwX9nHax8L+22/vMjmrbr/vuKKUm+e72pbbUv8/NaNUE213YDUnDXkbqNYiJ+JuZUOJRziYSePl9N6i/arVKhnBHyqSN3yvIqnQHJaV3Ot1JZxesdLMUGhLaBhqk+En+nEU90sH2LOfzaNBZ2qhz3trXBabt703PsPZFOvp6nd3yyt5r7jbxekWpwm97NL4Tv7YfIZ+fnbjA6NaMA3g1H0O3FoLiU5Szh6JSLdexZfPP/ig/gKrnU9l
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Retrieve a notebook by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/notebooks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Retrieve a notebook by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Notebook found","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"user_id":{"type":"string"}},"title":"Notebook"}}}},"404":{"description":"Notebook not found"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

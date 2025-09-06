@@ -1,0 +1,71 @@
+---
+id: get-task-by-id
+title: "Get task by ID"
+description: "Get task by ID"
+sidebar_label: "Get task by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJyNU8Fq3EAM/RWjUwvL2ikpBN8CLWFPLSU9hRBmx9p4kvHMRCNvuxj/eyXbLJvuFnqyrHnz9PSkGSAZMh0yUob6YYAgP1CDa2AFLkiUDLcSE771jrCBmqnHFWTbYmegHoAPSW9kJheeYRwfFZxTDBmznn+qKv00mC25xC4q673Jr8Uu9kHr2BgYAyvKpOSdNYoqX7JCh/NScfuCluViopiQ2M2FRPOZnBXsInVGuKHvBTCugB17vCB8BX1GevpPFpefbOySF+dOL2xj9GiC2HAsNPUqCU1dV9f/8CJEXvwQ2OdLlm3EJArGF6Jyj1QgUaSp0HvcHXLBSrk9FJsvol2m20YRCc84maYDraFUTC4H14ySnDnnFejJy3nLnOqy9NEa38bM9U11U5UmuXJ/BTpkF3Zx6nxp89sv7zI7W9x+3wij0s2CrtbVuoK/ZQqqaKLtO5n8NG9pn4ojyckirNWSJBI6M+3DsqJnfb7jP06E8TeXyRtZZh2x9jYsHjzA5IFcrWWo0pL2qelh2JqMP8mPo6bfeqSD5CXcG3Jmq/2KUY3LGou1O+Mznik47jV8+LE8n4+FVLuobEmacFDzjO/1T8JXPMzvcXwUVIumQZqqzwe31mLikytnL0hndVyBu6/3sjJ/AHY3VTA=
+sidebar_class_name: "get api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get task by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/tasks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get task by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Task found","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"title":{"type":"string"},"user_id":{"type":"string","format":"uuid"},"is_completed":{"type":"boolean"}},"title":"Task"}}}},"404":{"description":"Task not found"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      

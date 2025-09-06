@@ -1,0 +1,71 @@
+---
+id: update-a-notebook-by-id
+title: "Update a notebook by ID"
+description: "Update a notebook by ID"
+sidebar_label: "Update a notebook by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVE1v2zAM/SuGThuQ1e7QAYVv7bZDLltRNKcgGBiLqdXKkqaPtIHh/z7SSpO0SXuaD7Ys8omPj6R64cBDhxF9EPW8F4Z+RC2UFBOhDK0cxJbWHv8m5VGKOvqEExGaFjsQdS/ixjEiRK/MvRiGRXbGEK+t3LDHW2xjTUQT2QTOadVAVNaUD8Ea3js62i4fsIlEwnnr0EeFga2Z6jEBfphDcNaE7Pq1qvgjMTReOY5GgF824tLaxyI5CRFlEVLTYAirpPVG/DeaJOUxycl77CciBfR/ToLIGFXUeMBd5GQvqosP8jM2FiubjOTjv52SYkqZegO6oNhr9AV6b/0Y8LXfbFSqAD4yn73cFNMflDO1UGsl90saJeCuqUX54hfKXsmBDDlA7rXkNfm0Mbq6LLVtQLc2xPqyuqxKcKpcnwvuJhb8dt9RP5+hcxr3HXCgnTIrOwq3len3k1Yhqqa4upmKt8nQXiFtkzoq8lhaEskXO8hBzQnKpDPs/Kw6qziYI7IdmAMi78vzKvKusBGfY+k00KBx4VmOfivdXOykI3hN/UBKsDxs6vslBJx5PQy8TdJ4GrQ5LdfgFSw5d9JXqsBrqsoKdMAjFrsGF59utyP6uaBoJ9ltN8HwaKxBJ/6j5SNu8n0xLMirRZDox+jZ8D3H+HLH8D3waKCGyQviiobQxQ99Fwf9djO7I9/l9qrprGSIhye+s+g9crRjyuM0jnu90GDuE9yzbz6Sn3+tT7p/
+sidebar_class_name: "put api-method"
+info_path: docs/api/owlistic-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update a notebook by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/notebooks/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update a notebook by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"name":{"type":"string"}}}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Notebook updated successfully","content":{"application/json":{"schema":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"user_id":{"type":"string"}},"title":"Notebook"}}}},"404":{"description":"Notebook not found"},"500":{"description":"Internal server error"}}}
+>
+  
+</StatusCodes>
+
+
+      
